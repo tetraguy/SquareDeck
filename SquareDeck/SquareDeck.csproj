@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- The windows10 target adds the WinRT APIs used for media, Wi-Fi and Bluetooth. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>SquareDeck</AssemblyName>
+    <RootNamespace>SquareDeck</RootNamespace>
+    <Version>2.6.0</Version>
+    <ApplicationIcon>Assets\SquareDeck.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The built-in web browser. Visual Studio downloads this the first time the solution is built. -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2478.35" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Interface sound packs, copied next to the program. Each sub-folder is one pack. -->
+    <None Update="SoundPacks\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Music\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

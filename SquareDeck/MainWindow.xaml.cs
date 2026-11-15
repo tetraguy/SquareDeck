@@ -1,0 +1,2371 @@
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Net.Http;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
+using SquareDeck.Screens;
+using SquareDeck.Services;
+
+namespace SquareDeck;
+
+public enum HomeView { Games, Favorites, Apps }
+
+public partial class MainWindow : Window
+{
+    // Must match the panel margin in MainWindow.xaml. Tile widths come from Game.TileWidth.
+    private const double RowSideMargin = 86;
+
+    // Positions of the Favorites and Apps buttons in the round-button row.
+    // Positions in the row of round buttons (some can be hidden in Settings, so they are looked up).
+    private int HomeButton => Array.IndexOf(_buttons, HomeBtn);
+    private int FavoritesButton => Array.IndexOf(_buttons, FavBtn);
+    private int AppsButton => Array.IndexOf(_buttons, AppsBtn);
+
+    private readonly ObservableCollection<Game> _view = new();
+    private readonly List<Game> _steam = new();
+    private readonly List<Game> _apps = new();
+    private readonly List<Game> _custom = new();
+    private readonly List<Game> _external = new();   // Epic, GOG, Xbox, Battle.net, Steam shortcuts
+    private readonly Game _addTile = new() { Kind = ItemKind.AddTile, Name = "Add app", OriginalName = "Add app" };
+    private readonly Game _moreAppsTile = new() { Kind = ItemKind.MoreAppsTile, Name = "More apps", OriginalName = "More apps" };
+    private const int HomeAppCount = 10;
+    private readonly Game _libraryTile = new() { Kind = ItemKind.LibraryTile, Name = "Game library", OriginalName = "Game library" };
+
+    /// <summary>How many recent games the home row shows before the "Game library" tile.</summary>
+    private const int HomeGameCount = 10;
+    private readonly Dictionary<int, DateTime> _stoppedAt = new();
+    private readonly HashSet<int> _stoppedByUs = new();     // Steam games we closed; see PollRunning
+
+    private readonly Gamepad _gamepad = new();
+    private readonly DispatcherTimer _clockTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+    private readonly DispatcherTimer _padTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
+    private readonly DispatcherTimer _runningTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+    private readonly DispatcherTimer _connectionTimer = new() { Interval = TimeSpan.FromSeconds(10) };
+    private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromSeconds(30) };
+    private readonly DispatcherTimer _heroTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
+    private CancellationTokenSource? _heroCts;
+    private string? _heroKey;
+    private bool _anyGameWasRunning;
+    private int _topIndex = -1;             // >= 0: a top-bar icon has focus (index into TopButtons)
+
+    private readonly List<Screen> _screens = new();
+    private Button[] _buttons = Array.Empty<Button>();
+    private int _buttonIndex = -1;          // -1: the game row has focus; otherwise index into _buttons
+    private HomeView _mode = HomeView.Games;
+    private ScrollViewer? _scroll;
+    private double _scrollTarget;
+    private bool _scrollAnimating;
+    private bool _tileWasSelected;
+    private bool _pollingRunning;
+    private CancellationTokenSource? _loadCts;
+
+    public Settings Settings { get; } = Settings.Load();
+    public LibraryStore Library { get; } = LibraryStore.Load();
+
+    /// <summary>Play time measured by the launcher itself.</summary>
+    public PlaytimeStore Playtime { get; } = PlaytimeStore.Load();
+
+    private DateTime _lastPlaytimeTick = DateTime.UtcNow;
+    private DateTime _lastPlaytimeSave = DateTime.UtcNow;
+    private Game? _animatedGame;
+    private Game? _continueTile;
+    private int _stopReturnIndex;           // round button to go back to from Stop
+
+    /// <summary>Which achievements were already unlocked, and the feed of new ones.</summary>
+    public AchievementStore Achievements { get; } = AchievementStore.Load();
+
+    private readonly HashSet<int> _steamWasRunning = new();
+    private readonly Queue<(string Heading, string Title, string Detail, string IconUrl, ImageSource? Picture)> _toasts = new();
+    private bool _toastShowing;
+
+    public MainWindow()
+    {
+        InitializeComponent();
+        Theme.Apply(Settings);
+        Hints.Map = Settings.ButtonMap;
+        Hints.SetStyle(Settings.GlyphStyle);
+        ApplyHintLabels();
+        UiSound.Configure(Settings);
+        UiSound.SetLaunchChime(Settings.LaunchChime, Settings.LaunchChimeFile);
+        RelocateSavedPaths();
+        Motion.RegisterTilePulse();
+        _gamepad.SummonCombo = Settings.SummonCombo;
+        ApplyWallpaper();
+        ApplyAvatar();
+        InitExtras();
+        InitMore();
+
+        GameList.ItemsSource = _view;
+        RefreshHomeButtons();
+        foreach (var b in ButtonRow.Children.OfType<Button>())
+        {
+            b.MouseEnter += (_, _) => ButtonLabel.Text = b.ToolTip as string ?? "";
+            b.MouseLeave += (_, _) => UpdateButtonHighlight();
+            ToolTipService.SetIsEnabled(b, false); // the label under the row replaces tooltips
+        }
+
+        _clockTimer.Tick += (_, _) => UpdateClock();
+        _clockTimer.Start();
+        UpdateClock();
+
+        _padTimer.Tick += (_, _) => PollGamepad();
+        _padTimer.Start();
+        Deactivated += (_, _) => _gamepad.Reset();
+
+        _runningTimer.Tick += (_, _) => PollRunning();
+        _runningTimer.Start();
+
+        _updateTimer.Tick += (_, _) => RefreshUpdateStates();
+        _updateTimer.Start();
+
+        // Wait until the highlight settles before fetching artwork for the background.
+        _heroTimer.Tick += (_, _) =>
+        {
+            _heroTimer.Stop();
+            _ = ShowHeroAsync((GameList.SelectedItem as Game)?.Actual);
+            _ = ShowAnimatedCoverAsync(GameList.SelectedItem as Game);
+            _ = ApplyGameAccentAsync((GameList.SelectedItem as Game)?.Actual);
+        };
+
+        _connectionTimer.Tick += (_, _) => UpdateConnections();
+        _connectionTimer.Start();
+        UpdateConnections();
+
+        Loaded += async (_, _) =>
+        {
+            _scroll = FindChild<ScrollViewer>(GameList);
+            Focus();
+            if (Settings.StartupIntro) PlayIntro();
+            if (Settings.SetupDone != true)
+            {
+                await Task.Delay(Settings.StartupIntro ? 2100 : 200); // let the intro finish first
+                await RunSetupAsync();
+            }
+            await ReloadAsync();
+            if (Settings.AutoUpdateCheck) _ = CheckForUpdatesAsync(manual: false);
+        };
+        Closed += (_, _) =>
+        {
+            _loadCts?.Cancel();
+            OnClosedExtras();
+        };
+        PreviewKeyDown += OnPreviewKeyDown;
+    }
+
+    // ================================================================ library
+
+    public int GameCount => _steam.Count(g => !IsHidden(g));
+
+    /// <summary>Raised when games, titles, favorites or categories change, so open pages can refresh.</summary>
+    public event Action? LibraryChanged;
+
+    /// <summary>Every game in the library: Steam, other stores and custom games, minus the ones removed from the list.</summary>
+    public IEnumerable<Game> AllGames =>
+        _steam.Concat(_external).Where(g => !IsHidden(g)).Concat(_custom);
+
+    public string? CategoryOf(Game item)
+    {
+        var c = Library.Find(item.Key)?.Category;
+        return string.IsNullOrWhiteSpace(c) ? null : c;
+    }
+
+    /// <summary>Categories currently used by at least one game, A to Z.</summary>
+    public List<string> Categories => AllGames
+        .Select(CategoryOf)
+        .Where(c => c != null)
+        .Select(c => c!)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(c => c, StringComparer.CurrentCultureIgnoreCase)
+        .ToList();
+
+    /// <summary>Refreshes the home row and tells open pages that the library changed.</summary>
+    private void NotifyLibraryChanged()
+    {
+        PruneNotInstalled();
+        ApplyView();
+        LibraryChanged?.Invoke();
+    }
+
+    public int HiddenCount => Library.Items.Values.Count(o => o.Hidden);
+
+    private bool IsHidden(Game g) => Library.Find(g.Key)?.Hidden == true;
+
+    /// <summary>Rescans Steam and reloads covers. Optionally returns before the covers have finished.</summary>
+    public async Task ReloadAsync(bool waitForArt = true)
+    {
+        _loadCts?.Cancel();
+        var cts = _loadCts = new CancellationTokenSource();
+        var ct = cts.Token;
+
+        StatusText.Text = "Scanning Steam library…";
+
+        List<Game> found;
+        try
+        {
+            found = await Task.Run(SteamLibrary.GetInstalledGames, ct);
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception ex)
+        {
+            found = new List<Game>();
+            StatusText.Text = "Could not read the Steam library: " + ex.Message;
+        }
+        if (ct.IsCancellationRequested) return;
+
+        foreach (var g in found)
+        {
+            var o = Library.Find(g.Key);
+            if (!string.IsNullOrWhiteSpace(o?.Title)) g.Name = o.Title;
+            g.IsFavorite = o?.Favorite == true;
+        }
+
+        _steam.Clear();
+        _steam.AddRange(found);
+        SyncApps();
+        SyncCustomGames();
+        NotifyLibraryChanged();
+
+        var art = LoadArtAsync(found, ct);
+        var others = LoadExternalGamesAsync(ct);
+        if (waitForArt) await Task.WhenAll(art, others);
+    }
+
+    /// <summary>Finds games from the other launchers (slower than Steam, so it runs after the row is up).</summary>
+    private async Task LoadExternalGamesAsync(CancellationToken ct)
+    {
+        List<Game> found;
+        try
+        {
+            found = Settings.OtherStores
+                ? await Task.Run(() => ExternalStores.ScanAsync(ct), ct)
+                : new List<Game>();
+        }
+        catch (Exception)
+        {
+            return;
+        }
+        if (ct.IsCancellationRequested) return;
+
+        foreach (var g in found)
+        {
+            var o = Library.Find(g.Key);
+            if (!string.IsNullOrWhiteSpace(o?.Title)) g.Name = o.Title;
+            g.IsFavorite = o?.Favorite == true;
+            if (o?.LastPlayed is DateTime played && played > g.RecentAt) g.RecentAt = played;
+        }
+        _external.Clear();
+        _external.AddRange(found);
+        NotifyLibraryChanged();
+
+        // Covers: the user's own pick, else SteamGridDB looked up by the game's title.
+        try
+        {
+            using var client = new SteamGridDbClient(Settings.SteamGridDbApiKey);
+            foreach (var g in found)
+            {
+                if (ct.IsCancellationRequested) return;
+                var custom = CustomCoverPath(g);
+                if (SteamGridDbClient.IsIconFile(custom)) { await ShowIconFileAsync(g, custom!); continue; }
+                var path = custom
+                           ?? await Task.Run(() => client.GetCoverByNameAsync(g.Key, g.OriginalName, ct), ct);
+                if (path != null) g.Cover = await Task.Run(() => ImageLoader.FromFile(path, 640), ct);
+                else await UseIconAsync(g, client, ct);
+            }
+        }
+        catch (Exception)
+        {
+            // Offline or a rejected key: tiles keep showing their titles.
+        }
+    }
+
+    public async Task RedownloadArtAsync()
+    {
+        _loadCts?.Cancel();
+        await Task.Run(SteamGridDbClient.ClearCache);
+        await ReloadAsync();
+    }
+
+    public void RestoreHidden()
+    {
+        foreach (var o in Library.Items.Values) o.Hidden = false;
+        Library.Save();
+        NotifyLibraryChanged();
+    }
+
+    /// <summary>Makes the app tiles match the saved list, reusing tiles that already exist.</summary>
+    private void SyncApps()
+    {
+        var existing = _apps.ToDictionary(a => a.LaunchId, StringComparer.OrdinalIgnoreCase);
+        _apps.Clear();
+        foreach (var entry in Library.Apps)
+        {
+            if (!existing.TryGetValue(entry.AppId, out var app))
+            {
+                app = new Game { Kind = ItemKind.App, LaunchId = entry.AppId, OriginalName = entry.Name, Name = entry.Name };
+                _ = RefreshCoverAsync(app);
+            }
+            var o = Library.Find(app.Key);
+            app.Name = string.IsNullOrWhiteSpace(o?.Title) ? entry.Name : o.Title;
+            app.IsFavorite = o?.Favorite == true;
+            _apps.Add(app);
+        }
+    }
+
+    /// <summary>Makes the custom-game tiles match the saved list, reusing tiles that already exist.</summary>
+    private void SyncCustomGames()
+    {
+        var existing = _custom.ToDictionary(c => c.LaunchId);
+        _custom.Clear();
+        foreach (var entry in Library.CustomGames)
+        {
+            if (!existing.TryGetValue(entry.Id, out var game) || game.LaunchPath != entry.Path)
+            {
+                game = new Game
+                {
+                    Kind = ItemKind.Custom,
+                    LaunchId = entry.Id,
+                    LaunchPath = entry.Path,
+                    InstallDir = Path.GetDirectoryName(entry.Path),
+                    OriginalName = entry.Name,
+                    Name = entry.Name
+                };
+                _ = RefreshCoverAsync(game);
+            }
+            var o = Library.Find(game.Key);
+            game.Name = string.IsNullOrWhiteSpace(o?.Title) ? entry.Name : o.Title;
+            game.IsFavorite = o?.Favorite == true;
+            game.RecentAt = o?.LastPlayed ?? entry.AddedAt;
+            _custom.Add(game);
+        }
+    }
+
+    public void AddCustomGame(string id, string name, string programPath, string? coverPath)
+    {
+        Library.CustomGames.Add(new CustomGame { Id = id, Name = name, Path = programPath, AddedAt = DateTime.Now });
+        if (coverPath != null) Library.For("custom:" + id).CoverPath = coverPath;
+        Library.Save();
+        SyncCustomGames();
+        NotifyLibraryChanged();
+    }
+
+    private void RemoveCustomGame(Game game)
+    {
+        SetCustomCover(game, null); // also deletes its image file
+        Library.CustomGames.RemoveAll(c => c.Id == game.LaunchId);
+        Library.Items.Remove(game.Key);
+        Library.Save();
+        SyncCustomGames();
+        NotifyLibraryChanged();
+    }
+
+    public bool HasApp(string appId) =>
+        Library.Apps.Any(a => string.Equals(a.AppId, appId, StringComparison.OrdinalIgnoreCase));
+
+    public void AddApp(string name, string appId)
+    {
+        if (HasApp(appId)) return;
+        Library.Apps.Add(new AppEntry { Name = name, AppId = appId });
+        Library.Save();
+        SyncApps();
+        ApplyView();
+    }
+
+    public void RemoveApp(string appId)
+    {
+        Library.Apps.RemoveAll(a => string.Equals(a.AppId, appId, StringComparison.OrdinalIgnoreCase));
+        Library.Items.Remove("app:" + appId);
+        Library.Save();
+        SyncApps();
+        ApplyView();
+    }
+
+    /// <summary>Fills the home row for the current view, keeping the same tile selected when possible.</summary>
+    private void ApplyView()
+    {
+        var selectedKey = (GameList.SelectedItem as Game)?.Key;
+
+        IEnumerable<Game> items = _mode switch
+        {
+            HomeView.Favorites => AllGames.Concat(_apps).Where(g => g.IsFavorite),
+            // The app opened last comes first. From ten apps on, the row ends with More apps, which holds Add app.
+            HomeView.Apps => _apps.Count >= HomeAppCount
+                ? _apps.OrderByDescending(a => a.RecentAt).Take(HomeAppCount).Append(_moreAppsTile)
+                : _apps.OrderByDescending(a => a.RecentAt).Append(_addTile),
+            // Home: the most recently played / installed games, then the way in to everything else.
+            _ => HomeRow()
+        };
+
+        _view.Clear();
+        foreach (var g in items) _view.Add(g);
+
+        ModeText.Text = _mode switch
+        {
+            HomeView.Favorites => "Favorites",
+            HomeView.Apps => "Apps",
+            _ => ""
+        };
+
+        if (_view.Count == 0)
+        {
+            EmptyText.Text = "No favorites yet.\nHighlight a game and press Y to add it.";
+            EmptyText.Visibility = Visibility.Visible;
+            InfoText.Text = "";
+        }
+        else
+        {
+            EmptyText.Visibility = Visibility.Collapsed;
+            GameList.SelectedItem = _view.FirstOrDefault(g => g.Key == selectedKey) ?? _view[0];
+        }
+        UpdateButtonHighlight();
+        ScrollSelectionIntoView();
+    }
+
+    /// <summary>"Continue playing" (if on), the most recent games, then the Game library tile.</summary>
+    private IEnumerable<Game> HomeRow()
+    {
+        var recent = AllGames.OrderByDescending(g => g.RecentAt).ToList();
+        var row = new List<Game>();
+
+        // Only for a game that has actually been played or installed at a known time.
+        if (Settings.ContinueTile && recent.Count > 0 && recent[0].RecentAt > DateTime.MinValue)
+        {
+            // The game played (or installed) last, as one big tile with its artwork.
+            var target = recent[0];
+            if (_continueTile == null || !ReferenceEquals(_continueTile.Target, target))
+            {
+                _continueTile = new Game { Kind = ItemKind.ContinueTile, Target = target, Cover = target.Cover };
+                _ = LoadContinueArtAsync(_continueTile);
+            }
+            _continueTile.Name = target.Name;
+            _continueTile.IsRunning = target.IsRunning;
+            _continueTile.Subtitle = ContinueSubtitle(target);
+            row.Add(_continueTile);
+            row.AddRange(recent.Skip(1).Take(HomeGameCount - 1));
+        }
+        else
+        {
+            _continueTile = null;
+            row.AddRange(recent.Take(HomeGameCount));
+        }
+
+        row.Add(_libraryTile);
+        return row;
+    }
+
+    private string ContinueSubtitle(Game target)
+    {
+        if (target.IsRunning) return "Running now";
+        var parts = new List<string> { "Last played " + Ui.Ago(target.RecentAt) };
+        double week = Playtime.GamesInWeek(PlaytimeStore.WeekStart(DateTime.Now))
+            .FirstOrDefault(g => g.Key == target.Key).Seconds;
+        if (week >= 60) parts.Add(PlaytimeStore.Format(week) + " this week");
+        return string.Join("  \u00B7  ", parts);
+    }
+
+    /// <summary>The wide tile looks best with wide artwork; until it arrives it shows the square cover.</summary>
+    private async Task LoadContinueArtAsync(Game tile)
+    {
+        var target = tile.Target!;
+        try
+        {
+            var art = await Task.Run(async () =>
+            {
+                using var client = new SteamGridDbClient(Settings.SteamGridDbApiKey);
+                var path = await client.GetHeroAsync(target, CancellationToken.None);
+                return path == null ? null : ImageLoader.FromFile(path, 1280);
+            });
+            if (art != null) tile.Cover = art;
+            else if (tile.Cover == null) tile.Cover = target.Cover;
+        }
+        catch (Exception)
+        {
+            tile.Cover ??= target.Cover;
+        }
+    }
+
+    private void SetMode(HomeView mode)
+    {
+        _mode = mode;
+        _scrollTarget = 0;
+        GameList.SelectedItem = null;
+        ApplyView();
+    }
+
+    // ================================================================ cover art
+
+    private async Task LoadArtAsync(List<Game> games, CancellationToken ct)
+    {
+        using var client = new SteamGridDbClient(Settings.SteamGridDbApiKey);
+        using var gate = new SemaphoreSlim(4);
+        int done = 0;
+        string? error = null;
+
+        async Task LoadOne(Game game)
+        {
+            try
+            {
+                await gate.WaitAsync(ct);
+            }
+            catch (OperationCanceledException) { return; }
+
+            try
+            {
+                var custom = CustomCoverPath(game);
+                bool customIcon = SteamGridDbClient.IsIconFile(custom);
+                if (customIcon) custom = null; // shown as an icon below, once the rest has loaded
+                if (error != null)
+                {
+                    // e.g. bad API key: don't hammer the server, but still show what we have on disk.
+                    var local = custom ?? SteamGridDbClient.FindCachedCover(game.AppId);
+                    if (local != null) game.Cover = await Task.Run(() => ImageLoader.FromFile(local, 640), ct);
+                    return;
+                }
+
+                var (info, image) = await Task.Run(async () =>
+                {
+                    var r = await client.GetAsync(game.AppId, ct);
+                    var path = custom ?? r.CoverPath;
+                    var img = path == null ? null : ImageLoader.FromFile(path, 640);
+                    if (img == null && path != null && custom == null)
+                    {
+                        // Truncated download: drop it so it is fetched again next time.
+                        try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                    }
+                    return (r.Info, img);
+                }, ct);
+
+                if (ct.IsCancellationRequested) return;
+                if (customIcon) await ShowIconFileAsync(game, CustomCoverPath(game)!);
+                else if (image != null) game.Cover = image;
+                else await UseIconAsync(game, client, ct); // no square cover exists: show the game's icon
+                if (info?.ReleaseYear != null) game.ReleaseYear = info.ReleaseYear;
+                if (ReferenceEquals(GameList.SelectedItem, game)) InfoText.Text = game.InfoLine;
+            }
+            catch (OperationCanceledException) { }
+            catch (UnauthorizedAccessException)
+            {
+                error = "SteamGridDB rejected the API key. Check it in Settings.";
+            }
+            catch (HttpRequestException)
+            {
+                error ??= "Couldn't reach SteamGridDB. Showing saved covers only.";
+            }
+            catch (Exception)
+            {
+                // One bad title should not stop the rest.
+            }
+            finally
+            {
+                gate.Release();
+                done++;
+                if (!ct.IsCancellationRequested && error == null)
+                    StatusText.Text = $"Loading covers {done}/{games.Count}";
+            }
+        }
+
+        await Task.WhenAll(games.Select(LoadOne));
+        if (ct.IsCancellationRequested) return;
+
+        // Nothing to say when all went well.
+        StatusText.Text = error ?? "";
+    }
+
+    /// <summary>
+    /// When a game has no square cover, shows its icon instead, centered on a gradient of the icon's
+    /// colors: SteamGridDB's icon, else Steam's own cached one, else the program's icon.
+    /// </summary>
+    private async Task UseIconAsync(Game game, SteamGridDbClient? client, CancellationToken ct)
+    {
+        try
+        {
+            var (icon, gradient) = await Task.Run(async () =>
+            {
+                System.Windows.Media.Imaging.BitmapSource? source = null;
+
+                if (client != null)
+                {
+                    try
+                    {
+                        var path = await client.GetIconAsync(game, ct);
+                        if (path != null) source = ImageLoader.FromFile(path, 256) as System.Windows.Media.Imaging.BitmapSource;
+                    }
+                    catch (Exception e) when (e is not OperationCanceledException) { }
+                }
+
+                if (source == null && game.IsSteam && SteamLibrary.FindSteamPath() is string steam)
+                {
+                    var cached = Path.Combine(steam, "appcache", "librarycache", game.AppId + "_icon.jpg");
+                    if (File.Exists(cached)) source = ImageLoader.FromFile(cached, 256) as System.Windows.Media.Imaging.BitmapSource;
+                }
+
+                if (source == null && game.LaunchPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && File.Exists(game.LaunchPath))
+                    source = ShellThumb.Get(game.LaunchPath, 256);
+                if (source == null && game.LaunchPath.StartsWith(@"shell:AppsFolder\", StringComparison.OrdinalIgnoreCase))
+                    source = ShellThumb.Get(game.LaunchPath, 256);
+
+                return (source, source == null ? null : ImageLoader.GradientFrom(source));
+            }, ct);
+
+            if (icon == null || ct.IsCancellationRequested) return;
+            game.TileBackground = gradient;
+            game.Cover = icon;
+            game.UsesIcon = true;
+        }
+        catch (Exception)
+        {
+            // No icon either: the tile keeps showing the title.
+        }
+    }
+
+    /// <summary>An icon chosen from SteamGridDB: centered on a wash of its own colors, like the automatic icon tiles.</summary>
+    private async Task ShowIconFileAsync(Game item, string path)
+    {
+        var (icon, gradient) = await Task.Run(() =>
+        {
+            var source = ImageLoader.FromFile(path, 512) as System.Windows.Media.Imaging.BitmapSource;
+            return (source, source == null ? null : ImageLoader.GradientFrom(source));
+        });
+        if (icon == null) return;
+        item.TileBackground = gradient;
+        item.Cover = icon;
+        item.UsesIcon = true;
+    }
+
+    private string? CustomCoverPath(Game item)
+    {
+        // After restoring a backup made elsewhere the saved path may not exist, but the file does in our folder.
+        return Backup.Relocate(Library.Find(item.Key)?.CoverPath, SteamGridDbClient.CustomDir);
+    }
+
+    /// <summary>Reloads one tile's image: the user's own choice, else the default cover or app icon.</summary>
+    private async Task RefreshCoverAsync(Game item)
+    {
+        var path = CustomCoverPath(item)
+                   ?? (item.IsSteam ? SteamGridDbClient.FindCachedCover(item.AppId)
+                       : item.IsExternal ? SteamGridDbClient.FindCachedCoverByName(item.Key)
+                       : null);
+        if (SteamGridDbClient.IsIconFile(path))
+        {
+            await ShowIconFileAsync(item, path!);
+            return;
+        }
+        if (path != null)
+        {
+            item.Cover = await Task.Run(() => ImageLoader.FromFile(path, 640));
+            item.UsesIcon = false;
+            return;
+        }
+
+        if (!item.IsApp)
+        {
+            item.Cover = null;
+            item.UsesIcon = false;
+            await UseIconAsync(item, null, CancellationToken.None); // custom and other-store games: the program's icon
+            return;
+        }
+
+        // Apps show their own icon, centered on a gradient made from the icon's colors.
+        var (icon, gradient) = await Task.Run(() =>
+        {
+            var source = ShellThumb.ForApp(item.LaunchId, 256);
+            return (source, source == null ? null : ImageLoader.GradientFrom(source));
+        });
+        item.TileBackground = gradient;
+        item.Cover = icon;
+        item.UsesIcon = icon != null;
+    }
+
+    /// <summary>Sets (or with null, clears) the user's own image for a tile.</summary>
+    public void SetCustomCover(Game item, string? path)
+    {
+        var o = Library.For(item.Key);
+        var old = o.CoverPath;
+        o.CoverPath = path;
+        Library.Save();
+
+        if (!string.IsNullOrEmpty(old) && old != path &&
+            old.StartsWith(SteamGridDbClient.CustomDir, StringComparison.OrdinalIgnoreCase))
+        {
+            try { File.Delete(old); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+        _ = RefreshCoverAsync(item);
+    }
+
+    // ================================================================ launching and stopping
+
+    /// <summary>What "A" does on a tile: start the game or app (or open the add-app page).</summary>
+    public async Task ActivateAsync(Game item)
+    {
+        item = item.Actual; // "Continue playing" stands in for a real game
+        if (item.IsAddTile)
+        {
+            Push(new AddAppScreen());
+            return;
+        }
+
+        if (item.IsLibraryTile)
+        {
+            Push(new LibraryScreen());
+            return;
+        }
+
+        if (item.IsMoreAppsTile)
+        {
+            Push(new AllAppsScreen());
+            return;
+        }
+
+        if (item.IsApp)
+        {
+            bool appStarted = InstalledApps.Launch(item.LaunchId);
+            StatusText.Text = appStarted ? "" : "Couldn't start " + item.Name + ".";
+            if (appStarted)
+            {
+                // Remembered, so the app opened last moves to the front of the Apps row.
+                item.RecentAt = DateTime.Now;
+                Library.For(item.Key).LastPlayed = item.RecentAt;
+                Library.Save();
+                if (_mode == HomeView.Apps) ApplyView();
+            }
+            return;
+        }
+
+        if (item.OnWishlist)
+        {
+            await OfferWishlistAsync(item);
+            return;
+        }
+
+        if (!item.IsInstalled)
+        {
+            await OfferInstallAsync(item);
+            return;
+        }
+
+        // Already running: go back to it rather than starting it again.
+        if (item.IsRunning)
+        {
+            ReturnToGame(item);
+            return;
+        }
+
+        // Only one game at a time: the other one has to be stopped first.
+        var running = AllGames.FirstOrDefault(g => g.IsRunning && g != item);
+        if (running != null)
+        {
+            UiSound.Error();
+            int choice = await AskAsync(
+                running.Name + " is still running",
+                $"You must stop {running.Name} before starting {item.Name}. Any unsaved progress in {running.Name} will be lost.",
+                $"Stop {running.Name} and start {item.Name}", "Cancel");
+            if (choice != 0) return;
+            // The "Closing software" pop-up stays up a moment longer so Steam notices the game has gone.
+            if (!await StopGameAsync(running, confirm: false, settleMs: 1500)) return;
+        }
+
+        if (Settings.LaunchCountdown && !item.IsRunning)
+        {
+            var countdown = new CountdownScreen(item);
+            Push(countdown);
+            if (!await countdown.Result) return;
+        }
+
+        // Switch to the game's own display / sound / power settings, and quieten Windows, before it starts.
+        if (!item.IsRunning) await PrepareLaunchAsync(item);
+
+        bool started;
+        if (item.IsCustom || item.IsExternal)
+        {
+            started =
+                item.LaunchPath.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)
+                    ? ProcessUtil.Open("explorer.exe", item.LaunchPath)       // Xbox / Store game
+                : item.LaunchPath.Contains("://")
+                    ? ProcessUtil.Open(item.LaunchPath)                       // another launcher's link
+                    : ProcessUtil.Start(item.LaunchPath, item.LaunchArgs);    // a program
+            StatusText.Text = started ? "" : "Couldn't start " + item.Name + ". Has it been moved or uninstalled?";
+            if (started)
+            {
+                Library.For(item.Key).LastPlayed = DateTime.Now; // Steam tracks this itself; other games need us to
+                Library.Save();
+            }
+        }
+        else
+        {
+            started = ProcessUtil.Open($"steam://rungameid/{item.AppId}");
+            StatusText.Text = started ? "" : "Couldn't start the game. Is Steam installed?";
+        }
+
+        if (!started) await RestoreLaunchAsync();
+
+        if (started)
+        {
+            UiSound.Launch();
+            _ = CheckWindowsUpdateAsync(atLaunch: true); // a pending restart could cut the session short
+            // Move it to the front of the home row straight away.
+            item.RecentAt = DateTime.Now;
+            NotifyLibraryChanged();
+        }
+    }
+
+    /// <summary>Ends a running game's processes. Returns false if cancelled or nothing could be stopped.</summary>
+    public async Task<bool> StopGameAsync(Game game, bool confirm, int settleMs = 0)
+    {
+        if (confirm)
+        {
+            int choice = await AskAsync("Stop " + game.Name + "?",
+                "The game will be closed immediately. Any unsaved progress will be lost.", "Stop game", "Cancel");
+            if (choice != 0) return false;
+        }
+
+        // Like a console: a "Closing software" pop-up that stays until the game has really gone.
+        var busy = new BusyScreen("Closing software", game.Cover);
+        Push(busy);
+        int killed = 0;
+        try
+        {
+            var shownAt = DateTime.UtcNow;
+            string? exe = ExactProgram(game);
+            string? dir = exe == null && !string.IsNullOrEmpty(game.InstallDir) && Directory.Exists(game.InstallDir) ? game.InstallDir : null;
+
+            if (exe != null) killed = await Task.Run(() => ProcessUtil.KillByPath(exe));
+            else if (dir != null) killed = await Task.Run(() => ProcessUtil.KillProcessesUnder(dir));
+
+            if (killed > 0)
+            {
+                // Some games take a few seconds to let go (saving, anti-cheat, their own launcher).
+                for (int i = 0; i < 40 && await Task.Run(() => ProcessUtil.IsRunning(exe, dir)); i++)
+                {
+                    await Task.Delay(250);
+                    if (i == 12) // still there after three seconds: ask again, in case something restarted it
+                    {
+                        if (exe != null) await Task.Run(() => ProcessUtil.KillByPath(exe));
+                        else if (dir != null) await Task.Run(() => ProcessUtil.KillProcessesUnder(dir));
+                    }
+                }
+                if (settleMs > 0) await Task.Delay(settleMs);
+                // Long enough to read, even when the game closes instantly.
+                var remaining = TimeSpan.FromMilliseconds(900) - (DateTime.UtcNow - shownAt);
+                if (remaining > TimeSpan.Zero) await Task.Delay(remaining);
+            }
+        }
+        finally
+        {
+            Pop(busy);
+        }
+
+        if (killed == 0)
+        {
+            await AskAsync("Couldn't stop " + game.Name,
+                "No running program was found in the game's folder. Close it from the game itself or from Steam.", "OK");
+            return false;
+        }
+
+        if (game.IsSteam) { _stoppedAt[game.AppId] = DateTime.UtcNow; _stoppedByUs.Add(game.AppId); }
+        game.IsRunning = false;
+        if (_continueTile?.Target == game) _continueTile.IsRunning = false;
+        UpdateRunningBanner();
+        return true;
+    }
+
+    /// <summary>
+    /// For games identified by one program rather than a folder (custom games and Steam shortcuts,
+    /// whose folder may be shared with other things): that program's path. Null otherwise.
+    /// </summary>
+    private static string? ExactProgram(Game game)
+    {
+        bool byProgram = game.IsCustom || (game.IsExternal && string.IsNullOrEmpty(game.InstallDir));
+        return byProgram && game.LaunchPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+            ? game.LaunchPath
+            : null;
+    }
+
+    private async void PollRunning()
+    {
+        if (_pollingRunning) return;
+        _pollingRunning = true;
+        try
+        {
+            // Steam says which of its games are running; everything else is matched against running programs.
+            var ids = _steam.Select(g => g.AppId).ToList();
+            var others = _external.Concat(_custom).ToList();
+            var (steamRunning, programs) = await Task.Run(() => (
+                SteamLibrary.GetRunningAppIds(ids),
+                others.Count > 0 || _stoppedByUs.Count > 0 ? ProcessUtil.GetRunningImagePaths() : new List<string>()));
+
+            var now = DateTime.UtcNow;
+            foreach (var g in _steam)
+            {
+                // Steam takes a few seconds to clear its flag after we end a game.
+                bool justStopped = _stoppedAt.TryGetValue(g.AppId, out var at) && now - at < TimeSpan.FromSeconds(8);
+                bool flagged = steamRunning.Contains(g.AppId);
+                if (!flagged) _stoppedByUs.Remove(g.AppId); // Steam has caught up
+                else if (_stoppedByUs.Contains(g.AppId) && !justStopped)
+                {
+                    // We closed it, but Steam still says "running" (it can hold that for a long time while it
+                    // syncs saves). Believe the processes instead, so the "is running" label doesn't linger.
+                    string? prefix = string.IsNullOrEmpty(g.InstallDir) ? null : g.InstallDir.TrimEnd('\\') + "\\";
+                    flagged = prefix != null && programs.Any(p => p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+                }
+                g.IsRunning = flagged && !justStopped;
+            }
+            foreach (var g in others)
+            {
+                if (ExactProgram(g) is string exe)
+                    g.IsRunning = programs.Any(p => string.Equals(p, exe, StringComparison.OrdinalIgnoreCase));
+                else if (!string.IsNullOrEmpty(g.InstallDir))
+                {
+                    var prefix = g.InstallDir.TrimEnd('\\') + "\\";
+                    g.IsRunning = programs.Any(p => p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+            if (_continueTile?.Target is { } continuing && _continueTile.IsRunning != continuing.IsRunning)
+            {
+                _continueTile.IsRunning = continuing.IsRunning;
+                _continueTile.Subtitle = ContinueSubtitle(continuing);
+            }
+
+            // Steam games starting and stopping: note what was unlocked before, look for new ones after.
+            foreach (var g in _steam)
+            {
+                bool was = _steamWasRunning.Contains(g.AppId);
+                if (g.IsRunning && !was)
+                {
+                    _steamWasRunning.Add(g.AppId);
+                    _ = SnapshotAchievementsAsync(g);
+                }
+                else if (!g.IsRunning && was)
+                {
+                    _steamWasRunning.Remove(g.AppId);
+                    _ = CheckAchievementsAsync(g);
+                }
+            }
+
+            UpdateRunningBanner();
+            TrackPlaytime();
+            TrackSessions();
+
+            // A game just closed: come back to the front so the controller is useful again.
+            bool anyRunning = AllGames.Any(g => g.IsRunning);
+            if (_anyGameWasRunning && !anyRunning && Settings.ReturnToLauncher && !IsActive)
+                WindowActivator.BringToFront(this);
+            _anyGameWasRunning = anyRunning;
+        }
+        catch (Exception)
+        {
+            // Never let a failed check stop the timer.
+        }
+        finally
+        {
+            _pollingRunning = false;
+        }
+    }
+
+    // ---------------------------------------------------------------- achievements and pop-ups
+
+    private async Task SnapshotAchievementsAsync(Game game)
+    {
+        if (!Settings.AchievementToasts) return;
+        try
+        {
+            var all = await Task.Run(() => SteamStoreClient.GetAchievementsAsync(game.AppId, CancellationToken.None));
+            if (all != null) Achievements.SetBaseline(game.AppId, all);
+        }
+        catch (Exception) { }
+    }
+
+    private async Task CheckAchievementsAsync(Game game)
+    {
+        if (!Settings.AchievementToasts) return; // (the session summary is then shown straight away instead)
+        try
+        {
+            // Steam's public page can lag behind the game by a little, so look twice.
+            foreach (var wait in new[] { 8, 60 })
+            {
+                await Task.Delay(TimeSpan.FromSeconds(wait));
+                var all = await Task.Run(() => SteamStoreClient.GetAchievementsAsync(game.AppId, CancellationToken.None));
+                if (all == null)
+                {
+                    FinishPendingSummary(game, null); // profile not public: report the session without a count
+                    return;
+                }
+                Achievements.NoteProgress(game.AppId, all);
+                var fresh = Achievements.TakeNew(game.AppId, game.Name, all);
+                FinishPendingSummary(game, fresh.Count);
+                foreach (var a in fresh)
+                    ShowToast("ACHIEVEMENT UNLOCKED", a.Name, game.Name, a.Icon, "achievement", game: game);
+            }
+        }
+        catch (Exception) { }
+    }
+
+    /// <summary>Queues a small pop-up in the bottom-right corner. They show one at a time.</summary>
+    public void ShowToast(string heading, string title, string detail, string iconUrl, string kind = "info", ImageSource? picture = null, Game? game = null)
+    {
+        // Everything that pops up is also kept in the notification center (with its game, for the icon there).
+        Notifications.Add(kind, title, detail, iconUrl, game?.Key ?? "");
+        UpdateBell();
+        _toasts.Enqueue((heading, title, detail, iconUrl, picture));
+        if (!_toastShowing) _ = RunToastsAsync();
+    }
+
+    private async Task RunToastsAsync()
+    {
+        _toastShowing = true;
+        try
+        {
+            while (_toasts.Count > 0)
+            {
+                var (heading, title, detail, iconUrl, picture) = _toasts.Dequeue();
+
+                var icon = new Image { Width = 56, Height = 56, Margin = new Thickness(0, 0, 14, 0), Stretch = Stretch.UniformToFill };
+                if (picture != null) icon.Source = picture;
+                else if (iconUrl.Length > 0) _ = LoadToastIconAsync(icon, iconUrl);
+                else icon.Visibility = Visibility.Collapsed;
+
+                var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, MaxWidth = 360 };
+                var top = Ui.Text(heading, 12, "AccentBrush", bold: true);
+                text.Children.Add(top);
+                text.Children.Add(Ui.Text(title, 20, "FgBrush", bold: true));
+                text.Children.Add(Ui.Text(detail, 15, "SubtleBrush"));
+
+                var content = new StackPanel { Orientation = Orientation.Horizontal };
+                content.Children.Add(icon);
+                content.Children.Add(text);
+
+                var slide = new TranslateTransform(0, 30);
+                var toast = new Border
+                {
+                    Child = content,
+                    Padding = new Thickness(14),
+                    CornerRadius = new CornerRadius(8),
+                    BorderThickness = new Thickness(2),
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Bottom,
+                    Margin = new Thickness(0, 0, 40, 96),
+                    RenderTransform = slide,
+                    Opacity = 0
+                };
+                toast.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+                toast.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+                ToastLayer.Children.Add(toast);
+
+                var quick = TimeSpan.FromMilliseconds(300);
+                toast.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, quick));
+                slide.BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(30, 0, quick));
+                UiSound.Toast();
+
+                await Task.Delay(4500);
+                toast.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0, quick));
+                await Task.Delay(340);
+                ToastLayer.Children.Remove(toast);
+            }
+        }
+        finally
+        {
+            _toastShowing = false;
+        }
+    }
+
+    private static async Task LoadToastIconAsync(Image view, string url) =>
+        view.Source = await Task.Run(() => ImageLoader.FromUrlAsync(url, 112));
+
+    /// <summary>Adds the time since the last check to every game that is running.</summary>
+    private void TrackPlaytime()
+    {
+        var now = DateTime.UtcNow;
+        // Capped so a sleep / resume gap is never counted as play time.
+        double elapsed = Math.Min((now - _lastPlaytimeTick).TotalSeconds, 10);
+        _lastPlaytimeTick = now;
+
+        bool any = false;
+        foreach (var g in AllGames.Where(g => g.IsRunning))
+        {
+            Playtime.Add(g.Key, g.Name, elapsed);
+            any = true;
+        }
+        if (any && now - _lastPlaytimeSave > TimeSpan.FromSeconds(60))
+        {
+            _lastPlaytimeSave = now;
+            Playtime.Save();
+        }
+    }
+
+    /// <summary>Re-reads Steam's update state so "Update queued" / "Updating 40%" stay current.</summary>
+    private async void RefreshUpdateStates()
+    {
+        ProcessInstallQueue();
+        if (_steam.Count == 0) return;
+        try
+        {
+            var states = await Task.Run(SteamLibrary.GetUpdateStates);
+            foreach (var g in _steam)
+            {
+                if (!states.TryGetValue(g.AppId, out var text)) continue;
+                if (g.UpdateText.StartsWith("Updating") && text.Length == 0)
+                    ShowToast("DOWNLOAD", g.Name, "has finished updating", "", "download", game: g);
+                g.UpdateText = text;
+            }
+            if (GameList.SelectedItem is Game selected) InfoText.Text = selected.InfoLine;
+        }
+        catch (Exception) { }
+    }
+
+    private void UpdateRunningBanner()
+    {
+        var running = AllGames.FirstOrDefault(g => g.IsRunning);
+        RunningPanel.Visibility = running == null ? Visibility.Collapsed : Visibility.Visible;
+        UpdateGpuSaver(); // hand the graphics memory to the game while it runs
+        UpdateHomeHints(); // "Back to game" only shows while one is running
+        if (running != null) RunningText.Text = running.Name + " is running";
+        else if (_stopFocused) SetStopFocus(false); // the game closed while Stop was highlighted
+    }
+
+    /// <summary>
+    /// Brings the running game back in front of the launcher. It never starts the game: if the game
+    /// turns out to have closed, the launcher just says so.
+    /// </summary>
+    private void ReturnToGame(Game game)
+    {
+        string? exe = ExactProgram(game);
+        string? dir = exe == null && !string.IsNullOrEmpty(game.InstallDir) ? game.InstallDir : null;
+        if (ProcessUtil.FocusWindow(exe, dir)) return;
+
+        if (!ProcessUtil.IsRunning(exe, dir))
+        {
+            // Our "running" mark was out of date (the game closed a moment ago, or Steam hadn't caught up).
+            game.IsRunning = false;
+            if (game.IsSteam) { _stoppedAt[game.AppId] = DateTime.UtcNow; _stoppedByUs.Add(game.AppId); }
+            UpdateRunningBanner();
+            StatusText.Text = game.Name + " is no longer running.";
+            return;
+        }
+        StatusText.Text = "Couldn't switch to " + game.Name + ". Use Alt+Tab.";
+    }
+
+    private async void StopRunning_Click(object sender, RoutedEventArgs e)
+    {
+        var running = AllGames.FirstOrDefault(g => g.IsRunning);
+        if (running != null) await StopGameAsync(running, confirm: true);
+    }
+
+    // ================================================================ per-tile options (Y)
+
+    public void ToggleFavorite(Game item, FrameworkElement? from = null)
+    {
+        item.IsFavorite = !item.IsFavorite;
+        if (item.IsFavorite) ShowHeartBurst(item, from); // a heart pops up once, instead of a badge that stays
+        Library.For(item.Key).Favorite = item.IsFavorite;
+        Library.Save();
+        NotifyLibraryChanged();
+    }
+
+    /// <summary>Every added app, for the All apps page.</summary>
+    public IReadOnlyList<Game> Apps => _apps;
+
+    /// <summary>The Y menu for a tile.</summary>
+    public async Task OpenOptionsAsync(Game item)
+    {
+        item = item.Actual;
+        if (item.IsActionTile) return;
+        if (!item.IsInstalled)
+        {
+            await OfferInstallAsync(item);
+            return;
+        }
+
+        var options = new List<(string Label, Func<Task> Run)>();
+        void Add(string label, Action run) => options.Add((label, () => { run(); return Task.CompletedTask; }));
+
+        if (item.IsRunning) options.Add(("Stop game", () => StopGameAsync(item, confirm: true)));
+        Add(item.IsApp ? "Change icon" : "Change cover image", () => Push(new CoverPickerScreen(item)));
+        Add(item.IsFavorite ? "Remove from favorites" : "Add to favorites", () => ToggleFavorite(item));
+        options.Add(("Edit title", () => EditTitleAsync(item)));
+        if (item.IsGame) options.Add(("Set category", () => SetCategoryAsync(item)));
+        if (item.IsGame) options.Add(("Add to a collection", () => ChooseCollectionsAsync(item)));
+        if (item.IsGame) Add("Rating, status and notes", () => Push(new GameNotesScreen(item)));
+        if (item.IsSteam) Add("View achievements", () => Push(new GameAchievementsScreen(item)));
+        if (item.IsGame) Add("Game profile (display, HDR, power, sound)", () => Push(new GameProfileScreen(item)));
+
+        if (item.IsCustom)
+        {
+            if (!string.IsNullOrEmpty(item.InstallDir) && Directory.Exists(item.InstallDir))
+                Add("Show in folder", () => ProcessUtil.Open("explorer.exe", "/select,\"" + item.LaunchPath + "\""));
+            Add("Remove from library", () => RemoveCustomGame(item));
+        }
+        else if (item.IsExternal)
+        {
+            if (!string.IsNullOrEmpty(item.InstallDir) && Directory.Exists(item.InstallDir))
+                Add("Show in folder", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
+            Add("Remove from list", () =>
+            {
+                Library.For(item.Key).Hidden = true;
+                Library.Save();
+                NotifyLibraryChanged();
+            });
+        }
+        else if (item.IsSteam)
+        {
+            Add("View details", () => Push(new DetailsScreen(item)));
+            if (!string.IsNullOrEmpty(item.InstallDir) && Directory.Exists(item.InstallDir))
+                Add("Show in folder", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
+            Add("View Steam store page", () => ProcessUtil.Open($"steam://store/{item.AppId}"));
+            options.Add(("Uninstall", () => UninstallAsync(item)));
+            Add("Remove from list", () =>
+            {
+                Library.For(item.Key).Hidden = true;
+                Library.Save();
+                NotifyLibraryChanged();
+            });
+        }
+        else
+        {
+            Add("Uninstall (Windows settings)", () => ProcessUtil.Open("ms-settings:appsfeatures"));
+            Add("Remove from launcher", () => RemoveApp(item.LaunchId));
+        }
+
+        int choice = await AskAsync(item.Name, null, options.Select(o => o.Label).ToArray());
+        if (choice >= 0) await options[choice].Run();
+    }
+
+    private async Task EditTitleAsync(Game item)
+    {
+        var title = await PromptAsync("Edit title", "Leave it empty to go back to the original name.", item.Name);
+        if (title == null) return;
+        title = title.Trim();
+        Library.For(item.Key).Title = title.Length == 0 ? null : title;
+        Library.Save();
+        item.Name = title.Length == 0 ? item.OriginalName : title;
+        LibraryChanged?.Invoke();
+    }
+
+    private async Task SetCategoryAsync(Game item)
+    {
+        var existing = Categories;
+        var labels = existing.Concat(new[] { "New category\u2026", "No category" }).ToArray();
+        var current = CategoryOf(item);
+        int choice = await AskAsync("Category for " + item.Name,
+            current == null ? "Not in a category yet." : "Currently in: " + current, labels);
+        if (choice < 0) return;
+
+        string? category;
+        if (choice < existing.Count) category = existing[choice];
+        else if (choice == existing.Count)
+        {
+            category = (await PromptAsync("New category", "For example: Co-op, Backlog, Racing.", "", "Create"))?.Trim();
+            if (string.IsNullOrEmpty(category)) return;
+        }
+        else category = null;
+
+        Library.For(item.Key).Category = category;
+        Library.Save();
+        NotifyLibraryChanged();
+    }
+
+    private async Task UninstallAsync(Game game)
+    {
+        int choice = await AskAsync("Uninstall " + game.Name + "?",
+            "Steam will open and ask you to confirm. The game's files will be removed from this PC.",
+            "Continue in Steam", "Cancel");
+        if (choice == 0) ProcessUtil.Open($"steam://uninstall/{game.AppId}");
+    }
+
+    // ================================================================ screens
+
+    /// <summary>The page at the bottom of the stack (the one opened from the home screen), if any.</summary>
+    public Screen? RootScreen => _screens.Count > 0 ? _screens[0] : null;
+
+    public bool IsTop(Screen screen) => _screens.Count > 0 && ReferenceEquals(_screens[^1], screen);
+
+    public void Push(Screen screen)
+    {
+        if (_screens.Count > 0)
+        {
+            var below = _screens[^1];
+            below.LastFocus = Keyboard.FocusedElement;
+            below.OnCovered();
+            if (!screen.IsDialog) below.Visibility = Visibility.Collapsed;
+        }
+
+        screen.Host = this;
+        // Accessibility: larger text and controls on every page and pop-up.
+        if (Theme.TextScale != 1) screen.LayoutTransform = new ScaleTransform(Theme.TextScale, Theme.TextScale);
+        _screens.Add(screen);
+        ScreenLayer.Children.Add(screen);
+        screen.OnShown();
+        screen.FocusDefaultLater();
+    }
+
+    /// <summary>Closes a screen (and anything opened on top of it).</summary>
+    public void Pop(Screen screen)
+    {
+        int index = _screens.IndexOf(screen);
+        if (index < 0) return;
+
+        bool closedConnectionPage = false;
+        for (int i = _screens.Count - 1; i >= index; i--)
+        {
+            var closing = _screens[i];
+            closedConnectionPage |= closing is WifiScreen or BluetoothScreen;
+            _screens.RemoveAt(i);
+            ScreenLayer.Children.Remove(closing);
+            closing.OnClosed();
+        }
+
+        if (closedConnectionPage) UpdateConnections();
+
+        if (_screens.Count == 0)
+        {
+            Keyboard.ClearFocus();
+            Focus();
+            return;
+        }
+
+        var top = _screens[^1];
+        top.Visibility = Visibility.Visible;
+        top.OnResumed();
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (!IsTop(top)) return;
+            if (Keyboard.FocusedElement is Visual current && top.IsAncestorOf(current)) return;
+            if (top.LastFocus is UIElement last && top.IsAncestorOf(last) && last.Focus()) return;
+            top.FocusDefault();
+        }));
+    }
+
+    /// <summary>Shows a dialog with choices. Returns the chosen index, or -1 if dismissed.</summary>
+    public async Task<int> AskAsync(string title, string? message, params string[] options)
+    {
+        var dialog = new MenuScreen(title, message, options);
+        Push(dialog);
+        return await dialog.Result;
+    }
+
+    /// <summary>A dialog of choices with an icon beside each. Returns the chosen index, or -1 if dismissed.</summary>
+    public async Task<int> AskWithIconsAsync(string title, string? message, params (string Label, string Glyph)[] options)
+    {
+        var dialog = new MenuScreen(title, message, options.Select(o => o.Label).ToArray(), null, options.Select(o => o.Glyph).ToArray());
+        Push(dialog);
+        return await dialog.Result;
+    }
+
+    /// <summary>Shows a "working" pop-up that can't be dismissed while <paramref name="work"/> runs.</summary>
+    public async Task RunBusyAsync(string message, Func<Task> work, ImageSource? picture = null)
+    {
+        var busy = new BusyScreen(message, picture);
+        Push(busy);
+        try { await work(); }
+        finally { Pop(busy); }
+    }
+
+    /// <summary>Asks for a line of text. Returns null if cancelled.</summary>
+    public async Task<string?> PromptAsync(string title, string? message, string initial, string okLabel = "Save")
+    {
+        var dialog = new MenuScreen(title, message, new[] { okLabel, "Cancel" }, initial);
+        Push(dialog);
+        return await dialog.Result == 0 ? dialog.InputText : null;
+    }
+
+    // ================================================================ input
+
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F11)
+        {
+            ToggleFullscreen();
+            e.Handled = true;
+            return;
+        }
+
+        bool home = _screens.Count == 0;
+        if (home && e.Key == Key.F5)
+        {
+            _ = ReloadAsync();
+            e.Handled = true;
+            return;
+        }
+
+        // While typing, letters and the left/right arrows belong to the text box.
+        bool typing = Keyboard.FocusedElement is TextBox;
+        NavAction? action = e.Key switch
+        {
+            Key.Up => NavAction.Up,
+            Key.Down => NavAction.Down,
+            Key.Enter => NavAction.Accept,
+            Key.Escape => NavAction.Back,
+            Key.Left when !typing => NavAction.Left,
+            Key.Right when !typing => NavAction.Right,
+            Key.Space when !typing => NavAction.Accept,
+            Key.Back when !typing => NavAction.Back,
+            Key.X when !typing => NavAction.X,
+            Key.Y when !typing => NavAction.Y,
+            Key.Q when !typing => NavAction.View,
+            Key.PageUp => NavAction.LB,
+            Key.PageDown => NavAction.RB,
+            Key.OemOpenBrackets when !typing => NavAction.LT,
+            Key.OemCloseBrackets when !typing => NavAction.RT,
+            _ => null
+        };
+        if (action == null) return;
+        e.Handled = true;
+        Hints.SetKeyboard(true); // hints show keys while the keyboard is in use
+        Handle(action.Value);
+    }
+
+    private void PollGamepad()
+    {
+        // Ignore the controller while a game (or anything else) is in front of us.
+        // The in-game quick menu is its own window: while it is up, the controller drives it.
+        if (_overlay is { IsVisible: true } overlay)
+        {
+            if (_gamepad.PollSummon()) { overlay.Dismiss(); return; }
+            foreach (var action in _gamepad.Poll()) overlay.HandleAction(action);
+            return;
+        }
+
+        if (!IsActive)
+        {
+            // ...except for the one shortcut that brings the launcher (or its quick menu) back.
+            if (Settings.GuideSummon && _gamepad.PollSummon())
+            {
+                if (Settings.InGameQuickMenu && AllGames.Any(g => g.IsRunning)) ToggleOverlay();
+                else WindowActivator.BringToFront(this);
+            }
+            _gamepad.Reset();
+            return;
+        }
+        foreach (var action in _gamepad.Poll())
+        {
+            Hints.SetKeyboard(false); // back to controller buttons in the hints
+            Handle(action);
+        }
+        ScrollWithRightStick();
+    }
+
+    private void Handle(NavAction action)
+    {
+        if (_bootVideo != null)
+        {
+            EndBootVideo(); // any button skips the boot video
+            return;
+        }
+        if (WakeFromScreensaver()) return; // the press that wakes the screen does nothing else
+
+        switch (action)
+        {
+            case NavAction.Accept: UiSound.Select(); break;
+            case NavAction.Back: UiSound.Back(); break;
+            case NavAction.Left or NavAction.Right or NavAction.Up or NavAction.Down: UiSound.Move(); break;
+        }
+
+        // LB / RB flip through the main pages from wherever that makes sense.
+        if (action is NavAction.LB or NavAction.RB)
+        {
+            // A page may use the shoulder buttons itself (the screenshot viewer does).
+            if (_screens.Count > 0 && _screens[^1].OnAction(action)) return;
+            int page = CurrentPage();
+            if (page >= 0)
+            {
+                UiSound.Page();
+                int step = action == NavAction.RB ? 1 : -1;
+                GoToPage(page + step, step);
+            }
+            return;
+        }
+
+        if (action == NavAction.View)
+        {
+            if (_screens.Count > 0 && _screens[^1] is QuickSettingsScreen quick) Pop(quick);
+            else if (_screens.Count == 0 || !_screens[^1].IsDialog) Push(new QuickSettingsScreen());
+            return;
+        }
+
+        if (_screens.Count > 0) HandleScreen(_screens[^1], action);
+        else HandleHome(action);
+    }
+
+    // The pages LB / RB cycle through, in order.
+    private const int PageCount = 8;
+
+    /// <summary>Index of the page being shown, or -1 when a sub-page or dialog is open.</summary>
+    private int CurrentPage()
+    {
+        if (_screens.Count == 0) return (int)_mode;       // 0 Games, 1 Favorites, 2 Apps
+        if (_screens.Count > 1) return -1;
+        return _screens[0] switch
+        {
+            LibraryScreen => 3,
+            CapturesScreen => 4,
+            MediaScreen => 5,
+            FriendsScreen => 6,
+            SettingsScreen => 7,
+            _ => -1
+        };
+    }
+
+    /// <param name="direction">+1 or -1 to slide the new page in from that side; 0 for no animation.</param>
+    /// <summary>False for a page whose home-screen button has been switched off in Settings.</summary>
+    private bool PageEnabled(int page) => page switch
+    {
+        5 => Settings.ShowMusicButton,
+        6 => Settings.ShowFriendsButton,
+        _ => true
+    };
+
+    private void GoToPage(int page, int direction = 0)
+    {
+        page = ((page % PageCount) + PageCount) % PageCount;
+        // Pages whose button is switched off in Settings are skipped, in the direction of travel.
+        for (int guard = 0; guard < PageCount && !PageEnabled(page); guard++)
+            page = (((page + (direction < 0 ? -1 : 1)) % PageCount) + PageCount) % PageCount;
+        while (_screens.Count > 0) Pop(_screens[0]);
+        SetButtonIndex(-1);
+        SetTopIndex(-1);
+        if (_stopFocused) SetStopFocus(false);
+
+        switch (page)
+        {
+            case 3: Push(new LibraryScreen()); break;
+            case 4: Push(new CapturesScreen()); break;
+            case 5: Push(new MediaScreen()); break;
+            case 6: Push(new FriendsScreen()); break;
+            case 7: Push(new SettingsScreen()); break;
+            default:
+                if (_mode != (HomeView)page) SetMode((HomeView)page);
+                break;
+        }
+
+        // Slide the new page (or the home row, for the home views) in from the side we moved toward.
+        SlideIn(_screens.Count > 0 ? _screens[^1] : GameList, direction);
+    }
+
+    private void HandleScreen(Screen top, NavAction action)
+    {
+        if (top.OnAction(action)) return;
+
+        var focused = Keyboard.FocusedElement as UIElement;
+        bool inside = focused != null && top.IsAncestorOf(focused);
+
+        // Left / right on a highlighted slider changes its value instead of moving the highlight.
+        if (inside && focused is Slider slider && action is (NavAction.Left or NavAction.Right))
+        {
+            double step = action == NavAction.Right ? slider.LargeChange : -slider.LargeChange;
+            slider.Value = Math.Clamp(slider.Value + step, slider.Minimum, slider.Maximum);
+            return;
+        }
+
+        switch (action)
+        {
+            case NavAction.Left: MoveFocus(FocusNavigationDirection.Left); break;
+            case NavAction.Right: MoveFocus(FocusNavigationDirection.Right); break;
+            case NavAction.Up: MoveFocus(FocusNavigationDirection.Up); break;
+            case NavAction.Down: MoveFocus(FocusNavigationDirection.Down); break;
+            case NavAction.Accept:
+                if (inside && focused is Button button) button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                else if (!inside) top.FocusDefault();
+                break;
+            case NavAction.Back:
+                Pop(top);
+                break;
+        }
+
+        void MoveFocus(FocusNavigationDirection direction)
+        {
+            if (inside) focused!.MoveFocus(new TraversalRequest(direction));
+            else top.FocusDefault();
+            // Nothing further to highlight (a page of text): scroll instead, so long pages can be read to the end.
+            if (inside && ReferenceEquals(Keyboard.FocusedElement, focused) &&
+                direction is FocusNavigationDirection.Up or FocusNavigationDirection.Down &&
+                FindScrollable(top) is { } scroller)
+            {
+                scroller.ScrollToVerticalOffset(scroller.VerticalOffset + (direction == FocusNavigationDirection.Down ? 120 : -120));
+            }
+            // Pages made of tiles (library, captures, pickers) buzz like the home row does.
+            if (top is GridScreen or LibraryScreen && !ReferenceEquals(Keyboard.FocusedElement, focused)) Rumble();
+        }
+    }
+
+    private void HandleHome(NavAction action)
+    {
+        var selected = GameList.SelectedItem as Game;
+
+        if (action == NavAction.Start)
+        {
+            Push(new SettingsScreen());
+            return;
+        }
+
+        if (_footerIndex >= 0)
+        {
+            HandleFooter(action);
+            return;
+        }
+
+        if (_topIndex >= 0)
+        {
+            var top = TopButtons();
+            if (top.Count == 0) { SetTopIndex(-1); return; }
+            int index = Math.Min(_topIndex, top.Count - 1);
+            switch (action)
+            {
+                case NavAction.Left: SetTopIndex(Math.Max(0, index - 1)); break;
+                case NavAction.Right: SetTopIndex(Math.Min(top.Count - 1, index + 1)); break;
+                case NavAction.Down:
+                case NavAction.Back: SetTopIndex(-1); break;
+                case NavAction.Accept:
+                    var target = top[index];
+                    SetTopIndex(-1);
+                    target.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                    break;
+            }
+            return;
+        }
+
+        if (_buttonIndex >= 0)
+        {
+            switch (action)
+            {
+                case NavAction.Left: SetButtonIndex(Math.Max(0, _buttonIndex - 1)); break;
+                case NavAction.Right: SetButtonIndex(Math.Min(_buttons.Length - 1, _buttonIndex + 1)); break;
+                case NavAction.Up:
+                case NavAction.Back: SetButtonIndex(-1); break;
+                case NavAction.Down:
+                    // Below the round buttons is the footer: the now-playing button and, while a game runs, Stop.
+                    if (FooterButtons().Count > 0)
+                    {
+                        _stopReturnIndex = _buttonIndex;
+                        SetButtonIndex(-1);
+                        SetStopFocus(true); // Stop if a game is running, otherwise the now-playing button
+                    }
+                    break;
+                case NavAction.Accept:
+                    _buttons[_buttonIndex].RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                    break;
+            }
+            return;
+        }
+
+        switch (action)
+        {
+            case NavAction.Left: MoveSelection(-1); break;
+            case NavAction.Right: MoveSelection(+1); break;
+            case NavAction.Down:
+                SetButtonIndex(Math.Max(0, _mode == HomeView.Apps ? AppsButton : _mode == HomeView.Favorites ? FavoritesButton : HomeButton));
+                break;
+            case NavAction.Up:
+                // Up from the games goes to the status icons: Wi-Fi first if it is showing.
+                var icons = TopButtons();
+                int wifi = icons.IndexOf(WifiButton);
+                SetTopIndex(wifi >= 0 ? wifi : icons.Count - 1);
+                break;
+            case NavAction.Accept:
+                if (selected != null) _ = ActivateAsync(selected);
+                break;
+            case NavAction.X:
+                if (selected?.Actual is { IsSteam: true } steamGame) Push(new DetailsScreen(steamGame));
+                break;
+            case NavAction.Y:
+                if (selected != null) _ = OpenOptionsAsync(selected);
+                break;
+            case NavAction.Back:
+                // With a game running, B goes back to it; otherwise it leaves Favorites / Apps.
+                // (ReturnToGame only ever switches to it; it never starts a game that has closed.)
+                if (AllGames.FirstOrDefault(g => g.IsRunning) is { } runningGame) ReturnToGame(runningGame);
+                else if (_mode != HomeView.Games) SetMode(HomeView.Games);
+                break;
+        }
+    }
+
+    private void MoveSelection(int delta)
+    {
+        if (_view.Count == 0) return;
+        GameList.SelectedIndex = Math.Clamp(GameList.SelectedIndex + delta, 0, _view.Count - 1);
+    }
+
+    /// <summary>Top-bar buttons the thumbstick can reach, left to right (hidden ones are skipped).</summary>
+    private List<Button> TopButtons() =>
+        new[] { AvatarButton, BellButton, QuickButton, WifiButton, BluetoothButton, BatteryButton }
+            .Where(b => b.Visibility == Visibility.Visible).ToList();
+
+    private void SetTopIndex(int index)
+    {
+        if (index >= 0 && index != _topIndex) Rumble();
+        _topIndex = index;
+        var visible = TopButtons();
+        foreach (var b in new[] { AvatarButton, BellButton, QuickButton, WifiButton, BluetoothButton }) b.Tag = null;
+        if (index >= 0 && index < visible.Count)
+        {
+            visible[index].Tag = "selected";
+            ButtonLabel.Text = visible[index] == AvatarButton ? "Profile picture"
+                : visible[index] == BellButton ? "Notifications"
+                : visible[index] == QuickButton ? "Quick settings"
+                : visible[index] == WifiButton ? "Wi-Fi" : "Bluetooth";
+        }
+        else if (_buttonIndex < 0) ButtonLabel.Text = "";
+        UpdateHomeRing();
+    }
+
+    private void SetButtonIndex(int index)
+    {
+        if (index >= 0 && index != _buttonIndex) Rumble();
+        _buttonIndex = index;
+        UpdateButtonHighlight();
+    }
+
+    private void UpdateButtonHighlight()
+    {
+        for (int i = 0; i < _buttons.Length; i++)
+        {
+            bool viewIsOn = (i == HomeButton && _mode == HomeView.Games) ||
+                            (i == FavoritesButton && _mode == HomeView.Favorites) ||
+                            (i == AppsButton && _mode == HomeView.Apps);
+            bool focused = i == _buttonIndex;
+            _buttons[i].Tag = focused && viewIsOn ? "selected-active" : focused ? "selected" : viewIsOn ? "active" : null;
+        }
+        UpdateHomeRing();
+        ButtonLabel.Text = _buttonIndex >= 0 && _buttonIndex < _buttons.Length ? _buttons[_buttonIndex].ToolTip as string ?? "" : "";
+    }
+
+    private void GameList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        InfoText.Text = (GameList.SelectedItem as Game)?.InfoLine ?? "";
+        ScrollSelectionIntoView();
+        // The highlight ring breathes on the selected tile only.
+        foreach (var old in e.RemovedItems) Motion.StopPulse(RingOf(old));
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => Motion.StartPulse(RingOf(GameList.SelectedItem))));
+        if (GameList.SelectedItem != null && e.RemovedItems.Count > 0) Rumble();
+        // The animated cover belongs to the highlighted tile only.
+        if (_animatedGame != null && !ReferenceEquals(_animatedGame, GameList.SelectedItem))
+        {
+            _animatedGame.AnimatedCover = null;
+            _animatedGame = null;
+        }
+        _heroTimer.Stop();
+        _heroTimer.Start();
+    }
+
+    private UIElement? RingOf(object? item) =>
+        item != null && GameList.ItemContainerGenerator.ContainerFromItem(item) is ListBoxItem container
+            ? container.Template?.FindName("Ring", container) as UIElement
+            : null;
+
+    /// <summary>Short controller pulse, if the user turned vibration on.</summary>
+    public void Rumble()
+    {
+        if (Settings.RumbleStrength > 0) _gamepad.Pulse(45, Settings.RumbleStrength);
+    }
+
+    private void GameList_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        e.Handled = true;
+        if (_screens.Count > 0) return;
+        SetButtonIndex(-1);
+        MoveSelection(e.Delta < 0 ? +1 : -1);
+    }
+
+    private void Tile_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _tileWasSelected = sender is ListBoxItem { IsSelected: true };
+        SetButtonIndex(-1);
+    }
+
+    private void Tile_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        // First click selects a tile; clicking the already-selected tile starts it.
+        if (_tileWasSelected && sender is ListBoxItem { IsSelected: true, DataContext: Game g }) _ = ActivateAsync(g);
+        _tileWasSelected = false;
+    }
+
+    private void Tile_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBoxItem { DataContext: Game g } item) return;
+        item.IsSelected = true;
+        _ = OpenOptionsAsync(g);
+    }
+
+    // ================================================================ smooth scrolling
+
+    private void ScrollSelectionIntoView()
+    {
+        if (_scroll == null || GameList.SelectedIndex < 0) return;
+
+        // Tiles are not all the same width, so add up the ones before the selection.
+        double left = RowSideMargin;
+        for (int i = 0; i < GameList.SelectedIndex && i < _view.Count; i++) left += _view[i].TileWidth;
+        double right = left + _view[Math.Min(GameList.SelectedIndex, _view.Count - 1)].TileWidth;
+        double viewport = _scroll.ViewportWidth;
+        double target = _scrollTarget;
+
+        if (left - RowSideMargin < target) target = left - RowSideMargin;
+        else if (right + RowSideMargin > target + viewport) target = right + RowSideMargin - viewport;
+
+        _scrollTarget = Math.Max(0, target);
+        if (!_scrollAnimating)
+        {
+            _scrollAnimating = true;
+            CompositionTarget.Rendering += AnimateScroll;
+        }
+    }
+
+    private void AnimateScroll(object? sender, EventArgs e)
+    {
+        if (_scroll == null) return;
+        double current = _scroll.HorizontalOffset;
+        double target = Math.Min(_scrollTarget, _scroll.ScrollableWidth);
+        double diff = target - current;
+        if (Math.Abs(diff) < 0.5)
+        {
+            _scroll.ScrollToHorizontalOffset(target);
+            _scrollAnimating = false;
+            CompositionTarget.Rendering -= AnimateScroll;
+            return;
+        }
+        _scroll.ScrollToHorizontalOffset(current + diff * 0.22);
+    }
+
+    // ================================================================ round buttons
+
+    private void Favorites_Click(object sender, RoutedEventArgs e)
+    {
+        SetButtonIndex(-1);
+        SetMode(_mode == HomeView.Favorites ? HomeView.Games : HomeView.Favorites);
+    }
+
+    private void Apps_Click(object sender, RoutedEventArgs e)
+    {
+        SetButtonIndex(-1);
+        SetMode(_mode == HomeView.Apps ? HomeView.Games : HomeView.Apps);
+    }
+
+    private void Captures_Click(object sender, RoutedEventArgs e) => Push(new CapturesScreen());
+
+    private void Music_Click(object sender, RoutedEventArgs e) => Push(new MediaScreen());
+
+    private void Friends_Click(object sender, RoutedEventArgs e) => Push(new FriendsScreen());
+
+    private void Settings_Click(object sender, RoutedEventArgs e) => Push(new SettingsScreen());
+
+    private void Power_Click(object sender, RoutedEventArgs e) => _ = PowerMenuAsync();
+
+    private async Task PowerMenuAsync()
+    {
+        int choice = await AskWithIconsAsync("Power", null,
+            ("Lock", "\uE72E"), ("Sleep", "\uE708"), ("Hibernate", "\uEC46"), ("Restart", "\uE777"),
+            ("Shut down", "\uE7E8"), ("Exit to desktop", "\uE8FC"), ("Cancel", "\uE711"));
+        switch (choice)
+        {
+            case 0: Power.Lock(); break;
+            case 1: Power.Sleep(); break;
+            case 2: Power.Hibernate(); break;
+            case 3:
+                if (await ConfirmPowerAsync("Restart the PC?", "Restart")) Power.Restart();
+                break;
+            case 4:
+                if (await ConfirmPowerAsync("Shut down the PC?", "Shut down")) Power.ShutDown();
+                break;
+            case 5:
+                await ExitToDesktopAsync();
+                break;
+        }
+    }
+
+    private bool _exiting;
+
+    /// <summary>Closes the launcher, with a short closing animation if that is switched on.</summary>
+    public async Task ExitToDesktopAsync()
+    {
+        if (_exiting) return;
+        _exiting = true;
+
+        // If we are standing in for the desktop, bring the real one up before leaving.
+        if (Startup.ReplacesDesktop && !Startup.DesktopIsRunning) await Startup.StartDesktopAsync();
+
+        if (Settings.ExitAnimation && !Theme.ReduceMotion) await PlayExitAnimationAsync();
+        Close();
+    }
+
+    private async Task<bool> ConfirmPowerAsync(string question, string action)
+    {
+        var running = AllGames.FirstOrDefault(g => g.IsRunning);
+        string? warning = running == null
+            ? null
+            : running.Name + " is still running. Unsaved progress will be lost.";
+        return await AskAsync(question, warning, action, "Cancel") == 0;
+    }
+
+    private void Quick_Click(object sender, RoutedEventArgs e) => Push(new QuickSettingsScreen());
+
+    private void Wifi_Click(object sender, RoutedEventArgs e) => Push(new WifiScreen());
+
+    private void Bluetooth_Click(object sender, RoutedEventArgs e) => Push(new BluetoothScreen());
+
+    /// <summary>Refreshes the Wi-Fi and Bluetooth icons in the top bar.</summary>
+    private async void UpdateConnections()
+    {
+        ConnectionStatus status;
+        try { status = await NetworkService.GetStatusAsync(); }
+        catch (Exception) { return; }
+
+        WifiButton.Visibility = status.WifiOn ? Visibility.Visible : Visibility.Collapsed;
+        // Signal strength when connected; a dimmed icon when Wi-Fi is on but not connected.
+        WifiIcon.Text = status.WifiBars switch
+        {
+            null => "\uE701",
+            <= 1 => "\uE872",
+            2 => "\uE873",
+            3 => "\uE874",
+            _ => "\uE701"
+        };
+        WifiIcon.Opacity = status.WifiBars == null ? 0.35 : 1;
+
+        BluetoothButton.Visibility = status.BluetoothOn ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void Avatar_Click(object sender, RoutedEventArgs e) => Push(new ProfileScreen());
+
+    // ================================================================ misc
+
+    /// <summary>Battery of the connected controller ("Full", "Low", "Wired"…), or null if there is none.</summary>
+    public string? ControllerBattery => _gamepad.GetBattery();
+
+    /// <summary>Re-applies settings that change what the home screen shows.</summary>
+    public void ApplySettings()
+    {
+        _clockTimer.Interval = TimeSpan.FromSeconds(Settings.ClockSeconds ? 1 : 5);
+        UpdateClock();
+        _gamepad.SummonCombo = Settings.SummonCombo;
+        ApplySummonKey();
+        Hints.SetStyle(Settings.GlyphStyle);
+        RefreshHomeButtons();
+        ApplyAspect();
+        UpdateMenuMusic();
+        if (Theme.ReduceMotion) Motion.StopPulse(RingOf(GameList.SelectedItem));
+        else Motion.StartPulse(RingOf(GameList.SelectedItem));
+        _ = ApplyGameAccentAsync((GameList.SelectedItem as Game)?.Actual);
+        if (!Settings.AnimatedCovers && _animatedGame != null)
+        {
+            _animatedGame.AnimatedCover = null;
+            _animatedGame = null;
+        }
+        if (Settings.HeroBackgrounds) _ = ShowHeroAsync((GameList.SelectedItem as Game)?.Actual);
+        else ClearHero();
+        ApplyView(); // the "Continue playing" tile may have been switched on or off
+    }
+
+    /// <summary>For pages that changed something about a game (rating, status, notes).</summary>
+    public void LibraryEdited() => NotifyLibraryChanged();
+
+    /// <summary>Re-applies everything on the Themes page: colors, tile corners, sounds and wallpaper.</summary>
+    public void ApplyLook()
+    {
+        Theme.Apply(Settings);
+        UiSound.Configure(Settings);
+        UpdateHomeRing(); // the ring brush follows the new highlight color
+        ApplyWallpaper();
+        UpdateMenuMusic();
+    }
+
+    private void ApplyWallpaper()
+    {
+        var brush = Theme.WallpaperBrush(Settings.Wallpaper);
+        Theme.CurrentWallpaper = brush; // pages show the same wallpaper behind them
+        WallpaperLayer.Fill = brush;
+        WallpaperLayer.Visibility = WallpaperScrim.Visibility = brush == null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    public void SetButtonMap(string map)
+    {
+        if (!Hints.IsValidMap(map)) return;
+        Settings.ButtonMap = map;
+        Settings.Save();
+        Hints.Map = map;
+        ApplyHintLabels();
+    }
+
+    private void ApplyHintLabels()
+    {
+        Hints.NotifyChanged();
+        UpdateHomeHints();
+    }
+
+    // ---------------------------------------------------------------- animated covers
+
+    private async Task ShowAnimatedCoverAsync(Game? game)
+    {
+        if (!Settings.AnimatedCovers || Theme.ReduceMotion || game == null || !game.IsGame || game.HasAnimatedCover) return;
+        try
+        {
+            var path = await Task.Run(async () =>
+            {
+                using var client = new SteamGridDbClient(Settings.SteamGridDbApiKey);
+                return await client.GetAnimatedCoverAsync(game, CancellationToken.None);
+            });
+            // Only if the highlight is still on this game.
+            if (path == null || !ReferenceEquals(GameList.SelectedItem, game) || !Settings.AnimatedCovers) return;
+            _animatedGame = game;
+            game.AnimatedCover = new Uri(path);
+        }
+        catch (Exception)
+        {
+            // None available or offline: the still cover stays.
+        }
+    }
+
+    private void Animated_SourceChanged(object? sender, System.Windows.Data.DataTransferEventArgs e)
+    {
+        if (sender is not MediaElement media) return;
+        try
+        {
+            if (media.Source != null) media.Play();
+            else media.Close();
+        }
+        catch (Exception) { }
+    }
+
+    private void Animated_Ended(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MediaElement media) return;
+        try
+        {
+            media.Position = TimeSpan.Zero; // loop
+            media.Play();
+        }
+        catch (Exception) { }
+    }
+
+    private void Animated_Failed(object? sender, ExceptionRoutedEventArgs e)
+    {
+        // This PC can't play the clip (missing video codec): quietly go back to the still cover.
+        if (sender is MediaElement { DataContext: Game game }) game.AnimatedCover = null;
+    }
+
+    // ---------------------------------------------------------------- startup intro
+
+    /// <summary>The logo: an outlined tile with a solid one tucked into its corner.</summary>
+    private static Border BuildLogoMark(double size)
+    {
+        double k = size / 120;
+        var mark = new Border
+        {
+            Width = size, Height = size, CornerRadius = new CornerRadius(16 * k), BorderThickness = new Thickness(9 * k),
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        mark.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+        var inner = new Border
+        {
+            Width = 46 * k, Height = 46 * k, CornerRadius = new CornerRadius(8 * k),
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 12 * k, 12 * k)
+        };
+        inner.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+        mark.Child = inner;
+        return mark;
+    }
+
+    /// <summary>The built-in startup animations, by the name saved in settings.</summary>
+    public static readonly (string Id, string Name)[] BootAnimations =
+    {
+        ("logo", "Logo pop"), ("tiles", "Falling tiles"), ("sweep", "Color sweep"), ("rings", "Ripples"),
+        ("typed", "Typed name"), ("zoom", "Zoom through"), ("random", "Surprise me")
+    };
+
+    /// <summary>Plays the chosen startup animation now, so it can be seen from Settings.</summary>
+    public void PreviewIntro()
+    {
+        if (IntroLayer.Children.Count == 0) PlayIntro();
+    }
+
+    /// <summary>A short animation and chime over the home screen while it loads.</summary>
+    private void PlayIntro()
+    {
+        if (TryPlayBootVideo()) return; // the user's own video replaces the built-in animation
+        UiSound.Startup();
+        if (Theme.ReduceMotion) return; // chime only
+
+        static System.Windows.Media.Animation.DoubleAnimation Anim(double from, double to, int ms, int delayMs = 0,
+            System.Windows.Media.Animation.IEasingFunction? ease = null) =>
+            new(from, to, TimeSpan.FromMilliseconds(ms)) { BeginTime = TimeSpan.FromMilliseconds(delayMs), EasingFunction = ease };
+        var easeOut = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        var bounce = new System.Windows.Media.Animation.BackEase { Amplitude = 0.5, EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+
+        TextBlock Name(double size = 40)
+        {
+            var t = new TextBlock
+            {
+                Text = "SquareDeck", FontSize = size, FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 26, 0, 0), HorizontalAlignment = HorizontalAlignment.Center
+            };
+            t.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+            return t;
+        }
+
+        var cover = new Grid { ClipToBounds = true };
+        cover.SetResourceReference(Panel.BackgroundProperty, "BgBrush");
+        var center = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+
+        string style = Settings.BootAnimation;
+        if (style == "random")
+        {
+            var choices = BootAnimations.Where(b => b.Id != "random").ToArray();
+            style = choices[Random.Shared.Next(choices.Length)].Id;
+        }
+
+        int total = 1500; // when the cover starts to fade
+        switch (style)
+        {
+            case "tiles":
+            {
+                // Five tiles drop into a row, one after another, like the home screen assembling itself.
+                var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+                for (int i = 0; i < 5; i++)
+                {
+                    var drop = new TranslateTransform(0, -260);
+                    var tile = new Border
+                    {
+                        Width = 74, Height = 74, Margin = new Thickness(7), CornerRadius = new CornerRadius(8),
+                        RenderTransform = drop, Opacity = 0
+                    };
+                    tile.SetResourceReference(Border.BackgroundProperty, i == 2 ? "AccentBrush" : "TileBrush");
+                    row.Children.Add(tile);
+                    drop.BeginAnimation(TranslateTransform.YProperty, Anim(-260, 0, 480, i * 110, bounce));
+                    tile.BeginAnimation(OpacityProperty, Anim(0, 1, 200, i * 110));
+                }
+                var name = Name();
+                name.Opacity = 0;
+                name.BeginAnimation(OpacityProperty, Anim(0, 1, 380, 800));
+                center.Children.Add(row);
+                center.Children.Add(name);
+                total = 1900;
+                break;
+            }
+            case "sweep":
+            {
+                // A band of the highlight color wipes across the screen and leaves the name behind it.
+                var move = new TranslateTransform(-1500, 0);
+                var band = new Border { Width = 1500, HorizontalAlignment = HorizontalAlignment.Left, RenderTransform = move };
+                band.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+                cover.Children.Add(band);
+                move.BeginAnimation(TranslateTransform.XProperty, Anim(-1500, 1400, 1000, 100,
+                    new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut }));
+                var mark = BuildLogoMark(120);
+                var name = Name();
+                mark.Opacity = name.Opacity = 0;
+                mark.BeginAnimation(OpacityProperty, Anim(0, 1, 300, 620));
+                name.BeginAnimation(OpacityProperty, Anim(0, 1, 300, 760));
+                center.Children.Add(mark);
+                center.Children.Add(name);
+                total = 1800;
+                break;
+            }
+            case "rings":
+            {
+                // Ripples spread out from the logo.
+                for (int i = 0; i < 3; i++)
+                {
+                    var grow = new ScaleTransform(0.2, 0.2);
+                    var ring = new System.Windows.Shapes.Ellipse
+                    {
+                        Width = 520, Height = 520, StrokeThickness = 5, Opacity = 0,
+                        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                        RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = grow
+                    };
+                    ring.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "AccentBrush");
+                    cover.Children.Add(ring);
+                    var spread = Anim(0.2, 1.7, 1200, i * 260, easeOut);
+                    grow.BeginAnimation(ScaleTransform.ScaleXProperty, spread);
+                    grow.BeginAnimation(ScaleTransform.ScaleYProperty, spread);
+                    ring.BeginAnimation(OpacityProperty, Anim(0.75, 0, 1200, i * 260));
+                }
+                var mark = BuildLogoMark(120);
+                var name = Name();
+                center.Opacity = 0;
+                center.BeginAnimation(OpacityProperty, Anim(0, 1, 420, 150));
+                center.Children.Add(mark);
+                center.Children.Add(name);
+                total = 1800;
+                break;
+            }
+            case "typed":
+            {
+                // The name is typed out one letter at a time, with a blinking cursor.
+                const string word = "SquareDeck";
+                var name = Name(54);
+                name.Margin = new Thickness(0);
+                name.Text = "";
+                name.FontFamily = new FontFamily("Consolas, Cascadia Mono, Courier New");
+                name.Width = 400; // fixed, so the text doesn't slide sideways as it grows
+                name.TextAlignment = TextAlignment.Left;
+                center.Children.Add(name);
+                int shown = 0;
+                var typing = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(95) };
+                typing.Tick += (_, _) =>
+                {
+                    shown++;
+                    bool done = shown >= word.Length;
+                    name.Text = word[..Math.Min(shown, word.Length)] + (done && shown % 6 >= 3 ? "" : "_");
+                    if (shown > word.Length + 8) typing.Stop();
+                };
+                typing.Start();
+                total = 1700;
+                break;
+            }
+            case "zoom":
+            {
+                // The logo rushes toward the viewer and the home screen appears through it.
+                var grow = new ScaleTransform(0.4, 0.4);
+                var mark = BuildLogoMark(120);
+                mark.RenderTransformOrigin = new Point(0.5, 0.5);
+                mark.RenderTransform = grow;
+                center.Children.Add(mark);
+                var settle = Anim(0.4, 1, 450, 0, bounce);
+                grow.BeginAnimation(ScaleTransform.ScaleXProperty, settle);
+                grow.BeginAnimation(ScaleTransform.ScaleYProperty, settle);
+                var rush = Anim(1, 16, 520, 950, new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn });
+                var later = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(950) };
+                later.Tick += (_, _) =>
+                {
+                    later.Stop();
+                    grow.BeginAnimation(ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 16, TimeSpan.FromMilliseconds(520)) { EasingFunction = rush.EasingFunction });
+                    grow.BeginAnimation(ScaleTransform.ScaleYProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 16, TimeSpan.FromMilliseconds(520)) { EasingFunction = rush.EasingFunction });
+                };
+                later.Start();
+                total = 1100;
+                break;
+            }
+            default:
+            {
+                // The logo pops in with a small bounce.
+                var scale = new ScaleTransform(0.6, 0.6);
+                center.RenderTransformOrigin = new Point(0.5, 0.5);
+                center.RenderTransform = scale;
+                center.Opacity = 0;
+                center.Children.Add(BuildLogoMark(120));
+                center.Children.Add(Name());
+                var pop = Anim(0.6, 1, 520, 0, bounce);
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+                center.BeginAnimation(OpacityProperty, Anim(0, 1, 380));
+                break;
+            }
+        }
+
+        cover.Children.Add(center);
+        IntroLayer.Children.Add(cover);
+
+        var fade = Anim(1, 0, 450, total);
+        fade.Completed += (_, _) => IntroLayer.Children.Remove(cover);
+        cover.BeginAnimation(OpacityProperty, fade);
+    }
+
+    // ---------------------------------------------------------------- hero background
+
+    private void ClearHero()
+    {
+        _heroCts?.Cancel();
+        _heroKey = null;
+        HeroImage.BeginAnimation(OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(250)));
+    }
+
+    /// <summary>Fades in blurred SteamGridDB artwork for the highlighted game.</summary>
+    private async Task ShowHeroAsync(Game? game)
+    {
+        if (!Settings.HeroBackgrounds || game == null || !game.IsGame)
+        {
+            ClearHero();
+            return;
+        }
+        if (game.Key == _heroKey) return;
+
+        _heroCts?.Cancel();
+        var cts = _heroCts = new CancellationTokenSource();
+        var ct = cts.Token;
+        _heroKey = game.Key;
+
+        ImageSource? image = null;
+        try
+        {
+            image = await Task.Run(async () =>
+            {
+                using var client = new SteamGridDbClient(Settings.SteamGridDbApiKey);
+                var path = await client.GetHeroAsync(game, ct);
+                // Blurred anyway, so a small decode is plenty and keeps it cheap.
+                return path == null ? null : ImageLoader.FromFile(path, 480);
+            }, ct);
+        }
+        catch (Exception)
+        {
+            // No artwork, offline, or the highlight moved on.
+        }
+        if (ct.IsCancellationRequested) return;
+
+        if (image == null)
+        {
+            HeroImage.BeginAnimation(OpacityProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(250)));
+            return;
+        }
+        HeroImage.Source = image;
+        HeroImage.BeginAnimation(OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(0, 0.28, TimeSpan.FromMilliseconds(450)));
+    }
+
+    public void ApplyAvatar() => AvatarButton.Content = Avatars.Build(Settings.Avatar, 58);
+
+    private void ToggleFullscreen()
+    {
+        if (WindowStyle == WindowStyle.None)
+        {
+            WindowStyle = WindowStyle.SingleBorderWindow;
+            WindowState = WindowState.Normal;
+        }
+        else
+        {
+            WindowState = WindowState.Normal; // must leave Maximized before removing the border
+            WindowStyle = WindowStyle.None;
+            WindowState = WindowState.Maximized;
+        }
+    }
+
+    private void UpdateClock()
+    {
+        string time = Settings.Clock24Hour
+            ? (Settings.ClockSeconds ? "H:mm:ss" : "H:mm")
+            : (Settings.ClockSeconds ? "h:mm:ss tt" : "h:mm tt");
+        ClockText.Text = DateTime.Now.ToString((Settings.ClockDate ? "ddd, MMM d    " : "") + time);
+
+        // "Follow system": pick up a Windows light/dark switch without a restart.
+        if (Settings.ThemeMode == "system" && Theme.SystemIsDark() != Theme.CurrentIsDark) Theme.Apply(Settings);
+
+        var battery = Battery.GetPercent();
+        BatteryButton.Visibility = battery == null ? Visibility.Collapsed : Visibility.Visible;
+        if (battery != null)
+        {
+            BatteryText.Text = battery + "%";
+            bool pluggedIn = Battery.IsPluggedIn();
+            BatteryIcon.Text = Battery.Glyph(battery.Value, pluggedIn); // shows the charging bolt
+            CheckBattery(battery.Value, pluggedIn);
+        }
+        BatteryText.Visibility = Settings.ShowBatteryPercent ? Visibility.Visible : Visibility.Collapsed;
+
+        // Only wireless controllers have a level worth showing.
+        var pad = ControllerBattery;
+        bool wireless = pad != null && pad != "Wired";
+        PadPanel.Visibility = wireless ? Visibility.Visible : Visibility.Collapsed;
+        if (wireless) PadText.Text = pad;
+    }
+
+    private static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T match) return match;
+            if (FindChild<T>(child) is { } nested) return nested;
+        }
+        return null;
+    }
+}

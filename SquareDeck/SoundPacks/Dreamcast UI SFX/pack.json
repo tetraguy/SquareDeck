@@ -1,0 +1,18 @@
+{
+  "name": "Dreamcast UI SFX",
+  "author": "dax",
+  "version": "v1.0",
+  "manifest_version": 1,
+  "music": false,
+  "id": "c4d04a67-61c4-4d82-aa14-46f6d821565e",
+  "ignore": [
+    "deck_ui_misc_01.wav",
+    "deck_ui_misc_08.wav",
+    "pop_sound.wav",
+    "steam_at_mention.m4a",
+    "steam_chatroom_notification.m4a",
+    "ui_steam_message_old_smooth.m4a",
+    "ui_steam_smoother_friend_join.m4a",
+    "ui_steam_smoother_friend_online.m4a"
+  ]
+}
