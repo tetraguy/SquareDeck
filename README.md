@@ -112,9 +112,6 @@ one home screen in front of all of it: pick it up, press A, play.
 ## Install
 
 1. Download the latest release from the [Releases page](https://github.com/tetraguy/SquareDeck/releases).
-2. Extract it to a folder on an NTFS drive (for example `C:\Games\SquareDeck`).
-3. Run `SquareDeck.exe`. A short setup helps you pick a look and your controller's buttons.
-
 **Requirements**
 
 | | |
