@@ -90,6 +90,25 @@ one home screen in front of all of it: pick it up, press A, play.
 
 <img width="2559" height="1439" alt="UI 9" src="https://github.com/user-attachments/assets/7e3dad52-a7e5-40a8-81c8-7d6443882e90" />
 
+### Built-in Solutions
+
+## File Explorer
+
+<img width="2559" height="1439" alt="File Explorer" src="https://github.com/user-attachments/assets/b17bd796-df4b-43cc-9b36-8d106b50dd41" />
+
+## Music Player
+
+<img width="2559" height="1439" alt="Music Player" src="https://github.com/user-attachments/assets/7716aaea-1b45-480f-a6e4-c1be6883a067" />
+
+## Web Browser
+
+<img width="2559" height="1439" alt="Browser" src="https://github.com/user-attachments/assets/1a5a70eb-ee64-454e-ab19-c3ac034e246c" />
+
+## Task Manager
+
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/0995c3ca-374d-405b-9f68-077b6781fd4e" />
+
+
 ## Install
 
 1. Download the latest release from the [Releases page](https://github.com/tetraguy/SquareDeck/releases).
