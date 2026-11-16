@@ -21,6 +21,8 @@ you can drive entirely with a gamepad.
 
 ## Why SquareDeck
 
+<img width="2559" height="1439" alt="UI 4" src="https://github.com/user-attachments/assets/a1135cf3-5012-4a29-9315-76a8b651798d" />
+
 Windows on a handheld means a desktop built for a mouse, and a different launcher for every store. SquareDeck puts
 one home screen in front of all of it: pick it up, press A, play.
 
@@ -65,6 +67,28 @@ one home screen in front of all of it: pick it up, press A, play.
 - File explorer, task manager, Wi-Fi, Bluetooth, display and sound settings
 - Steam friends, game news, search across everything
 - Backup and restore of settings and library
+
+### Some of the Many Available UI Styles
+
+## Pop Art
+
+<img width="2559" height="1439" alt="UI 3" src="https://github.com/user-attachments/assets/143296ca-664d-48f8-a265-7d7f5a8c72c2" />
+
+## Retro
+
+<img width="2559" height="1439" alt="UI 2" src="https://github.com/user-attachments/assets/2203077b-14ae-4937-8ec5-1658b8d77b2b" />
+
+## Aurora
+
+<img width="2559" height="1439" alt="UI 6" src="https://github.com/user-attachments/assets/38a0fde8-304c-4c67-a2ab-5831475500f0" />
+
+## Pixel Dawn
+
+<img width="2559" height="1439" alt="UI 7" src="https://github.com/user-attachments/assets/a18d951a-94d7-432e-8499-8b0db6c1d8a3" />
+
+## Pixel City
+
+<img width="2559" height="1439" alt="UI 9" src="https://github.com/user-attachments/assets/7e3dad52-a7e5-40a8-81c8-7d6443882e90" />
 
 ## Install
 
@@ -140,6 +164,7 @@ SquareDeck is a WPF app on .NET 8. Settings, covers and your library edits live 
   task > `explorer.exe`, then turn the setting off.
 
 More notes on individual features are in the [changelog](CHANGELOG.md).
+
 
 ## Credits
 
