@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Lets Windows offer SquareDeck as the home app of Xbox mode (the gaming full screen experience), with no AnyFSE.
+  It is copied next to SquareDeck.exe, and SquareDeck registers that folder as a package from
+  Settings > System > Xbox mode home app. Windows lists home apps by the windows.gamingApp extension and the
+  gamingHome capability below; CustomCapability.SCCD (also next to the program) grants that capability, which
+  Windows accepts while Developer Mode is on.
+
+  Writes to AppData and the registry are not redirected, so SquareDeck keeps one set of settings however it starts.
+-->
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+         xmlns:uap4="http://schemas.microsoft.com/appx/manifest/uap/windows10/4"
+         xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         IgnorableNamespaces="uap uap3 uap4 desktop6 rescap">
+
+  <Identity Name="SquareDeck.HomeApp" Publisher="CN=SquareDeck" Version="1.0.0.0" ProcessorArchitecture="neutral" />
+
+  <Properties>
+    <DisplayName>SquareDeck</DisplayName>
+    <PublisherDisplayName>SquareDeck</PublisherDisplayName>
+    <Logo>HomeApp\Assets\StoreLogo.png</Logo>
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+    <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="SquareDeck.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="SquareDeck" Description="Controller-first game launcher"
+                          BackgroundColor="transparent"
+                          Square150x150Logo="HomeApp\Assets\Square150x150Logo.png"
+                          Square44x44Logo="HomeApp\Assets\Square44x44Logo.png" />
+      <Extensions>
+        <uap3:Extension Category="windows.appExtension">
+          <uap3:AppExtension Name="windows.gamingApp" Id="App" DisplayName="SquareDeck"
+                             Description="Controller-first game launcher" PublicFolder="HomeApp\Public" />
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+    <uap4:CustomCapability Name="Microsoft.appCategory.gamingHome_8wekyb3d8bbwe" />
+  </Capabilities>
+</Package>

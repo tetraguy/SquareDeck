@@ -11,7 +11,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>SquareDeck</AssemblyName>
     <RootNamespace>SquareDeck</RootNamespace>
-    <Version>2.6.0</Version>
+    <Version>5.8.0</Version>
     <ApplicationIcon>Assets\SquareDeck.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -24,6 +24,20 @@
     <!-- Interface sound packs, copied next to the program. Each sub-folder is one pack. -->
     <None Update="SoundPacks\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Music\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Backgrounds\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Wallpapers\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Tools\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Button pictures for the hints: Glyphs\<look>\<controller or keyboard>\<button>.png -->
+    <None Update="Glyphs\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Xbox mode home app (Services/HomeApp.cs): the package manifest and capability file go next to SquareDeck.exe,
+         because Windows registers that folder as the package. The logos and public folder go in HomeApp\. -->
+    <None Update="HomeApp\AppxManifest.xml" Link="AppxManifest.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="HomeApp\CustomCapability.SCCD" Link="CustomCapability.SCCD" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="HomeApp\Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="HomeApp\Public\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

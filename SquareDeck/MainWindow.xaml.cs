@@ -79,6 +79,8 @@ public partial class MainWindow : Window
     public AchievementStore Achievements { get; } = AchievementStore.Load();
 
     private readonly HashSet<int> _steamWasRunning = new();
+    // Steam games started from their own program: Steam may never mark them "running", so their processes are watched.
+    private readonly Dictionary<int, DateTime> _directLaunched = new();
     private readonly Queue<(string Heading, string Title, string Detail, string IconUrl, ImageSource? Picture)> _toasts = new();
     private bool _toastShowing;
 
@@ -88,6 +90,7 @@ public partial class MainWindow : Window
         Theme.Apply(Settings);
         Hints.Map = Settings.ButtonMap;
         Hints.SetStyle(Settings.GlyphStyle);
+        Hints.SetLook(Settings.GlyphLook);
         ApplyHintLabels();
         UiSound.Configure(Settings);
         UiSound.SetLaunchChime(Settings.LaunchChime, Settings.LaunchChimeFile);
@@ -98,6 +101,10 @@ public partial class MainWindow : Window
         ApplyAvatar();
         InitExtras();
         InitMore();
+        InitFullscreenGuard();
+        InitPower();
+        ApplyUiStyle();
+        InitDynamicBackground();
 
         GameList.ItemsSource = _view;
         RefreshHomeButtons();
@@ -140,12 +147,14 @@ public partial class MainWindow : Window
             _scroll = FindChild<ScrollViewer>(GameList);
             Focus();
             if (Settings.StartupIntro) PlayIntro();
+            // Games load while the welcome pages show, so they can say what was found.
+            var loading = ReloadAsync();
             if (Settings.SetupDone != true)
             {
                 await Task.Delay(Settings.StartupIntro ? 2100 : 200); // let the intro finish first
                 await RunSetupAsync();
             }
-            await ReloadAsync();
+            await loading;
             if (Settings.AutoUpdateCheck) _ = CheckForUpdatesAsync(manual: false);
         };
         Closed += (_, _) =>
@@ -241,7 +250,7 @@ public partial class MainWindow : Window
         try
         {
             found = Settings.OtherStores
-                ? await Task.Run(() => ExternalStores.ScanAsync(ct), ct)
+                ? await Task.Run(() => ExternalStores.ScanAsync(ct, Settings.DisabledStores.ToHashSet()), ct)
                 : new List<Game>();
         }
         catch (Exception)
@@ -582,6 +591,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            bool fromGrid = false;
             var (icon, gradient) = await Task.Run(async () =>
             {
                 System.Windows.Media.Imaging.BitmapSource? source = null;
@@ -591,7 +601,8 @@ public partial class MainWindow : Window
                     try
                     {
                         var path = await client.GetIconAsync(game, ct);
-                        if (path != null) source = ImageLoader.FromFile(path, 256) as System.Windows.Media.Imaging.BitmapSource;
+                        if (path != null) source = ImageLoader.FromFile(path, 512) as System.Windows.Media.Imaging.BitmapSource;
+                        fromGrid = source != null;
                     }
                     catch (Exception e) when (e is not OperationCanceledException) { }
                 }
@@ -613,6 +624,7 @@ public partial class MainWindow : Window
             if (icon == null || ct.IsCancellationRequested) return;
             game.TileBackground = gradient;
             game.Cover = icon;
+            game.IconFills = fromGrid; // SteamGridDB artwork fills the tile; program icons stay centered
             game.UsesIcon = true;
         }
         catch (Exception)
@@ -632,6 +644,7 @@ public partial class MainWindow : Window
         if (icon == null) return;
         item.TileBackground = gradient;
         item.Cover = icon;
+        item.IconFills = true; // chosen from SteamGridDB: as big as the tile, like a cover
         item.UsesIcon = true;
     }
 
@@ -758,18 +771,18 @@ public partial class MainWindow : Window
         if (running != null)
         {
             UiSound.Error();
-            int choice = await AskAsync(
-                running.Name + " is still running",
-                $"You must stop {running.Name} before starting {item.Name}. Any unsaved progress in {running.Name} will be lost.",
-                $"Stop {running.Name} and start {item.Name}", "Cancel");
-            if (choice != 0) return;
+            var ask = new GameConfirmScreen(running, running.Name + " is still running",
+                $"It has to be stopped before {item.Name} can start. Any unsaved progress in {running.Name} will be lost.",
+                "Stop and start", "Still running");
+            Push(ask);
+            if (!await ask.Result) return;
             // The "Closing software" pop-up stays up a moment longer so Steam notices the game has gone.
             if (!await StopGameAsync(running, confirm: false, settleMs: 1500)) return;
         }
 
         if (Settings.LaunchCountdown && !item.IsRunning)
         {
-            var countdown = new CountdownScreen(item);
+            var countdown = new CountdownScreen(item, Settings.LaunchCountdownSeconds);
             Push(countdown);
             if (!await countdown.Result) return;
         }
@@ -795,7 +808,15 @@ public partial class MainWindow : Window
         }
         else
         {
-            started = ProcessUtil.Open($"steam://rungameid/{item.AppId}");
+            // Straight from the game's own program when that's switched on (no Steam "Launching…" pop-up over the
+            // splash). Steam must already be running; otherwise, or with no program found, the usual Steam link.
+            if (Settings.SteamDirectLaunch && await Task.Run(() => SteamDirect.SteamIsRunning() ? SteamDirect.FindExe(item, Library.For(item.Key)) : null) is string exe
+                && SteamDirect.Start(item, exe))
+            {
+                started = true;
+                _directLaunched[item.AppId] = DateTime.UtcNow;
+            }
+            else started = ProcessUtil.Open($"steam://rungameid/{item.AppId}");
             StatusText.Text = started ? "" : "Couldn't start the game. Is Steam installed?";
         }
 
@@ -804,6 +825,8 @@ public partial class MainWindow : Window
         if (started)
         {
             UiSound.Launch();
+            // A splash screen with the cover until the game is running.
+            if (Settings.LaunchSplash && !item.IsRunning) Push(new LaunchSplashScreen(item));
             _ = CheckWindowsUpdateAsync(atLaunch: true); // a pending restart could cut the session short
             // Move it to the front of the home row straight away.
             item.RecentAt = DateTime.Now;
@@ -816,13 +839,16 @@ public partial class MainWindow : Window
     {
         if (confirm)
         {
-            int choice = await AskAsync("Stop " + game.Name + "?",
-                "The game will be closed immediately. Any unsaved progress will be lost.", "Stop game", "Cancel");
-            if (choice != 0) return false;
+            var ask = new GameConfirmScreen(game, "Stop " + game.Name + "?",
+                "The game will be closed immediately. Any unsaved progress will be lost.", "Stop game");
+            Push(ask);
+            if (!await ask.Result) return false;
         }
 
-        // Like a console: a "Closing software" pop-up that stays until the game has really gone.
-        var busy = new BusyScreen("Closing software", game.Cover);
+        // Like a console: a "Closing software" pop-up, with the game's picture, that stays until the game has really
+        // gone. Shown in front of the game, even when it's closed from the in-game menu.
+        var busy = new GameBusyScreen(game, "Closing software");
+        HoldVisible(true);
         Push(busy);
         int killed = 0;
         try
@@ -855,6 +881,7 @@ public partial class MainWindow : Window
         finally
         {
             Pop(busy);
+            HoldVisible(false);
         }
 
         if (killed == 0)
@@ -875,7 +902,52 @@ public partial class MainWindow : Window
     /// For games identified by one program rather than a folder (custom games and Steam shortcuts,
     /// whose folder may be shared with other things): that program's path. Null otherwise.
     /// </summary>
-    private static string? ExactProgram(Game game)
+    /// <summary>
+    /// Notes which program is the game (the one in its folder that shows the game's window), so "Start Steam games
+    /// directly" can start that same program next time instead of guessing.
+    /// </summary>
+    private async Task RememberSteamProgramAsync(Game game)
+    {
+        if (string.IsNullOrEmpty(game.InstallDir)) return;
+        try
+        {
+            for (int i = 0; i < 12 && game.IsRunning; i++)
+            {
+                await Task.Delay(5000);
+                var program = await Task.Run(() => ProcessUtil.FindGameWindowProgram(null, game.InstallDir));
+                if (program == null) continue;
+                var entry = Library.For(game.Key);
+                if (!string.Equals(entry.SteamExeSeen, program, StringComparison.OrdinalIgnoreCase))
+                {
+                    entry.SteamExeSeen = program;
+                    Library.Save();
+                }
+                return;
+            }
+        }
+        catch (Exception) { }
+    }
+
+    /// <summary>Game options > "Program to start directly": pick the game's .exe, or go back to automatic.</summary>
+    private async Task ChooseSteamProgramAsync(Game game)
+    {
+        var entry = Library.For(game.Key);
+        int choice = await AskAsync("Program to start directly",
+            "Used when \"Start Steam games directly\" is on in Settings.\n\nNow: " + SteamDirect.Describe(game, entry) +
+            (string.IsNullOrEmpty(game.InstallDir) ? "" : "\nGame folder: " + game.InstallDir),
+            "Choose a program…", "Automatic", "Cancel");
+        if (choice == 0)
+        {
+            var picked = await PickFileAsync("Choose the game's program", new[] { ".exe" });
+            if (picked == null) return;
+            entry.SteamExe = picked;
+        }
+        else if (choice == 1) { entry.SteamExe = null; entry.SteamExeSeen = null; }
+        else return;
+        Library.Save();
+    }
+
+    internal static string? ExactProgram(Game game)
     {
         bool byProgram = game.IsCustom || (game.IsExternal && string.IsNullOrEmpty(game.InstallDir));
         return byProgram && game.LaunchPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
@@ -894,7 +966,7 @@ public partial class MainWindow : Window
             var others = _external.Concat(_custom).ToList();
             var (steamRunning, programs) = await Task.Run(() => (
                 SteamLibrary.GetRunningAppIds(ids),
-                others.Count > 0 || _stoppedByUs.Count > 0 ? ProcessUtil.GetRunningImagePaths() : new List<string>()));
+                others.Count > 0 || _stoppedByUs.Count > 0 || _directLaunched.Count > 0 ? ProcessUtil.GetRunningImagePaths() : new List<string>()));
 
             var now = DateTime.UtcNow;
             foreach (var g in _steam)
@@ -909,6 +981,13 @@ public partial class MainWindow : Window
                     // syncs saves). Believe the processes instead, so the "is running" label doesn't linger.
                     string? prefix = string.IsNullOrEmpty(g.InstallDir) ? null : g.InstallDir.TrimEnd('\\') + "\\";
                     flagged = prefix != null && programs.Any(p => p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+                }
+                if (_directLaunched.TryGetValue(g.AppId, out var launchedAt))
+                {
+                    string? prefix = string.IsNullOrEmpty(g.InstallDir) ? null : g.InstallDir.TrimEnd('\\') + "\\";
+                    bool alive = prefix != null && programs.Any(p => p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+                    flagged = alive; // its processes say when it's running, whatever Steam's flag says
+                    if (!alive && now - launchedAt > TimeSpan.FromSeconds(20)) _directLaunched.Remove(g.AppId);
                 }
                 g.IsRunning = flagged && !justStopped;
             }
@@ -936,6 +1015,7 @@ public partial class MainWindow : Window
                 {
                     _steamWasRunning.Add(g.AppId);
                     _ = SnapshotAchievementsAsync(g);
+                    _ = RememberSteamProgramAsync(g);
                 }
                 else if (!g.IsRunning && was)
                 {
@@ -948,10 +1028,10 @@ public partial class MainWindow : Window
             TrackPlaytime();
             TrackSessions();
 
-            // A game just closed: come back to the front so the controller is useful again.
+            // A game just closed: come back to the front, with the focus, so the controller works straight away.
             bool anyRunning = AllGames.Any(g => g.IsRunning);
-            if (_anyGameWasRunning && !anyRunning && Settings.ReturnToLauncher && !IsActive)
-                WindowActivator.BringToFront(this);
+            if (_anyGameWasRunning && !anyRunning && Settings.ReturnToLauncher)
+                ComeBackAfterGame();
             _anyGameWasRunning = anyRunning;
         }
         catch (Exception)
@@ -1118,10 +1198,59 @@ public partial class MainWindow : Window
     {
         var running = AllGames.FirstOrDefault(g => g.IsRunning);
         RunningPanel.Visibility = running == null ? Visibility.Collapsed : Visibility.Visible;
+        // Checked every second while a game runs, so SquareDeck is back quickly once it closes.
+        var interval = TimeSpan.FromSeconds(running == null ? 2 : 1);
+        if (_runningTimer.Interval != interval) _runningTimer.Interval = interval;
         UpdateGpuSaver(); // hand the graphics memory to the game while it runs
         UpdateHomeHints(); // "Back to game" only shows while one is running
-        if (running != null) RunningText.Text = running.Name + " is running";
-        else if (_stopFocused) SetStopFocus(false); // the game closed while Stop was highlighted
+        if (running != null)
+        {
+            EnsureRunningMarquee();
+            RunningText.Text = running.Name + " is running";
+            ShowRunningIcon(running);
+        }
+        else
+        {
+            if (_stopFocused) SetStopFocus(false); // the game closed while Stop was highlighted
+            // Back to the everyday limit once the game has closed.
+            if (TdpControl.GameProfile != null || TdpControl.SessionWatts != null) TdpControl.SetGame(null);
+        }
+    }
+
+    private MarqueeText? _runningMarquee;
+
+    /// <summary>The game's name scrolls when it's longer than the space for it.</summary>
+    private void EnsureRunningMarquee()
+    {
+        if (_runningMarquee != null || RunningText.Parent is not Panel panel) return;
+        int index = panel.Children.IndexOf(RunningText);
+        panel.Children.Remove(RunningText);
+        _runningMarquee = new MarqueeText(RunningText) { MaxWidth = 190, VerticalAlignment = VerticalAlignment.Center, Margin = RunningText.Margin };
+        RunningText.Margin = new Thickness(0);
+        panel.Children.Insert(index, _runningMarquee);
+    }
+
+    /// <summary>The running game's own icon (or cover) instead of a green dot; the dot stays if it has no picture.</summary>
+    private void ShowRunningIcon(Game game)
+    {
+        if (game.Cover == null)
+        {
+            RunningIcon.Visibility = Visibility.Collapsed;
+            RunningDot.Visibility = Visibility.Visible;
+            return;
+        }
+        if (game.UsesIcon)
+        {
+            RunningIcon.Background = game.TileBackground ?? (Brush?)TryFindResource("CircleBrush");
+            RunningIcon.Child = new Image { Source = game.Cover, Margin = new Thickness(game.IconFills ? 0 : 4), Stretch = game.IconFills ? Stretch.UniformToFill : Stretch.Uniform };
+        }
+        else
+        {
+            RunningIcon.Background = new ImageBrush(game.Cover) { Stretch = Stretch.UniformToFill };
+            RunningIcon.Child = null;
+        }
+        RunningIcon.Visibility = Visibility.Visible;
+        RunningDot.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>
@@ -1177,57 +1306,76 @@ public partial class MainWindow : Window
             return;
         }
 
-        var options = new List<(string Label, Func<Task> Run)>();
-        void Add(string label, Action run) => options.Add((label, () => { run(); return Task.CompletedTask; }));
+        // Grouped, each with an icon, under the game's logo.
+        var options = new List<(GameOptionsScreen.Option Option, Func<Task> Run)>();
+        void Add(string group, string label, string glyph, Action run, bool danger = false) =>
+            options.Add((new GameOptionsScreen.Option(group, label, glyph, danger), () => { run(); return Task.CompletedTask; }));
+        void AddAsync(string group, string label, string glyph, Func<Task> run, bool danger = false) =>
+            options.Add((new GameOptionsScreen.Option(group, label, glyph, danger), run));
+        bool hasFolder = !string.IsNullOrEmpty(item.InstallDir) && Directory.Exists(item.InstallDir);
+        void Hide() { Library.For(item.Key).Hidden = true; Library.Save(); NotifyLibraryChanged(); }
 
-        if (item.IsRunning) options.Add(("Stop game", () => StopGameAsync(item, confirm: true)));
-        Add(item.IsApp ? "Change icon" : "Change cover image", () => Push(new CoverPickerScreen(item)));
-        Add(item.IsFavorite ? "Remove from favorites" : "Add to favorites", () => ToggleFavorite(item));
-        options.Add(("Edit title", () => EditTitleAsync(item)));
-        if (item.IsGame) options.Add(("Set category", () => SetCategoryAsync(item)));
-        if (item.IsGame) options.Add(("Add to a collection", () => ChooseCollectionsAsync(item)));
-        if (item.IsGame) Add("Rating, status and notes", () => Push(new GameNotesScreen(item)));
-        if (item.IsSteam) Add("View achievements", () => Push(new GameAchievementsScreen(item)));
-        if (item.IsGame) Add("Game profile (display, HDR, power, sound)", () => Push(new GameProfileScreen(item)));
+        const string Play = "Play", Mine = "Your library", Look = "Customize", Steam = "Steam", Manage = "Manage";
+        if (item.IsRunning)
+        {
+            Add(Play, "Return to game", "\uE768", () => ReturnToGame(item));
+            AddAsync(Play, "Stop game", "\uE71A", () => StopGameAsync(item, confirm: true), danger: true);
+        }
+        if (item.IsSteam) Add(Play, "Game details", "\uE946", () => Push(new DetailsScreen(item)));
+        if (item.IsGame && GameCaptures.For(item, 1).Count > 0)
+            Add(Play, "Screenshots", "\uE722", () =>
+            {
+                var shots = GameCaptures.For(item, 200);
+                if (shots.Count > 0) Push(new ViewerScreen(shots, 0));
+            });
+
+        Add(Mine, item.IsFavorite ? "Remove from favorites" : "Add to favorites", item.IsFavorite ? "\uE735" : "\uE734", () => ToggleFavorite(item));
+        if (item.IsGame)
+        {
+            AddAsync(Mine, "Add to a collection", "\uE8F1", () => ChooseCollectionsAsync(item));
+            AddAsync(Mine, "Set category", "\uE8EC", () => SetCategoryAsync(item));
+            Add(Mine, "Rating, status and notes", "\uE70B", () => Push(new GameNotesScreen(item)));
+        }
+
+        Add(Look, item.IsApp ? "Change icon" : "Change artwork", "\uE8B9", () => Push(new CoverPickerScreen(item)));
+        AddAsync(Look, "Edit title", "\uE70F", () => EditTitleAsync(item));
+        if (item.IsGame) Add(Look, "Game profile", "\uE713", () => Push(new GameProfileScreen(item)));
+
+        if (item.IsSteam)
+        {
+            Add(Steam, "Achievements", "\uE7C1", () => Push(new GameAchievementsScreen(item)));
+            Add(Steam, "Store page", "\uE719", () => ProcessUtil.Open($"steam://store/{item.AppId}"));
+            if (Settings.SteamDirectLaunch && item.IsInstalled) AddAsync(Steam, "Program to start directly", "\uE756", () => ChooseSteamProgramAsync(item));
+        }
 
         if (item.IsCustom)
         {
-            if (!string.IsNullOrEmpty(item.InstallDir) && Directory.Exists(item.InstallDir))
-                Add("Show in folder", () => ProcessUtil.Open("explorer.exe", "/select,\"" + item.LaunchPath + "\""));
-            Add("Remove from library", () => RemoveCustomGame(item));
+            if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => ProcessUtil.Open("explorer.exe", "/select,\"" + item.LaunchPath + "\""));
+            Add(Manage, "Remove from library", "\uE711", () => RemoveCustomGame(item), danger: true);
         }
         else if (item.IsExternal)
         {
-            if (!string.IsNullOrEmpty(item.InstallDir) && Directory.Exists(item.InstallDir))
-                Add("Show in folder", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
-            Add("Remove from list", () =>
-            {
-                Library.For(item.Key).Hidden = true;
-                Library.Save();
-                NotifyLibraryChanged();
-            });
+            if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
+            Add(Manage, "Remove from list", "\uE711", Hide, danger: true);
         }
         else if (item.IsSteam)
         {
-            Add("View details", () => Push(new DetailsScreen(item)));
-            if (!string.IsNullOrEmpty(item.InstallDir) && Directory.Exists(item.InstallDir))
-                Add("Show in folder", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
-            Add("View Steam store page", () => ProcessUtil.Open($"steam://store/{item.AppId}"));
-            options.Add(("Uninstall", () => UninstallAsync(item)));
-            Add("Remove from list", () =>
-            {
-                Library.For(item.Key).Hidden = true;
-                Library.Save();
-                NotifyLibraryChanged();
-            });
+            if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
+            AddAsync(Manage, "Uninstall", "\uE74D", () => UninstallAsync(item), danger: true);
+            Add(Manage, "Remove from list", "\uE711", Hide, danger: true);
         }
         else
         {
-            Add("Uninstall (Windows settings)", () => ProcessUtil.Open("ms-settings:appsfeatures"));
-            Add("Remove from launcher", () => RemoveApp(item.LaunchId));
+            Add(Manage, "Uninstall (Windows settings)", "\uE74D", () => ProcessUtil.Open("ms-settings:appsfeatures"), danger: true);
+            Add(Manage, "Remove from launcher", "\uE711", () => RemoveApp(item.LaunchId), danger: true);
         }
 
-        int choice = await AskAsync(item.Name, null, options.Select(o => o.Label).ToArray());
+        // A line about the game under its logo.
+        string source = item.IsSteam ? "Steam" : item.IsApp ? "App" : item.Source.Length > 0 ? item.Source : "Added by you";
+        string subtitle = item.IsRunning ? "Running now  ·  " + source : source;
+        var sheet = new GameOptionsScreen(item, options.Select(o => o.Option).ToList(), subtitle);
+        Push(sheet);
+        int choice = await sheet.Result;
         if (choice >= 0) await options[choice].Run();
     }
 
@@ -1278,10 +1426,26 @@ public partial class MainWindow : Window
     /// <summary>The page at the bottom of the stack (the one opened from the home screen), if any.</summary>
     public Screen? RootScreen => _screens.Count > 0 ? _screens[0] : null;
 
+    /// <summary>Puts the keyboard / controller focus on an element once the page has finished laying out.</summary>
+    public void FocusSoon(UIElement? element)
+    {
+        if (element == null) return;
+        Dispatcher.BeginInvoke(new Action(() => element.Focus()), System.Windows.Threading.DispatcherPriority.Background);
+    }
+
     public bool IsTop(Screen screen) => _screens.Count > 0 && ReferenceEquals(_screens[^1], screen);
 
     public void Push(Screen screen)
     {
+        // A page that is already open (the browser kept running in the background): go back to it instead.
+        int open = _screens.IndexOf(screen);
+        if (open >= 0)
+        {
+            if (open < _screens.Count - 1) Pop(_screens[open + 1]);
+            return;
+        }
+        screen.Visibility = Visibility.Visible; // a page reused from earlier may still be hidden
+
         if (_screens.Count > 0)
         {
             var below = _screens[^1];
@@ -1295,6 +1459,7 @@ public partial class MainWindow : Window
         if (Theme.TextScale != 1) screen.LayoutTransform = new ScaleTransform(Theme.TextScale, Theme.TextScale);
         _screens.Add(screen);
         ScreenLayer.Children.Add(screen);
+        Motion.OpenPage(screen, screen.IsDialog);
         screen.OnShown();
         screen.FocusDefaultLater();
     }
@@ -1403,6 +1568,8 @@ public partial class MainWindow : Window
             Key.X when !typing => NavAction.X,
             Key.Y when !typing => NavAction.Y,
             Key.Q when !typing => NavAction.View,
+            Key.F3 => NavAction.Start,
+            Key.OemQuestion when !typing => NavAction.Start, // "/" to search, like many apps
             Key.PageUp => NavAction.LB,
             Key.PageDown => NavAction.RB,
             Key.OemOpenBrackets when !typing => NavAction.LT,
@@ -1470,8 +1637,7 @@ public partial class MainWindow : Window
             if (page >= 0)
             {
                 UiSound.Page();
-                int step = action == NavAction.RB ? 1 : -1;
-                GoToPage(page + step, step);
+                StepPage(page, action == NavAction.RB ? 1 : -1);
             }
             return;
         }
@@ -1487,8 +1653,39 @@ public partial class MainWindow : Window
         else HandleHome(action);
     }
 
-    // The pages LB / RB cycle through, in order.
-    private const int PageCount = 8;
+    /// <summary>Every page LB / RB can flip through. The index is the page number used below.</summary>
+    public static readonly (string Id, string Name, string Glyph)[] CyclePages =
+    {
+        ("games", "Home", "\uE80F"), ("favorites", "Favorites", "\uEB51"), ("apps", "Apps", "\uE71D"),
+        ("library", "Game library", "\uE8F1"), ("captures", "Captures", "\uE722"), ("music", "Music", "\uE8D6"),
+        ("friends", "Friends", "\uE716"), ("settings", "Settings", "\uE713")
+    };
+
+    /// <summary>The pages in the order chosen in Settings (any page missing from the saved order goes at the end).</summary>
+    public static List<int> PageOrderOf(Settings s)
+    {
+        var order = new List<int>();
+        foreach (var id in s.PageOrder)
+        {
+            int i = Array.FindIndex(CyclePages, p => p.Id == id);
+            if (i >= 0 && !order.Contains(i)) order.Add(i);
+        }
+        for (int i = 0; i < CyclePages.Length; i++) if (!order.Contains(i)) order.Add(i);
+        return order;
+    }
+
+    /// <summary>Moves one page along the chosen order, skipping pages that are switched off.</summary>
+    private void StepPage(int current, int step)
+    {
+        var order = PageOrderOf(Settings);
+        int at = order.IndexOf(current);
+        for (int n = 1; n <= order.Count; n++)
+        {
+            int page = order[(((at + step * n) % order.Count) + order.Count) % order.Count];
+            if (page == current) return; // nothing else is switched on
+            if (PageEnabled(page)) { GoToPage(page, step); return; }
+        }
+    }
 
     /// <summary>Index of the page being shown, or -1 when a sub-page or dialog is open.</summary>
     private int CurrentPage()
@@ -1508,7 +1705,7 @@ public partial class MainWindow : Window
 
     /// <param name="direction">+1 or -1 to slide the new page in from that side; 0 for no animation.</param>
     /// <summary>False for a page whose home-screen button has been switched off in Settings.</summary>
-    private bool PageEnabled(int page) => page switch
+    private bool PageEnabled(int page) => !Settings.PagesOff.Contains(CyclePages[page].Id) && page switch
     {
         5 => Settings.ShowMusicButton,
         6 => Settings.ShowFriendsButton,
@@ -1517,10 +1714,6 @@ public partial class MainWindow : Window
 
     private void GoToPage(int page, int direction = 0)
     {
-        page = ((page % PageCount) + PageCount) % PageCount;
-        // Pages whose button is switched off in Settings are skipped, in the direction of travel.
-        for (int guard = 0; guard < PageCount && !PageEnabled(page); guard++)
-            page = (((page + (direction < 0 ? -1 : 1)) % PageCount) + PageCount) % PageCount;
         while (_screens.Count > 0) Pop(_screens[0]);
         SetButtonIndex(-1);
         SetTopIndex(-1);
@@ -1594,7 +1787,14 @@ public partial class MainWindow : Window
 
         if (action == NavAction.Start)
         {
-            Push(new SettingsScreen());
+            Push(new SearchScreen()); // search everything: games, apps, settings, files, store pages
+            return;
+        }
+
+        // R2 / L2: next / previous song while something is playing (R1 / L1 still flip the pages).
+        if (action is NavAction.RT or NavAction.LT)
+        {
+            if (MusicButton.Visibility == Visibility.Visible) _ = SkipSongAsync(action == NavAction.RT);
             return;
         }
 
@@ -1617,8 +1817,11 @@ public partial class MainWindow : Window
                 case NavAction.Back: SetTopIndex(-1); break;
                 case NavAction.Accept:
                     var target = top[index];
-                    SetTopIndex(-1);
-                    target.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                    Motion.PressThen(target, () =>
+                    {
+                        SetTopIndex(-1);
+                        target.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                    });
                     break;
             }
             return;
@@ -1626,6 +1829,30 @@ public partial class MainWindow : Window
 
         if (_buttonIndex >= 0)
         {
+            // Sidebar (Desktop): the list goes up and down; Right goes back to the games.
+            if (SidebarNav)
+            {
+                switch (action)
+                {
+                    case NavAction.Up: SetButtonIndex(Math.Max(0, _buttonIndex - 1)); return;
+                    case NavAction.Down: SetButtonIndex(Math.Min(_buttons.Length - 1, _buttonIndex + 1)); return;
+                    case NavAction.Right or NavAction.Back: SetButtonIndex(-1); return;
+                    case NavAction.Left: return;
+                }
+            }
+            // Tabs in the top bar: Down goes back to the games, Up to the status icons.
+            else if (TabsOnTop)
+            {
+                switch (action)
+                {
+                    case NavAction.Down or NavAction.Back: SetButtonIndex(-1); return;
+                    case NavAction.Up:
+                        SetButtonIndex(-1);
+                        var status = TopButtons();
+                        if (status.Count > 0) SetTopIndex(status.Count - 1);
+                        return;
+                }
+            }
             switch (action)
             {
                 case NavAction.Left: SetButtonIndex(Math.Max(0, _buttonIndex - 1)); break;
@@ -1642,18 +1869,29 @@ public partial class MainWindow : Window
                     }
                     break;
                 case NavAction.Accept:
-                    _buttons[_buttonIndex].RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                    var pressed = _buttons[_buttonIndex];
+                    Motion.PressThen(pressed, () => pressed.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)));
                     break;
             }
             return;
         }
 
+        int viewButton = Math.Max(0, _mode == HomeView.Apps ? AppsButton : _mode == HomeView.Favorites ? FavoritesButton : HomeButton);
+        // Tabs on top: Up reaches them. Sidebar: Left from the first game reaches it.
+        if (TabsOnTop && action == NavAction.Up) { SetButtonIndex(viewButton); return; }
+        if (SidebarNav && action == NavAction.Left && GameList.SelectedIndex <= 0) { SetButtonIndex(viewButton); return; }
+        if ((TabsOnTop || SidebarNav) && action == NavAction.Down)
+        {
+            // Nothing below the games but the footer (Stop / now playing).
+            if (FooterButtons().Count > 0) { _stopReturnIndex = -1; SetStopFocus(true); }
+            return;
+        }
         switch (action)
         {
             case NavAction.Left: MoveSelection(-1); break;
             case NavAction.Right: MoveSelection(+1); break;
             case NavAction.Down:
-                SetButtonIndex(Math.Max(0, _mode == HomeView.Apps ? AppsButton : _mode == HomeView.Favorites ? FavoritesButton : HomeButton));
+                SetButtonIndex(viewButton);
                 break;
             case NavAction.Up:
                 // Up from the games goes to the status icons: Wi-Fi first if it is showing.
@@ -1686,6 +1924,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Top-bar buttons the thumbstick can reach, left to right (hidden ones are skipped).</summary>
+    private Button[] AllTopButtons => new[] { AvatarButton, BellButton, QuickButton, WifiButton, BluetoothButton, BatteryButton };
+
     private List<Button> TopButtons() =>
         new[] { AvatarButton, BellButton, QuickButton, WifiButton, BluetoothButton, BatteryButton }
             .Where(b => b.Visibility == Visibility.Visible).ToList();
@@ -1695,14 +1935,21 @@ public partial class MainWindow : Window
         if (index >= 0 && index != _topIndex) Rumble();
         _topIndex = index;
         var visible = TopButtons();
-        foreach (var b in new[] { AvatarButton, BellButton, QuickButton, WifiButton, BluetoothButton }) b.Tag = null;
+        // Every top-bar button, hidden ones included, so no highlight is ever left behind (the battery's used to stick).
+        foreach (var b in AllTopButtons)
+        {
+            b.Tag = null;
+            Motion.Highlight(b, false);
+        }
         if (index >= 0 && index < visible.Count)
         {
             visible[index].Tag = "selected";
-            ButtonLabel.Text = visible[index] == AvatarButton ? "Profile picture"
+            Motion.Highlight(visible[index], true, 1.18);
+            ButtonLabel.Text = visible[index] == AvatarButton ? "Your profile"
                 : visible[index] == BellButton ? "Notifications"
                 : visible[index] == QuickButton ? "Quick settings"
-                : visible[index] == WifiButton ? "Wi-Fi" : "Bluetooth";
+                : visible[index] == WifiButton ? "Wi-Fi"
+                : visible[index] == BluetoothButton ? "Bluetooth" : "Battery";
         }
         else if (_buttonIndex < 0) ButtonLabel.Text = "";
         UpdateHomeRing();
@@ -1724,6 +1971,8 @@ public partial class MainWindow : Window
                             (i == AppsButton && _mode == HomeView.Apps);
             bool focused = i == _buttonIndex;
             _buttons[i].Tag = focused && viewIsOn ? "selected-active" : focused ? "selected" : viewIsOn ? "active" : null;
+            // Tabs and sidebar items barely grow (their ring or fill shows the focus).
+            Motion.Highlight(_buttons[i], focused, TabsOnTop || SidebarNav ? 1.04 : 1.12);
         }
         UpdateHomeRing();
         ButtonLabel.Text = _buttonIndex >= 0 && _buttonIndex < _buttons.Length ? _buttons[_buttonIndex].ToolTip as string ?? "" : "";
@@ -1734,9 +1983,19 @@ public partial class MainWindow : Window
         InfoText.Text = (GameList.SelectedItem as Game)?.InfoLine ?? "";
         ScrollSelectionIntoView();
         // The highlight ring breathes on the selected tile only.
-        foreach (var old in e.RemovedItems) Motion.StopPulse(RingOf(old));
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => Motion.StartPulse(RingOf(GameList.SelectedItem))));
+        foreach (var old in e.RemovedItems)
+        {
+            Motion.StopPulse(RingOf(old));
+            Motion.GrowTile(GameList.ItemContainerGenerator.ContainerFromItem(old) as UIElement, false);
+        }
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            Motion.StartPulse(RingOf(GameList.SelectedItem));
+            if (GameList.SelectedItem != null)
+                Motion.GrowTile(GameList.ItemContainerGenerator.ContainerFromItem(GameList.SelectedItem) as UIElement, true);
+        }));
         if (GameList.SelectedItem != null && e.RemovedItems.Count > 0) Rumble();
+        if (Game.Portrait) StartPortraits(); // poster art for the games coming into view
         // The animated cover belongs to the highlighted tile only.
         if (_animatedGame != null && !ReferenceEquals(_animatedGame, GameList.SelectedItem))
         {
@@ -1793,14 +2052,16 @@ public partial class MainWindow : Window
         if (_scroll == null || GameList.SelectedIndex < 0) return;
 
         // Tiles are not all the same width, so add up the ones before the selection.
-        double left = RowSideMargin;
+        double side = _rowSide;
+        double left = side;
         for (int i = 0; i < GameList.SelectedIndex && i < _view.Count; i++) left += _view[i].TileWidth;
         double right = left + _view[Math.Min(GameList.SelectedIndex, _view.Count - 1)].TileWidth;
         double viewport = _scroll.ViewportWidth;
         double target = _scrollTarget;
 
-        if (left - RowSideMargin < target) target = left - RowSideMargin;
-        else if (right + RowSideMargin > target + viewport) target = right + RowSideMargin - viewport;
+        if (LayoutName == "stage") target = (left + right) / 2 - viewport / 2; // Stage: the selected game sits in the middle
+        else if (left - side < target) target = left - side;
+        else if (right + side > target + viewport) target = right + side - viewport;
 
         _scrollTarget = Math.Max(0, target);
         if (!_scrollAnimating)
@@ -1854,7 +2115,7 @@ public partial class MainWindow : Window
     {
         int choice = await AskWithIconsAsync("Power", null,
             ("Lock", "\uE72E"), ("Sleep", "\uE708"), ("Hibernate", "\uEC46"), ("Restart", "\uE777"),
-            ("Shut down", "\uE7E8"), ("Exit to desktop", "\uE8FC"), ("Cancel", "\uE711"));
+            ("Shut down", "\uE7E8"), ("Exit SquareDeck", "\uE8FC"), ("Cancel", "\uE711"));
         switch (choice)
         {
             case 0: Power.Lock(); break;
@@ -1934,16 +2195,25 @@ public partial class MainWindow : Window
     /// <summary>Re-applies settings that change what the home screen shows.</summary>
     public void ApplySettings()
     {
+        Dispatcher.BeginInvoke(new Action(FitButtonRow), System.Windows.Threading.DispatcherPriority.Loaded); // buttons may have been shown or hidden
         _clockTimer.Interval = TimeSpan.FromSeconds(Settings.ClockSeconds ? 1 : 5);
         UpdateClock();
         _gamepad.SummonCombo = Settings.SummonCombo;
+        Motion.ButtonAnimations = Settings.ButtonAnimations;
+        Motion.ButtonStyle = Settings.ButtonAnimationStyle;
+        Motion.PageStyle = Settings.PageTransition;
+        Motion.TileStyle = Settings.TileHighlight;
+        TouchKeyboard.UseWindows = Settings.TouchKeyboard == "windows";
         ApplySummonKey();
         Hints.SetStyle(Settings.GlyphStyle);
+        Hints.SetLook(Settings.GlyphLook);
         RefreshHomeButtons();
         ApplyAspect();
         UpdateMenuMusic();
         if (Theme.ReduceMotion) Motion.StopPulse(RingOf(GameList.SelectedItem));
         else Motion.StartPulse(RingOf(GameList.SelectedItem));
+        if (GameList.SelectedItem != null)
+            Motion.GrowTile(GameList.ItemContainerGenerator.ContainerFromItem(GameList.SelectedItem) as UIElement, true);
         _ = ApplyGameAccentAsync((GameList.SelectedItem as Game)?.Actual);
         if (!Settings.AnimatedCovers && _animatedGame != null)
         {
@@ -1965,15 +2235,17 @@ public partial class MainWindow : Window
         UiSound.Configure(Settings);
         UpdateHomeRing(); // the ring brush follows the new highlight color
         ApplyWallpaper();
+        ApplyUiStyle();
         UpdateMenuMusic();
     }
 
     private void ApplyWallpaper()
     {
-        var brush = Theme.WallpaperBrush(Settings.Wallpaper);
+        var brush = Theme.WallpaperBrush(Settings.Wallpaper) ?? UiStyles.Backdrop(UiStyles.Current);
         Theme.CurrentWallpaper = brush; // pages show the same wallpaper behind them
         WallpaperLayer.Fill = brush;
         WallpaperLayer.Visibility = WallpaperScrim.Visibility = brush == null ? Visibility.Collapsed : Visibility.Visible;
+        if (_dynamicVideo != null) ApplyDynamicBackground(); // a moving background takes the wallpaper's place
     }
 
     public void SetButtonMap(string map)
@@ -1995,7 +2267,7 @@ public partial class MainWindow : Window
 
     private async Task ShowAnimatedCoverAsync(Game? game)
     {
-        if (!Settings.AnimatedCovers || Theme.ReduceMotion || game == null || !game.IsGame || game.HasAnimatedCover) return;
+        if (!Settings.AnimatedCovers || Theme.ReduceMotion || Perf.Active || game == null || !game.IsGame || game.HasAnimatedCover) return;
         try
         {
             var path = await Task.Run(async () =>
@@ -2266,6 +2538,7 @@ public partial class MainWindow : Window
     {
         _heroCts?.Cancel();
         _heroKey = null;
+        Theme.CurrentHero = null;
         HeroImage.BeginAnimation(OpacityProperty,
             new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(250)));
     }
@@ -2292,8 +2565,10 @@ public partial class MainWindow : Window
             {
                 using var client = new SteamGridDbClient(Settings.SteamGridDbApiKey);
                 var path = await client.GetHeroAsync(game, ct);
-                // Blurred anyway, so a small decode is plenty and keeps it cheap.
-                return path == null ? null : ImageLoader.FromFile(path, 480);
+                // Blurred styles only need a small decode; styles that show it sharp need the full width.
+                // Performance mode loads blurred styles' artwork tiny instead of blurring it live.
+                int width = UiStyles.Current.HeroBlur < 10 ? 1600 : Perf.Active ? 64 : 480;
+                return path == null ? null : ImageLoader.FromFile(path, width);
             }, ct);
         }
         catch (Exception)
@@ -2309,8 +2584,9 @@ public partial class MainWindow : Window
             return;
         }
         HeroImage.Source = image;
+        Theme.CurrentHero = image;
         HeroImage.BeginAnimation(OpacityProperty,
-            new System.Windows.Media.Animation.DoubleAnimation(0, 0.28, TimeSpan.FromMilliseconds(450)));
+            new System.Windows.Media.Animation.DoubleAnimation(0, UiStyles.Current.HeroOpacity, TimeSpan.FromMilliseconds(450)));
     }
 
     public void ApplyAvatar() => AvatarButton.Content = Avatars.Build(Settings.Avatar, 58);
@@ -2320,12 +2596,16 @@ public partial class MainWindow : Window
         if (WindowStyle == WindowStyle.None)
         {
             WindowStyle = WindowStyle.SingleBorderWindow;
+            ResizeMode = ResizeMode.CanResize;
             WindowState = WindowState.Normal;
         }
         else
         {
             WindowState = WindowState.Normal; // must leave Maximized before removing the border
             WindowStyle = WindowStyle.None;
+            // No resize frame in full screen: with one, Windows keeps an invisible 8-pixel border inside the window,
+            // which pushed the edges of the interface off screen.
+            ResizeMode = ResizeMode.NoResize;
             WindowState = WindowState.Maximized;
         }
     }
@@ -2340,6 +2620,7 @@ public partial class MainWindow : Window
         // "Follow system": pick up a Windows light/dark switch without a restart.
         if (Settings.ThemeMode == "system" && Theme.SystemIsDark() != Theme.CurrentIsDark) Theme.Apply(Settings);
 
+        CheckPerformancePower(); // "on battery only" follows the cable
         var battery = Battery.GetPercent();
         BatteryButton.Visibility = battery == null ? Visibility.Collapsed : Visibility.Visible;
         if (battery != null)

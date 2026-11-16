@@ -21,20 +21,43 @@ public static class Theme
         ("Sky", "#8EC5FC", "#E0C3FC"), ("Sand", "#E6DADA", "#C9B79C")
     };
 
+    /// <summary>Built-in picture wallpapers (in the Wallpapers folder next to the app): a name and its file.</summary>
+    public static readonly (string Name, string File)[] PictureWallpapers =
+    {
+        ("Leonida", "Leonida.jpg")
+    };
+
+    public const string LeonidaWallpaper = "image:Leonida.jpg";
+
+    /// <summary>
+    /// Color themes for the base colors, dark and light: background, text, faint text, buttons, tiles, highlight.
+    /// A UI style with colors of its own still uses those.
+    /// </summary>
+    public static readonly Dictionary<string, (string Name, string[] Dark, string[] Light)> Palettes = new()
+    {
+        // Leonida at dusk: violet sky, pastel Art Deco buildings, a hot-pink and orange sunset over peach sand.
+        ["gtavi"] = ("GTA VI",
+            new[] { "#24143F", "#FFF3EC", "#F4BCCB", "#4A2A6A", "#3A2058", "#FF4F9A" },
+            new[] { "#FFE6D9", "#2A1846", "#7B4C8C", "#FFF8F4", "#F6CFC6", "#E8337A" })
+    };
+
     public static readonly (string Name, int Radius)[] CornerStyles = { ("Square", 0), ("Rounded", 10), ("Round", 22) };
 
     /// <summary>One-tap looks: theme, highlight color, wallpaper, tile corners and sounds together.</summary>
-    public static readonly (string Name, string Mode, string Accent, string Wallpaper, int Corner, string Sounds)[] Presets =
+    public static readonly (string Name, string Mode, string Accent, string Wallpaper, int Corner, string Sounds, string Palette)[] Presets =
     {
-        ("Classic", "light", "", "", 0, "classic"),
-        ("Midnight", "dark", "#5B5BD6", "preset:0", 10, "soft"),
-        ("Sunset", "dark", "#F2B01E", "preset:4", 10, "classic"),
-        ("Ocean", "dark", "", "preset:2", 22, "soft"),
-        ("Forest", "dark", "#2EB872", "preset:3", 10, "soft"),
-        ("Retro arcade", "dark", "#EC4899", "preset:5", 0, "retro"),
-        ("OLED", "oled", "", "", 10, "soft"),
-        ("Daylight", "light", "#1E88E5", "preset:6", 22, "soft")
+        ("Classic", "light", "", "", 0, "classic", ""),
+        ("Midnight", "dark", "#5B5BD6", "preset:0", 10, "soft", ""),
+        ("Sunset", "dark", "#F2B01E", "preset:4", 10, "classic", ""),
+        ("Ocean", "dark", "", "preset:2", 22, "soft", ""),
+        ("Forest", "dark", "#2EB872", "preset:3", 10, "soft", ""),
+        ("Retro arcade", "dark", "#EC4899", "preset:5", 0, "retro", ""),
+        ("OLED", "oled", "", "", 10, "soft", ""),
+        ("Daylight", "light", "#1E88E5", "preset:6", 22, "soft", ""),
+        ("GTA VI", "dark", "", LeonidaWallpaper, 22, "soft", "gtavi")
     };
+
+    private static readonly Dictionary<string, Brush> PictureCache = new();
 
     /// <summary>True when animations should be skipped (Settings > Accessibility).</summary>
     public static bool ReduceMotion { get; private set; }
@@ -63,6 +86,20 @@ public static class Theme
                     new Point(0, 0), new Point(1, 1));
                 gradient.Freeze();
                 return gradient;
+            }
+
+            if (setting.StartsWith("image:", StringComparison.Ordinal))
+            {
+                // A built-in picture: loaded once and shared (styles' previews ask for it too).
+                if (PictureCache.TryGetValue(setting, out var cached)) return cached;
+                var file = System.IO.Path.Combine(AppContext.BaseDirectory, "Wallpapers", setting[6..]);
+                if (!System.IO.File.Exists(file)) return null;
+                var picture = ImageLoader.FromFile(file, 1920);
+                if (picture == null) return null;
+                var pictureBrush = new ImageBrush(picture) { Stretch = Stretch.UniformToFill };
+                pictureBrush.Freeze();
+                PictureCache[setting] = pictureBrush;
+                return pictureBrush;
             }
 
             if (!System.IO.File.Exists(setting)) return null;
@@ -104,6 +141,22 @@ public static class Theme
         _ => SystemIsDark()
     };
 
+    /// <summary>#RRGGBB or #AARRGGBB.</summary>
+    public static bool TryParseArgb(string? text, out Color color)
+    {
+        color = default;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        try
+        {
+            color = (Color)ColorConverter.ConvertFromString(text.Trim());
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     public static bool TryParseColor(string? text, out Color color)
     {
         color = default;
@@ -122,9 +175,17 @@ public static class Theme
         }
     }
 
+    /// <summary>The highlighted game's artwork, for pages in styles that show it behind them.</summary>
+    public static ImageSource? CurrentHero { get; set; }
+
     public static void Apply(Settings settings)
     {
+        UiStyles.Select(settings.UiStyle);
+        var style = UiStyles.Current;
         bool dark = ShouldBeDark(settings);
+        // Styles with only a dark palette are dark whatever the theme is set to.
+        if (style.Dark != null && style.Light == null && settings.ThemeMode is not ("hc-dark" or "hc-light")) dark = true;
+        if (style.ForceLight && settings.ThemeMode is not ("hc-dark" or "hc-light")) dark = false;
         CurrentIsDark = dark;
 
         ReduceMotion = settings.ReduceMotion;
@@ -143,6 +204,7 @@ public static class Theme
             TileCorner = Math.Clamp(settings.TileCorner, 0, 40);
             Application.Current.Resources["TileCorner"] = new CornerRadius(TileCorner);
             Application.Current.Resources["RingCorner"] = new CornerRadius(TileCorner + 5);
+            UiStyles.ApplyResources();
             return;
         }
 
@@ -154,12 +216,34 @@ public static class Theme
         Set("CircleBrush", oled ? "#1C1C1C" : dark ? "#4B4B4B" : "#FFFFFF");
         Set("TileBrush", oled ? "#141414" : dark ? "#3C3C3C" : "#D2D2D2");
 
-        TileCorner = Math.Clamp(settings.TileCorner, 0, 40);
+        // A color theme (GTA VI...) replaces the grays.
+        if (Palettes.TryGetValue(settings.ThemePalette ?? "", out var theme))
+        {
+            var colors = dark ? theme.Dark : theme.Light;
+            Set("BgBrush", oled ? "#000000" : colors[0]);
+            Set("FgBrush", colors[1]);
+            Set("SubtleBrush", colors[2]);
+            Set("CircleBrush", colors[3]);
+            Set("TileBrush", colors[4]);
+        }
+
+        // The style's own colors (OLED keeps its true black background).
+        if (UiStyles.PaletteFor(style, dark) is { } palette)
+        {
+            Set("BgBrush", oled ? "#000000" : palette[0]);
+            Set("FgBrush", palette[1]);
+            Set("SubtleBrush", palette[2]);
+            Set("CircleBrush", palette[3]);
+            Set("TileBrush", palette[4]);
+        }
+
+        TileCorner = style.TileCorner ?? Math.Clamp(settings.TileCorner, 0, 40);
         Application.Current.Resources["TileCorner"] = new CornerRadius(TileCorner);
         Application.Current.Resources["RingCorner"] = new CornerRadius(TileCorner + 5);
 
         // The user's highlight color wins over the theme's own.
         ApplyAccent(settings);
+        UiStyles.ApplyResources();
     }
 
     /// <summary>Puts the highlight color back to the user's choice (or the theme's own).</summary>
@@ -172,6 +256,8 @@ public static class Theme
         }
         if (settings.AccentColor == "system" && SystemAccent() is Color system) TintAccent(system);
         else if (TryParseColor(settings.AccentColor, out var accent)) Set("AccentBrush", accent);
+        else if (UiStyles.PaletteFor(UiStyles.Current, CurrentIsDark) is { } palette && palette[5].Length > 0) Set("AccentBrush", palette[5]);
+        else if (Palettes.TryGetValue(settings.ThemePalette ?? "", out var theme)) Set("AccentBrush", (CurrentIsDark ? theme.Dark : theme.Light)[5]);
         else Set("AccentBrush", CurrentIsDark ? "#20E0D0" : "#0AB9C9");
     }
 

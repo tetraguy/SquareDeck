@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -92,7 +93,7 @@ public static class Monitors
 }
 
 /// <summary>A pop-up some other app showed through Windows.</summary>
-public sealed record WindowsToast(uint Id, string App, string Title, string Text, DateTime When);
+public sealed record WindowsToast(uint Id, string App, string Title, string Text, DateTime When, string IconPath = "");
 
 /// <summary>
 /// Reads the notifications in Windows' own notification center, so they can be shown in the launcher too.
@@ -105,6 +106,33 @@ public static class WindowsNotifications
 
     private static readonly HashSet<uint> Seen = new();
     private static bool _baselined;
+
+    /// <summary>
+    /// The sending app's own icon (from Windows), saved once per app so the notification center can show it.
+    /// Empty when Windows doesn't have one.
+    /// </summary>
+    private static async Task<string> AppIconAsync(Windows.UI.Notifications.UserNotification n, string app)
+    {
+        if (app.Length == 0) return "";
+        try
+        {
+            string safe = string.Concat(app.Select(c => char.IsLetterOrDigit(c) ? c : '_'));
+            string folder = System.IO.Path.Combine(Settings.DataDir, "app-icons");
+            string path = System.IO.Path.Combine(folder, safe + ".png");
+            if (System.IO.File.Exists(path)) return path;
+            var logo = n.AppInfo?.DisplayInfo?.GetLogo(new Windows.Foundation.Size(64, 64));
+            if (logo == null) return "";
+            using var stream = await logo.OpenReadAsync();
+            using var input = stream.AsStreamForRead();
+            using var ms = new System.IO.MemoryStream();
+            await input.CopyToAsync(ms);
+            if (ms.Length == 0) return "";
+            System.IO.Directory.CreateDirectory(folder);
+            await System.IO.File.WriteAllBytesAsync(path, ms.ToArray());
+            return path;
+        }
+        catch (Exception) { return ""; }
+    }
 
     /// <summary>Asks Windows for permission (it may show a prompt the first time).</summary>
     public static async Task<bool> RequestAccessAsync()
@@ -158,8 +186,9 @@ public static class WindowsNotifications
                 }
                 catch (Exception) { }
                 if (title.Length == 0 && app.Length == 0) continue;
+                string icon = await AppIconAsync(n, app);
                 if (title.Length == 0) { title = app; app = ""; }
-                fresh.Add(new WindowsToast(n.Id, app, title, text, n.CreationTime.LocalDateTime));
+                fresh.Add(new WindowsToast(n.Id, app, title, text, n.CreationTime.LocalDateTime, icon));
             }
             Seen.IntersectWith(present); // forget ones the user has dismissed, so the set doesn't grow forever
             _baselined = true;

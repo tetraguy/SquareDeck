@@ -393,6 +393,11 @@ public static class LocalSecret
 
 public sealed record SpotifyItem(string Kind, string Uri, string Name, string Detail, string ImageUrl);
 
+public sealed record SpotifyState(bool IsPlaying, string Title, string Artist, string ImageUrl, string Uri, int ProgressMs, int DurationMs,
+                                  bool Shuffle, string Repeat, string Device, string DeviceId, int Volume);
+
+public sealed record SpotifyDevice(string Id, string Name, string Type, bool Active);
+
 /// <summary>
 /// Spotify search and your playlists through the Spotify Web API. Spotify requires every app to be
 /// registered, so the user creates a free app at developer.spotify.com and pastes its Client ID in Settings.
@@ -402,7 +407,12 @@ public sealed class SpotifyClient
 {
     public const int Port = 43821;
     public static string RedirectUri => $"http://127.0.0.1:{Port}/callback";
-    private const string Scopes = "playlist-read-private playlist-read-collaborative user-read-playback-state user-modify-playback-state";
+    // Playlists, Liked Songs, recently played, and playing / controlling music on your Spotify devices.
+    private const string Scopes = "playlist-read-private playlist-read-collaborative user-read-playback-state user-modify-playback-state " +
+                                  "user-read-currently-playing user-library-read user-read-recently-played";
+
+    /// <summary>Bumped when new permissions are needed, so an older sign-in is asked to sign in again.</summary>
+    public const int ScopesVersion = 2;
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
     private readonly Settings _settings;
@@ -413,6 +423,9 @@ public sealed class SpotifyClient
 
     public bool HasClientId => _settings.SpotifyClientId.Trim().Length > 0;
     public bool IsSignedIn => LocalSecret.Unprotect(_settings.SpotifyToken).Length > 0;
+
+    /// <summary>Signed in before the built-in player needed more permissions: sign in once more.</summary>
+    public bool NeedsNewSignIn => IsSignedIn && _settings.SpotifyScopes < ScopesVersion;
 
     public void SignOut()
     {
@@ -477,6 +490,8 @@ public sealed class SpotifyClient
                 ["grant_type"] = "authorization_code", ["code"] = code!, ["redirect_uri"] = RedirectUri,
                 ["client_id"] = _settings.SpotifyClientId.Trim(), ["code_verifier"] = verifier
             }, ct).ConfigureAwait(false);
+            _settings.SpotifyScopes = ScopesVersion;
+            _settings.Save();
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -565,6 +580,124 @@ public sealed class SpotifyClient
             HttpStatusCode.Forbidden => "premium",
             _ => "Spotify answered " + (int)resp.StatusCode
         };
+    }
+
+    // ---------------------------------------------------------------- the built-in Spotify page
+
+    /// <summary>What's playing on your Spotify account right now (null when nothing is, or Spotify is closed everywhere).</summary>
+    public async Task<SpotifyState?> StateAsync(CancellationToken ct)
+    {
+        using var resp = await SendAsync(HttpMethod.Get, "me/player?additional_types=episode", null, ct).ConfigureAwait(false);
+        if (resp.StatusCode == HttpStatusCode.NoContent || !resp.IsSuccessStatusCode) return null;
+        var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        if (json.Length == 0) return null;
+        using var doc = JsonDocument.Parse(json);
+        var r = doc.RootElement;
+        string title = "", artist = "", image = "", uri = "";
+        int duration = 0;
+        if (r.TryGetProperty("item", out var item) && item.ValueKind == JsonValueKind.Object)
+        {
+            title = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+            uri = item.TryGetProperty("uri", out var u) ? u.GetString() ?? "" : "";
+            duration = item.TryGetProperty("duration_ms", out var d) ? d.GetInt32() : 0;
+            if (item.TryGetProperty("artists", out var a) && a.ValueKind == JsonValueKind.Array)
+                artist = string.Join(", ", a.EnumerateArray().Select(x => x.TryGetProperty("name", out var an) ? an.GetString() : null).Where(x => x != null));
+            else if (item.TryGetProperty("show", out var show) && show.TryGetProperty("name", out var sn)) artist = sn.GetString() ?? "";
+            var images = item.TryGetProperty("album", out var album) && album.TryGetProperty("images", out var ai) ? ai
+                       : item.TryGetProperty("images", out var ii) ? ii : default;
+            if (images.ValueKind == JsonValueKind.Array && images.GetArrayLength() > 0) image = images[0].GetProperty("url").GetString() ?? "";
+        }
+        string device = "", deviceId = "";
+        int volume = -1;
+        if (r.TryGetProperty("device", out var dev) && dev.ValueKind == JsonValueKind.Object)
+        {
+            device = dev.TryGetProperty("name", out var dn) ? dn.GetString() ?? "" : "";
+            deviceId = dev.TryGetProperty("id", out var di) ? di.GetString() ?? "" : "";
+            volume = dev.TryGetProperty("volume_percent", out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : -1;
+        }
+        return new SpotifyState(
+            r.TryGetProperty("is_playing", out var p) && p.GetBoolean(), title, artist, image, uri,
+            r.TryGetProperty("progress_ms", out var pr) && pr.ValueKind == JsonValueKind.Number ? pr.GetInt32() : 0, duration,
+            r.TryGetProperty("shuffle_state", out var sh) && sh.ValueKind == JsonValueKind.True,
+            r.TryGetProperty("repeat_state", out var rp) ? rp.GetString() ?? "off" : "off", device, deviceId, volume);
+    }
+
+    /// <summary>A playback command. Returns null when it worked, otherwise "nodevice", "premium" or a reason.</summary>
+    private async Task<string?> CommandAsync(HttpMethod method, string path, string? body, CancellationToken ct)
+    {
+        using var resp = await SendAsync(method, path, body, ct).ConfigureAwait(false);
+        if (resp.IsSuccessStatusCode) return null;
+        return resp.StatusCode switch
+        {
+            HttpStatusCode.NotFound => "nodevice",
+            HttpStatusCode.Forbidden => "premium",
+            HttpStatusCode.Unauthorized => "signin",
+            _ => "Spotify answered " + (int)resp.StatusCode
+        };
+    }
+
+    public Task<string?> ResumeAsync(CancellationToken ct) => CommandAsync(HttpMethod.Put, "me/player/play", null, ct);
+    public Task<string?> PauseAsync(CancellationToken ct) => CommandAsync(HttpMethod.Put, "me/player/pause", null, ct);
+    public Task<string?> NextAsync(CancellationToken ct) => CommandAsync(HttpMethod.Post, "me/player/next", null, ct);
+    public Task<string?> PreviousAsync(CancellationToken ct) => CommandAsync(HttpMethod.Post, "me/player/previous", null, ct);
+    public Task<string?> SeekAsync(int ms, CancellationToken ct) => CommandAsync(HttpMethod.Put, "me/player/seek?position_ms=" + Math.Max(0, ms), null, ct);
+    public Task<string?> ShuffleAsync(bool on, CancellationToken ct) => CommandAsync(HttpMethod.Put, "me/player/shuffle?state=" + (on ? "true" : "false"), null, ct);
+    public Task<string?> RepeatAsync(string mode, CancellationToken ct) => CommandAsync(HttpMethod.Put, "me/player/repeat?state=" + mode, null, ct);
+    public Task<string?> VolumeAsync(int percent, CancellationToken ct) => CommandAsync(HttpMethod.Put, "me/player/volume?volume_percent=" + Math.Clamp(percent, 0, 100), null, ct);
+
+    /// <summary>Moves playback to a device (and starts it).</summary>
+    public Task<string?> TransferAsync(string deviceId, CancellationToken ct) =>
+        CommandAsync(HttpMethod.Put, "me/player", JsonSerializer.Serialize(new { device_ids = new[] { deviceId }, play = true }), ct);
+
+    /// <summary>Plays a playlist or album from one of its songs.</summary>
+    public Task<string?> PlayFromAsync(string contextUri, string trackUri, CancellationToken ct) =>
+        CommandAsync(HttpMethod.Put, "me/player/play", JsonSerializer.Serialize(new { context_uri = contextUri, offset = new { uri = trackUri } }), ct);
+
+    /// <summary>Plays songs in order (Liked Songs, recently played).</summary>
+    public Task<string?> PlayTracksAsync(IEnumerable<string> uris, CancellationToken ct) =>
+        CommandAsync(HttpMethod.Put, "me/player/play", JsonSerializer.Serialize(new { uris = uris.Take(100).ToArray() }), ct);
+
+    public async Task<List<SpotifyDevice>> DevicesAsync(CancellationToken ct)
+    {
+        using var resp = await SendAsync(HttpMethod.Get, "me/player/devices", null, ct).ConfigureAwait(false);
+        var list = new List<SpotifyDevice>();
+        if (!resp.IsSuccessStatusCode) return list;
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+        if (doc.RootElement.TryGetProperty("devices", out var devices))
+            foreach (var d in devices.EnumerateArray())
+                list.Add(new SpotifyDevice(d.GetProperty("id").GetString() ?? "", d.GetProperty("name").GetString() ?? "",
+                    d.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "", d.TryGetProperty("is_active", out var a) && a.GetBoolean()));
+        return list;
+    }
+
+    private async Task<List<SpotifyItem>> TrackListAsync(string path, string? wrapper, CancellationToken ct)
+    {
+        using var resp = await SendAsync(HttpMethod.Get, path, null, ct).ConfigureAwait(false);
+        if (resp.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized)
+            throw new InvalidOperationException("scope");
+        resp.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+        var list = new List<SpotifyItem>();
+        if (doc.RootElement.TryGetProperty("items", out var items))
+            foreach (var e in items.EnumerateArray())
+            {
+                var track = wrapper != null && e.TryGetProperty(wrapper, out var w) ? w : e;
+                if (Item(track, "track") is { } item && list.All(x => x.Uri != item.Uri)) list.Add(item);
+            }
+        return list;
+    }
+
+    public Task<List<SpotifyItem>> LikedAsync(CancellationToken ct) => TrackListAsync("me/tracks?limit=50", "track", ct);
+    public Task<List<SpotifyItem>> RecentAsync(CancellationToken ct) => TrackListAsync("me/player/recently-played?limit=40", "track", ct);
+
+    /// <summary>The songs of a playlist (spotify:playlist:id) or an album (spotify:album:id).</summary>
+    public Task<List<SpotifyItem>> TracksOfAsync(string uri, CancellationToken ct)
+    {
+        var parts = uri.Split(':');
+        if (parts.Length < 3) return Task.FromResult(new List<SpotifyItem>());
+        return parts[1] == "album"
+            ? TrackListAsync($"albums/{parts[2]}/tracks?limit=50", null, ct)
+            : TrackListAsync($"playlists/{parts[2]}/tracks?limit=100", "track", ct);
     }
 
     public static List<SpotifyItem> ParseSearch(string json)

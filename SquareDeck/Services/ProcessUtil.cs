@@ -104,6 +104,39 @@ public static class ProcessUtil
         return false;
     }
 
+    [StructLayout(LayoutKind.Sequential)] private struct WinRect { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out WinRect rect);
+
+    /// <summary>
+    /// True once the game shows a real window: a visible, game-sized main window belonging to the program at
+    /// <paramref name="exePath"/> or to any program under <paramref name="directory"/>. (Splash screens of the
+    /// game itself count; small helper and crash-reporter windows don't.)
+    /// </summary>
+    public static bool HasGameWindow(string? exePath, string? directory) => FindGameWindowProgram(exePath, directory) != null;
+
+    /// <summary>The program that owns such a window, or null.</summary>
+    public static string? FindGameWindowProgram(string? exePath, string? directory)
+    {
+        string? prefix = string.IsNullOrEmpty(directory) ? null : directory.TrimEnd('\\') + "\\";
+        if (exePath == null && prefix == null) return null;
+        foreach (var p in Process.GetProcesses())
+        {
+            try
+            {
+                var handle = p.MainWindowHandle;
+                if (handle == IntPtr.Zero || !IsWindowVisible(handle) || IsIconic(handle)) continue;
+                if (!GetWindowRect(handle, out var r) || r.Right - r.Left < 400 || r.Bottom - r.Top < 300) continue;
+                var path = GetImagePath(p.Id);
+                if (path == null) continue;
+                if (exePath != null ? string.Equals(path, exePath, StringComparison.OrdinalIgnoreCase)
+                                    : path.StartsWith(prefix!, StringComparison.OrdinalIgnoreCase)) return path;
+            }
+            catch (Exception) { }
+            finally { p.Dispose(); }
+        }
+        return null;
+    }
+
     [System.Runtime.InteropServices.DllImport("psapi.dll")]
     private static extern bool EmptyWorkingSet(IntPtr process);
 

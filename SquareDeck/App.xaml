@@ -1,7 +1,8 @@
 <Application x:Class="SquareDeck.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             StartupUri="MainWindow.xaml">
+             xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- The main window is opened by App.OnStartup, after checking that SquareDeck isn't already running. -->
     <Application.Resources>
         <!-- Theme brushes. Replaced at runtime by Theme.Apply(). -->
         <SolidColorBrush x:Key="BgBrush" Color="#EBEBEB"/>
@@ -19,42 +20,203 @@
         <!-- List rows: rounded cards. A grouped row overrides this in its own resources (first, middle, last). -->
         <CornerRadius x:Key="RowCorner">14</CornerRadius>
 
+        <!-- UI style (Settings > Appearance > UI style). All replaced at runtime by UiStyles.ApplyResources(). -->
+        <Thickness x:Key="RingThickness">4</Thickness>
+        <Thickness x:Key="TileRingMargin">0</Thickness>
+        <Thickness x:Key="TileInnerMargin">8</Thickness>
+        <sys:Double x:Key="TileTitleOpacity">1</sys:Double>
+        <!-- Tabs and sidebar (set again for each style in MainWindow.Layouts) -->
+        <SolidColorBrush x:Key="TabActiveText" Color="White"/>
+        <SolidColorBrush x:Key="TabActiveFill" Color="Transparent"/>
+        <SolidColorBrush x:Key="SideActiveFill" Color="#33FFFFFF"/>
+        <Visibility x:Key="TabLineVisibility">Visible</Visibility>
+        <sys:Double x:Key="TileNameOpacity">0</sys:Double>
+        <SolidColorBrush x:Key="PanelStroke" Color="Transparent"/>
+        <Thickness x:Key="PanelStrokeThickness">0</Thickness>
+        <SolidColorBrush x:Key="DialogBrush" Color="#EBEBEB"/>
+        <SolidColorBrush x:Key="RoundFill" Color="#FFFFFF"/>
+        <!-- Shape that rounds the home tiles' corners. Must be solid: its see-through parts make the cover see-through too. -->
+        <SolidColorBrush x:Key="TileMaskBrush" Color="#D2D2D2"/>
+        <DropShadowEffect x:Key="TileShadow" BlurRadius="8" ShadowDepth="2" Opacity="0.22"/>
+        <DropShadowEffect x:Key="ButtonShadow" BlurRadius="6" ShadowDepth="1" Opacity="0.18"/>
+        <DropShadowEffect x:Key="RingGlow" BlurRadius="0" ShadowDepth="0" Opacity="0"/>
+        <sys:Double x:Key="RoundWidth">96</sys:Double>
+        <sys:Double x:Key="RoundLabelMax">70</sys:Double>
+        <sys:Double x:Key="RoundHeight">96</sys:Double>
+        <sys:Double x:Key="RoundIconSize">32</sys:Double>
+        <CornerRadius x:Key="RoundCorner">48</CornerRadius>
+        <CornerRadius x:Key="RoundInnerCorner">39</CornerRadius>
+        <Visibility x:Key="RoundLabelVisibility">Collapsed</Visibility>
+        <Orientation x:Key="RoundOrientation">Vertical</Orientation>
+        <Thickness x:Key="RoundMargin">6,0</Thickness>
+
         <!-- Round icon button. Content is a Segoe MDL2 Assets glyph. -->
         <Style x:Key="RoundButton" TargetType="Button">
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Margin" Value="6,0"/>
+            <Setter Property="Margin" Value="{DynamicResource RoundMargin}"/>
             <Setter Property="Template">
                 <Setter.Value>
+                    <!-- Shape and size follow the UI style: circle, rounded square, card with its name, or a tab -->
                     <ControlTemplate TargetType="Button">
-                        <Grid Width="96" Height="96" Background="Transparent">
-                            <Ellipse x:Name="Ring" StrokeThickness="4" Stroke="Transparent"/>
+                        <Grid Width="{DynamicResource RoundWidth}" Height="{DynamicResource RoundHeight}" Background="Transparent">
+                            <Border x:Name="Ring" BorderThickness="4" BorderBrush="Transparent" CornerRadius="{DynamicResource RoundCorner}"/>
                             <!-- The view that is showing (Home, Favorites, Apps): a small dot under the button -->
                             <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{DynamicResource AccentBrush}" Visibility="Collapsed"
-                                     VerticalAlignment="Bottom" Margin="0,0,0,-14"/>
-                            <Ellipse Margin="9" Fill="{DynamicResource CircleBrush}">
-                                <Ellipse.Effect>
-                                    <DropShadowEffect BlurRadius="6" ShadowDepth="1" Opacity="0.18"/>
-                                </Ellipse.Effect>
-                            </Ellipse>
-                            <TextBlock Text="{TemplateBinding Content}" FontFamily="Segoe MDL2 Assets"
-                                       FontSize="32" Foreground="{TemplateBinding Foreground}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                     VerticalAlignment="Bottom" Margin="0,0,0,-12"/>
+                            <Border Margin="9" Background="{DynamicResource RoundFill}" CornerRadius="{DynamicResource RoundInnerCorner}"
+                                    BorderBrush="{DynamicResource PanelStroke}" BorderThickness="{DynamicResource PanelStrokeThickness}"
+                                    Effect="{DynamicResource ButtonShadow}"/>
+                            <StackPanel Orientation="{DynamicResource RoundOrientation}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Margin="12,0">
+                                <TextBlock Text="{TemplateBinding Content}" FontFamily="Segoe MDL2 Assets"
+                                           FontSize="{DynamicResource RoundIconSize}" Foreground="{TemplateBinding Foreground}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="Label" Text="{Binding ToolTip, RelativeSource={RelativeSource TemplatedParent}}"
+                                           Visibility="{DynamicResource RoundLabelVisibility}" FontSize="12" Margin="6,4,0,0"
+                                           Foreground="{DynamicResource FgBrush}" TextTrimming="CharacterEllipsis"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="{DynamicResource RoundLabelMax}"/>
+                            </StackPanel>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Ring" Property="Effect" Value="{DynamicResource RingGlow}"/>
                             </Trigger>
                             <Trigger Property="Tag" Value="selected">
-                                <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Ring" Property="Effect" Value="{DynamicResource RingGlow}"/>
                             </Trigger>
                             <Trigger Property="Tag" Value="active">
                                 <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
                             </Trigger>
                             <Trigger Property="Tag" Value="selected-active">
-                                <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Ring" Property="Effect" Value="{DynamicResource RingGlow}"/>
                                 <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Tab styles (Waves, Sphere, Stage...): the main buttons as words in the top bar.
+             "active" = the view that's showing (underlined, or a filled pill); "selected" = the controller is on it. -->
+        <Style x:Key="TabButton" TargetType="Button">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="14,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid Height="44" Background="Transparent">
+                            <Border x:Name="Pill" CornerRadius="21" Margin="-18,1" Background="Transparent"/>
+                            <Border x:Name="Ring" CornerRadius="21" Margin="-18,1" BorderThickness="2" BorderBrush="Transparent"/>
+                            <TextBlock x:Name="Text" Text="{Binding ToolTip, RelativeSource={RelativeSource TemplatedParent}}"
+                                       FontSize="19" Foreground="{DynamicResource SubtleBrush}" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Border x:Name="Line" Height="3" CornerRadius="1.5" Background="{DynamicResource AccentBrush}"
+                                    VerticalAlignment="Bottom" Margin="2,0,2,-2" Visibility="Hidden"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Tag" Value="active">
+                                <Setter TargetName="Text" Property="Foreground" Value="{DynamicResource TabActiveText}"/>
+                                <Setter TargetName="Line" Property="Visibility" Value="{DynamicResource TabLineVisibility}"/>
+                                <Setter TargetName="Pill" Property="Background" Value="{DynamicResource TabActiveFill}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="selected">
+                                <Setter TargetName="Text" Property="Foreground" Value="{DynamicResource FgBrush}"/>
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="selected-active">
+                                <Setter TargetName="Text" Property="Foreground" Value="{DynamicResource TabActiveText}"/>
+                                <Setter TargetName="Line" Property="Visibility" Value="{DynamicResource TabLineVisibility}"/>
+                                <Setter TargetName="Pill" Property="Background" Value="{DynamicResource TabActiveFill}"/>
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="#40FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Tab styles: the other buttons as plain icons beside the tabs -->
+        <Style x:Key="TabIconButton" TargetType="Button">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid Width="42" Height="42" Background="Transparent">
+                            <Ellipse x:Name="Ring" StrokeThickness="2" Stroke="Transparent"/>
+                            <TextBlock Text="{TemplateBinding Content}" FontFamily="Segoe MDL2 Assets" FontSize="19"
+                                       Foreground="{DynamicResource FgBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Tag" Value="selected">
+                                <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="selected-active">
+                                <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Ring" Property="Stroke" Value="#40FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Desktop style: the buttons as a list in the sidebar, icon and name -->
+        <Style x:Key="SideButton" TargetType="Button">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid Width="200" Height="38" Background="Transparent">
+                            <Border x:Name="Fill" CornerRadius="10" Background="Transparent" BorderThickness="1.5" BorderBrush="Transparent"/>
+                            <Border x:Name="Bar" Width="3" CornerRadius="1.5" HorizontalAlignment="Left" Margin="0,9"
+                                    Background="{DynamicResource AccentBrush}" Visibility="Hidden"/>
+                            <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="Icon" Text="{TemplateBinding Content}" FontFamily="Segoe MDL2 Assets" FontSize="17"
+                                           Foreground="{DynamicResource SubtleBrush}" VerticalAlignment="Center" Width="22"/>
+                                <TextBlock x:Name="Label" Text="{Binding ToolTip, RelativeSource={RelativeSource TemplatedParent}}"
+                                           FontSize="16" Margin="14,0,0,0" Foreground="{DynamicResource SubtleBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Tag" Value="active">
+                                <Setter TargetName="Fill" Property="Background" Value="{DynamicResource SideActiveFill}"/>
+                                <Setter TargetName="Bar" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource FgBrush}"/>
+                                <Setter TargetName="Icon" Property="Foreground" Value="{DynamicResource FgBrush}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="selected">
+                                <Setter TargetName="Fill" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource FgBrush}"/>
+                                <Setter TargetName="Icon" Property="Foreground" Value="{DynamicResource FgBrush}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="selected-active">
+                                <Setter TargetName="Fill" Property="Background" Value="{DynamicResource SideActiveFill}"/>
+                                <Setter TargetName="Fill" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Bar" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource FgBrush}"/>
+                                <Setter TargetName="Icon" Property="Foreground" Value="{DynamicResource FgBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource FgBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -123,16 +285,24 @@
             <Setter Property="FontSize" Value="16"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="18,9"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
+                        <!-- Padding comes from the button, so round icon buttons (Padding 0) have room for their icon -->
                         <Border x:Name="B" Background="{DynamicResource CircleBrush}" CornerRadius="24" BorderThickness="3"
-                                BorderBrush="Transparent" Padding="18,9">
+                                BorderBrush="Transparent" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="B" Property="BorderBrush" Value="#40FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="B" Property="Opacity" Value="0.75"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -153,7 +323,7 @@
                     <ControlTemplate TargetType="Button">
                         <Grid>
                             <Border x:Name="B" Background="{DynamicResource CircleBrush}" CornerRadius="{DynamicResource RowCorner}"
-                                    BorderThickness="3" BorderBrush="Transparent" Padding="16,11">
+                                    BorderThickness="3" BorderBrush="{DynamicResource PanelStroke}" Padding="16,11">
                                 <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="Center"/>
                             </Border>
@@ -163,6 +333,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="B" Property="Effect" Value="{DynamicResource RingGlow}"/>
                             </Trigger>
                             <!-- The chosen entry in a sidebar -->
                             <Trigger Property="Tag" Value="selected">
@@ -189,6 +360,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="B" Property="Effect" Value="{DynamicResource RingGlow}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

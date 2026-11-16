@@ -92,7 +92,36 @@ public sealed class Game : INotifyPropertyChanged
     }
 
     /// <summary>Width of the tile on the home row. Must match what MainWindow uses for scrolling.</summary>
-    public double TileWidth => IsContinueTile ? 640 : 270;
+    public double TileWidth => Portrait ? 180 : IsContinueTile ? 640 : 270;
+
+    /// <summary>Styles with tall poster-shaped (2:3) tiles instead of square ones (Waves, Desktop, Stage...).</summary>
+    public static bool Portrait { get; set; }
+
+    private ImageSource? _portraitCover;
+
+    /// <summary>Tall (2:3) cover art from SteamGridDB, for the poster-shaped styles. Null until loaded.</summary>
+    public ImageSource? PortraitCover
+    {
+        get => _portraitCover;
+        set { _portraitCover = value; Changed(); Changed(nameof(TileImage)); }
+    }
+
+    /// <summary>True once the tall cover has been looked for (found or not), so it isn't asked for again.</summary>
+    public bool PortraitTried { get; set; }
+
+    /// <summary>The picture on the tile: the tall cover in poster styles (when there is one), otherwise the square one.</summary>
+    public ImageSource? TileImage => Portrait && _portraitCover != null ? _portraitCover : Cover;
+
+    /// <summary>The wide "Continue where you left off" face (not in poster styles: the tile is too narrow for it).</summary>
+    public bool ShowContinueFace => IsContinueTile && !Portrait;
+
+    /// <summary>The style changed between square and poster tiles.</summary>
+    public void RefreshShape()
+    {
+        Changed(nameof(TileWidth));
+        Changed(nameof(TileImage));
+        Changed(nameof(ShowContinueFace));
+    }
 
     /// <summary>Tiles that open a page instead of starting something.</summary>
     public bool IsActionTile => IsAddTile || IsLibraryTile || IsMoreAppsTile;
@@ -110,7 +139,7 @@ public sealed class Game : INotifyPropertyChanged
     public ImageSource? Cover
     {
         get => _cover;
-        set { _cover = value; Changed(); }
+        set { _cover = value; Changed(); Changed(nameof(TileImage)); }
     }
 
     public int? ReleaseYear
@@ -144,6 +173,17 @@ public sealed class Game : INotifyPropertyChanged
         get => _usesIcon;
         set { if (_usesIcon == value) return; _usesIcon = value; Changed(); }
     }
+
+    /// <summary>
+    /// The icon is artwork from SteamGridDB, so it fills the whole tile like a cover. Icons taken from a
+    /// program or app are small and stay centered on their color wash.
+    /// </summary>
+    public bool IconFills
+    {
+        get => _iconFills;
+        set { if (_iconFills == value) return; _iconFills = value; Changed(); }
+    }
+    private bool _iconFills;
 
     /// <summary>Gradient behind an app icon, built from the icon's own colors.</summary>
     public Brush? TileBackground

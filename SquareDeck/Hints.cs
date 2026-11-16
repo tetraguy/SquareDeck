@@ -1,3 +1,5 @@
+using System.IO;
+using SquareDeck.Services;
 using System.Text.RegularExpressions;
 
 namespace SquareDeck;
@@ -39,6 +41,58 @@ public static class Hints
         if (style == Style) return;
         Style = style;
         Changed?.Invoke();
+    }
+
+    /// <summary>How the buttons are drawn: plain names on a pill, or one of the built-in picture sets.</summary>
+    public static readonly (string Id, string Name)[] Looks =
+    {
+        ("text", "Simple"), ("default", "Controller icons"), ("pixel", "Pixel art")
+    };
+
+    /// <summary>"text", "default" or "pixel" (folders in Glyphs\ next to the program).</summary>
+    public static string Look { get; private set; } = "text";
+
+    public static void SetLook(string look)
+    {
+        look = Looks.Any(l => l.Id == look) ? look : "text";
+        if (look == Look) return;
+        Look = look;
+        Changed?.Invoke();
+    }
+
+    public static string GlyphsFolder => Path.Combine(AppContext.BaseDirectory, "Glyphs");
+
+    /// <summary>
+    /// The picture for a role ("Select", "Back"...) or shoulder button ("LB"...) in the chosen look, for the device in
+    /// use. Null with the simple look, or when the set has no picture for it (the name on a pill is shown instead).
+    /// </summary>
+    public static string? GlyphFile(string token)
+    {
+        if (Look == "text") return null;
+        string family, name;
+        if (Keyboard)
+        {
+            // The picture sets have keys for everything the hints use.
+            family = Look == "pixel" ? "keyboard" : Theme.CurrentIsDark ? "keyboard-light" : "keyboard-dark";
+            name = token switch
+            {
+                "Select" => "Enter", "Back" => "Esc", "Details" => "KeyX", "Options" => "KeyY",
+                "LB" => "PgUp", "RB" => "PgDn", "LT" => "BracketL", "RT" => "BracketR", _ => ""
+            };
+        }
+        else
+        {
+            // Files are named by the Xbox position (A bottom, B right, X left, Y top), whatever the controller.
+            family = Style;
+            name = token switch
+            {
+                "Select" => Select.ToString(), "Back" => Back.ToString(), "Details" => Details.ToString(), "Options" => Options.ToString(),
+                "LB" or "RB" or "LT" or "RT" => token, _ => ""
+            };
+        }
+        if (name.Length == 0) return null;
+        var path = Path.Combine(GlyphsFolder, Look, family, name + ".png");
+        return File.Exists(path) ? path : null;
     }
 
     public static void SetKeyboard(bool keyboard)
@@ -94,7 +148,8 @@ public static class Hints
         Token.Replace(template, m => KeyLabel(m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value));
 
     /// <summary>One hint: the pieces of its key part (button pills and plain words) and what it does.</summary>
-    public sealed record Item(List<(string Text, bool IsKey)> Keys, string Label);
+    /// <remarks>Image is the button's picture in the chosen look (null: draw the name on a pill).</remarks>
+    public sealed record Item(List<(string Text, bool IsKey, string? Image)> Keys, string Label);
 
     /// <summary>
     /// Splits a hint line such as "{Select}  Open      LT / RT  Page" into its hints. Hints are separated by
@@ -111,15 +166,16 @@ public static class Hints
             string label = parts.Length > 1 ? string.Join(" ", parts.Skip(1)).Trim() : "";
             if (parts.Length == 1 && !Token.IsMatch(keyPart)) { label = keyPart; keyPart = ""; }
 
-            var keys = new List<(string, bool)>();
+            var keys = new List<(string, bool, string?)>();
             int at = 0;
             foreach (Match m in Token.Matches(keyPart))
             {
-                if (m.Index > at) keys.Add((keyPart[at..m.Index].Trim(), false));
-                keys.Add((KeyLabel(m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value), true));
+                if (m.Index > at) keys.Add((keyPart[at..m.Index].Trim(), false, null));
+                string token = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
+                keys.Add((KeyLabel(token), true, GlyphFile(token)));
                 at = m.Index + m.Length;
             }
-            if (at < keyPart.Length) keys.Add((keyPart[at..].Trim(), false));
+            if (at < keyPart.Length) keys.Add((keyPart[at..].Trim(), false, null));
             keys.RemoveAll(k => k.Item1.Length == 0);
             items.Add(new Item(keys, label));
         }

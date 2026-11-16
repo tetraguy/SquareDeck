@@ -99,7 +99,8 @@ public partial class MainWindow
         _skipSaveOnClose = true;
         try
         {
-            if (Environment.ProcessPath is string exe) Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
+            if (Environment.ProcessPath is string exe)
+                Process.Start(new ProcessStartInfo(exe, App.RestartArgument) { UseShellExecute = true }); // waits for this copy to close
         }
         catch (Exception) { }
         Close();
@@ -234,6 +235,13 @@ public partial class MainWindow
     private IntPtr HotkeyHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         const int WmHotkey = 0x0312;
+        if (message == App.ShowExistingMessage)
+        {
+            // SquareDeck was started again: come forward instead of opening a second copy.
+            handled = true;
+            WindowActivator.BringToFront(this);
+            return IntPtr.Zero;
+        }
         if (message == WmHotkey && wParam.ToInt32() == SummonHotkeyId)
         {
             handled = true;
@@ -289,8 +297,8 @@ public partial class MainWindow
             case "gamebar": ProcessUtil.Open("ms-gamebar://hotkey/?ihkid=IHKID_GAME_GUIDE_OVERLAY&source=GbEm"); break;
             case "commandcenter": ProcessUtil.Open("ms-gamebar://launchForeground/activate/B9ECED6F.ASUSCommandCenter_qmba6cd70vzyy_App_Widget"); break;
             case "armourycrate": ProcessUtil.Open("asusac://"); break;
-            case "screenshot": ProcessUtil.Open("ms-gamebar://hotkey/?ihkid=IHKID_CAPTURE_GAME_SCREENSHOT&source=GbEm"); break;
-            case "record": ProcessUtil.Open("ms-gamebar://hotkey/?ihkid=IHKID_TOGGLE_GAME_RECORDING&source=GbEm"); break;
+            case "screenshot": CaptureGame("IHKID_CAPTURE_GAME_SCREENSHOT"); break;
+            case "record": CaptureGame("IHKID_TOGGLE_GAME_RECORDING"); break;
             case "mic": ProcessUtil.Open("ms-gamebar://hotkey/?ihkid=IHKID_ALT_TOGGLE_MICROPHONE_CAPTURE&source=GbEm"); break;
             case "keyboard":
                 var tabTip = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFiles), "microsoft shared", "ink", "TabTip.exe");
@@ -306,6 +314,20 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Asks Game Bar for a screenshot or recording. The quick menu is closed first and the game given a moment to come
+    /// back in front, so the capture shows the game and is named after it rather than "SquareDeck".
+    /// </summary>
+    private async void CaptureGame(string hotkey)
+    {
+        if (_overlay is { IsVisible: true } open)
+        {
+            open.Dismiss();
+            await Task.Delay(450);
+        }
+        ProcessUtil.Open("ms-gamebar://hotkey/?ihkid=" + hotkey + "&source=GbEm");
+    }
+
     /// <summary>What the summon buttons do: the quick menu over a running game, otherwise the launcher itself.</summary>
     private void Summon()
     {
@@ -317,6 +339,8 @@ public partial class MainWindow
     // ================================================================ explorer
 
     private void Explorer_Click(object sender, RoutedEventArgs e) => Push(new ExplorerScreen());
+
+    private void News_Click(object sender, RoutedEventArgs e) => Push(new GameNewsScreen());
 
     private Dictionary<string, (bool Online, string? Game)>? _friendStates;
     private readonly Dictionary<string, ImageSource> _friendPictures = new();
@@ -378,9 +402,10 @@ public partial class MainWindow
     private void ScrollWithRightStick()
     {
         double y = _gamepad.RightStickY;
-        if (y == 0 || _screens.Count == 0) return;
+        if (_screens.Count == 0) return;
         var top = _screens[^1];
-        if (top.OnRightStick(y)) return; // the browser scrolls its own page
+        if (top.OnRightStick(_gamepad.RightStickX, y, _gamepad.RightStickPressed)) return; // the browser uses it as a mouse
+        if (y == 0) return;
 
         ScrollViewer? viewer = null;
         if (Keyboard.FocusedElement is DependencyObject focused && top.IsAncestorOf(focused as Visual ?? top))
@@ -441,7 +466,7 @@ public partial class MainWindow
         int page = CurrentPage();
         if (page < 0) return;
         UiSound.Page();
-        GoToPage(page + direction, direction);
+        StepPage(page, direction);
     }
 
     private bool IsOverGameRow(Point windowPoint)
@@ -501,10 +526,57 @@ public partial class MainWindow
                 return;
             }
             MusicButton.Visibility = Visibility.Visible;
-            MusicGlyph.Text = now.IsPlaying ? "" : "";
-            MusicText.Text = now.Artist.Length > 0 ? now.Title + "  –  " + now.Artist : now.Title;
+            MusicGlyph.Text = now.IsPlaying ? "\uE769" : "\uE768";
+            MusicText.Text = now.Artist.Length > 0 ? now.Title + "  \u2013  " + now.Artist : now.Title;
+            EnsureMusicMarquee();
+
+            // The cover art of the song, fetched again only when the song changes.
+            string key = now.App + "|" + now.Title + "|" + now.Artist;
+            if (key != _musicArtKey)
+            {
+                _musicArtKey = key;
+                var withArt = await MediaService.GetAsync(includeThumbnail: true);
+                _musicArt = withArt?.Thumbnail is { Length: > 0 } bytes ? ImageLoader.FromBytes(bytes, 96) : null;
+            }
+            bool art = _musicArt != null;
+            MusicArt.Background = art ? new ImageBrush(_musicArt) { Stretch = Stretch.UniformToFill } : null;
+            MusicArt.Visibility = art ? Visibility.Visible : Visibility.Collapsed;
+            MusicArt.Opacity = now.IsPlaying ? 1 : 0.45; // paused: the cover dims
+            MusicGlyph.Visibility = art ? Visibility.Collapsed : Visibility.Visible;
         }
         catch (Exception) { }
+    }
+
+    private string? _musicArtKey;
+    private ImageSource? _musicArt;
+    private MarqueeText? _musicMarquee;
+
+    /// <summary>Puts the song name in a box that scrolls when the name is too long for the banner.</summary>
+    private void EnsureMusicMarquee()
+    {
+        if (_musicMarquee != null || MusicText.Parent is not Panel panel) return;
+        int index = panel.Children.IndexOf(MusicText);
+        panel.Children.Remove(MusicText);
+        MusicText.MaxWidth = double.PositiveInfinity;
+        _musicMarquee = new MarqueeText(MusicText) { MaxWidth = 190, VerticalAlignment = VerticalAlignment.Center };
+        panel.Children.Insert(index, _musicMarquee);
+    }
+
+    /// <summary>Next or previous song in whatever is playing (Spotify, a browser, Media Player…).</summary>
+    private async Task SkipSongAsync(bool next)
+    {
+        UiSound.Page();
+        if (next) await MediaService.NextAsync(); else await MediaService.PreviousAsync();
+        // A little nudge in the banner so it's clear something happened.
+        if (!Theme.ReduceMotion)
+        {
+            var shift = new TranslateTransform();
+            MusicButton.RenderTransform = shift;
+            var nudge = new DoubleAnimation(next ? 14 : -14, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            shift.BeginAnimation(TranslateTransform.XProperty, nudge);
+        }
+        await Task.Delay(400); // the player takes a moment to report the new song
+        UpdateNowPlaying();
     }
 
     private async void MusicToggle_Click(object sender, RoutedEventArgs e)
@@ -566,8 +638,11 @@ public partial class MainWindow
                 break;
             case NavAction.Accept:
                 var target = buttons[Math.Clamp(_footerIndex, 0, buttons.Count - 1)];
-                if (target == StopButton) SetFooterIndex(-1);
-                target.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Motion.PressThen(target, () =>
+                {
+                    if (target == StopButton) SetFooterIndex(-1);
+                    target.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                });
                 break;
         }
     }
@@ -600,6 +675,9 @@ public partial class MainWindow
             try { launch.Previous = await GameProfiles.ApplyAsync(profile); }
             catch (Exception) { }
         }
+        LocalMusic.Pause(); // your music stops for the game
+        // The game's own TDP, boost and power mode (or the defaults, if it has none).
+        TdpControl.SetGame(profile is { HasPower: true } ? profile : null);
 
         if (Settings.DoNotDisturb && DoNotDisturb.Set(true))
         {
@@ -1120,12 +1198,12 @@ public partial class MainWindow
         _overlay.OpenLauncher += () => WindowActivator.BringToFront(this);
         _overlay.ExitGame += async () =>
         {
-            if (running != null) await StopGameAsync(running, confirm: false);
             WindowActivator.BringToFront(this);
+            if (running != null) await StopGameAsync(running, confirm: false);
         };
         _overlay.Closed += (_, _) => _overlay = null;
         _overlay.Show();
-        _overlay.Activate();
+        WindowActivator.ShowOnTop(_overlay); // over full-screen games and the Xbox full screen experience
     }
 
     // ================================================================ stores
@@ -1135,50 +1213,12 @@ public partial class MainWindow
     // ================================================================ first-run setup
 
     /// <summary>A short series of choices on first launch. Each can be changed later in Settings.</summary>
+    /// <summary>The welcome pages (first start, or Settings > Run first-time setup again). Finishes when they close.</summary>
     public async Task RunSetupAsync()
     {
-        int start = await AskAsync("Welcome to SquareDeck",
-            "A few quick choices to set things up. Everything here can be changed later in Settings.",
-            "Start setup", "Skip and use the defaults");
-        if (start == 0)
-        {
-            int look = await AskAsync("Choose a look", null, "Follow Windows", "Light", "Dark", "OLED black");
-            if (look >= 0)
-            {
-                Settings.ThemeMode = look switch { 1 => "light", 2 => "dark", 3 => "oled", _ => "system" };
-                Settings.DarkTheme = Theme.ShouldBeDark(Settings);
-                ApplyLook();
-            }
-
-            int stores = await AskAsync("Which games should appear?",
-                "Steam games are always shown. Games from Epic, GOG, Xbox / Game Pass, Battle.net and Steam's non-Steam shortcuts can be included too.",
-                "Steam and the other stores", "Steam only");
-            if (stores >= 0) Settings.OtherStores = stores == 0;
-
-            int layout = await AskAsync("Controller button layout", "Which button should select things?",
-                "Xbox style: A selects, B goes back", "Nintendo style: A/B and X/Y swapped");
-            if (layout >= 0) SetButtonMap(layout == 1 ? "BAYX" : "ABXY");
-
-            int art = await AskAsync("Cover art",
-                "Covers, backgrounds and logos come from SteamGridDB. A key is already built in; you can use your own instead " +
-                "(steamgriddb.com, under Preferences > API).",
-                "Use the built-in key", "Enter my own key");
-            if (art == 1)
-            {
-                var key = await PromptAsync("SteamGridDB API key", null, Settings.SteamGridDbApiKey);
-                if (!string.IsNullOrWhiteSpace(key)) Settings.SteamGridDbApiKey = key.Trim();
-            }
-
-            int steam = await AskAsync("Steam extras (optional)",
-                "The Friends page and the list of games you own but haven't installed need your own free Steam Web API key " +
-                "(steamcommunity.com/dev/apikey).",
-                "Skip for now", "Enter my key");
-            if (steam == 1) await SettingsScreen.EditSteamKeyAsync(this, () => { });
-        }
-
-        Settings.SetupDone = true;
-        Settings.Save();
-        ApplySettings();
+        var done = new TaskCompletionSource();
+        Push(new OnboardingScreen(done));
+        await done.Task;
     }
 }
 
@@ -1214,6 +1254,7 @@ public sealed class QuickOverlay : Window
         Background = new SolidColorBrush(Color.FromArgb(_side == "center" ? (byte)0x90 : (byte)0x48, 0, 0, 0));
         Topmost = true;
         ShowInTaskbar = false;
+        ResizeMode = ResizeMode.NoResize;
         WindowState = WindowState.Maximized;
 
         var panel = new StackPanel();
@@ -1239,6 +1280,26 @@ public sealed class QuickOverlay : Window
 
         var rows = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
         rows.Children.Add(Ui.SliderRow("Volume", "", out _volume, out var volumeText));
+        // TDP for this session (only when TDP control is set up and on).
+        Slider? tdp = null;
+        if (TdpControl.Ready && TdpControl.Chip is { } chip)
+        {
+            rows.Children.Add(Ui.SliderRow("TDP", "\uEC4A", out tdp, out var tdpText));
+            tdp.Minimum = chip.Min;
+            tdp.Maximum = chip.Max;
+            tdp.SmallChange = 1;
+            tdp.LargeChange = 5;
+            tdp.IsSnapToTickEnabled = true;
+            tdp.TickFrequency = 1;
+            tdp.Value = TdpControl.EffectiveWatts;
+            tdpText.Text = TdpControl.EffectiveWatts + " W";
+            tdp.ValueChanged += (_, e) =>
+            {
+                int w = (int)Math.Round(e.NewValue);
+                tdpText.Text = w + " W";
+                TdpControl.SetSessionWatts(w);
+            };
+        }
         _brightnessRow = Ui.SliderRow("Brightness", "", out _brightness, out var brightnessText);
         _brightnessRow.Visibility = Visibility.Collapsed;
         rows.Children.Add(_brightnessRow);
@@ -1302,6 +1363,7 @@ public sealed class QuickOverlay : Window
         MouseLeftButtonDown += (_, e) => { if (ReferenceEquals(e.OriginalSource, this)) Dismiss(); };
 
         _items.Add(_volume);
+        if (tdp != null) _items.Add(tdp);
         _items.Add(back);
         _items.Add(launcher);
         if (gameName != null) _items.Add(_exit);
@@ -1401,7 +1463,7 @@ public sealed class QuickOverlay : Window
             case NavAction.Down: Move(+1); break;
             case NavAction.Left or NavAction.Right:
                 if (_items[_index] is Slider slider)
-                    slider.Value = Math.Clamp(slider.Value + (action == NavAction.Right ? 5 : -5), 0, 100);
+                    slider.Value = Math.Clamp(slider.Value + (action == NavAction.Right ? slider.SmallChange : -slider.SmallChange), slider.Minimum, slider.Maximum);
                 break;
             case NavAction.Accept:
                 if (_items[_index] is Button button)

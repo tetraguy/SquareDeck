@@ -10,6 +10,169 @@ using SquareDeck.Services;
 
 namespace SquareDeck.Screens;
 
+/// <summary>
+/// Pick a game's tall grid (poster styles), hero (background artwork) or logo from SteamGridDB, or any file.
+/// The pick is kept with the user's own images and used everywhere that kind of art appears.
+/// </summary>
+public sealed class ArtPickerScreen : GridScreen
+{
+    private readonly Game _item;
+    private readonly string _kind;
+    private readonly CancellationTokenSource _cts = new();
+    private readonly TextBlock _note;
+    private readonly double _w, _h;
+    private bool _busy;
+
+    private string KindName => _kind switch { "heroes" => "hero image", "logos" => "logo", _ => "tall grid" };
+
+    public ArtPickerScreen(Game item, string kind)
+        : base((kind switch { "heroes" => "Choose hero", "logos" => "Choose logo", _ => "Choose tall grid" }) + " – " + item.Name)
+    {
+        _item = item;
+        _kind = kind;
+        (_w, _h) = kind switch { "heroes" => (372.0, 120.0), "logos" => (276.0, 138.0), _ => (148.0, 222.0) };
+        _note = Ui.Text("Loading images from SteamGridDB…", 17, "SubtleBrush");
+        _note.Margin = new Thickness(4, 8, 0, 0);
+        Body.Children.Add(_note);
+
+        bool hasPick = SteamGridDbClient.FindChosenArt(item, kind) != null;
+        AddTile(GlyphBox(_w, _h, ""), "Choose a file…", _w, Browse);
+        AddTile(GlyphBox(_w, _h, ""), hasPick ? "Use the default" : "Default (in use)", _w, () => Finish(null));
+    }
+
+    public override void OnShown() => _ = LoadAsync();
+
+    public override void OnClosed() => _cts.Cancel();
+
+    private async Task LoadAsync()
+    {
+        var ct = _cts.Token;
+        try
+        {
+            using var client = new SteamGridDbClient(Host.Settings.SteamGridDbApiKey);
+            var images = await Task.Run(() => client.ListArtAsync(_item, _kind, ct), ct);
+            if (ct.IsCancellationRequested) return;
+            _note.Text = images.Count == 0 ? $"SteamGridDB has no {KindName}s for this title. Choose a file instead." : "";
+            using var gate = new SemaphoreSlim(6);
+            var loads = new List<Task>();
+            foreach (var image in images.Take(60))
+            {
+                var img = image;
+                var box = ImageBox(_w, _h, out var view);
+                if (_kind == "logos")
+                {
+                    // Logos are see-through: shown whole, on a dark backing so light ones are readable.
+                    view.Stretch = Stretch.Uniform;
+                    view.Margin = new Thickness(14);
+                    box.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1D, 0x24));
+                }
+                AddTile(box, null, _w, () => Pick(img.Url, img.Thumb));
+                loads.Add(LoadThumbAsync(view, img.Thumb, _kind == "heroes" ? 480 : 300, gate, ct));
+            }
+            await Task.WhenAll(loads);
+        }
+        catch (OperationCanceledException) { }
+        catch (UnauthorizedAccessException)
+        {
+            _note.Text = "SteamGridDB rejected the API key. Check it in Settings.";
+        }
+        catch (Exception)
+        {
+            _note.Text = "Couldn't reach SteamGridDB.";
+        }
+    }
+
+    private static async Task LoadThumbAsync(Image view, string url, int width, SemaphoreSlim gate, CancellationToken ct)
+    {
+        try
+        {
+            await gate.WaitAsync(ct);
+            try
+            {
+                var source = await Task.Run(() => ImageLoader.FromUrlAsync(url, width, ct), ct);
+                if (!ct.IsCancellationRequested) view.Source = source;
+            }
+            finally { gate.Release(); }
+        }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    private async void Pick(string url, string thumb)
+    {
+        if (_busy) return;
+        _busy = true;
+        _note.Text = "Downloading…";
+        string? path = null;
+        try
+        {
+            var key = Host.Settings.SteamGridDbApiKey;
+            var dest = SteamGridDbClient.ChosenArtBase(_item, _kind) + "_new";
+            path = await Task.Run(async () =>
+            {
+                using var client = new SteamGridDbClient(key);
+                // The full image first (with retries), then the preview if the full one never works.
+                foreach (var address in new[] { url, thumb }.Distinct())
+                {
+                    if (string.IsNullOrEmpty(address)) continue;
+                    var file = await client.DownloadWithRetryAsync(address, null, dest, CancellationToken.None);
+                    if (file == null) continue;
+                    if (ImageLoader.FromFile(file, 64) != null) return file;
+                    try { File.Delete(file); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                }
+                return null;
+            });
+        }
+        catch (Exception)
+        {
+            // Reported below.
+        }
+
+        if (path != null && Save(path)) { Finish(path); return; }
+        _busy = false;
+        _note.Text = "That image couldn't be downloaded after several tries. Check the internet connection, or pick another one.";
+    }
+
+    /// <summary>Puts a downloaded or chosen file in place as this game's pick (replacing an earlier one).</summary>
+    private bool Save(string file)
+    {
+        try
+        {
+            var ext = Path.GetExtension(file).Equals(".png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
+            SteamGridDbClient.ClearChosenArt(_item, _kind);
+            Directory.CreateDirectory(SteamGridDbClient.CustomDir);
+            File.Move(file, SteamGridDbClient.ChosenArtBase(_item, _kind) + ext, overwrite: true);
+            return true;
+        }
+        catch (Exception) { return false; }
+    }
+
+    private async void Browse()
+    {
+        var picked = await Host.PickFileAsync($"Choose an image for the {KindName}", new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif" });
+        if (picked == null) return;
+        try
+        {
+            if (ImageLoader.FromFile(picked, 64) == null) throw new IOException("Windows can't open that picture.");
+            Directory.CreateDirectory(SteamGridDbClient.CustomDir);
+            var copy = SteamGridDbClient.ChosenArtBase(_item, _kind) + "_new" + Path.GetExtension(picked);
+            File.Copy(picked, copy, overwrite: true);
+            if (Save(copy)) Finish(copy);
+        }
+        catch (Exception ex)
+        {
+            _ = Host.AskAsync("Couldn't use that image", ex.Message, "OK");
+        }
+    }
+
+    private void Finish(string? picked)
+    {
+        if (picked == null) SteamGridDbClient.ClearChosenArt(_item, _kind);
+        Host.RefreshArt(_item, _kind);
+        Host.Pop(this);
+    }
+}
+
 /// <summary>Pick a different square image for a tile: from SteamGridDB, or any file.</summary>
 public sealed class CoverPickerScreen : GridScreen
 {
@@ -31,6 +194,14 @@ public sealed class CoverPickerScreen : GridScreen
 
         AddTile(GlyphBox(TileSize, TileSize, ""), "Choose a file…", TileSize, Browse);
         AddTile(GlyphBox(TileSize, TileSize, ""), "Use the default", TileSize, () => Finish(null));
+
+        // The other kinds of SteamGridDB art for a game: tall grids (poster styles), heroes (backgrounds) and logos.
+        if (picked == null && item.IsGame)
+        {
+            AddTile(GlyphBox(TileSize, TileSize, "\uE8A9"), "Tall grids", TileSize, () => Host.Push(new ArtPickerScreen(item, "grids")));
+            AddTile(GlyphBox(TileSize, TileSize, "\uEB9F"), "Hero images", TileSize, () => Host.Push(new ArtPickerScreen(item, "heroes")));
+            AddTile(GlyphBox(TileSize, TileSize, "\uE8D2"), "Logos", TileSize, () => Host.Push(new ArtPickerScreen(item, "logos")));
+        }
     }
 
     public override void OnShown() => _ = LoadAsync();
@@ -278,6 +449,7 @@ public sealed class DetailsScreen : Screen
         _page.Children.Add(_actionLabel);
         _page.Children.Add(_stats);
         _page.Children.Add(_notes);
+        AddScreenshots();
 
         // ---- about: description beside a column of facts
         _description.TextWrapping = TextWrapping.Wrap;
@@ -315,6 +487,37 @@ public sealed class DetailsScreen : Screen
 
         SetPage("", _scroll, "{Select}  Choose      {Details}  Collections      {Options}  Rating and notes      {Back}  Back", wide: true);
         BuildHero();
+    }
+
+    /// <summary>Your screenshots of this game (Game Bar and Steam), newest first; select one to see it full screen.</summary>
+    private void AddScreenshots()
+    {
+        var shots = GameCaptures.For(_game, 24);
+        if (shots.Count == 0) return;
+        _page.Children.Add(SectionTitle("Your screenshots"));
+        var strip = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(-6, 0, 0, 6) };
+        for (int i = 0; i < shots.Count; i++)
+        {
+            int index = i;
+            var image = new Image { Stretch = Stretch.UniformToFill };
+            var face = new Border { Width = 256, Height = 144, CornerRadius = new CornerRadius(CardRadius), ClipToBounds = true, Child = image };
+            face.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+            face.Clip = new RectangleGeometry(new Rect(0, 0, 256, 144), CardRadius, CardRadius);
+            var tile = Ui.Tile(face);
+            tile.ToolTip = System.IO.Path.GetFileName(shots[i]);
+            tile.Click += (_, _) => Host.Push(new ViewerScreen(shots, index));
+            strip.Children.Add(tile);
+            string path = shots[i];
+            _ = Task.Run(() => ImageLoader.FromFile(path, 320)).ContinueWith(t =>
+            {
+                if (t.Result != null) image.Source = t.Result;
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+        }
+        _page.Children.Add(new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            PanningMode = PanningMode.HorizontalOnly, Focusable = false, Content = strip
+        });
     }
 
     // ---------------------------------------------------------------- building blocks
@@ -1148,11 +1351,16 @@ public sealed class StoreSearchScreen : ListScreen
 /// </summary>
 public sealed class LibraryScreen : Screen
 {
-    private const double TileSize = 164;
+    // With the sidebar shrunk to a blade, tiles are a little smaller so every row holds exactly six.
+    private double TileSize => Collapsed ? 148 : 164;
     private const string Uncategorized = "Uncategorized";
     private const int MaxNotInstalledShown = 400;
 
     private readonly StackPanel _sidebar = new() { Width = 236 };
+    private Border _sidePanel = null!;
+    private readonly TextBox _searchInput = new();
+    private readonly Border _searchBar = new();
+    private readonly System.Windows.Threading.DispatcherTimer _searchSoon = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly WrapPanel _toolbar = new() { Margin = new Thickness(0, 0, 0, 8) };
     private readonly StackPanel _groups = new();
     private readonly TextBlock _count = Ui.Text("", 16, "SubtleBrush");
@@ -1178,12 +1386,14 @@ public sealed class LibraryScreen : Screen
         right.Children.Add(_toolbar);
         right.Children.Add(_groups);
 
-        // Sidebar on a slightly raised panel so the two halves read as separate areas.
-        var sidePanel = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 4, 4, 8), Child = Scroller(_sidebar) };
+        // Sidebar on a slightly raised panel so the two halves read as separate areas. It can shrink to just icons.
+        var sidePanel = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 4, 4, 8), Child = Scroller(_sidebar), ClipToBounds = true };
         sidePanel.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+        _sidePanel = sidePanel;
+        BuildSearchBar();
 
         var layout = new Grid();
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         layout.Children.Add(sidePanel);
         var rightScroll = Scroller(right);
@@ -1194,8 +1404,136 @@ public sealed class LibraryScreen : Screen
             "{Select}  Play      {Details}  Details      {Options}  Options      LT / RT  Jump by letter      {Back}  Back", wide: true);
     }
 
+    // ---------------------------------------------------------------- search bar
+
+    /// <summary>
+    /// A real search box: type on a keyboard and the games filter as you go. With a controller, select it to type
+    /// on the on-screen keyboard. B clears it.
+    /// </summary>
+    private void BuildSearchBar()
+    {
+        var grid = new Grid { Width = 380, Height = 46 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var glass = Ui.Text("\uE721", 17, "SubtleBrush");
+        glass.FontFamily = Ui.IconFont;
+        glass.HorizontalAlignment = HorizontalAlignment.Center;
+        glass.VerticalAlignment = VerticalAlignment.Center;
+        grid.Children.Add(glass);
+
+        var placeholder = Ui.Text("Search your games", 17, "SubtleBrush");
+        placeholder.VerticalAlignment = VerticalAlignment.Center;
+        placeholder.IsHitTestVisible = false;
+        placeholder.Margin = new Thickness(3, 0, 0, 0);
+        Grid.SetColumn(placeholder, 1);
+        grid.Children.Add(placeholder);
+
+        _searchInput.Background = Brushes.Transparent;
+        _searchInput.BorderThickness = new Thickness(0);
+        _searchInput.FontSize = 17;
+        _searchInput.VerticalContentAlignment = VerticalAlignment.Center;
+        _searchInput.FocusVisualStyle = null;
+        _searchInput.SetResourceReference(Control.ForegroundProperty, "FgBrush");
+        _searchInput.SetResourceReference(TextBox.CaretBrushProperty, "AccentBrush");
+        Grid.SetColumn(_searchInput, 1);
+        grid.Children.Add(_searchInput);
+
+        var clear = new Button { Style = Ui.StyleOf("BareButton"), Focusable = false, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 10, 0), ToolTip = "Clear" };
+        var x = Ui.Text("\uE711", 13, "SubtleBrush");
+        x.FontFamily = Ui.IconFont;
+        clear.Content = x;
+        clear.Click += (_, _) => _searchInput.Text = "";
+        Grid.SetColumn(clear, 2);
+        grid.Children.Add(clear);
+
+        _searchBar.Child = grid;
+        _searchBar.Margin = new Thickness(0, 0, 10, 6);
+        _searchBar.BorderThickness = new Thickness(3);
+        _searchBar.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        _searchBar.SetResourceReference(Border.CornerRadiusProperty, "RowCorner");
+        _searchBar.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+
+        _searchInput.TextChanged += (_, _) =>
+        {
+            placeholder.Visibility = _searchInput.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+            clear.Visibility = _searchInput.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+            _searchSoon.Stop();
+            _searchSoon.Start();
+        };
+        _searchSoon.Tick += (_, _) =>
+        {
+            _searchSoon.Stop();
+            string text = _searchInput.Text.Trim();
+            if (text == _search) return;
+            _search = text;
+            Rebuild();
+        };
+        // The highlight ring shows where the controller is, like every other control.
+        _searchInput.GotKeyboardFocus += (_, _) =>
+        {
+            _searchBar.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+            _lastFocus = "search";
+        };
+        _searchInput.LostKeyboardFocus += (_, _) => _searchBar.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+    }
+
+    /// <summary>A controller press on the search box: type on the on-screen keyboard.</summary>
+    private async Task TypeSearchAsync()
+    {
+        // Windows' touch keyboard: type straight into the search bar, no pop-up.
+        if (TouchKeyboard.UseWindows)
+        {
+            _searchInput.Focus();
+            _searchInput.CaretIndex = _searchInput.Text.Length;
+            await TouchKeyboard.ShowAsync();
+            return;
+        }
+        var text = await Host.PromptAsync("Search games", "Leave it empty to show everything.", _searchInput.Text, "Search");
+        if (text == null) return;
+        _searchInput.Text = text.Trim();
+        _search = text.Trim();
+        _searchSoon.Stop();
+        _lastFocus = null; // show the results
+        Rebuild();
+    }
+
+    // ---------------------------------------------------------------- sidebar size
+
+    private bool Collapsed => Host.Settings.LibrarySidebarCollapsed;
+
+    /// <summary>Shrinks the sidebar to a blade of icons, or opens it back up.</summary>
+    private void ToggleSidebar()
+    {
+        Host.Settings.LibrarySidebarCollapsed = !Collapsed;
+        Host.Settings.Save();
+        _lastFocus = "side:toggle";
+        SizeSidebar(animate: true);
+        Rebuild();
+    }
+
+    private void SizeSidebar(bool animate)
+    {
+        double target = Collapsed ? 92 : 264;
+        _sidebar.Width = Collapsed ? 72 : 236;
+        _sidePanel.Padding = Collapsed ? new Thickness(6, 4, 6, 8) : new Thickness(10, 4, 4, 8);
+        if (!animate || Theme.ReduceMotion || double.IsNaN(_sidePanel.Width))
+        {
+            _sidePanel.BeginAnimation(WidthProperty, null);
+            _sidePanel.Width = target;
+            return;
+        }
+        var slide = new System.Windows.Media.Animation.DoubleAnimation(_sidePanel.ActualWidth > 0 ? _sidePanel.ActualWidth : target, target, TimeSpan.FromMilliseconds(220))
+        {
+            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+        };
+        slide.Completed += (_, _) => { _sidePanel.BeginAnimation(WidthProperty, null); _sidePanel.Width = target; };
+        _sidePanel.BeginAnimation(WidthProperty, slide);
+    }
+
     public override void OnShown()
     {
+        SizeSidebar(animate: false);
         Host.LibraryChanged += OnLibraryChanged;
         Host.ApplyCachedLists(); // saved lists and counts show at once; they refresh when their section is picked
         Rebuild();
@@ -1546,11 +1884,32 @@ public sealed class LibraryScreen : Screen
     {
         _sidebar.Children.Clear();
 
-        void Section(string title) => _sidebar.Children.Add(Ui.Header(title));
+        bool blade = Collapsed;
+
+        // First row: shrink to icons / open back up.
+        var toggle = blade ? BladeRow("\uE76C", null, "Show the names") : Ui.Row("Show icons only", null, "\uE76B");
+        toggle.Margin = blade ? new Thickness(0, 6, 0, 0) : new Thickness(0, 8, 6, 2);
+        toggle.FontSize = 17;
+        toggle.DataContext = "side:toggle";
+        toggle.Click += (_, _) => ToggleSidebar();
+        toggle.GotKeyboardFocus += (_, _) => _lastFocus = "side:toggle";
+        _sidebar.Children.Add(toggle);
+
+        void Section(string title)
+        {
+            if (!blade) { _sidebar.Children.Add(Ui.Header(title)); return; }
+            var line = new System.Windows.Shapes.Rectangle { Height = 1, Margin = new Thickness(10, 12, 16, 10), Opacity = 0.2 };
+            line.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "FgBrush");
+            _sidebar.Children.Add(line);
+        }
         void Item(string filter, string glyph, int? count = null)
         {
-            var row = Ui.Row(FilterName(filter), count?.ToString(), glyph);
-            row.Margin = new Thickness(0, 2, 6, 2);
+            string label = FilterName(filter);
+            // Stores, categories and your own lists all share one icon, so the blade shows their initials instead.
+            bool initials = filter.StartsWith("src:") || filter.StartsWith("cat:") || filter.StartsWith("status:");
+            var row = blade ? BladeRow(initials ? null : glyph, initials ? Initials(label) : null, label + (count != null ? $"  ({count})" : ""), _filter == filter)
+                            : Ui.Row(label, count?.ToString(), glyph);
+            row.Margin = blade ? new Thickness(0) : new Thickness(0, 2, 6, 2);
             row.FontSize = 17;
             string id = "side:" + filter;
             if (_filter == filter) row.Tag = "selected"; // drawn with the highlight color so you can see where you are
@@ -1603,12 +1962,49 @@ public sealed class LibraryScreen : Screen
         Ui.GroupRows(_sidebar); // sections read as rounded groups
     }
 
+    /// <summary>A sidebar row in the icon-only blade: just the icon (or initials), the name as a tooltip.</summary>
+    private static Button BladeRow(string? glyph, string? initials, string tip, bool selected = false)
+    {
+        UIElement face;
+        if (initials != null)
+        {
+            var badge = new Grid { Width = 40, Height = 40 };
+            var tint = new Border { CornerRadius = new CornerRadius(11), Opacity = selected ? 0.42 : 0.16 };
+            tint.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+            badge.Children.Add(tint);
+            var text = Ui.Text(initials, 15, selected ? "FgBrush" : "AccentBrush", bold: true);
+            text.HorizontalAlignment = HorizontalAlignment.Center;
+            text.VerticalAlignment = VerticalAlignment.Center;
+            badge.Children.Add(text);
+            face = badge;
+        }
+        else
+        {
+            var badge = Ui.IconBadge(glyph ?? "\uE8A9", 40);
+            badge.Margin = new Thickness(0);
+            if (selected && badge.Children[0] is Border tint) tint.Opacity = 0.42; // where you are, at a glance
+            face = badge;
+        }
+        // A square icon button with a ring when highlighted (rows are built for text and squeezed the icon).
+        var button = new Button { Style = Ui.StyleOf("TileButton"), Content = face, ToolTip = tip, HorizontalAlignment = HorizontalAlignment.Center };
+        if (face is FrameworkElement fe) fe.HorizontalAlignment = HorizontalAlignment.Center;
+        return button;
+    }
+
+    private static string Initials(string name)
+    {
+        var words = name.Split(new[] { ' ', '-', '_', '.' }, StringSplitOptions.RemoveEmptyEntries).Where(w => char.IsLetterOrDigit(w[0])).ToList();
+        if (words.Count == 0) return "?";
+        return words.Count == 1 ? words[0][..Math.Min(2, words[0].Length)].ToUpperInvariant()
+                                : (words[0][0].ToString() + words[1][0]).ToUpperInvariant();
+    }
+
     private void BuildToolbar()
     {
         _toolbar.Children.Clear();
+        _toolbar.Children.Add(_searchBar);
         AddTool("Sort: " + SortLabel, ChooseSort);
         AddTool("Group by category: " + (_grouped ? "On" : "Off"), () => { _grouped = !_grouped; Rebuild(); });
-        AddTool(_search.Length > 0 ? "Search: " + _search : "Search", Search);
         AddTool("+  Add custom game", () => Host.Push(new AddCustomGameScreen()));
         AddTool("Play time", () => Host.Push(new PlaytimeScreen()));
         AddTool("Achievements", () => Host.Push(new UnlocksScreen()));
@@ -1649,17 +2045,29 @@ public sealed class LibraryScreen : Screen
             face.Children.Insert(0, name);
             // Bound, so covers that finish downloading later still appear.
             cover.SetBinding(Image.SourceProperty, new System.Windows.Data.Binding(nameof(Game.Cover)) { Source = g });
-            if (!g.IsInstalled && !g.OnWishlist) cover.Opacity = 0.5;
-            // Games with no square cover show their icon, centered on a wash of its colors.
+            // Not installed: the cover is dimmed with a shade on top (fading the picture itself let the name show through).
+            if (!g.IsInstalled && !g.OnWishlist)
+            {
+                var shade = new Border { Background = new SolidColorBrush(Color.FromArgb(0x80, 0, 0, 0)), IsHitTestVisible = false };
+                face.Children.Add(shade);
+                face.Children.Add(new TextBlock
+                {
+                    Text = "\uE896", FontFamily = Ui.IconFont, FontSize = 26, Foreground = Brushes.White, Opacity = 0.9,
+                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false
+                });
+            }
+            // Games with no square cover show their icon: SteamGridDB icons fill the tile, program icons sit centered.
             void ApplyFace()
             {
-                bool icon = g.UsesIcon;
-                cover.Stretch = icon ? Stretch.Uniform : Stretch.UniformToFill;
-                cover.Margin = icon ? new Thickness(TileSize * 0.24) : new Thickness(0);
+                bool icon = g.UsesIcon, fills = icon && g.IconFills;
+                cover.Stretch = icon && !fills ? Stretch.Uniform : Stretch.UniformToFill;
+                cover.Margin = icon && !fills ? new Thickness(TileSize * 0.24) : new Thickness(0);
                 if (icon && g.TileBackground != null) box.Background = g.TileBackground;
+                // The name is only a placeholder until there is a picture.
+                name.Visibility = g.Cover == null ? Visibility.Visible : Visibility.Collapsed;
             }
             ApplyFace();
-            System.ComponentModel.PropertyChangedEventManager.AddHandler(g, (_, _) => ApplyFace(), nameof(Game.UsesIcon));
+            System.ComponentModel.PropertyChangedEventManager.AddHandler(g, (_, _) => ApplyFace(), "");
             AddBadges(face, g);
 
             var stack = new StackPanel { Width = TileSize };
@@ -1682,8 +2090,9 @@ public sealed class LibraryScreen : Screen
                 stack.Children.Add(bar);
             }
 
-            var title = Ui.Text(g.Name, 15, "FgBrush", bold: true);
-            title.Margin = new Thickness(2, 6, 2, 0);
+            // Long names slide along while the tile is highlighted, and end in "…" otherwise.
+            var titleText = Ui.Text(g.Name, 15, "FgBrush", bold: true);
+            var title = new MarqueeText(titleText, onlyWhenActive: true) { Margin = new Thickness(2, 6, 2, 0), Width = TileSize - 4, HorizontalAlignment = HorizontalAlignment.Left };
             stack.Children.Add(title);
 
             // e.g. "Steam · Co-op · ★★★★☆ · 12/40"
@@ -1704,7 +2113,10 @@ public sealed class LibraryScreen : Screen
             tile.Tag = g;
             tile.Margin = new Thickness(0, 0, 4, 6);
             tile.Click += (_, _) => _ = Host.ActivateAsync(g);
-            tile.GotKeyboardFocus += (_, _) => _lastFocus = g.Key;
+            tile.GotKeyboardFocus += (_, _) => { _lastFocus = g.Key; title.Active = true; };
+            tile.LostKeyboardFocus += (_, _) => title.Active = false;
+            tile.MouseEnter += (_, _) => title.Active = true;
+            tile.MouseLeave += (_, _) => title.Active = tile.IsKeyboardFocused;
             panel.Children.Add(tile);
         }
         _groups.Children.Add(panel);
@@ -1735,6 +2147,9 @@ public sealed class LibraryScreen : Screen
 
     private void RestoreFocus()
     {
+        // Typing in the search box: leave the focus there while the results change underneath.
+        if (_searchInput.IsKeyboardFocusWithin) return;
+        if (_lastFocus == "search") { FocusLater(_searchInput); return; }
         var target = AllButtons().FirstOrDefault(b =>
             b.Tag is Game g ? g.Key == _lastFocus : b.DataContext as string == _lastFocus);
         FocusLater(target ?? Tiles().FirstOrDefault() ?? _sidebar.Children.OfType<Button>().FirstOrDefault());
@@ -1745,6 +2160,25 @@ public sealed class LibraryScreen : Screen
 
     public override bool OnAction(NavAction action)
     {
+        if (_searchInput.IsKeyboardFocused)
+        {
+            switch (action)
+            {
+                case NavAction.Accept:
+                    // Enter on a keyboard goes to the results; A on a controller opens the on-screen keyboard.
+                    if (Hints.Keyboard) (Tiles().FirstOrDefault() as UIElement ?? _sidebar.Children.OfType<Button>().FirstOrDefault())?.Focus();
+                    else _ = TypeSearchAsync();
+                    return true;
+                case NavAction.Back when _searchInput.Text.Length > 0:
+                    _searchInput.Text = "";
+                    return true;
+            }
+        }
+        if (action == NavAction.View)
+        {
+            ToggleSidebar();
+            return true;
+        }
         if (action is NavAction.LT or NavAction.RT)
         {
             JumpByLetter(action == NavAction.RT ? +1 : -1);
@@ -1820,13 +2254,6 @@ public sealed class LibraryScreen : Screen
         Rebuild();
     }
 
-    private async void Search()
-    {
-        var text = await Host.PromptAsync("Search games", "Leave it empty to show everything.", _search, "Search");
-        if (text == null) return;
-        _search = text.Trim();
-        Rebuild();
-    }
 
     private async void ShowQueue()
     {

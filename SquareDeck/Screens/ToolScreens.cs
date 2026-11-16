@@ -158,8 +158,10 @@ public sealed class SliderDialog : Screen
     /// <summary>The value when the dialog closed.</summary>
     public Task<int> Result => _done.Task;
 
-    public SliderDialog(string title, string message, string label, string glyph, int value, Action<int>? changed = null)
+    public SliderDialog(string title, string message, string label, string glyph, int value, Action<int>? changed = null,
+                        int min = 0, int max = 100, Func<int, string>? format = null)
     {
+        format ??= v => v == 0 ? "Off" : v + "%";
         var panel = new StackPanel();
         panel.Children.Add(Ui.Text(title, 26));
         var note = Ui.Text(message, 18, "SubtleBrush");
@@ -169,12 +171,14 @@ public sealed class SliderDialog : Screen
         panel.Children.Add(note);
 
         panel.Children.Add(Ui.SliderRow(label, glyph, out _slider, out var text));
+        _slider.Minimum = min;
+        _slider.Maximum = max;
         _slider.Value = value;
-        text.Text = value == 0 ? "Off" : value + "%";
+        text.Text = format(value);
         _slider.ValueChanged += (_, e) =>
         {
-            int v = (int)e.NewValue;
-            text.Text = v == 0 ? "Off" : v + "%";
+            int v = (int)Math.Round(e.NewValue);
+            text.Text = format(v);
             changed?.Invoke(v);
         };
 
@@ -187,7 +191,9 @@ public sealed class SliderDialog : Screen
             Width = 640, Padding = new Thickness(32), CornerRadius = new CornerRadius(6),
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = panel
         };
-        box.SetResourceReference(Border.BackgroundProperty, "BgBrush");
+        box.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+        box.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+        box.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
         var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(0xA0, 0, 0, 0)) };
         backdrop.Children.Add(box);
         Content = backdrop;
@@ -195,7 +201,7 @@ public sealed class SliderDialog : Screen
 
     public override void FocusDefault() => _slider.Focus();
 
-    public override void OnClosed() => _done.TrySetResult((int)_slider.Value);
+    public override void OnClosed() => _done.TrySetResult((int)Math.Round(_slider.Value));
 }
 
 
@@ -220,6 +226,25 @@ public sealed class GameProfileScreen : ListScreen
         AddRow("HDR", p.Hdr switch { true => "On", false => "Off", _ => "Don't change" }, "", click: HdrChoice);
         AddRow("Power plan", p.PowerPlanName ?? "Don't change", "", click: Plan);
         AddRow("Sound output", p.AudioDeviceName ?? "Don't change", "", click: Output);
+
+        // Power: only offered where TDP control can work (AMD handhelds).
+        if (TdpControl.Chip is { } chip)
+        {
+            AddHeader("Power");
+            AddRow("TDP on battery", p.TdpWatts > 0 ? TdpControl.Clamp(p.TdpWatts) + " W" : "Default (" + TdpControl.Clamp(Host.Settings.TdpWatts) + " W)",
+                "\uE83F", click: () => TdpChoice(plugged: false),
+                subtitle: !TdpControl.Installed ? "Set up TDP control in Settings > Power and performance first"
+                        : !Host.Settings.TdpEnabled ? "TDP control is off in Settings" : null);
+            var s = Host.Settings;
+            int everydayPlugged = s.TdpPluggedWatts > 0 ? s.TdpPluggedWatts : s.TdpWatts;
+            AddRow("TDP when plugged in", p.TdpPluggedWatts > 0 ? TdpControl.Clamp(p.TdpPluggedWatts) + " W"
+                    : p.TdpWatts > 0 ? "Same as on battery (" + TdpControl.Clamp(p.TdpWatts) + " W)"
+                    : "Default (" + TdpControl.Clamp(everydayPlugged) + " W)",
+                "\uEBB5", click: () => TdpChoice(plugged: true));
+            AddRow("CPU boost", p.CpuBoost switch { true => "On", false => "Off", _ => "Default" }, "\uE9F5", click: BoostChoice);
+            AddRow("Maximum CPU speed", p.MaxCpu > 0 ? (p.MaxCpu >= 100 ? "No limit" : p.MaxCpu + "%") : "Default", "\uEC48", click: CpuChoice);
+            AddRow("Windows power mode", p.PowerMode == null ? "Default" : TdpControl.PowerModeName(p.PowerMode), "\uE83F", click: PowerModeChoice);
+        }
         if (!p.IsEmpty) AddRow("Clear this profile", glyph: "", click: () => { Host.Library.For(_game.Key).Profile = null; Saved(); });
     }
 
@@ -271,6 +296,57 @@ public sealed class GameProfileScreen : ListScreen
         int choice = await Host.AskAsync("Power plan while playing", null, plans.Select(p => p.Name).Prepend("Don't change").ToArray());
         if (choice < 0) return;
         (Profile.PowerPlanId, Profile.PowerPlanName) = choice == 0 ? (null, null) : (plans[choice - 1].Id, plans[choice - 1].Name);
+        Saved();
+    }
+
+    private async void TdpChoice(bool plugged)
+    {
+        var chip = TdpControl.Chip;
+        if (chip == null) return;
+        string when = plugged ? "when plugged in" : "on battery";
+        int choice = await Host.AskAsync("TDP " + when, plugged ? "Used while the charger is connected." : "Used while running on battery.",
+            plugged ? "Same as on battery" : "Default", "Choose a limit…");
+        if (choice < 0) return;
+        if (choice == 0)
+        {
+            if (plugged) Profile.TdpPluggedWatts = 0; else Profile.TdpWatts = 0;
+            Saved();
+            return;
+        }
+        var s = Host.Settings;
+        int start = plugged ? (Profile.TdpPluggedWatts > 0 ? Profile.TdpPluggedWatts : s.TdpPluggedWatts > 0 ? s.TdpPluggedWatts : chip.Max)
+                            : (Profile.TdpWatts > 0 ? Profile.TdpWatts : s.TdpWatts);
+        var dialog = new SliderDialog("TDP " + when + " – " + _game.Name, "Applied while the game runs and put back when it closes.",
+            "Watts", "\uE945", TdpControl.Clamp(start), null, chip.Min, chip.Max, v => v + " W");
+        Host.Push(dialog);
+        int watts = TdpControl.Clamp(await dialog.Result);
+        if (plugged) Profile.TdpPluggedWatts = watts; else Profile.TdpWatts = watts;
+        Saved();
+    }
+
+    private async void BoostChoice()
+    {
+        int choice = await Host.AskAsync("CPU boost while playing", null, "Default", "On", "Off");
+        if (choice < 0) return;
+        Profile.CpuBoost = choice switch { 1 => true, 2 => false, _ => null };
+        Saved();
+    }
+
+    private async void CpuChoice()
+    {
+        int[] caps = { 0, 100, 90, 80, 70, 60, 50 };
+        int choice = await Host.AskAsync("Maximum CPU speed while playing", null, caps.Select(c => c == 0 ? "Default" : c >= 100 ? "No limit" : c + "%").ToArray());
+        if (choice < 0) return;
+        Profile.MaxCpu = caps[choice];
+        Saved();
+    }
+
+    private async void PowerModeChoice()
+    {
+        var modes = TdpControl.WindowsPowerModes.Skip(1).ToArray(); // "Don't change" is "Default" here
+        int choice = await Host.AskAsync("Windows power mode while playing", null, modes.Select(m => m.Name).Prepend("Default").ToArray());
+        if (choice < 0) return;
+        Profile.PowerMode = choice == 0 ? null : modes[choice - 1].Id;
         Saved();
     }
 

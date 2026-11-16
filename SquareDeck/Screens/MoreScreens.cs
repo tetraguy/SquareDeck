@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -145,8 +146,11 @@ public sealed class BatteryScreen : ListScreen
 }
 
 /// <summary>
-/// A small web browser (Microsoft Edge WebView2) that works with a controller: the d-pad jumps between links,
-/// A clicks, B goes back, the right stick scrolls, X opens the address box and Y the browser menu.
+/// The built-in web browser (Microsoft Edge WebView2), made for a controller: tabs, a rounded address bar, and the
+/// right stick as a mouse pointer. The d-pad jumps between links, A clicks (at the pointer if you've just moved
+/// it), pressing the right stick clicks at the pointer, LB / RB switch tabs, B goes back, X types an address,
+/// Y opens the menu, Menu opens a new tab. With "Keep the browser open" (Settings) it keeps running when you
+/// leave it, tabs and all, and comes back exactly where you were.
 /// </summary>
 public sealed class BrowserScreen : Screen
 {
@@ -157,64 +161,182 @@ public sealed class BrowserScreen : Screen
         ("duckduckgo", "DuckDuckGo", "https://duckduckgo.com/?q=")
     };
 
-    private readonly WebView2 _web = new();
-    private readonly TextBlock _address = Ui.Text("", 16);
-    private readonly TextBlock _status = Ui.Text("Starting the browser…", 20, "SubtleBrush");
+    private sealed class Tab
+    {
+        public WebView2 Web = null!;
+        public Button Chip = null!;
+        public TextBlock Title = null!;
+        public Image Icon = null!;
+        public bool Ready, Loading;
+        public string? PendingUrl;
+    }
+
+    // The one browser kept running between visits (when Settings allows), and the shared Edge profile.
+    private static BrowserScreen? _kept;
+    private static Task<CoreWebView2Environment>? _environment;
+
+    private readonly List<Tab> _tabs = new();
+    private Tab? _current;
+    private readonly Grid _pages = new();
+    private readonly StackPanel _strip = new() { Orientation = Orientation.Horizontal };
+    private readonly TextBox _address = new();
+    private readonly TextBlock _lock = Ui.Text("", 14, "SubtleBrush");
+    private readonly TextBlock _zoomText = Ui.Text("", 14, "SubtleBrush");
+    private readonly TextBlock _star = new() { FontFamily = Ui.IconFont, FontSize = 17, VerticalAlignment = VerticalAlignment.Center };
+    private readonly StackPanel _favBar = new() { Orientation = Orientation.Horizontal };
+    private readonly ScrollViewer _favScroll = new() { HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false, PanningMode = PanningMode.HorizontalOnly, Margin = new Thickness(18, 0, 18, 8) };
     private readonly Button _reload;
-    private readonly DockPanel _toolbar = new() { Margin = new Thickness(20, 12, 20, 10), LastChildFill = true };
+    private readonly Border _progress = new() { Height = 3, HorizontalAlignment = HorizontalAlignment.Left, Width = 0, CornerRadius = new CornerRadius(2) };
+    private readonly TextBlock _status = Ui.Text("Starting the browser…", 20, "SubtleBrush");
+    private readonly Grid _chrome = new();
     private readonly Grid _footer = new() { Margin = new Thickness(30, 0, 30, 0) };
     private readonly string? _startUrl;
-    private bool _ready, _loading, _closed;
+    private bool _started, _disposed;
     private double _scrollCarry;
+    private DateTime _pointerMovedAt = DateTime.MinValue;
+    private bool _stickWasPressed;
+    private double _moveX, _moveY;
+
+    /// <summary>Opens the browser: the one kept running (with a new tab for <paramref name="url"/>), or a new one.</summary>
+    public static BrowserScreen Open(MainWindow host, string? url = null)
+    {
+        if (host.Settings.BrowserKeepOpen && _kept is { _disposed: false } kept)
+        {
+            if (url != null) kept.Dispatcher.BeginInvoke(new Action(() => kept.NewTab(url)));
+            return kept;
+        }
+        return new BrowserScreen(url);
+    }
+
+    /// <summary>Closes a browser kept in the background (when the setting is switched off).</summary>
+    public static void DisposeKept()
+    {
+        _kept?.DisposeAll();
+        _kept = null;
+    }
 
     public BrowserScreen(string? url = null)
     {
         _startUrl = url;
 
-        Button Tool(string glyph, string tip, Action click)
+        Button Round(string glyph, string tip, Action click)
         {
-            var b = Ui.PanelButton(glyph);
-            b.FontFamily = Ui.IconFont;
-            b.FontSize = 18;
-            b.Focusable = false; // mouse and touch; the controller has its own buttons for these
-            b.ToolTip = tip;
-            b.Margin = new Thickness(0, 0, 6, 0);
+            var b = new Button
+            {
+                Style = Ui.StyleOf("PillButton"), Width = 46, Height = 46, Padding = new Thickness(0), Margin = new Thickness(0, 0, 6, 0),
+                Focusable = false, ToolTip = tip,
+                Content = new TextBlock { Text = glyph, FontFamily = Ui.IconFont, FontSize = 17, HorizontalAlignment = HorizontalAlignment.Center }
+            };
             b.Click += (_, _) => click();
             return b;
         }
 
+        // Row 1: tabs and "new tab".
+        var stripRow = new DockPanel { Margin = new Thickness(18, 10, 18, 6), LastChildFill = true };
+        var newTab = Round("", "New tab", () => NewTab(Host.Settings.BrowserHome));
+        newTab.Width = newTab.Height = 36;
+        DockPanel.SetDock(newTab, Dock.Right);
+        stripRow.Children.Add(newTab);
+        stripRow.Children.Add(new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Focusable = false, PanningMode = PanningMode.HorizontalOnly, Content = _strip
+        });
+
+        // Row 2: back, forward, reload, home, the address bar, zoom and menu.
+        var bar = new DockPanel { Margin = new Thickness(18, 0, 18, 8), LastChildFill = true };
         var left = new StackPanel { Orientation = Orientation.Horizontal };
-        left.Children.Add(Tool("", "Back", () => { if (_ready && _web.CanGoBack) _web.GoBack(); }));
-        left.Children.Add(Tool("", "Forward", () => { if (_ready && _web.CanGoForward) _web.GoForward(); }));
-        _reload = Tool("", "Reload", () => { if (!_ready) return; if (_loading) _web.Stop(); else _web.Reload(); });
+        left.Children.Add(Round("", "Back", () => { if (_current is { Ready: true } t && t.Web.CanGoBack) t.Web.GoBack(); }));
+        left.Children.Add(Round("", "Forward", () => { if (_current is { Ready: true } t && t.Web.CanGoForward) t.Web.GoForward(); }));
+        _reload = Round("", "Reload", () =>
+        {
+            if (_current is not { Ready: true } t) return;
+            if (t.Loading) t.Web.Stop(); else t.Web.Reload();
+        });
         left.Children.Add(_reload);
-        left.Children.Add(Tool("", "Home page", GoHome));
+        left.Children.Add(Round("", "Home page", GoHome));
         DockPanel.SetDock(left, Dock.Left);
-        _toolbar.Children.Add(left);
+        bar.Children.Add(left);
 
         var right = new StackPanel { Orientation = Orientation.Horizontal };
-        right.Children.Add(Tool("", "Zoom out", () => Zoom(-10)));
-        right.Children.Add(Tool("", "Zoom in", () => Zoom(+10)));
-        right.Children.Add(Tool("", "Menu", () => _ = MenuAsync()));
-        var close = Tool("", "Close the browser", () => Host.Pop(this));
+        var zoom = new Border { CornerRadius = new CornerRadius(23), Height = 46, Margin = new Thickness(6, 0, 6, 0), Padding = new Thickness(4, 0, 4, 0) };
+        zoom.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        var zoomRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var minus = Round("", "Zoom out", () => Zoom(-10));
+        minus.Width = minus.Height = 38;
+        minus.Margin = new Thickness(0);
+        var plus = Round("", "Zoom in", () => Zoom(+10));
+        plus.Width = plus.Height = 38;
+        plus.Margin = new Thickness(0);
+        _zoomText.VerticalAlignment = VerticalAlignment.Center;
+        _zoomText.Margin = new Thickness(6, 0, 6, 0);
+        zoomRow.Children.Add(minus);
+        zoomRow.Children.Add(_zoomText);
+        zoomRow.Children.Add(plus);
+        zoom.Child = zoomRow;
+        right.Children.Add(zoom);
+        right.Children.Add(Round("", "Menu", () => _ = MenuAsync()));
+        var close = Round("", "Close the browser", () => Host.Pop(this));
         close.Margin = new Thickness(0);
         right.Children.Add(close);
         DockPanel.SetDock(right, Dock.Right);
-        _toolbar.Children.Add(right);
+        bar.Children.Add(right);
 
-        var addressBox = Ui.PanelButton("");
-        addressBox.Focusable = false;
-        addressBox.HorizontalContentAlignment = HorizontalAlignment.Left;
-        addressBox.Margin = new Thickness(4, 0, 10, 0);
-        addressBox.Content = _address;
-        addressBox.Click += (_, _) => _ = EnterAddressAsync();
-        _toolbar.Children.Add(addressBox);
+        // The address bar: a rounded pill with a padlock for secure pages; type straight into it.
+        var pill = new Border { CornerRadius = new CornerRadius(23), Height = 46, Margin = new Thickness(4, 0, 4, 0), BorderThickness = new Thickness(2) };
+        pill.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        pill.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+        var pillGrid = new Grid();
+        pillGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
+        pillGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        pillGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(46) });
+        // The star: add this page to the favorites, or take it off.
+        var starButton = new Button { Style = Ui.StyleOf("BareButton"), Focusable = false, ToolTip = "Add to favorites", Content = _star, HorizontalAlignment = HorizontalAlignment.Center };
+        starButton.Click += (_, _) => ToggleFavorite();
+        Grid.SetColumn(starButton, 2);
+        pillGrid.Children.Add(starButton);
+        _lock.FontFamily = Ui.IconFont;
+        _lock.HorizontalAlignment = HorizontalAlignment.Center;
+        _lock.VerticalAlignment = VerticalAlignment.Center;
+        pillGrid.Children.Add(_lock);
+        _address.Background = Brushes.Transparent;
+        _address.BorderThickness = new Thickness(0);
+        _address.FontSize = 16;
+        _address.VerticalContentAlignment = VerticalAlignment.Center;
+        _address.FocusVisualStyle = null;
+        _address.SetResourceReference(Control.ForegroundProperty, "FgBrush");
+        _address.SetResourceReference(TextBox.CaretBrushProperty, "AccentBrush");
+        _address.GotKeyboardFocus += (_, _) =>
+        {
+            pill.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+            _address.Text = _current?.Web.Source?.ToString() ?? "";
+            _address.SelectAll();
+        };
+        _address.LostKeyboardFocus += (_, _) => { pill.SetResourceReference(Border.BorderBrushProperty, "PanelStroke"); ShowAddress(); };
+        _address.KeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Enter) { Navigate(_address.Text); _current?.Web.Focus(); e.Handled = true; }
+            else if (e.Key == System.Windows.Input.Key.Escape) { _current?.Web.Focus(); e.Handled = true; }
+        };
+        Grid.SetColumn(_address, 1);
+        pillGrid.Children.Add(_address);
+        pill.Child = pillGrid;
+        bar.Children.Add(pill);
 
-        var line = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Top };
+        _progress.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+        var chromeStack = new StackPanel();
+        chromeStack.Children.Add(stripRow);
+        chromeStack.Children.Add(bar);
+        _favScroll.Content = _favBar;
+        chromeStack.Children.Add(_favScroll);
+        chromeStack.Children.Add(_progress);
+        _chrome.Children.Add(chromeStack);
+
+        var line = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Top, Opacity = 0.15 };
         line.SetResourceReference(Shape.FillProperty, "FgBrush");
         _footer.Children.Add(line);
         _footer.Children.Add(new HintBar(
-            "D-pad  Move between links      {Select}  Click      {Details}  Address      {Options}  Menu      LB / RB  Back / Forward      {Back}  Back")
+            "R-stick  Pointer      {Select}  Click      LB / RB  Tabs      {Details}  Address      {Options}  Menu      {Back}  Back")
         { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 26, 0) });
 
         _status.HorizontalAlignment = HorizontalAlignment.Center;
@@ -228,12 +350,11 @@ public sealed class BrowserScreen : Screen
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(52) });
-        root.Children.Add(_toolbar);
+        root.Children.Add(_chrome);
         Grid.SetRow(_status, 1);
         root.Children.Add(_status);
-        _web.Visibility = Visibility.Hidden;
-        Grid.SetRow(_web, 1);
-        root.Children.Add(_web);
+        Grid.SetRow(_pages, 1);
+        root.Children.Add(_pages);
         Grid.SetRow(_footer, 2);
         root.Children.Add(_footer);
         Content = root;
@@ -241,20 +362,72 @@ public sealed class BrowserScreen : Screen
 
     public override void FocusDefault() { }
 
-    public override void OnShown() => _ = StartAsync();
+    /// <summary>Starter favorites: sites a gamer is likely to want, added once (they can be removed or renamed).</summary>
+    public static readonly (string Title, string Url)[] StarterFavorites =
+    {
+        ("YouTube", "https://www.youtube.com/"), ("Twitch", "https://www.twitch.tv/"), ("Reddit", "https://www.reddit.com/"),
+        ("Outlook", "https://outlook.live.com/mail/"), ("Loaded", "https://www.loaded.com/"), ("Amazon", "https://www.amazon.com/"),
+        ("Steam Store", "https://store.steampowered.com/"), ("Discord", "https://discord.com/app"),
+        ("PCGamingWiki", "https://www.pcgamingwiki.com/"), ("HowLongToBeat", "https://howlongtobeat.com/"),
+        ("IsThereAnyDeal", "https://isthereanydeal.com/"), ("Nexus Mods", "https://www.nexusmods.com/"), ("IGN", "https://www.ign.com/")
+    };
+
+    private void SeedFavorites()
+    {
+        var s = Host.Settings;
+        if (s.BrowserFavoritesSeeded) return;
+        foreach (var (title, url) in StarterFavorites)
+            if (!s.BrowserFavorites.Any(f => string.Equals(f.Url.TrimEnd('/'), url.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)))
+                s.BrowserFavorites.Add(new BrowserFavorite { Title = title, Url = url });
+        s.BrowserFavoritesSeeded = true;
+        s.Save();
+    }
+
+    public override void OnShown()
+    {
+        _zoomText.Text = Host.Settings.BrowserZoom + "%";
+        SeedFavorites();
+        BuildFavoritesBar();
+        if (Host.Settings.BrowserKeepOpen) _kept = this;
+        if (_started)
+        {
+            // Back from the background: everything is as it was.
+            ShowCurrent();
+            return;
+        }
+        _started = true;
+        _ = StartAsync();
+    }
 
     // The web view is a window of its own and would cover any pop-up drawn over it, so it steps aside for them.
-    public override void OnCovered() => _web.Visibility = Visibility.Hidden;
+    public override void OnCovered() => _pages.Visibility = Visibility.Hidden;
 
-    public override void OnResumed()
-    {
-        if (_ready) _web.Visibility = Visibility.Visible;
-    }
+    public override void OnResumed() => _pages.Visibility = Visibility.Visible;
 
     public override void OnClosed()
     {
-        _closed = true;
-        try { _web.Dispose(); } catch (Exception) { }
+        _pages.Visibility = Visibility.Visible;
+        if (Host.Settings.BrowserKeepOpen && !_disposed)
+        {
+            // Stays running in the background; pause any video or sound so it doesn't keep playing unseen.
+            foreach (var t in _tabs.Where(t => t.Ready))
+                _ = t.Web.ExecuteScriptAsync("document.querySelectorAll('video,audio').forEach(function(m){try{m.pause();}catch(e){}});");
+            _kept = this;
+            return;
+        }
+        DisposeAll();
+        if (ReferenceEquals(_kept, this)) _kept = null;
+    }
+
+    private void DisposeAll()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        foreach (var t in _tabs)
+        {
+            try { t.Web.Dispose(); } catch (Exception) { }
+        }
+        _tabs.Clear();
     }
 
     private async Task StartAsync()
@@ -262,62 +435,293 @@ public sealed class BrowserScreen : Screen
         try
         {
             // Cookies and sign-ins are kept in the launcher's own folder, separate from Edge.
-            var data = System.IO.Path.Combine(Settings.DataDir, "Browser");
-            var environment = await CoreWebView2Environment.CreateAsync(null, data);
-            await _web.EnsureCoreWebView2Async(environment);
-            if (_closed) return;
-
-            var core = _web.CoreWebView2;
-            core.Settings.IsStatusBarEnabled = false;
-            core.Settings.AreDevToolsEnabled = false;
-            // Links that want a new window open here instead: there is only this one page.
-            core.NewWindowRequested += (_, e) =>
-            {
-                e.Handled = true;
-                if (!string.IsNullOrEmpty(e.Uri)) core.Navigate(e.Uri);
-            };
-            core.DocumentTitleChanged += (_, _) => ShowAddress();
-            // Full-screen video takes the whole page: hide our own bars while it plays.
-            core.ContainsFullScreenElementChanged += (_, _) =>
-                _toolbar.Visibility = _footer.Visibility = core.ContainsFullScreenElement ? Visibility.Collapsed : Visibility.Visible;
-
-            _web.NavigationStarting += (_, _) => { _loading = true; _reload.Content = ""; };
-            _web.NavigationCompleted += (_, _) =>
-            {
-                _loading = false;
-                _reload.Content = "";
-                ShowAddress();
-                _ = RunAsync(FocusRingScript);
-            };
-            _web.SourceChanged += (_, _) => ShowAddress();
-
-            _web.ZoomFactor = Host.Settings.BrowserZoom / 100.0;
-            _ready = true;
+            _environment ??= CoreWebView2Environment.CreateAsync(null, System.IO.Path.Combine(Settings.DataDir, "Browser"));
+            await _environment;
             _status.Visibility = Visibility.Collapsed;
-            if (Host.IsTop(this)) _web.Visibility = Visibility.Visible;
-            Navigate(_startUrl ?? Host.Settings.BrowserHome);
+            NewTab(_startUrl ?? Host.Settings.BrowserHome);
         }
         catch (Exception ex)
         {
+            _environment = null;
             _status.Text = "The built-in browser couldn't start. It needs the Microsoft Edge WebView2 Runtime, which comes with " +
                            "Windows 11 and current Windows 10. Install it from microsoft.com/edge/webview2 and try again.\n\n" + ex.Message;
         }
     }
 
+    // ================================================================ tabs
+
+    private void NewTab(string url)
+    {
+        if (_disposed || _environment == null) return;
+        // Too many tabs slow a handheld down: at the limit, the page opens in the current tab instead.
+        int max = Math.Max(1, Host.Settings.BrowserMaxTabs);
+        if (_tabs.Count >= max && _current != null)
+        {
+            Host.ShowToast("Browser", $"{max} tabs is the limit", "Opened here instead. Close a tab (or raise the limit in Settings) to open more.", "", "info");
+            Navigate(url, _current);
+            return;
+        }
+        var tab = new Tab { Web = new WebView2 { Visibility = Visibility.Hidden }, PendingUrl = url };
+        _pages.Children.Add(tab.Web);
+
+        // The chip in the tab strip: the site's icon, its title and a close button.
+        tab.Icon = new Image { Width = 16, Height = 16, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+        tab.Title = Ui.Text("New tab", 14, "FgBrush");
+        tab.Title.MaxWidth = 170;
+        tab.Title.TextTrimming = TextTrimming.CharacterEllipsis;
+        tab.Title.VerticalAlignment = VerticalAlignment.Center;
+        var x = new Button { Style = Ui.StyleOf("BareButton"), Focusable = false, Margin = new Thickness(10, 0, 0, 0), ToolTip = "Close tab",
+                             Content = Ui.Glyph("", 10, "SubtleBrush") };
+        x.Click += (_, e) => { e.Handled = true; CloseTab(tab); };
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(tab.Icon);
+        row.Children.Add(tab.Title);
+        row.Children.Add(x);
+        var face = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(14, 8, 10, 8), Child = row, BorderThickness = new Thickness(0, 0, 0, 3) };
+        tab.Chip = new Button { Style = Ui.StyleOf("BareButton"), Focusable = false, Content = face, Margin = new Thickness(0, 0, 6, 0) };
+        tab.Chip.Click += (_, _) => Select(tab);
+        _strip.Children.Add(tab.Chip);
+        _tabs.Add(tab);
+        Select(tab);
+        _ = InitTabAsync(tab);
+    }
+
+    private async Task InitTabAsync(Tab tab)
+    {
+        try
+        {
+            await tab.Web.EnsureCoreWebView2Async(await _environment!);
+            if (_disposed) return;
+            var core = tab.Web.CoreWebView2;
+            core.Settings.IsStatusBarEnabled = false;
+            core.Settings.AreDevToolsEnabled = false;
+            // Links that want a new window open in a new tab.
+            core.NewWindowRequested += (_, e) =>
+            {
+                e.Handled = true;
+                if (!string.IsNullOrEmpty(e.Uri)) NewTab(e.Uri);
+            };
+            core.DocumentTitleChanged += (_, _) => { tab.Title.Text = core.DocumentTitle.Length > 0 ? core.DocumentTitle : "New tab"; ShowAddress(); };
+            core.FaviconChanged += async (_, _) =>
+            {
+                try
+                {
+                    using var stream = await core.GetFaviconAsync(CoreWebView2FaviconImageFormat.Png);
+                    using var ms = new System.IO.MemoryStream();
+                    await stream.CopyToAsync(ms);
+                    tab.Icon.Source = ms.Length > 0 ? ImageLoader.FromBytes(ms.ToArray(), 32) : null;
+                }
+                catch (Exception) { }
+            };
+            // Full-screen video takes the whole page: hide our own bars while it plays.
+            core.ContainsFullScreenElementChanged += (_, _) =>
+                _chrome.Visibility = _footer.Visibility = core.ContainsFullScreenElement ? Visibility.Collapsed : Visibility.Visible;
+            tab.Web.NavigationStarting += (_, _) => { tab.Loading = true; if (tab == _current) ShowLoading(true); };
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(HelperScript);
+            tab.Web.NavigationCompleted += (_, _) =>
+            {
+                tab.Loading = false;
+                if (tab == _current) { ShowLoading(false); ShowAddress(); }
+                _ = Run(tab, HelperScript); // in case the page was created before the helper was added
+            };
+            tab.Web.SourceChanged += (_, _) => { if (tab == _current) ShowAddress(); };
+            tab.Web.ZoomFactor = Host.Settings.BrowserZoom / 100.0;
+            tab.Ready = true;
+            if (tab.PendingUrl != null) Navigate(tab.PendingUrl, tab);
+            tab.PendingUrl = null;
+            if (tab == _current) ShowCurrent();
+        }
+        catch (Exception) { tab.Title.Text = "Couldn't open"; }
+    }
+
+    private void Select(Tab tab)
+    {
+        _current = tab;
+        ShowCurrent();
+    }
+
+    /// <summary>Shows the current tab's page, marks its chip, and fills in the address bar.</summary>
+    private void ShowCurrent()
+    {
+        foreach (var t in _tabs)
+        {
+            bool on = t == _current;
+            t.Web.Visibility = on && t.Ready ? Visibility.Visible : Visibility.Hidden;
+            if (t.Chip.Content is Border face)
+            {
+                if (on) { face.SetResourceReference(Border.BackgroundProperty, "CircleBrush"); face.SetResourceReference(Border.BorderBrushProperty, "AccentBrush"); }
+                else { face.Background = Brushes.Transparent; face.BorderBrush = Brushes.Transparent; }
+            }
+        }
+        _current?.Chip.BringIntoView();
+        ShowLoading(_current?.Loading == true);
+        ShowAddress();
+    }
+
+    private void CloseTab(Tab tab)
+    {
+        int index = _tabs.IndexOf(tab);
+        if (index < 0) return;
+        _tabs.RemoveAt(index);
+        _strip.Children.Remove(tab.Chip);
+        _pages.Children.Remove(tab.Web);
+        try { tab.Web.Dispose(); } catch (Exception) { }
+        if (_tabs.Count == 0)
+        {
+            // Closing the last tab opens a fresh one at the home page.
+            NewTab(Host.Settings.BrowserHome);
+            return;
+        }
+        if (tab == _current) Select(_tabs[Math.Min(index, _tabs.Count - 1)]);
+    }
+
+    private void StepTab(int step)
+    {
+        if (_tabs.Count < 2 || _current == null) return;
+        int i = (_tabs.IndexOf(_current) + step + _tabs.Count) % _tabs.Count;
+        Select(_tabs[i]);
+        UiSound.Page();
+    }
+
+    // ================================================================ favorites
+
+    private string? CurrentUrl => _current is { Ready: true } t ? t.Web.Source?.ToString() : null;
+
+    private BrowserFavorite? FavoriteFor(string? url) =>
+        url == null ? null : Host.Settings.BrowserFavorites.FirstOrDefault(f => string.Equals(f.Url.TrimEnd('/'), url.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
+
+    private void UpdateStar()
+    {
+        bool saved = FavoriteFor(CurrentUrl) != null;
+        _star.Text = saved ? "" : ""; // filled or outline star
+        _star.SetResourceReference(TextBlock.ForegroundProperty, saved ? "AccentBrush" : "SubtleBrush");
+    }
+
+    /// <summary>Adds the page to the favorites, or takes it off if it's already there.</summary>
+    private void ToggleFavorite()
+    {
+        var url = CurrentUrl;
+        if (string.IsNullOrEmpty(url) || url == "about:blank") return;
+        var s = Host.Settings;
+        if (FavoriteFor(url) is { } existing)
+        {
+            s.BrowserFavorites.Remove(existing);
+            Host.ShowToast("Browser", "Removed from favorites", existing.Title, "", "info");
+        }
+        else
+        {
+            string title = _current?.Web.CoreWebView2?.DocumentTitle is { Length: > 0 } t ? t : new Uri(url).Host;
+            s.BrowserFavorites.Add(new BrowserFavorite { Title = title, Url = url });
+            Host.ShowToast("Browser", "Added to favorites", title, "", "info");
+        }
+        s.Save();
+        UiSound.Select();
+        UpdateStar();
+        BuildFavoritesBar();
+    }
+
+    /// <summary>The favorites as chips under the address bar (hidden when there are none).</summary>
+    private void BuildFavoritesBar()
+    {
+        _favBar.Children.Clear();
+        var favorites = Host.Settings.BrowserFavorites;
+        _favScroll.Visibility = favorites.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        foreach (var f in favorites)
+        {
+            var fav = f;
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var star = Ui.Glyph("", 12, "AccentBrush");
+            star.VerticalAlignment = VerticalAlignment.Center;
+            star.Margin = new Thickness(0, 0, 8, 0);
+            row.Children.Add(star);
+            var name = Ui.Text(fav.Title, 13, "FgBrush");
+            name.MaxWidth = 160;
+            name.TextTrimming = TextTrimming.CharacterEllipsis;
+            row.Children.Add(name);
+            var chip = new Border { CornerRadius = new CornerRadius(14), Padding = new Thickness(12, 5, 12, 5), Child = row };
+            chip.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+            var b = new Button { Style = Ui.StyleOf("BareButton"), Focusable = false, Content = chip, Margin = new Thickness(0, 0, 6, 0), ToolTip = fav.Url };
+            b.Click += (_, _) => Navigate(fav.Url);
+            b.MouseRightButtonUp += (_, e) => { e.Handled = true; _ = FavoriteOptionsAsync(fav); };
+            _favBar.Children.Add(b);
+        }
+    }
+
+    /// <summary>All favorites in a list: open one, or manage it.</summary>
+    private async Task FavoritesMenuAsync()
+    {
+        var favorites = Host.Settings.BrowserFavorites;
+        if (favorites.Count == 0)
+        {
+            await Host.AskAsync("No favorites yet", "Open a page and press the star in the address bar (or choose \"Add to favorites\" in the menu).", "OK");
+            return;
+        }
+        var options = favorites.Select(f => (f.Title, "")).Append(("Manage favorites…", "")).ToArray();
+        int pick = await Host.AskWithIconsAsync("Favorites", null, options);
+        if (pick < 0) return;
+        if (pick < favorites.Count) { Navigate(favorites[pick].Url); return; }
+        int which = await Host.AskWithIconsAsync("Manage favorites", "Choose one to rename, move or remove.", favorites.Select(f => (f.Title, "")).ToArray());
+        if (which >= 0) await FavoriteOptionsAsync(favorites[which]);
+    }
+
+    private async Task FavoriteOptionsAsync(BrowserFavorite fav)
+    {
+        var s = Host.Settings;
+        int i = s.BrowserFavorites.IndexOf(fav);
+        int choice = await Host.AskWithIconsAsync(fav.Title, fav.Url,
+            ("Open", ""), ("Open in a new tab", ""), ("Rename", ""), ("Move left", ""), ("Move right", ""), ("Remove", ""));
+        switch (choice)
+        {
+            case 0: Navigate(fav.Url); return;
+            case 1: NewTab(fav.Url); return;
+            case 2:
+                var name = await Host.PromptAsync("Rename favorite", null, fav.Title, "Save");
+                if (!string.IsNullOrWhiteSpace(name)) fav.Title = name.Trim();
+                break;
+            case 3 when i > 0: s.BrowserFavorites.RemoveAt(i); s.BrowserFavorites.Insert(i - 1, fav); break;
+            case 4 when i < s.BrowserFavorites.Count - 1: s.BrowserFavorites.RemoveAt(i); s.BrowserFavorites.Insert(i + 1, fav); break;
+            case 5: s.BrowserFavorites.Remove(fav); break;
+            default: return;
+        }
+        s.Save();
+        BuildFavoritesBar();
+        UpdateStar();
+    }
+
+    // ================================================================ page
+
+    private void ShowLoading(bool loading)
+    {
+        if (_reload.Content is TextBlock glyph) glyph.Text = loading ? "" : "";
+        _progress.BeginAnimation(WidthProperty, null);
+        if (!loading) { _progress.Width = 0; return; }
+        // A bar that creeps across while the page loads.
+        double full = Math.Max(200, ActualWidth);
+        _progress.BeginAnimation(WidthProperty, new System.Windows.Media.Animation.DoubleAnimation(0, full * 0.85, TimeSpan.FromSeconds(4))
+        {
+            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+        });
+    }
+
     private void ShowAddress()
     {
-        if (!_ready) return;
-        string title = _web.CoreWebView2.DocumentTitle;
-        string url = _web.Source?.ToString() ?? "";
-        _address.Text = title.Length > 0 && title != url ? title + "   –   " + url : url;
+        UpdateStar();
+        if (_address.IsKeyboardFocused) return;
+        var source = _current is { Ready: true } t ? t.Web.Source : null;
+        if (source == null || source.ToString() == "about:blank") { _address.Text = ""; _lock.Text = ""; return; }
+        _lock.Text = source.Scheme == "https" ? "" : ""; // padlock, or a warning for plain http
+        // The site bold-ish first, then the rest of the address.
+        _address.Text = source.Host.StartsWith("www.") ? source.Host[4..] + source.PathAndQuery.TrimEnd('/') : source.Host + source.PathAndQuery.TrimEnd('/');
     }
 
     /// <summary>Goes to an address, or searches for the words if it doesn't look like one.</summary>
-    private void Navigate(string text)
+    private void Navigate(string text, Tab? tab = null)
     {
-        if (!_ready) return;
+        tab ??= _current;
+        if (tab == null) return;
         text = text.Trim();
         if (text.Length == 0) return;
+        if (!tab.Ready) { tab.PendingUrl = text; return; }
 
         string url;
         if (text.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || text.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
@@ -325,11 +729,9 @@ public sealed class BrowserScreen : Screen
         else if (!text.Contains(' ') && text.Contains('.') && Uri.TryCreate("https://" + text, UriKind.Absolute, out _))
             url = "https://" + text;
         else
-            url = Engines.FirstOrDefault(e => e.Id == Host.Settings.BrowserSearch).Url is { } engine
-                ? engine + Uri.EscapeDataString(text)
-                : Engines[0].Url + Uri.EscapeDataString(text);
+            url = (Engines.FirstOrDefault(e => e.Id == Host.Settings.BrowserSearch).Url ?? Engines[0].Url) + Uri.EscapeDataString(text);
 
-        try { _web.CoreWebView2.Navigate(url); }
+        try { tab.Web.CoreWebView2.Navigate(url); }
         catch (Exception) { /* not an address the browser accepts */ }
     }
 
@@ -340,12 +742,19 @@ public sealed class BrowserScreen : Screen
         var s = Host.Settings;
         s.BrowserZoom = Math.Clamp(s.BrowserZoom + step, 50, 300);
         s.Save();
-        if (_ready) _web.ZoomFactor = s.BrowserZoom / 100.0;
+        _zoomText.Text = s.BrowserZoom + "%";
+        foreach (var t in _tabs.Where(t => t.Ready)) t.Web.ZoomFactor = s.BrowserZoom / 100.0;
     }
 
+    /// <summary>Type an address: straight into the bar with Windows' keyboard, or with SquareDeck's own keys.</summary>
     private async Task EnterAddressAsync()
     {
-        if (!_ready) return;
+        if (TouchKeyboard.UseWindows)
+        {
+            _address.Focus();
+            await TouchKeyboard.ShowAsync();
+            return;
+        }
         var text = await Host.PromptAsync("Address or search", "Type a web address, or words to search for.", "", "Go");
         if (!string.IsNullOrWhiteSpace(text)) Navigate(text);
     }
@@ -354,150 +763,255 @@ public sealed class BrowserScreen : Screen
     {
         var s = Host.Settings;
         string engine = Engines.FirstOrDefault(e => e.Id == s.BrowserSearch).Name ?? "Google";
-        int choice = await Host.AskWithIconsAsync("Browser", _ready ? _web.Source?.ToString() : null,
-            ("Address or search", ""), ("Reload", ""), ("Home page", ""),
-            ("Zoom in  (" + s.BrowserZoom + "%)", ""), ("Zoom out", ""),
-            ("Use this page as the home page", ""), ("Search engine: " + engine, ""),
-            ("Clear cookies, history and saved data", ""), ("Open this page in the default browser", ""),
-            ("Close the browser", ""));
+        var web = _current is { Ready: true } t ? t.Web : null;
+        bool saved = FavoriteFor(CurrentUrl) != null;
+        int fav = await Host.AskWithIconsAsync("Browser", web?.Source?.ToString(),
+            ("Favorites\u2026", "\uE728"), (saved ? "Remove from favorites" : "Add to favorites", saved ? "\uE735" : "\uE734"), ("More\u2026", "\uE712"));
+        if (fav == 0) { await FavoritesMenuAsync(); return; }
+        if (fav == 1) { ToggleFavorite(); return; }
+        if (fav != 2) return;
+        int choice = await Host.AskWithIconsAsync("Browser", web?.Source?.ToString(),
+            ("New tab", ""), ("Close this tab", ""), ("Address or search", ""), ("Forward", ""),
+            ("Reload", ""), ("Home page", ""), ("Use this page as the home page", ""),
+            ("Search engine: " + engine, ""),
+            ("Right stick: " + (s.BrowserStickMouse ? "moves the pointer" : "scrolls the page"), ""),
+            ("Keep the browser open when I leave: " + (s.BrowserKeepOpen ? "On" : "Off"), ""),
+            ("Clear cookies, history and saved data", ""), ("Open this page in the default browser", ""),
+            ("Close the browser", ""));
         switch (choice)
         {
-            case 0: await EnterAddressAsync(); break;
-            case 1: if (_ready) _web.Reload(); break;
-            case 2: GoHome(); break;
-            case 3: Zoom(+10); break;
-            case 4: Zoom(-10); break;
-            case 5:
-                if (_ready && _web.Source != null) { s.BrowserHome = _web.Source.ToString(); s.Save(); }
-                break;
-            case 6:
+            case 0: NewTab(s.BrowserHome); break;
+            case 1: if (_current != null) CloseTab(_current); break;
+            case 2: await EnterAddressAsync(); break;
+            case 3: if (web is { CanGoForward: true }) web.GoForward(); break;
+            case 4: web?.Reload(); break;
+            case 5: GoHome(); break;
+            case 6: if (web?.Source != null) { s.BrowserHome = web.Source.ToString(); s.Save(); } break;
+            case 7:
                 int index = Array.FindIndex(Engines, e => e.Id == s.BrowserSearch);
                 s.BrowserSearch = Engines[(index + 1) % Engines.Length].Id;
                 s.Save();
                 break;
-            case 7:
-                if (_ready && await Host.AskAsync("Clear browsing data?", "You will be signed out of websites in this browser.", "Cancel", "Clear") == 1)
+            case 8: s.BrowserStickMouse = !s.BrowserStickMouse; s.Save(); break;
+            case 9: s.BrowserKeepOpen = !s.BrowserKeepOpen; s.Save(); break;
+            case 10:
+                if (web != null && await Host.AskAsync("Clear browsing data?", "You will be signed out of websites in this browser.", "Cancel", "Clear") == 1)
                 {
-                    try { await _web.CoreWebView2.Profile.ClearBrowsingDataAsync(); } catch (Exception) { }
+                    try { await web.CoreWebView2.Profile.ClearBrowsingDataAsync(); } catch (Exception) { }
                 }
                 break;
-            case 8:
-                if (_ready && _web.Source != null) ProcessUtil.Open(_web.Source.ToString());
+            case 11: if (web?.Source != null) ProcessUtil.Open(web.Source.ToString()); break;
+            case 12:
+                DisposeAll(); // closing from the menu really closes it, even when it would otherwise stay open
+                if (ReferenceEquals(_kept, this)) _kept = null;
+                Host.Pop(this);
                 break;
-            case 9: Host.Pop(this); break;
         }
     }
 
-    // ---------------------------------------------------------------- controller
+    // ================================================================ controller
 
-    // A clear ring around whatever link or box the d-pad has landed on.
-    private const string FocusRingScript = """
-        (function(){ if(document.getElementById('sd-focus-ring')) return;
-          var s=document.createElement('style'); s.id='sd-focus-ring';
-          s.textContent='*:focus{outline:3px solid #20E0D0 !important;outline-offset:2px !important;}';
-          (document.head||document.documentElement).appendChild(s); })();
+    // Helpers added to every page as it loads (window.__sd), so the controller works the same on every site:
+    //  - looks through shadow DOM (YouTube and other modern sites build their pages from it) and into frames from the
+    //    same site, which a plain search of the page misses, so links were sometimes unreachable;
+    //  - scrolls whatever part of the page actually scrolls (mail, chat and feed sites scroll a panel, not the page);
+    //  - draws a clear ring around what the d-pad has landed on.
+    private const string HelperScript = """
+        (function(){ if(window.__sd) return;
+          var SEL='a[href],button,input:not([type=hidden]),select,textarea,summary,video,[role=button],[role=link],[role=tab],[role=menuitem],[role=option],[role=checkbox],[role=switch],[contenteditable=true],[tabindex]:not([tabindex="-1"])';
+          function ring(doc){ try{ if(doc.getElementById('sd-focus-ring')) return; var s=doc.createElement('style'); s.id='sd-focus-ring';
+            s.textContent='*:focus,*:focus-visible{outline:3px solid #20E0D0 !important;outline-offset:2px !important;}';
+            (doc.head||doc.documentElement).appendChild(s);}catch(e){} }
+          function all(root, ox, oy, out){
+            var list; try{ list=root.querySelectorAll('*'); }catch(e){ return; }
+            for(var i=0;i<list.length;i++){ var e=list[i];
+              if(e.matches&&e.matches(SEL)) out.push({e:e,ox:ox,oy:oy});
+              if(e.shadowRoot) all(e.shadowRoot, ox, oy, out);
+              if(e.tagName==='IFRAME'){ try{ var d=e.contentDocument; if(d){ var r=e.getBoundingClientRect(); ring(d); all(d, ox+r.left, oy+r.top, out);} }catch(x){} } }
+          }
+          function rect(it){ var r=it.e.getBoundingClientRect(); return {l:r.left+it.ox,t:r.top+it.oy,w:r.width,h:r.height}; }
+          function visible(it){ var e=it.e; if(e.disabled) return false; var r=rect(it); if(r.w<2||r.h<2) return false;
+            var c=getComputedStyle(e); return c.visibility!=='hidden'&&c.display!=='none'&&c.opacity!=='0'; }
+          function active(){ var e=document.activeElement;
+            for(var n=0;n<20&&e;n++){ if(e.shadowRoot&&e.shadowRoot.activeElement){ e=e.shadowRoot.activeElement; continue; }
+              if(e.tagName==='IFRAME'){ try{ var a=e.contentDocument&&e.contentDocument.activeElement; if(a&&a!==e.contentDocument.body){ e=a; continue; } }catch(x){} }
+              break; }
+            return e; }
+          function scroller(from){ var e=from;
+            while(e&&e!==document.body&&e!==document.documentElement){
+              var c=getComputedStyle(e); if(/(auto|scroll|overlay)/.test(c.overflowY)&&e.scrollHeight>e.clientHeight+4) return e;
+              e=e.parentElement||(e.getRootNode&&e.getRootNode().host)||null; }
+            return null; }
+          function scroll(dy){ var a=active(); var start=(a&&a!==document.body)?a:document.elementFromPoint(innerWidth/2,innerHeight/2);
+            var s=scroller(start); if(s) s.scrollBy({top:dy,behavior:'smooth'}); else window.scrollBy({top:dy,behavior:'smooth'}); }
+          function move(dir){
+            var vw=innerWidth, vh=innerHeight, items=[]; all(document,0,0,items); items=items.filter(visible);
+            if(!items.length){ scroll((dir==='down'?1:dir==='up'?-1:0)*vh*0.5); return 'scroll'; }
+            var cur=active(), ci=-1; for(var i=0;i<items.length;i++) if(items[i].e===cur){ ci=i; break; }
+            if(ci<0){ var first=null; for(var j=0;j<items.length;j++){ var r=rect(items[j]); if(r.t>=0&&r.t<vh&&r.l>=0&&r.l<vw){ first=items[j]; break; } }
+              first=first||items[0]; first.e.focus({preventScroll:true}); first.e.scrollIntoView({block:'nearest',inline:'nearest'}); return 'first'; }
+            var cr=rect(items[ci]), cx=cr.l+cr.w/2, cy=cr.t+cr.h/2, best=null, bs=1e18;
+            items.forEach(function(it,k){ if(k===ci) return; var r=rect(it); var dx=r.l+r.w/2-cx, dy=r.t+r.h/2-cy, main, cross;
+              if(dir==='right'){ if(dx<6) return; main=dx; cross=Math.abs(dy); }
+              else if(dir==='left'){ if(dx>-6) return; main=-dx; cross=Math.abs(dy); }
+              else if(dir==='down'){ if(dy<6) return; main=dy; cross=Math.abs(dx); }
+              else { if(dy>-6) return; main=-dy; cross=Math.abs(dx); }
+              var score=main+cross*2.5; if(score<bs){ bs=score; best=it; } });
+            if(best){ best.e.focus({preventScroll:true}); best.e.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'}); return 'moved'; }
+            if(dir==='down'||dir==='up'){ scroll((dir==='down'?1:-1)*vh*0.5); return 'scroll'; }
+            return 'edge'; }
+          function click(){ var e=active(); if(!e||e===document.body) return 'none';
+            var t=(e.tagName||'').toLowerCase();
+            var text=(t==='input'&&!/^(button|submit|checkbox|radio|range|file|color|image|reset)$/i.test(e.type||'text'))||t==='textarea'||e.isContentEditable;
+            if(text) return 'text:'+(e.type==='password'?'':(e.value||''));
+            if(t==='video'){ if(e.paused) e.play(); else e.pause(); return 'ok'; }
+            e.click(); return 'ok'; }
+          function type(v){ var e=active(); if(!e) return 'none';
+            if(e.isContentEditable){ e.focus(); document.execCommand('insertText',false,v); return 'ok'; }
+            var p=e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
+            var d=Object.getOwnPropertyDescriptor(p,'value'); if(d&&d.set) d.set.call(e,v); else e.value=v;
+            e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true}));
+            var search=e.type==='search'||e.name==='q'||e.getAttribute('role')==='searchbox'||e.getAttribute('role')==='combobox';
+            if(search&&e.form){ if(e.form.requestSubmit) e.form.requestSubmit(); else e.form.submit(); }
+            else if(search){ e.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',keyCode:13,bubbles:true})); }
+            return 'ok'; }
+          window.__sd={move:move,click:click,type:type,scroll:scroll};
+          if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ring(document);}); else ring(document);
+        })();
         """;
 
-    // Moves to the nearest link, button or box in one direction, judged by where things are on the page.
-    private const string MoveScript = """
-        (function(dir){
-          var sel='a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=tab],[role=menuitem],[tabindex]:not([tabindex="-1"])';
-          var vw=window.innerWidth, vh=window.innerHeight;
-          var els=Array.prototype.filter.call(document.querySelectorAll(sel),function(e){
-            if(e.disabled) return false; var r=e.getBoundingClientRect();
-            if(r.width<2||r.height<2) return false; var c=getComputedStyle(e);
-            return c.visibility!=='hidden'&&c.display!=='none'; });
-          if(!els.length){ window.scrollBy(0,(dir==='down'?1:dir==='up'?-1:0)*vh*0.5); return; }
-          var cur=document.activeElement;
-          if(!cur||cur===document.body||els.indexOf(cur)<0){
-            var first=els.find(function(e){var r=e.getBoundingClientRect();return r.top>=0&&r.top<vh&&r.left>=0&&r.left<vw;})||els[0];
-            first.focus(); first.scrollIntoView({block:'nearest',inline:'nearest'}); return; }
-          var cr=cur.getBoundingClientRect(), cx=cr.left+cr.width/2, cy=cr.top+cr.height/2, best=null, bs=1e18;
-          els.forEach(function(e){ if(e===cur) return; var r=e.getBoundingClientRect();
-            var dx=r.left+r.width/2-cx, dy=r.top+r.height/2-cy, main, cross;
-            if(dir==='right'){ if(dx<6) return; main=dx; cross=Math.abs(dy); }
-            else if(dir==='left'){ if(dx>-6) return; main=-dx; cross=Math.abs(dy); }
-            else if(dir==='down'){ if(dy<6) return; main=dy; cross=Math.abs(dx); }
-            else { if(dy>-6) return; main=-dy; cross=Math.abs(dx); }
-            var score=main+cross*2.5; if(score<bs){ bs=score; best=e; } });
-          if(best){ best.focus(); best.scrollIntoView({block:'nearest',inline:'nearest'}); }
-          else if(dir==='down'||dir==='up'){ window.scrollBy(0,(dir==='down'?1:-1)*vh*0.5); }
-        })
-        """;
-
-    // Clicks what is highlighted. For a text box it reports back instead, so the on-screen keyboard can be shown.
-    private const string ClickScript = """
-        (function(){ var e=document.activeElement; if(!e||e===document.body) return 'none';
-          var t=(e.tagName||'').toLowerCase();
-          var text=(t==='input'&&!/^(button|submit|checkbox|radio|range|file|color|image|reset)$/i.test(e.type||'text'))||t==='textarea';
-          if(text) return 'text:'+(e.type==='password'?'':(e.value||''));
-          e.click(); return 'ok'; })();
-        """;
-
-    private async Task<string> RunAsync(string script)
+    private async Task<string> Run(Tab? tab, string script)
     {
-        if (!_ready || _closed) return "";
+        if (tab is not { Ready: true } || _disposed) return "";
         try
         {
-            var json = await _web.ExecuteScriptAsync(script);
+            var json = await tab.Web.ExecuteScriptAsync(script);
             return JsonSerializer.Deserialize<string>(json) ?? "";
         }
         catch (Exception) { return ""; } // page still loading, or the result wasn't text
     }
 
+    private Task<string> RunAsync(string script) => Run(_current, script);
+
+    /// <summary>Runs one of the page helpers, adding them first if the page doesn't have them yet.</summary>
+    private Task<string> Sd(string call) => RunAsync("(function(){" + HelperScript + "; return window.__sd ? window.__sd." + call + " : '';})()");
+
     private async Task ClickAsync()
     {
-        var result = await RunAsync(ClickScript);
+        var result = await Sd("click()");
         if (!result.StartsWith("text:", StringComparison.Ordinal)) return;
 
+        // Windows' touch keyboard types straight into the page.
+        if (TouchKeyboard.UseWindows)
+        {
+            _current?.Web.Focus();
+            await TouchKeyboard.ShowAsync();
+            return;
+        }
         var typed = await Host.PromptAsync("Type here", null, result[5..], "Enter");
         if (typed == null) return;
         // Put the text in the box the page had highlighted, tell the page it changed, and send a search box on its way.
-        string value = JsonSerializer.Serialize(typed);
-        await RunAsync($$"""
-            (function(v){ var e=document.activeElement; if(!e) return 'none';
-              var p=e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
-              var set=Object.getOwnPropertyDescriptor(p,'value'); if(set&&set.set) set.set.call(e,v); else e.value=v;
-              e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true}));
-              var search=e.type==='search'||e.name==='q'||e.getAttribute('role')==='searchbox'||e.getAttribute('role')==='combobox';
-              if(search&&e.form){ if(e.form.requestSubmit) e.form.requestSubmit(); else e.form.submit(); }
-              return 'ok'; })({{value}});
-            """);
+        await Sd("type(" + JsonSerializer.Serialize(typed) + ")");
     }
+
+    /// <summary>The page gets the keyboard focus, so the ring shows and keys reach it (not the launcher's own bars).</summary>
+    private void EnsurePageFocus()
+    {
+        // Only when the focus is somewhere else (giving it again would make the page lose its own highlight).
+        if (_current is { Ready: true } t && !_address.IsKeyboardFocused &&
+            !ReferenceEquals(System.Windows.Input.Keyboard.FocusedElement, t.Web) && !t.Web.IsKeyboardFocusWithin)
+            t.Web.Focus();
+    }
+
+    /// <summary>True for a few seconds after the pointer was moved with the right stick: A then clicks at the pointer.</summary>
+    private bool PointerActive => DateTime.UtcNow - _pointerMovedAt < TimeSpan.FromSeconds(4);
 
     public override bool OnAction(NavAction action)
     {
+        if (_address.IsKeyboardFocused) return action is not NavAction.Back ? false : FocusPage();
+        if (action is NavAction.Up or NavAction.Down or NavAction.Left or NavAction.Right or NavAction.Accept) EnsurePageFocus();
         switch (action)
         {
-            case NavAction.Up: _ = RunAsync(MoveScript + "('up');"); return true;
-            case NavAction.Down: _ = RunAsync(MoveScript + "('down');"); return true;
-            case NavAction.Left: _ = RunAsync(MoveScript + "('left');"); return true;
-            case NavAction.Right: _ = RunAsync(MoveScript + "('right');"); return true;
-            case NavAction.Accept: _ = ClickAsync(); return true;
+            case NavAction.Up: _ = Sd("move('up')"); _pointerMovedAt = DateTime.MinValue; return true;
+            case NavAction.Down: _ = Sd("move('down')"); _pointerMovedAt = DateTime.MinValue; return true;
+            case NavAction.Left: _ = Sd("move('left')"); _pointerMovedAt = DateTime.MinValue; return true;
+            case NavAction.Right: _ = Sd("move('right')"); _pointerMovedAt = DateTime.MinValue; return true;
+            case NavAction.Accept:
+                if (PointerActive) MouseClick(); else _ = ClickAsync();
+                return true;
             case NavAction.X: _ = EnterAddressAsync(); return true;
             case NavAction.Y: _ = MenuAsync(); return true;
-            case NavAction.LB: if (_ready && _web.CanGoBack) _web.GoBack(); return true;
-            case NavAction.RB: if (_ready && _web.CanGoForward) _web.GoForward(); return true;
-            case NavAction.LT: _ = RunAsync("window.scrollBy(0,-window.innerHeight*0.85);"); return true;
-            case NavAction.RT: _ = RunAsync("window.scrollBy(0,window.innerHeight*0.85);"); return true;
+            case NavAction.Start: NewTab(Host.Settings.BrowserHome); return true;
+            case NavAction.LB: StepTab(-1); return true;
+            case NavAction.RB: StepTab(+1); return true;
+            case NavAction.LT: _ = Sd("scroll(-innerHeight*0.85)"); return true;
+            case NavAction.RT: _ = Sd("scroll(innerHeight*0.85)"); return true;
             case NavAction.Back:
                 // B is the browser's Back button until there is nowhere left to go back to.
-                if (_ready && _web.CanGoBack) { _web.GoBack(); return true; }
+                if (_current is { Ready: true } t && t.Web.CanGoBack) { t.Web.GoBack(); return true; }
                 return false;
         }
         return false;
     }
 
-    public override bool OnRightStick(double y)
+    private bool FocusPage()
     {
-        // Sent in small batches: one script call per frame would be more than the page needs.
-        _scrollCarry += -y * Math.Abs(y) * 34;
-        if (Math.Abs(_scrollCarry) < 24) return true;
-        int amount = (int)_scrollCarry;
-        _scrollCarry = 0;
-        _ = RunAsync($"window.scrollBy(0,{amount});");
+        _current?.Web.Focus();
         return true;
     }
+
+    public override bool OnRightStick(double x, double y, bool pressed)
+    {
+        // Right stick pressed in: click where the pointer is.
+        if (pressed && !_stickWasPressed) MouseClick();
+        _stickWasPressed = pressed;
+        if (x == 0 && y == 0) { _moveX = _moveY = 0; return true; }
+
+        if (!Host.Settings.BrowserStickMouse)
+        {
+            // Scroll instead, sent in small batches.
+            _scrollCarry += -y * Math.Abs(y) * 34;
+            if (Math.Abs(_scrollCarry) < 24) return true;
+            int amount = (int)_scrollCarry;
+            _scrollCarry = 0;
+            _ = Sd($"scroll({amount})");
+            return true;
+        }
+
+        // The pointer speeds up the further the stick is pushed; fractions carry over so slow moves stay smooth.
+        _moveX += x * Math.Abs(x) * 22;
+        _moveY += -y * Math.Abs(y) * 22;
+        int dx = (int)_moveX, dy = (int)_moveY;
+        _moveX -= dx;
+        _moveY -= dy;
+        if ((dx != 0 || dy != 0) && GetCursorPos(out var p))
+        {
+            SetCursorPos(p.X + dx, p.Y + dy);
+            _pointerMovedAt = DateTime.UtcNow;
+        }
+        return true;
+    }
+
+    private void MouseClick()
+    {
+        if (!GetCursorPos(out _)) return;
+        mouse_event(0x0002, 0, 0, 0, IntPtr.Zero); // left button down
+        mouse_event(0x0004, 0, 0, 0, IntPtr.Zero); // left button up
+        _pointerMovedAt = DateTime.UtcNow;
+        UiSound.Select();
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct NativePoint { public int X, Y; }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out NativePoint point);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetCursorPos(int x, int y);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern void mouse_event(uint flags, int dx, int dy, uint data, IntPtr extra);
 }
 
 /// <summary>What's new in a release, with the button that downloads and installs it.</summary>
@@ -850,7 +1364,7 @@ public sealed class NotificationsScreen : Screen
                     "achievement" => "", "friend" => "", "download" => "",
                     "battery" => "", "session" => "", _ => ""
                 };
-                if (entry.Kind == "windows") glyph = "\uE782";
+                if (entry.Kind == "windows") glyph = "\uEA8F"; // a bell (the old symbol isn't in the icon font, so it drew a square)
                 var mark = Ui.Glyph(glyph, 20, "AccentBrush");
                 mark.HorizontalAlignment = HorizontalAlignment.Center;
                 mark.Margin = new Thickness(0, 3, 0, 0);
@@ -867,7 +1381,7 @@ public sealed class NotificationsScreen : Screen
                         Background = game.UsesIcon ? (game.TileBackground ?? (Brush?)TryFindResource("CircleBrush")) : new ImageBrush(game.Cover) { Stretch = Stretch.UniformToFill }
                     };
                     if (game.UsesIcon)
-                        face.Child = new Image { Source = game.Cover, Margin = new Thickness(8), Stretch = Stretch.Uniform };
+                        face.Child = new Image { Source = game.Cover, Margin = new Thickness(game.IconFills ? 0 : 8), Stretch = game.IconFills ? Stretch.UniformToFill : Stretch.Uniform };
                     icon.Children.Add(face);
                     mark.Visibility = Visibility.Hidden;
                     if (entry.Kind == "achievement" && entry.Icon.StartsWith("http", StringComparison.OrdinalIgnoreCase))
@@ -881,6 +1395,14 @@ public sealed class NotificationsScreen : Screen
                         icon.Children.Add(badge);
                         _ = LoadPictureAsync(badge, new Grid(), entry.Icon);
                     }
+                }
+                else if (entry.Icon.Length > 0 && !entry.Icon.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
+                         System.IO.File.Exists(entry.Icon) && ImageLoader.FromFile(entry.Icon, 96) is { } appIcon)
+                {
+                    // The app that sent a Windows notification, by its own icon.
+                    icon.Children.Add(new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(8), Margin = new Thickness(0, 2, 0, 0),
+                                                   Background = new ImageBrush(appIcon) { Stretch = Stretch.Uniform } });
+                    mark.Visibility = Visibility.Hidden;
                 }
                 else if (entry.Icon.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                 {
@@ -923,110 +1445,204 @@ public sealed class NotificationsScreen : Screen
     }
 }
 
-/// <summary>"Starting … in 3": the game's logo on top, Start now first, then Cancel.</summary>
-public sealed class CountdownScreen : Screen
+/// <summary>
+/// Shown from pressing Play until the game is running: the cover large in the middle of the screen, the game's
+/// artwork softly blurred behind it, and "Starting". B hides it early; it gives up after a minute and a half.
+/// </summary>
+public sealed class LaunchSplashScreen : Screen
 {
-    private readonly TaskCompletionSource<bool> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
-    private readonly CancellationTokenSource _cts = new();
-    private readonly TextBlock _text;
-    private readonly Image _logo = new() { MaxWidth = 380, MaxHeight = 130, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center };
-    private readonly Border _cover;
+    private static readonly TimeSpan GiveUpAfter = TimeSpan.FromSeconds(90);
+
     private readonly Game _game;
-    private int _seconds = 3;
-    private bool _go;
+    private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(400) };
+    private readonly DateTime _opened = DateTime.UtcNow;
+    private readonly Image _backdrop = new() { Stretch = Stretch.UniformToFill, Opacity = 0 };
+    private readonly TextBlock _status = Ui.Text("Starting", 20, "SubtleBrush");
+    private readonly CancellationTokenSource _cts = new();
+    private int _dots;
+    private bool _closing;
 
-    public override bool IsDialog => true;
-
-    /// <summary>True to start the game, false if it was cancelled.</summary>
-    public Task<bool> Result => _done.Task;
-
-    public CountdownScreen(Game game)
+    public LaunchSplashScreen(Game game)
     {
         _game = game;
-        var panel = new StackPanel();
+        var root = new Grid { ClipToBounds = true };
+        root.SetResourceReference(Panel.BackgroundProperty, "BgBrush");
 
-        // The logo sits at the top, centered. Until it arrives (or if there is none), the cover stands in.
-        _cover = new Border
+        // Behind everything: the game's artwork (or cover), blurred, with the page color washed over it.
+        _backdrop.Effect = new BlurEffect { Radius = 40, RenderingBias = RenderingBias.Performance };
+        _backdrop.Margin = new Thickness(-80);
+        root.Children.Add(_backdrop);
+        var bg = (Application.Current.Resources["BgBrush"] as SolidColorBrush)?.Color ?? Colors.Black;
+        var wash = new RadialGradientBrush { RadiusX = 0.8, RadiusY = 0.8 };
+        wash.GradientStops.Add(new GradientStop(Color.FromArgb(0x66, bg.R, bg.G, bg.B), 0));
+        wash.GradientStops.Add(new GradientStop(Color.FromArgb(0xEE, bg.R, bg.G, bg.B), 1));
+        root.Children.Add(new Border { Background = wash });
+
+        var center = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var breathe = new ScaleTransform(1, 1);
+        var cover = new Border
         {
-            Width = 110, Height = 110, CornerRadius = new CornerRadius(8), HorizontalAlignment = HorizontalAlignment.Center,
-            Background = game.Cover != null ? new ImageBrush(game.Cover) { Stretch = Stretch.UniformToFill } : null,
-            Visibility = game.Cover != null ? Visibility.Visible : Visibility.Collapsed
+            Width = 300, Height = 300, CornerRadius = new CornerRadius(22), HorizontalAlignment = HorizontalAlignment.Center,
+            RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = breathe,
+            Effect = new DropShadowEffect { BlurRadius = 50, ShadowDepth = 10, Opacity = 0.55 }
         };
-        _logo.Visibility = Visibility.Collapsed;
-        var top = new Grid { Margin = new Thickness(0, 0, 0, 20), MinHeight = game.Cover != null ? 110 : 0 };
-        top.Children.Add(_cover);
-        top.Children.Add(_logo);
-        panel.Children.Add(top);
-
-        _text = Ui.Text("", 26);
-        _text.TextWrapping = TextWrapping.Wrap;
-        _text.TextAlignment = TextAlignment.Center;
-        _text.HorizontalAlignment = HorizontalAlignment.Center;
-        panel.Children.Add(_text);
-
-        var now = Ui.Row("Start now", glyph: "");
-        now.Margin = new Thickness(0, 20, 0, 3);
-        now.Click += (_, _) => { _go = true; Host.Pop(this); };
-        panel.Children.Add(now);
-        var cancel = Ui.Row("Cancel", glyph: "");
-        cancel.Click += (_, _) => Host.Pop(this);
-        panel.Children.Add(cancel);
-
-        var box = new Border
+        if (game.Cover != null)
         {
-            Width = 560, Padding = new Thickness(32), CornerRadius = new CornerRadius(6),
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = panel
-        };
-        box.SetResourceReference(Border.BackgroundProperty, "BgBrush");
-        var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(0xA0, 0, 0, 0)) };
-        backdrop.Children.Add(box);
-        Content = backdrop;
-
-        _timer.Tick += (_, _) =>
+            if (game.UsesIcon && !game.IconFills)
+            {
+                cover.Background = game.TileBackground ?? (Brush?)TryFindResource("TileBrush");
+                cover.Child = new Image { Source = game.Cover, Margin = new Thickness(70), Stretch = Stretch.Uniform };
+            }
+            else cover.Background = new ImageBrush(game.Cover) { Stretch = Stretch.UniformToFill };
+            _backdrop.Source = game.Cover;
+            _backdrop.Opacity = 0.6;
+        }
+        else
         {
-            if (--_seconds > 0) { Show(); return; }
-            _go = true;
-            Host.Pop(this);
-        };
-        Show();
+            cover.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+            cover.Child = new TextBlock { Text = "", FontFamily = Ui.IconFont, FontSize = 90, HorizontalAlignment = HorizontalAlignment.Center,
+                                          VerticalAlignment = VerticalAlignment.Center, Opacity = 0.6 };
+        }
+        center.Children.Add(cover);
+
+        var name = Ui.Text(game.Name, 36, "FgBrush", bold: true);
+        name.HorizontalAlignment = HorizontalAlignment.Center;
+        name.TextAlignment = TextAlignment.Center;
+        name.MaxWidth = 900;
+        name.Margin = new Thickness(0, 34, 0, 8);
+        center.Children.Add(name);
+        _status.HorizontalAlignment = HorizontalAlignment.Center;
+        center.Children.Add(_status);
+        root.Children.Add(center);
+
+        var hint = new HintBar("{Back}  Hide");
+        hint.HorizontalAlignment = HorizontalAlignment.Right;
+        hint.VerticalAlignment = VerticalAlignment.Bottom;
+        hint.Margin = new Thickness(0, 0, 40, 24);
+        root.Children.Add(hint);
+        Content = root;
+
+        if (!Theme.ReduceMotion)
+        {
+            // The cover pops in, then breathes gently while the game loads.
+            var pop = new DoubleAnimation(0.85, 1, TimeSpan.FromMilliseconds(420)) { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } };
+            pop.Completed += (_, _) =>
+            {
+                var slow = new DoubleAnimation(1, 1.035, TimeSpan.FromSeconds(1.6))
+                {
+                    AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                };
+                breathe.BeginAnimation(ScaleTransform.ScaleXProperty, slow);
+                breathe.BeginAnimation(ScaleTransform.ScaleYProperty, slow);
+            };
+            breathe.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+            breathe.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+        }
+
+        _timer.Tick += (_, _) => Tick();
     }
 
-    private void Show() => _text.Text = $"Starting {_game.Name} in {_seconds}…";
+    private bool _held;
 
     public override void OnShown()
     {
         _timer.Start();
-        _ = LoadLogoAsync();
-    }
-
-    private async Task LoadLogoAsync()
-    {
-        try
-        {
-            var key = Host.Settings.SteamGridDbApiKey;
-            var ct = _cts.Token;
-            var logo = await Task.Run(async () =>
-            {
-                using var client = new SteamGridDbClient(key);
-                var path = await client.GetLogoAsync(_game, ct);
-                return path == null ? null : ImageLoader.FromFile(path, 760);
-            }, ct);
-            if (logo == null || ct.IsCancellationRequested) return;
-            _logo.Source = logo;
-            _logo.Visibility = Visibility.Visible;
-            _cover.Visibility = Visibility.Collapsed;
-        }
-        catch (Exception)
-        {
-            // No logo, offline, or the countdown ended first: the cover stays.
-        }
+        _ = LoadArtworkAsync();
+        if (!_held) { _held = true; Host.HoldVisible(true); } // stays in front until the game is running
     }
 
     public override void OnClosed()
     {
         _timer.Stop();
         _cts.Cancel();
-        _done.TrySetResult(_go);
+        if (_held) { _held = false; Host.HoldVisible(false); }
+    }
+
+    public override void FocusDefault() => Focus();
+
+    /// <summary>Wide artwork for the background, when SteamGridDB has some (usually already downloaded).</summary>
+    private async Task LoadArtworkAsync()
+    {
+        if (!_game.IsGame) return;
+        var key = Host.Settings.SteamGridDbApiKey;
+        var ct = _cts.Token;
+        try
+        {
+            var art = await Task.Run(async () =>
+            {
+                using var client = new SteamGridDbClient(key);
+                var path = await client.GetHeroAsync(_game, ct);
+                return path == null ? null : ImageLoader.FromFile(path, 1280);
+            }, ct);
+            if (art == null || ct.IsCancellationRequested) return;
+            _backdrop.Source = art;
+            _backdrop.Effect = new BlurEffect { Radius = 18, RenderingBias = RenderingBias.Performance };
+            _backdrop.BeginAnimation(OpacityProperty, new DoubleAnimation(0.75, TimeSpan.FromMilliseconds(500)));
+        }
+        catch (Exception) { }
+    }
+
+    private static readonly TimeSpan Buffer = TimeSpan.FromSeconds(3);
+    private DateTime? _runningSince, _windowAt;
+    private bool _looking;
+
+    private void Tick()
+    {
+        _dots = (_dots + 1) % 4;
+        _status.Text = "Starting" + new string('.', _dots);
+        if (_closing) return;
+        if (DateTime.UtcNow - _opened > GiveUpAfter) { Close(); return; } // it never showed up
+
+        // Stays in front of everything, store windows included (Steam, EA app, Ubisoft Connect, Epic…), until the game's
+        // own window appears. Until the game is running it also takes the focus back from them.
+        bool running = _game.IsRunning;
+        if (running) _runningSince ??= DateTime.UtcNow;
+        Host.KeepInFront(takeFocus: !running);
+        if (running && !_looking) _ = LookForWindowAsync();
+    }
+
+    /// <summary>Closes the splash once the game has a window of its own (or, where that can't be seen, soon after it starts).</summary>
+    private async Task LookForWindowAsync()
+    {
+        _looking = true;
+        try
+        {
+            string? exe = MainWindow.ExactProgram(_game);
+            string? dir = exe == null && !string.IsNullOrEmpty(_game.InstallDir) && Directory.Exists(_game.InstallDir) ? _game.InstallDir : null;
+            var since = DateTime.UtcNow - (_runningSince ?? DateTime.UtcNow);
+            bool done;
+            if (exe == null && dir == null) done = since > TimeSpan.FromSeconds(2); // Xbox / Store games: no folder to watch
+            else done = await Task.Run(() => ProcessUtil.HasGameWindow(exe, dir)) || since > TimeSpan.FromSeconds(30);
+            if (!done || _closing) return;
+            // The game's window is up. It gets the focus (not its store), and the splash stays over it a few seconds
+            // more as a buffer, hiding the black frames and logos of the first moments.
+            if (_windowAt == null)
+            {
+                _windowAt = DateTime.UtcNow;
+                if (exe != null || dir != null) _ = Task.Run(() => ProcessUtil.FocusWindow(exe, dir));
+            }
+            else if (DateTime.UtcNow - _windowAt > Buffer) Close();
+        }
+        catch (Exception) { }
+        finally { _looking = false; }
+    }
+
+    private void Close()
+    {
+        if (_closing) return;
+        _closing = true;
+        _timer.Stop();
+        // Out of the way at once, so the game's window comes in front while the splash fades.
+        if (_held) { _held = false; Host.HoldVisible(false); }
+        if (Theme.ReduceMotion) { Host.Pop(this); return; }
+        var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(350));
+        fade.Completed += (_, _) => Host.Pop(this);
+        BeginAnimation(OpacityProperty, fade);
+    }
+
+    public override bool OnAction(NavAction action)
+    {
+        if (action == NavAction.Back) Close();
+        return true; // nothing else does anything while the game starts
     }
 }

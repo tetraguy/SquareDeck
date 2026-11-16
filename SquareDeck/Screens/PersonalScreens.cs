@@ -32,12 +32,21 @@ public sealed class ThemeScreen : ListScreen
                 s.Wallpaper = p.Wallpaper;
                 s.TileCorner = p.Corner;
                 s.SoundSet = p.Sounds;
+                s.ThemePalette = p.Palette;
                 Apply();
             });
         }
 
         AddHeader("Make your own");
         AddRow("Wallpaper", WallpaperLabel(s.Wallpaper), "", click: () => Host.Push(new WallpaperScreen()));
+        AddRow("Color theme", Theme.Palettes.TryGetValue(s.ThemePalette, out var pal) ? pal.Name : "Standard", "\uE790", click: () =>
+        {
+            // Standard -> GTA VI -> ... -> Standard
+            var ids = new List<string> { "" };
+            ids.AddRange(Theme.Palettes.Keys);
+            s.ThemePalette = ids[(ids.IndexOf(s.ThemePalette) + 1) % ids.Count];
+            Apply();
+        }, subtitle: "Background and button colors (styles with their own colors keep them)");
         AddRow("Tile corners", Theme.CornerStyles.FirstOrDefault(c => c.Radius == s.TileCorner).Name ?? "Custom", "", click: () =>
         {
             // Square -> Rounded -> Round -> Square
@@ -58,6 +67,8 @@ public sealed class ThemeScreen : ListScreen
         if (string.IsNullOrEmpty(setting)) return "None";
         if (setting.StartsWith("preset:", StringComparison.Ordinal) && int.TryParse(setting[7..], out var i) &&
             i >= 0 && i < Theme.Wallpapers.Length) return Theme.Wallpapers[i].Name;
+        if (setting.StartsWith("image:", StringComparison.Ordinal))
+            return Theme.PictureWallpapers.FirstOrDefault(w => w.File == setting[6..]).Name ?? "Picture";
         return "Custom image";
     }
 
@@ -83,6 +94,12 @@ public sealed class WallpaperScreen : GridScreen
             string setting = "preset:" + i;
             var swatch = new Border { Width = 208, Height = 117, Background = Theme.WallpaperBrush(setting) };
             AddTile(swatch, Theme.Wallpapers[i].Name, 208, () => Pick(setting));
+        }
+        foreach (var (name, file) in Theme.PictureWallpapers)
+        {
+            string setting = "image:" + file;
+            var swatch = new Border { Width = 208, Height = 117, Background = Theme.WallpaperBrush(setting) };
+            AddTile(swatch, name, 208, () => Pick(setting));
         }
         AddTile(GlyphBox(208, 117, ""), "Choose image…", 208, Browse);
     }

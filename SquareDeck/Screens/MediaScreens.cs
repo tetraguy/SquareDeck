@@ -10,6 +10,46 @@ using SquareDeck.Services;
 namespace SquareDeck.Screens;
 
 /// <summary>Screenshots and clips from the user's Videos\Captures folder.</summary>
+/// <summary>Screenshots of one game: from Windows' Captures folder (Game Bar names them after the game) and Steam's own.</summary>
+public static class GameCaptures
+{
+    private static string Simple(string text) => new string(text.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+
+    public static List<string> For(Game game, int max = 40)
+    {
+        var found = new List<FileInfo>();
+        string name = Simple(game.Name), original = Simple(game.OriginalName);
+        try
+        {
+            if (Directory.Exists(CapturesScreen.Folder))
+                foreach (var f in new DirectoryInfo(CapturesScreen.Folder).EnumerateFiles())
+                {
+                    if (CapturesScreen.IsVideo(f.Name) || !CapturesScreen.IsImage(f.Name)) continue;
+                    string of = Simple(CapturesScreen.GameOf(f.Name));
+                    if (of.Length > 0 && (of == name || of == original || (of.Length > 5 && (name.StartsWith(of) || of.StartsWith(name))))) found.Add(f);
+                }
+        }
+        catch (Exception) { }
+        // Steam's screenshots (F12): userdata/<account>/760/remote/<app id>/screenshots.
+        if (game.IsSteam && SteamLibrary.FindSteamPath() is { } steam)
+        {
+            try
+            {
+                var userdata = Path.Combine(steam, "userdata");
+                if (Directory.Exists(userdata))
+                    foreach (var account in Directory.EnumerateDirectories(userdata))
+                    {
+                        var dir = Path.Combine(account, "760", "remote", game.AppId.ToString(), "screenshots");
+                        if (Directory.Exists(dir))
+                            found.AddRange(new DirectoryInfo(dir).EnumerateFiles("*.jpg").Concat(new DirectoryInfo(dir).EnumerateFiles("*.png")));
+                    }
+            }
+            catch (Exception) { }
+        }
+        return found.OrderByDescending(f => f.LastWriteTime).Take(max).Select(f => f.FullName).ToList();
+    }
+}
+
 public sealed class CapturesScreen : GridScreen
 {
     private static readonly string[] ImageTypes = { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
@@ -31,6 +71,9 @@ public sealed class CapturesScreen : GridScreen
 
     public static bool IsVideo(string path) =>
         VideoTypes.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
+
+    public static bool IsImage(string path) =>
+        ImageTypes.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
     public CapturesScreen() : base("Captures", "{Select}  Open        {Details}  Delete        {Back}  Back")
     {
@@ -259,7 +302,26 @@ public sealed class CapturesScreen : GridScreen
         _filters.Children.Add(open);
     }
 
-    private void Open(string path) => Host.Push(new ViewerScreen(path, () => Delete(path)));
+    private CaptureViewerScreen? _viewer;
+
+    /// <summary>Opens a capture full screen, with everything in the current view to move through with LB / RB.</summary>
+    private void Open(string path)
+    {
+        // The captures on the page right now, in the order they're shown.
+        var shown = this.FindDescendants<Button>().Select(b => b.Tag as string)
+            .Where(t => t != null && !t.StartsWith("album:") && (IsImage(t) || IsVideo(t)) && File.Exists(t)).Select(t => t!).Distinct().ToList();
+        if (!shown.Contains(path)) shown.Insert(0, path);
+        _focusPath = path;
+        _viewer = new CaptureViewerScreen(shown, shown.IndexOf(path));
+        Host.Push(_viewer);
+    }
+
+    public override void OnResumed()
+    {
+        // Back from the viewer: the page is rebuilt if something was deleted there.
+        if (_viewer is { Changed: true }) Reload();
+        _viewer = null;
+    }
 
     public override bool OnAction(NavAction action)
     {
@@ -333,7 +395,10 @@ public sealed class ViewerScreen : Screen
         if (_gallery == null || _galleryImage == null || _gallery.Count == 0) return;
         int showing = _index;
         if (_counter != null) _counter.Text = $"{showing + 1} / {_gallery.Count}";
-        var source = await Task.Run(() => ImageLoader.FromUrlAsync(_gallery[showing], 0));
+        string item = _gallery[showing];
+        var source = System.IO.File.Exists(item)
+            ? await Task.Run(() => (ImageSource?)ImageLoader.FromFile(item, 1920)) // a screenshot on this PC
+            : await Task.Run(() => ImageLoader.FromUrlAsync(item, 0));
         if (showing == _index) _galleryImage.Source = source; // ignore a slow load we have moved past
     }
 
@@ -611,9 +676,99 @@ public sealed class MediaScreen : Screen
         var page = new Grid();
         page.Children.Add(bars);
         page.Children.Add(layout);
-        SetPage("Now playing", page);
+        _nowPage = page;
+
+        // Three tabs: whatever is playing on the PC, your own music folder, and Spotify.
+        var root = new DockPanel();
+        DockPanel.SetDock(_tabBar, Dock.Top);
+        root.Children.Add(_tabBar);
+        root.Children.Add(_tabHost);
+        SetPage("Music", root, "LB / RB  Tabs      {Select}  Choose      {Details}  Play / Search      {Options}  More      LT / RT  Previous / next      {Back}  Back");
         _timer.Tick += async (_, _) => await RefreshAsync();
         _visualTimer.Tick += (_, _) => DrawBars();
+    }
+
+    private static readonly (string Id, string Name, string Glyph)[] Tabs =
+    {
+        ("now", "Now playing", "\uE8D6"), ("local", "My music", "\uE8B7"), ("spotify", "Spotify", "\uE93C")
+    };
+
+    private readonly StackPanel _tabBar = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 18) };
+    private readonly Grid _tabHost = new();
+    private readonly UIElement _nowPage;
+    private LocalMusicView? _local;
+    private SpotifyView? _spotify;
+    private string _tab = "now";
+
+    private void ShowTab(string id, bool focus)
+    {
+        _tab = id;
+        Host.Settings.MusicTab = id;
+        Host.Settings.Save();
+        _tabBar.Children.Clear();
+        foreach (var (tid, name, glyph) in Tabs)
+        {
+            string t = tid;
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var g = Ui.Glyph(glyph, 16, tid == id ? "BgBrush" : "FgBrush");
+            g.Margin = new Thickness(0, 0, 10, 0);
+            g.VerticalAlignment = VerticalAlignment.Center;
+            row.Children.Add(g);
+            row.Children.Add(Ui.Text(name, 17, tid == id ? "BgBrush" : "FgBrush", bold: tid == id));
+            var face = new Border { CornerRadius = new CornerRadius(20), Padding = new Thickness(20, 9, 22, 9), Child = row };
+            face.SetResourceReference(Border.BackgroundProperty, tid == id ? "AccentBrush" : "CircleBrush");
+            var chip = new Button { Style = Ui.StyleOf("BareButton"), Focusable = false, Content = face, Margin = new Thickness(0, 0, 10, 0) };
+            chip.Click += (_, _) => ShowTab(t, focus: true);
+            _tabBar.Children.Add(chip);
+        }
+
+        _tabHost.Children.Clear();
+        SetPageBackdrop(null);
+        _artKey = "";
+        UIElement? first;
+        if (id == "local")
+        {
+            _local ??= new LocalMusicView(this);
+            _tabHost.Children.Add(_local);
+            first = _local.FirstFocus;
+            _timer.Stop();
+            _visualTimer.Stop();
+        }
+        else if (id == "spotify")
+        {
+            _spotify ??= new SpotifyView(this);
+            _tabHost.Children.Add(_spotify);
+            first = null; // set once it knows whether it's signed in
+            _timer.Stop();
+            _visualTimer.Stop();
+            Dispatcher.BeginInvoke(new Action(() => Host.FocusSoon(_spotify?.FirstFocus)), System.Windows.Threading.DispatcherPriority.Background);
+        }
+        else
+        {
+            _tabHost.Children.Add(_nowPage);
+            first = _playPause;
+            _timer.Start();
+            _visualTimer.Start();
+            _ = RefreshAsync();
+        }
+        if (focus && first != null) Host.FocusSoon(first);
+    }
+
+    public override bool OnAction(NavAction action)
+    {
+        int index = Array.FindIndex(Tabs, t => t.Id == _tab);
+        if (action == NavAction.RB) { ShowTab(Tabs[(index + 1) % Tabs.Length].Id, focus: true); UiSound.Page(); return true; }
+        if (action == NavAction.LB) { ShowTab(Tabs[(index + Tabs.Length - 1) % Tabs.Length].Id, focus: true); UiSound.Page(); return true; }
+        if (_tab == "local" && _local != null) return _local.OnAction(action);
+        if (_tab == "spotify" && _spotify != null) return _spotify.OnAction(action);
+        // Now playing: X play / pause, LT / RT previous / next.
+        switch (action)
+        {
+            case NavAction.X: _ = MediaService.PlayPauseAsync(); return true;
+            case NavAction.LT: _ = MediaService.PreviousAsync(); return true;
+            case NavAction.RT: _ = MediaService.NextAsync(); return true;
+        }
+        return false;
     }
 
     private Button MediaButton(string glyph, Func<Task> action)
@@ -628,20 +783,37 @@ public sealed class MediaScreen : Screen
         return b;
     }
 
-    public override void FocusDefault() => _playPause.Focus();
+    public override void FocusDefault()
+    {
+        if (_tab == "local") Host.FocusSoon(_local?.FirstFocus);
+        else if (_tab == "spotify") Host.FocusSoon(_spotify?.FirstFocus);
+        else _playPause.Focus();
+    }
+
+    private bool _shownOnce;
 
     public override void OnShown()
     {
         _search.Visibility = Host.Settings.MusicServices ? Visibility.Visible : Visibility.Collapsed;
-        _timer.Start();
-        _visualTimer.Start();
-        _ = RefreshAsync();
+        if (!_shownOnce)
+        {
+            _shownOnce = true;
+            string tab = Host.Settings.MusicTab;
+            ShowTab(Tabs.Any(t => t.Id == tab) ? tab : "now", focus: false);
+        }
+        if (_tab == "now")
+        {
+            _timer.Start();
+            _visualTimer.Start();
+            _ = RefreshAsync();
+        }
     }
 
     public override void OnClosed()
     {
         _timer.Stop();
         _visualTimer.Stop();
+        _spotify?.Stop();
     }
 
     /// <summary>Works out a readable name for the app that is playing, and how to bring it forward.</summary>

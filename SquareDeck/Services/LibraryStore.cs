@@ -17,6 +17,10 @@ public sealed class ItemOverride
     /// <summary>Tracked by the launcher for custom games (Steam tracks its own).</summary>
     public DateTime? LastPlayed { get; set; }
 
+    /// <summary>Steam games started directly (Services/SteamDirect): the program chosen for it, and the one last seen running.</summary>
+    public string? SteamExe { get; set; }
+    public string? SteamExeSeen { get; set; }
+
     /// <summary>The user's own score, 1 to 5 stars. 0 means not rated.</summary>
     public int Rating { get; set; }
 
@@ -41,7 +45,17 @@ public sealed class GameProfile
     public string? AudioDeviceId { get; set; }
     public string? AudioDeviceName { get; set; }
 
-    public bool IsEmpty => Width == 0 && RefreshRate == 0 && Hdr == null && PowerPlanId == null && AudioDeviceId == null;
+    // TDP control for this game (0 / null = the default from Settings). TdpWatts is used on battery,
+    // TdpPluggedWatts while the charger is connected (0 = the same as on battery).
+    public int TdpWatts { get; set; }
+    public int TdpPluggedWatts { get; set; }
+    public bool? CpuBoost { get; set; }
+    public int MaxCpu { get; set; }
+    public string? PowerMode { get; set; }
+
+    public bool HasPower => TdpWatts > 0 || TdpPluggedWatts > 0 || CpuBoost != null || MaxCpu > 0 || PowerMode != null;
+
+    public bool IsEmpty => Width == 0 && RefreshRate == 0 && Hdr == null && PowerPlanId == null && AudioDeviceId == null && !HasPower;
 }
 
 /// <summary>A game the user added by hand: any program on the PC.</summary>

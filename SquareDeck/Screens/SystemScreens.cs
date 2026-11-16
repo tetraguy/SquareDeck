@@ -40,680 +40,143 @@ public sealed class NewsReaderScreen : ListScreen
 }
 
 /// <summary>
-/// A file explorer for the controller: places and drives on the left, the folder on the right.
-/// A opens, B goes up, X is the action menu, Y selects several items, LT / RT page.
+/// Settings > System > Xbox mode home app: SquareDeck as what Xbox mode (Windows' gaming full screen experience)
+/// opens to, registered by SquareDeck itself (Services/HomeApp). AnyFSE is still offered for those who prefer it.
 /// </summary>
-public sealed class ExplorerScreen : Screen
+public sealed class HomeAppScreen : ListScreen
 {
-    private const int MaxEntries = 800;
+    private string? _busy;
+    private HomeApp.Registration? _package;
+    private bool _checked;
 
-    private readonly StackPanel _sidebar = new() { Width = 236 };
-    private readonly StackPanel _rows = new();
-    private readonly TextBlock _pathText = Ui.Text("", 17, "SubtleBrush");
-    private readonly HashSet<string> _selected = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<string> _clipboard = new();
-    private bool _clipboardIsCut;
-    private string? _folder;          // null: "This PC" (drives)
-    private string _sort = "name";    // name | date | size
-    private bool _showHidden;
-    private string? _focusPath;
-    private CancellationTokenSource _iconCts = new();
+    public HomeAppScreen() : base("Xbox mode home app") { }
 
-    public ExplorerScreen()
+    public override void OnShown() => _ = CheckAsync();
+    public override void OnResumed() => _ = CheckAsync();
+
+    private async Task CheckAsync()
     {
-        static ScrollViewer Scroller(UIElement content) => new()
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            PanningMode = PanningMode.VerticalOnly,
-            Focusable = false,
-            Content = content
-        };
-
-        var right = new StackPanel { Margin = new Thickness(20, 0, 0, 0) };
-        _pathText.Margin = new Thickness(4, 0, 0, 8);
-        right.Children.Add(_pathText);
-        right.Children.Add(_rows);
-
-        var sidePanel = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 4, 4, 8), Child = Scroller(_sidebar) };
-        sidePanel.SetResourceReference(Border.BackgroundProperty, "TileBrush");
-
-        var layout = new Grid();
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        layout.Children.Add(sidePanel);
-        var rightScroll = Scroller(right);
-        Grid.SetColumn(rightScroll, 1);
-        layout.Children.Add(rightScroll);
-
-        SetPage("Explorer", layout,
-            "{Select}  Open      {Details}  Actions      {Options}  Select      LT / RT  Page      {Back}  Up", wide: true);
+        try { _package = await Task.Run(HomeApp.FindAsync); }
+        catch (Exception) { _package = null; }
+        _checked = true;
+        if (Host.IsTop(this)) Rebuild();
     }
-
-    public override void OnShown()
-    {
-        _folder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        Rebuild();
-    }
-
-    public override void OnResumed() => Rebuild();
-
-    public override void OnClosed() => _iconCts.Cancel();
-
-    // ---------------------------------------------------------------- listing
-
-    private void GoTo(string? folder)
-    {
-        _folder = folder;
-        _selected.Clear();
-        _focusPath = null;
-        Rebuild();
-    }
-
-    private void Rebuild()
-    {
-        _iconCts.Cancel();
-        _iconCts = new CancellationTokenSource();
-        BuildSidebar();
-        _rows.Children.Clear();
-        _pathText.Text = _folder ?? "This PC";
-
-        // Things you can do in this folder, kept at the top so they are always one press away.
-        if (_folder != null)
-        {
-            AddRow("Up a level", null, "", null, () => GoTo(System.IO.Path.GetDirectoryName(_folder)));
-            if (_clipboard.Count > 0)
-                AddRow($"Paste {_clipboard.Count} {(_clipboard.Count == 1 ? "item" : "items")} here", _clipboardIsCut ? "Move" : "Copy", "", null, Paste);
-            AddRow("New folder", null, "", null, NewFolder);
-            AddRow("Sort", _sort switch { "date" => "Newest first", "size" => "Largest first", _ => "Name" }, "", null, () =>
-            {
-                _sort = _sort switch { "name" => "date", "date" => "size", _ => "name" };
-                Rebuild();
-            });
-            AddRow("Hidden files", _showHidden ? "Shown" : "Not shown", "", null, () => { _showHidden = !_showHidden; Rebuild(); });
-        }
-
-        var pending = new List<(Image View, string Path)>();
-        try
-        {
-            if (_folder == null)
-            {
-                foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
-                {
-                    var root = drive.RootDirectory.FullName;
-                    string name = drive.VolumeLabel.Length > 0 ? $"{drive.Name.TrimEnd('\\')}  {drive.VolumeLabel}" : drive.Name.TrimEnd('\\');
-                    AddRow(name, $"{SystemStats.Bytes(drive.AvailableFreeSpace)} free of {SystemStats.Bytes(drive.TotalSize)}", "", null, () => GoTo(root));
-                }
-            }
-            else
-            {
-                var info = new DirectoryInfo(_folder);
-                bool Shown(FileSystemInfo i) => _showHidden || (i.Attributes & (FileAttributes.Hidden | FileAttributes.System)) == 0;
-
-                IEnumerable<DirectoryInfo> folders = info.EnumerateDirectories().Where(Shown);
-                IEnumerable<FileInfo> files = info.EnumerateFiles().Where(Shown);
-                folders = _sort == "date" ? folders.OrderByDescending(d => d.LastWriteTime) : folders.OrderBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase);
-                files = _sort switch
-                {
-                    "date" => files.OrderByDescending(f => f.LastWriteTime),
-                    "size" => files.OrderByDescending(f => f.Length),
-                    _ => files.OrderBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)
-                };
-
-                int shown = 0;
-                foreach (var d in folders)
-                {
-                    if (shown++ >= MaxEntries) break;
-                    var path = d.FullName;
-                    AddRow(Mark(path) + d.Name, "Folder", "", path, () => GoTo(path));
-                }
-                foreach (var f in files)
-                {
-                    if (shown++ >= MaxEntries) break;
-                    var path = f.FullName;
-                    var icon = new Image();
-                    AddRow(Mark(path) + f.Name, $"{SystemStats.Bytes(f.Length)}   {f.LastWriteTime:MMM d, yyyy}", null, path, () => Open(path), icon);
-                    pending.Add((icon, path));
-                }
-                if (shown == 0) AddNote("This folder is empty.");
-                if (shown >= MaxEntries) AddNote($"Only the first {MaxEntries} items are listed.");
-            }
-        }
-        catch (Exception)
-        {
-            AddNote("This folder can't be opened.");
-        }
-
-        // Icons and thumbnails come from Windows in the background so big folders appear straight away.
-        var ct = _iconCts.Token;
-        Task.Run(() =>
-        {
-            foreach (var (view, path) in pending.Take(400))
-            {
-                if (ct.IsCancellationRequested) return;
-                var source = ShellThumb.Get(path, 48);
-                if (source != null) Dispatcher.BeginInvoke(new Action(() => view.Source = source));
-            }
-        }, ct);
-
-        Ui.GroupRows(_rows);
-        Ui.GroupRows(_sidebar);
-        var target = _rows.Children.OfType<Button>().FirstOrDefault(b => b.Tag as string == _focusPath && _focusPath != null)
-                     ?? _rows.Children.OfType<Button>().FirstOrDefault(b => b.Tag is string)
-                     ?? _rows.Children.OfType<Button>().FirstOrDefault();
-        FocusLater(target);
-    }
-
-    private string Mark(string path) => _selected.Contains(path) ? "✓  " : "";
-
-    private void AddRow(string label, string? value, string? glyph, string? path, Action click, Image? icon = null)
-    {
-        var row = Ui.Row(label, value, glyph, icon);
-        row.Tag = path; // null for the action rows at the top
-        row.Click += (_, _) => click();
-        if (path != null) row.GotKeyboardFocus += (_, _) => _focusPath = path;
-        _rows.Children.Add(row);
-    }
-
-    private void AddNote(string text)
-    {
-        var note = Ui.Text(text, 17, "SubtleBrush");
-        note.Margin = new Thickness(4, 10, 0, 10);
-        _rows.Children.Add(note);
-    }
-
-    private void BuildSidebar()
-    {
-        _sidebar.Children.Clear();
-        void Place(string name, string? path, string glyph)
-        {
-            if (path != null && !Directory.Exists(path)) return;
-            var row = Ui.Row(name, glyph: glyph);
-            row.Margin = new Thickness(0, 2, 6, 2);
-            row.FontSize = 17;
-            if (string.Equals(path, _folder, StringComparison.OrdinalIgnoreCase)) row.Tag = "selected";
-            row.Click += (_, _) => GoTo(path);
-            _sidebar.Children.Add(row);
-        }
-
-        var user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        _sidebar.Children.Add(Ui.Header("Places"));
-        Place("Home", user, "");
-        Place("Desktop", Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "");
-        Place("Downloads", System.IO.Path.Combine(user, "Downloads"), "");
-        Place("Documents", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "");
-        Place("Pictures", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "");
-        Place("Videos", Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "");
-        Place("Music", Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "");
-
-        _sidebar.Children.Add(Ui.Header("Drives"));
-        Place("This PC", null, "");
-        try
-        {
-            foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
-                Place(drive.Name.TrimEnd('\\') + (drive.VolumeLabel.Length > 0 ? "  " + drive.VolumeLabel : ""), drive.RootDirectory.FullName, "");
-        }
-        catch (Exception) { }
-    }
-
-    // ---------------------------------------------------------------- input
-
-    public override void FocusDefault() =>
-        (_rows.Children.OfType<Button>().FirstOrDefault(b => b.Tag is string) ?? _rows.Children.OfType<Button>().FirstOrDefault())?.Focus();
-
-    public override bool OnAction(NavAction action)
-    {
-        var focusedPath = (Keyboard.FocusedElement as Button)?.Tag as string;
-        bool onItem = focusedPath != null && focusedPath != "selected";
-
-        switch (action)
-        {
-            case NavAction.Back:
-                if (_selected.Count > 0) { _selected.Clear(); Rebuild(); return true; }
-                if (_folder == null) return false; // leave the explorer
-                GoTo(System.IO.Path.GetDirectoryName(_folder));
-                return true;
-            case NavAction.Y:
-                if (onItem)
-                {
-                    if (!_selected.Remove(focusedPath!)) _selected.Add(focusedPath!);
-                    Rebuild();
-                }
-                return true;
-            case NavAction.X:
-                if (onItem || _selected.Count > 0) _ = ShowActionsAsync(focusedPath);
-                return true;
-            case NavAction.LT or NavAction.RT:
-                var rows = _rows.Children.OfType<Button>().ToList();
-                int index = rows.FindIndex(r => r.IsKeyboardFocused);
-                if (index >= 0) rows[Math.Clamp(index + (action == NavAction.RT ? 8 : -8), 0, rows.Count - 1)].Focus();
-                return true;
-        }
-        return false;
-    }
-
-    // ---------------------------------------------------------------- actions
-
-    private static void Open(string path)
-    {
-        if (!ProcessUtil.Open(path)) ProcessUtil.Open("rundll32.exe", "shell32.dll,OpenAs_RunDLL " + path);
-    }
-
-    /// <summary>The paths an action applies to: the selection if there is one, otherwise the highlighted item.</summary>
-    private List<string> Targets(string? focused) =>
-        _selected.Count > 0 ? _selected.ToList() : focused != null ? new List<string> { focused } : new List<string>();
-
-    private async Task ShowActionsAsync(string? focused)
-    {
-        var targets = Targets(focused);
-        if (targets.Count == 0) return;
-        bool single = targets.Count == 1;
-        string title = single ? System.IO.Path.GetFileName(targets[0].TrimEnd('\\')) : targets.Count + " items selected";
-
-        var actions = new List<(string Label, string Glyph, Func<Task> Run)>();
-        void Add(string label, string glyph, Action run) => actions.Add((label, glyph, () => { run(); return Task.CompletedTask; }));
-
-        if (single) Add("Open", "", () => { if (Directory.Exists(targets[0])) GoTo(targets[0]); else Open(targets[0]); });
-        if (single && File.Exists(targets[0]))
-            Add("Open with…", "", () => ProcessUtil.Open("rundll32.exe", "shell32.dll,OpenAs_RunDLL " + targets[0]));
-        Add("Copy", "", () => SetClipboard(targets, cut: false));
-        Add("Move (cut)", "", () => SetClipboard(targets, cut: true));
-        if (single) actions.Add(("Rename", "", () => RenameAsync(targets[0])));
-        actions.Add(("Delete (to the Recycle Bin)", "", () => DeleteAsync(targets)));
-        actions.Add(("Compress to a ZIP file", "", () => RunAsync("Compressing…", () => FileOps.Zip(targets, _folder!))));
-        if (single && targets[0].EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            actions.Add(("Extract here", "", () => RunAsync("Extracting…", () => FileOps.Unzip(targets[0]))));
-        if (single) actions.Add(("Properties", "", () => PropertiesAsync(targets[0])));
-        if (_folder != null) Add("Select everything in this folder", "", () =>
-        {
-            foreach (var row in _rows.Children.OfType<Button>())
-                if (row.Tag is string p) _selected.Add(p);
-            Rebuild();
-        });
-
-        int choice = await Host.AskWithIconsAsync(title, null, actions.Select(a => (a.Label, a.Glyph)).ToArray());
-        if (choice >= 0) await actions[choice].Run();
-    }
-
-    private void SetClipboard(List<string> paths, bool cut)
-    {
-        _clipboard.Clear();
-        _clipboard.AddRange(paths);
-        _clipboardIsCut = cut;
-        _selected.Clear();
-        Rebuild();
-    }
-
-    /// <summary>Runs a file operation behind a "working" pop-up and reports anything that went wrong.</summary>
-    private async Task RunAsync(string message, Action work)
-    {
-        try
-        {
-            await Host.RunBusyAsync(message, () => Task.Run(work));
-        }
-        catch (Exception ex)
-        {
-            await Host.AskAsync("That didn't work", ex.Message, "OK");
-        }
-        _selected.Clear();
-        Rebuild();
-    }
-
-    private async void Paste()
-    {
-        if (_folder == null || _clipboard.Count == 0) return;
-        var sources = _clipboard.ToList();
-        bool move = _clipboardIsCut;
-        string folder = _folder;
-        await RunAsync(move ? "Moving…" : "Copying…", () => FileOps.Transfer(sources, folder, move, CancellationToken.None));
-        if (move) _clipboard.Clear();
-        Rebuild();
-    }
-
-    private async void NewFolder()
-    {
-        if (_folder == null) return;
-        var name = await Host.PromptAsync("New folder", "Name for the folder", "New folder", "Create");
-        if (string.IsNullOrWhiteSpace(name)) return;
-        try
-        {
-            var path = FileOps.UniquePath(_folder, name.Trim());
-            Directory.CreateDirectory(path);
-            _focusPath = path;
-        }
-        catch (Exception ex)
-        {
-            await Host.AskAsync("Couldn't create the folder", ex.Message, "OK");
-        }
-        Rebuild();
-    }
-
-    private async Task RenameAsync(string path)
-    {
-        var current = System.IO.Path.GetFileName(path.TrimEnd('\\'));
-        var name = await Host.PromptAsync("Rename", null, current, "Rename");
-        if (string.IsNullOrWhiteSpace(name) || name.Trim() == current) return;
-        try
-        {
-            _focusPath = FileOps.Rename(path, name.Trim());
-        }
-        catch (Exception ex)
-        {
-            await Host.AskAsync("Couldn't rename it", ex.Message, "OK");
-        }
-        Rebuild();
-    }
-
-    private async Task DeleteAsync(List<string> paths)
-    {
-        string what = paths.Count == 1 ? System.IO.Path.GetFileName(paths[0].TrimEnd('\\')) : paths.Count + " items";
-        if (await Host.AskAsync("Delete " + what + "?", "It goes to the Recycle Bin, so you can get it back.", "Cancel", "Delete") != 1) return;
-        await RunAsync("Deleting…", () => FileOps.Recycle(paths));
-    }
-
-    private async Task PropertiesAsync(string path)
-    {
-        string details;
-        try
-        {
-            if (Directory.Exists(path))
-            {
-                var dir = new DirectoryInfo(path);
-                var (count, size) = await Task.Run(() =>
-                {
-                    long total = 0; int n = 0;
-                    try
-                    {
-                        foreach (var f in dir.EnumerateFiles("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
-                        {
-                            total += f.Length;
-                            if (++n >= 200000) break;
-                        }
-                    }
-                    catch (Exception) { }
-                    return (n, total);
-                });
-                details = $"Folder\n{path}\n\nContains {count:N0} files, {SystemStats.Bytes(size)}\nModified {dir.LastWriteTime:f}";
-            }
-            else
-            {
-                var file = new FileInfo(path);
-                details = $"{(file.Extension.Length > 1 ? file.Extension[1..].ToUpperInvariant() + " file" : "File")}\n{path}\n\n" +
-                          $"Size {SystemStats.Bytes(file.Length)} ({file.Length:N0} bytes)\nCreated {file.CreationTime:f}\nModified {file.LastWriteTime:f}";
-            }
-        }
-        catch (Exception ex)
-        {
-            details = ex.Message;
-        }
-        await Host.AskAsync(System.IO.Path.GetFileName(path.TrimEnd('\\')), details, "OK");
-    }
-}
-
-/// <summary>
-/// Running apps, all processes and live performance. X ends the highlighted task, Y changes the sort,
-/// LB / RB switch tabs.
-/// </summary>
-public sealed class TaskManagerScreen : ListScreen
-{
-    private static readonly string[] Tabs = { "Apps", "Processes", "Performance" };
-
-    private readonly SystemStats _stats = new();
-    private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(2) };
-    private readonly List<double> _cpuHistory = new(), _memoryHistory = new();
-    private int _tab;
-    private string _sort = "memory"; // memory | cpu | name
-    private bool _sampling;
-
-    public TaskManagerScreen()
-        : base("Task Manager", "{Select}  Actions      {Details}  End task      {Options}  Sort      LB / RB  Tabs      {Back}  Back")
-    {
-        _timer.Tick += (_, _) => _ = RefreshAsync();
-    }
-
-    public override void OnShown()
-    {
-        Rebuild();
-        _ = RefreshAsync();
-        _timer.Start();
-    }
-
-    public override void OnClosed() => _timer.Stop();
-
-    private async Task RefreshAsync()
-    {
-        if (_sampling) return;
-        _sampling = true;
-        try
-        {
-            await Task.Run(_stats.Sample);
-            _cpuHistory.Add(_stats.CpuPercent);
-            _memoryHistory.Add(_stats.MemoryTotal > 0 ? 100.0 * _stats.MemoryUsed / _stats.MemoryTotal : 0);
-            if (_cpuHistory.Count > 60) { _cpuHistory.RemoveAt(0); _memoryHistory.RemoveAt(0); }
-        }
-        finally { _sampling = false; }
-        // Don't shuffle the list under an open menu.
-        if (!Host.IsTop(this)) return;
-        // The order changes as usage does: keep the highlight on the same program, not the same position.
-        string? focusedName = (Keyboard.FocusedElement as Button)?.Tag is ProcessRow focusedRow ? focusedRow.Name : null;
-        Rebuild();
-        if (focusedName != null &&
-            Rows.Children.OfType<Button>().FirstOrDefault(b => b.Tag is ProcessRow r && r.Name == focusedName) is { } same)
-            FocusLater(same);
-    }
-
-    public override bool OnAction(NavAction action)
-    {
-        switch (action)
-        {
-            case NavAction.LB: _tab = (_tab + Tabs.Length - 1) % Tabs.Length; RebuildFromTop(); return true;
-            case NavAction.RB: _tab = (_tab + 1) % Tabs.Length; RebuildFromTop(); return true;
-            case NavAction.Y:
-                _sort = _sort switch { "memory" => "cpu", "cpu" => "name", _ => "memory" };
-                Rebuild();
-                return true;
-            case NavAction.X:
-                if (Keyboard.FocusedElement is Button { Tag: ProcessRow row }) _ = EndAsync(row);
-                return true;
-        }
-        return false;
-    }
-
-    private string MemoryPercent => _stats.MemoryTotal > 0 ? $"{100.0 * _stats.MemoryUsed / _stats.MemoryTotal:0}%" : "–";
 
     protected override void Build()
     {
-        // Always-visible summary, and the tab switch for touch and mouse.
-        var battery = Battery.GetPercent();
-        AddNote($"CPU {_stats.CpuPercent:0}%      Memory {MemoryPercent}" + (battery != null ? $"      Battery {battery}%" : ""));
-        AddRow("View", string.Join("   ", Tabs.Select((t, i) => i == _tab ? "[" + t + "]" : t)), "", click: () =>
+        var s = Host.Settings;
+        bool supported = HomeApp.WindowsSupports, devMode = HomeApp.DeveloperMode, files = HomeApp.FilesPresent;
+        bool on = HomeApp.IsHomeApp && _package is { IsThisCopy: true };
+
+        AddNote("Xbox mode (the full screen experience on handhelds such as the ROG Xbox Ally) opens a home app instead of " +
+                "the desktop. SquareDeck can be that app, so the device starts straight into it and the Home button in Game " +
+                "Bar brings it back. No other tool is needed.");
+
+        if (_busy != null) { AddNote(_busy); return; }
+
+        string status = !supported ? "Needs Windows 11 24H2 or later"
+                      : !files ? "Files missing"
+                      : !_checked ? "Checking…"
+                      : on ? "SquareDeck (on)"
+                      : _package is { IsThisCopy: false } ? "Registered from another folder"
+                      : HomeApp.CurrentHomeApp is { Length: > 0 } other ? (other.StartsWith("Microsoft.GamingApp") ? "Xbox app" : "Another app")
+                      : "None";
+        AddRow("Home app now", status, "");
+
+        if (supported && files)
         {
-            _tab = (_tab + 1) % Tabs.Length;
-            RebuildFromTop();
-        });
-
-        if (_tab == 2) { BuildPerformance(); return; }
-
-        var source = _tab == 0 ? _stats.Apps : _stats.Processes;
-        IEnumerable<ProcessRow> rows = _sort switch
-        {
-            "cpu" => source.OrderByDescending(p => p.CpuPercent),
-            "name" => source.OrderBy(p => p.Title ?? p.Name, StringComparer.CurrentCultureIgnoreCase),
-            _ => source.OrderByDescending(p => p.MemoryBytes)
-        };
-        AddHeader($"{Tabs[_tab]}  ·  sorted by {_sort}");
-        if (source.Count == 0) AddNote("Reading…");
-
-        foreach (var p in rows.Take(250))
-        {
-            var row = p;
-            string name = row.Title ?? (row.Count > 1 ? $"{row.Name}  ({row.Count})" : row.Name);
-            var button = AddRow(name, $"CPU {row.CpuPercent:0.#}%      {SystemStats.Bytes(row.MemoryBytes)}",
-                _tab == 0 ? "" : "", click: () => _ = ActionsAsync(row));
-            button.Tag = row;
-        }
-
-        AddHeader("More");
-        AddRow("Run a program…", glyph: "", click: RunNew);
-    }
-
-    private void BuildPerformance()
-    {
-        AddHeader("Processor");
-        AddRow("CPU", $"{_stats.CpuPercent:0}%   ({Environment.ProcessorCount} logical processors)", "");
-        Rows.Children.Add(Graph(_cpuHistory));
-
-        AddHeader("Memory");
-        AddRow("In use", $"{MemoryPercent}   ({SystemStats.Bytes(_stats.MemoryUsed)} of {SystemStats.Bytes(_stats.MemoryTotal)})", "");
-        Rows.Children.Add(Graph(_memoryHistory));
-
-        AddHeader("Network");
-        AddRow("Download", SystemStats.Bytes(_stats.DownloadBytesPerSecond) + "/s", "");
-        AddRow("Upload", SystemStats.Bytes(_stats.UploadBytesPerSecond) + "/s", "");
-
-        AddHeader("Power and storage");
-        var battery = Battery.GetPercent();
-        AddRow("Battery", battery == null ? "No battery" : $"{battery}%  ({(Battery.IsPluggedIn() ? "plugged in" : "on battery")})", "");
-        try
-        {
-            foreach (var d in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
-                AddRow("Drive " + d.Name.TrimEnd('\\'), $"{SystemStats.Bytes(d.AvailableFreeSpace)} free of {SystemStats.Bytes(d.TotalSize)}", "");
-        }
-        catch (Exception) { }
-
-        AddHeader("System");
-        var up = TimeSpan.FromMilliseconds(Environment.TickCount64);
-        AddRow("Up time", up.TotalDays >= 1 ? $"{(int)up.TotalDays}d {up.Hours}h {up.Minutes}m" : $"{up.Hours}h {up.Minutes}m", "");
-        AddRow("Processes", _stats.Processes.Sum(p => p.Count).ToString(), "");
-    }
-
-    /// <summary>A small line chart of the last two minutes, 0 to 100%.</summary>
-    private static FrameworkElement Graph(List<double> history)
-    {
-        const double width = 860, height = 90;
-        var line = new Polyline { StrokeThickness = 2.5, StrokeLineJoin = PenLineJoin.Round };
-        line.SetResourceReference(Shape.StrokeProperty, "AccentBrush");
-        for (int i = 0; i < history.Count; i++)
-            line.Points.Add(new Point(width * i / 59.0, height - history[i] / 100 * height));
-
-        var box = new Border
-        {
-            Width = width + 20, Height = height + 20, Padding = new Thickness(10), CornerRadius = new CornerRadius(4),
-            Margin = new Thickness(0, 3, 0, 3), Child = new Canvas { Children = { line } }
-        };
-        box.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-        return box;
-    }
-
-    private async Task ActionsAsync(ProcessRow row)
-    {
-        string title = row.Title ?? row.Name;
-        var options = new List<(string, string)>
-        {
-            ("Switch to", ""), ("Close (lets it save first)", ""), ("End task (force close)", ""),
-            ("Set priority", ""), ("Open file location", ""), ("Details", "")
-        };
-        int choice = await Host.AskWithIconsAsync(title, null, options.ToArray());
-        switch (choice)
-        {
-            case 0:
-                if (!SwitchTo(row)) await Host.AskAsync("Couldn't switch to " + title, "It has no window to bring forward.", "OK");
-                break;
-            case 1:
-                if (SystemStats.Close(row.Ids) == 0)
-                    await Host.AskAsync("Couldn't close " + title, "It has no window to close. Use End task instead.", "OK");
-                break;
-            case 2: await EndAsync(row); break;
-            case 3: await PriorityAsync(row); break;
-            case 4:
-                if (PathOf(row) is string path) ProcessUtil.Open("explorer.exe", "/select,\"" + path + "\"");
-                else await Host.AskAsync("Location not available", "Windows doesn't let this app see where that program is.", "OK");
-                break;
-            case 5: await DetailsAsync(row); break;
-        }
-        _ = RefreshAsync();
-    }
-
-    private static string? PathOf(ProcessRow row)
-    {
-        foreach (var id in row.Ids)
-        {
-            try
+            AddRow("Use SquareDeck as the Xbox mode home app", on ? "On" : "Off", "", click: () => _ = SetAsync(!on),
+                subtitle: devMode || on ? "Registers this copy of SquareDeck with Windows and picks it as the home app"
+                                        : "Needs Developer Mode first (below)");
+            AddRow("Open Xbox mode when Windows starts", HomeApp.StartsAtSignIn ? "On" : "Off", "", click: () =>
             {
-                using var p = Process.GetProcessById(id);
-                var path = p.MainModule?.FileName;
-                if (path != null) return path;
-            }
-            catch (Exception) { }
+                HomeApp.StartsAtSignIn = !HomeApp.StartsAtSignIn;
+                Rebuild();
+            }, subtitle: "Boots straight into SquareDeck");
+            AddRow("Developer Mode", devMode ? "On" : "Off", "", click: () => ProcessUtil.Open("ms-settings:developers"),
+                subtitle: devMode ? "Needed while SquareDeck is being registered" : "Turn it on in Settings > System > For developers");
+            AddRow("Open Xbox mode settings in Windows", glyph: "", click: () => ProcessUtil.Open(HomeApp.WindowsSettingsPage),
+                subtitle: "Settings > Gaming > Xbox mode: home app, startup and startup apps");
         }
-        return null;
+
+        AddHeader("How it works");
+        AddNote("Windows only lists packaged apps as home apps. SquareDeck registers its own folder as a small package " +
+                "(nothing is copied or installed anywhere else) and Windows then starts this same SquareDeck.exe. Your settings, " +
+                "library and artwork stay where they are.");
+        AddNote("The permission Windows checks for belongs to Microsoft, so apps outside the Microsoft Store can only use it with " +
+                "Developer Mode on. AnyFSE and the other home apps work the same way. SquareDeck keeps working if you turn " +
+                "Developer Mode off afterwards; it's only needed to register it again.");
+        AddNote("If you move SquareDeck to another folder, it registers again from there the next time it starts (with Developer " +
+                "Mode on). The folder must be on an NTFS drive. Turning this off removes the registration and gives Windows back the " +
+                "home app it had before (the Xbox app if there was none).");
+        AddNote("This folder: " + HomeApp.Folder);
+
+        AddHeader("Other ways");
+        AddRow("Use AnyFSE instead", AnyFse.IsInstalled() ? "Installed" : "Not installed", "", click: () => Host.Push(new AnyFseScreen()),
+            subtitle: "A separate tool that can start any launcher from Xbox mode");
     }
 
-    private static bool SwitchTo(ProcessRow row)
+    private async Task SetAsync(bool on)
     {
-        var path = PathOf(row);
-        return path != null && ProcessUtil.FocusWindow(path, null);
-    }
-
-    private async Task EndAsync(ProcessRow row)
-    {
-        string title = row.Title ?? row.Name;
-        if (SystemStats.IsProtected(row.Name))
+        var s = Host.Settings;
+        if (on && !HomeApp.DeveloperMode)
         {
-            await Host.AskAsync("That one is protected",
-                row.Name + " is part of Windows. Ending it would crash or sign out the PC, so it isn't allowed here.", "OK");
+            if (await Host.AskAsync("Turn on Developer Mode first",
+                    "Windows only accepts a home app from outside the Microsoft Store while Developer Mode is on " +
+                    "(Settings > System > For developers). Turn it on, come back, and switch this on again.",
+                    "Open Developer Mode settings", "Cancel") == 0)
+                ProcessUtil.Open("ms-settings:developers");
             return;
         }
-        if (await Host.AskAsync("End " + title + "?", "It closes immediately along with anything it started. Unsaved work in it is lost.",
-                "Cancel", "End task") != 1) return;
 
-        int ended = SystemStats.Kill(row.Ids);
-        if (ended == 0)
-            await Host.AskAsync("Couldn't end " + title,
-                "Windows refused. Programs started as administrator, services and anti-cheat need the launcher to be run as administrator.", "OK");
-        _ = RefreshAsync();
-    }
-
-    private async Task PriorityAsync(ProcessRow row)
-    {
-        var levels = new[]
-        {
-            ("High", ProcessPriorityClass.High), ("Above normal", ProcessPriorityClass.AboveNormal), ("Normal", ProcessPriorityClass.Normal),
-            ("Below normal", ProcessPriorityClass.BelowNormal), ("Low", ProcessPriorityClass.Idle)
-        };
-        int choice = await Host.AskAsync("Priority for " + (row.Title ?? row.Name),
-            "Higher gives it more processor time when the PC is busy (useful for a game).", levels.Select(l => l.Item1).ToArray());
-        if (choice < 0) return;
-        if (!SystemStats.SetPriority(row.Ids, levels[choice].Item2))
-            await Host.AskAsync("Couldn't change the priority", "Windows refused the change for this program.", "OK");
-    }
-
-    private async Task DetailsAsync(ProcessRow row)
-    {
-        var lines = new List<string>
-        {
-            "Program: " + row.Name,
-            $"Processes: {row.Count}  (ID {string.Join(", ", row.Ids.Take(8))}{(row.Ids.Count > 8 ? "…" : "")})",
-            $"CPU: {row.CpuPercent:0.#}%",
-            "Memory: " + SystemStats.Bytes(row.MemoryBytes)
-        };
+        _busy = on ? "Registering SquareDeck with Windows…" : "Removing SquareDeck's registration…";
+        Rebuild();
         try
         {
-            using var p = Process.GetProcessById(row.Ids[0]);
-            lines.Add("Threads: " + p.Threads.Count);
-            lines.Add("Started: " + p.StartTime.ToString("f"));
-            lines.Add("Priority: " + p.PriorityClass);
+            bool picked = true;
+            if (on)
+            {
+                var package = await Task.Run(() => HomeApp.RegisterAsync());
+                s.HomeAppOn = true;
+                s.Save();
+                picked = await HomeApp.MakeHomeAppAsync(package, s);
+                // SquareDeck replaces AnyFSE's job: stop AnyFSE from also starting it.
+                if (AnyFse.IsInstalled() && AnyFse.LaunchesUs()) AnyFse.UseUs(false);
+            }
+            else
+            {
+                await HomeApp.RestoreHomeAppAsync(s);
+                await Task.Run(HomeApp.UnregisterAsync);
+                s.HomeAppOn = false;
+            }
+            s.Save();
+            _busy = null;
+            await CheckAsync();
+            if (on && !picked)
+            {
+                // Registered, but Windows wouldn't let SquareDeck pick itself: one step in Windows' own settings.
+                if (await Host.AskAsync("One step left: pick SquareDeck in Windows",
+                        "SquareDeck is registered, but Windows only lets its own settings change the home app on this device. " +
+                        "In Settings > Gaming > Xbox mode, under \"Choose home app\", select SquareDeck.",
+                        "Open Xbox mode settings", "Later") == 0)
+                    ProcessUtil.Open(HomeApp.WindowsSettingsPage);
+                return;
+            }
+            if (on && !HomeApp.StartsAtSignIn &&
+                await Host.AskAsync("SquareDeck is the Xbox mode home app",
+                    "Xbox mode now opens SquareDeck, and the Home button in Game Bar brings it back. Also start Xbox mode " +
+                    "(and so SquareDeck) when Windows starts?", "Yes, at startup", "Not now") == 0)
+            {
+                HomeApp.StartsAtSignIn = true;
+                Rebuild();
+            }
         }
-        catch (Exception) { }
-        if (PathOf(row) is string path) lines.Add("Location: " + path);
-        await Host.AskAsync(row.Title ?? row.Name, string.Join("\n", lines), "OK");
-    }
-
-    private async void RunNew()
-    {
-        var command = await Host.PromptAsync("Run a program", "A program name, path or web address (for example: notepad).", "", "Run");
-        if (string.IsNullOrWhiteSpace(command)) return;
-        if (!ProcessUtil.Open(command.Trim())) await Host.AskAsync("Couldn't run that", "Windows didn't recognise it.", "OK");
+        catch (Exception ex)
+        {
+            _busy = null;
+            Rebuild();
+            await Host.AskAsync(on ? "Couldn't make SquareDeck the home app" : "Couldn't remove the registration", ex.Message, "OK");
+        }
     }
 }
 
@@ -744,7 +207,7 @@ public sealed class AnyFseScreen : ListScreen
             AddRow("Use SquareDeck as the Xbox mode home app", ours ? "On" : "Off", "\uE7FC", click: () => _ = SetXboxModeAsync(!ours),
                 subtitle: ours && !home ? "One step left: choose AnyFSE as the Home app in Windows" : "Starts SquareDeck when Xbox mode opens");
             AddRow("Home app in Windows", home ? "AnyFSE (done)" : "Not AnyFSE yet", "\uE713",
-                click: () => ProcessUtil.Open("ms-settings:gaming-gamebar"),
+                click: () => ProcessUtil.Open(HomeApp.WindowsSettingsPage),
                 subtitle: "Settings > Gaming > Full screen experience > Home app");
             AddRow("Open Xbox mode when Windows starts", AnyFse.StartsAtSignIn ? "On" : "Off", "\uE7E8", click: () =>
             {
@@ -768,7 +231,7 @@ public sealed class AnyFseScreen : ListScreen
                 (Environment.ProcessPath ?? "SquareDeck.exe"));
         AddNote("3.  In Windows, go to Settings > Gaming > Full screen experience and set AnyFSE as the Home app. " +
                 "AnyFSE only works while it is selected there.");
-        AddRow("Open Windows Gaming settings", glyph: "", click: () => ProcessUtil.Open("ms-settings:gaming-gamebar"));
+        AddRow("Open Windows Gaming settings", glyph: "", click: () => ProcessUtil.Open(HomeApp.WindowsSettingsPage));
 
         AddHeader("Before you install");
         AddNote("The full-screen experience must be available on your device: a supported handheld, or enabled with a " +
@@ -790,7 +253,7 @@ public sealed class AnyFseScreen : ListScreen
         if (on && !AnyFse.IsHomeApp() &&
             await Host.AskAsync("Almost done", "AnyFSE will now start SquareDeck. Last step: in Windows, choose AnyFSE as the Home app " +
                 "(Settings > Gaming > Full screen experience). Open that page now?", "Open Windows settings", "Later") == 0)
-            ProcessUtil.Open("ms-settings:gaming-gamebar");
+            ProcessUtil.Open(HomeApp.WindowsSettingsPage);
         Rebuild();
     }
 

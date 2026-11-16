@@ -201,12 +201,13 @@ public sealed class ProfileScreen : Screen
             image.SetBinding(Image.SourceProperty, new System.Windows.Data.Binding(nameof(Game.Cover)) { Source = game });
             void Face()
             {
-                image.Stretch = game.UsesIcon ? Stretch.Uniform : Stretch.UniformToFill;
-                image.Margin = game.UsesIcon ? new Thickness(size * 0.22) : new Thickness(0);
+                bool centered = game.UsesIcon && !game.IconFills;
+                image.Stretch = centered ? Stretch.Uniform : Stretch.UniformToFill;
+                image.Margin = centered ? new Thickness(size * 0.22) : new Thickness(0);
                 if (game.UsesIcon && game.TileBackground != null) box.Background = game.TileBackground;
             }
             Face();
-            System.ComponentModel.PropertyChangedEventManager.AddHandler(game, (_, _) => Face(), nameof(Game.UsesIcon));
+            System.ComponentModel.PropertyChangedEventManager.AddHandler(game, (_, _) => Face(), "");
         }
         else if (!string.IsNullOrEmpty(url))
         {

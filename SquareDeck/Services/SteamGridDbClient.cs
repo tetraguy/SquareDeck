@@ -57,7 +57,7 @@ public sealed class SteamGridDbClient : IDisposable
 
     public static void ClearCache()
     {
-        foreach (var dir in new[] { CoverDir, InfoDir, HeroDir, LogoDir, AnimatedDir, IconDir })
+        foreach (var dir in new[] { CoverDir, InfoDir, HeroDir, LogoDir, AnimatedDir, IconDir, PortraitDir })
         {
             if (!Directory.Exists(dir)) continue;
             foreach (var f in Directory.EnumerateFiles(dir))
@@ -219,29 +219,100 @@ public sealed class SteamGridDbClient : IDisposable
     }
 
     public static string LogoDir { get; } = Path.Combine(Settings.DataDir, "logos");
+    public static string PortraitDir { get; } = Path.Combine(Settings.DataDir, "portrait");
+
+    /// <summary>Tall 2:3 cover art (posters), for the poster-shaped UI styles. Null if none exists.</summary>
+    public Task<string?> GetPortraitAsync(Game item, CancellationToken ct) =>
+        GetArtAsync(item, "grids", PortraitDir, PortraitQuery, ct);
+
+    private const string PortraitQuery = "?dimensions=600x900,342x482,660x930&types=static&mimes=image/png,image/jpeg&nsfw=false&humor=false";
+    private const string HeroQuery = "?types=static&mimes=image/png,image/jpeg&nsfw=false&humor=false";
+    private const string LogoQuery = "?types=static&mimes=image/png&nsfw=false&humor=false";
+
+    // ---- Artwork the user picked: tall grid ("grids"), hero ("heroes") or logo ("logos").
+    // Kept with the user's own images (backed up, never removed by cache clean-up) and used before any download.
+
+    private static string ChosenPrefix(string kind) => kind switch { "heroes" => "hero_", "logos" => "logo_", _ => "grid_" };
+
+    /// <summary>Where a picked image of this kind is saved for a game (plus .png/.jpg).</summary>
+    public static string ChosenArtBase(Game item, string kind) => Path.Combine(CustomDir, ChosenPrefix(kind) + HashKey(item.Key));
+
+    /// <summary>The image of this kind the user picked for a game, if any.</summary>
+    public static string? FindChosenArt(Game item, string kind)
+    {
+        var basePath = ChosenArtBase(item, kind);
+        foreach (var ext in ImageExtensions)
+            if (File.Exists(basePath + ext)) return basePath + ext;
+        return null;
+    }
+
+    /// <summary>Removes a picked image, so the game goes back to SteamGridDB's default.</summary>
+    public static void ClearChosenArt(Game item, string kind)
+    {
+        var basePath = ChosenArtBase(item, kind);
+        foreach (var ext in ImageExtensions.Append(".jpeg").Append(".bmp").Append(".gif"))
+        {
+            try { if (File.Exists(basePath + ext)) File.Delete(basePath + ext); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>Every image SteamGridDB has of one kind ("grids" = tall covers, "heroes", "logos") for a game.</summary>
+    public async Task<List<GridImage>> ListArtAsync(Game item, string kind, CancellationToken ct)
+    {
+        string query = kind switch { "heroes" => HeroQuery, "logos" => LogoQuery, _ => PortraitQuery };
+        var result = new List<GridImage>();
+        void Read(JsonDocument? doc)
+        {
+            if (doc == null || !doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array) return;
+            foreach (var image in data.EnumerateArray())
+            {
+                var url = image.TryGetProperty("url", out var u) ? u.GetString() : null;
+                var thumb = image.TryGetProperty("thumb", out var t) ? t.GetString() : null;
+                if (!string.IsNullOrEmpty(url) && result.All(r => r.Url != url))
+                    result.Add(new GridImage(url, string.IsNullOrEmpty(thumb) ? url : thumb));
+            }
+        }
+
+        string? endpoint = null;
+        if (item.IsSteam) endpoint = $"{kind}/steam/{item.AppId}";
+        else if (await FindGameIdAsync(item.OriginalName.Length > 0 ? item.OriginalName : item.Name, ct).ConfigureAwait(false) is int id) endpoint = $"{kind}/game/{id}";
+        if (endpoint != null)
+            using (var doc = await GetJsonAsync(endpoint + query, ct).ConfigureAwait(false)) Read(doc);
+        // Not linked to the Steam id on SteamGridDB: try the title.
+        if (result.Count == 0 && item.IsSteam && await FindGameIdAsync(item.OriginalName.Length > 0 ? item.OriginalName : item.Name, ct).ConfigureAwait(false) is int byName)
+            using (var doc = await GetJsonAsync($"{kind}/game/{byName}{query}", ct).ConfigureAwait(false)) Read(doc);
+        return result;
+    }
     public static string AnimatedDir { get; } = Path.Combine(Settings.DataDir, "animated");
 
     /// <summary>Wide "hero" artwork for the home background. Null if none exists.</summary>
     public Task<string?> GetHeroAsync(Game item, CancellationToken ct) =>
-        GetArtAsync(item, "heroes", HeroDir, "?types=static&mimes=image/png,image/jpeg&nsfw=false&humor=false", ct);
+        GetArtAsync(item, "heroes", HeroDir, HeroQuery, ct);
 
     public static string IconDir { get; } = Path.Combine(Settings.DataDir, "icons");
 
     /// <summary>The game's icon, used on the tile when there is no square cover. Null if none exists.</summary>
     public Task<string?> GetIconAsync(Game item, CancellationToken ct) =>
-        GetArtAsync(item, "icons", IconDir, "?types=static&mimes=image/png&nsfw=false&humor=false", ct);
+        GetArtAsync(item, "icons", IconDir, IconQuery, ct);
+
+    // PNG and Windows icon files: many games' icons on SteamGridDB are only .ico.
+    private const string IconQuery = "?types=static&mimes=image/png,image/vnd.microsoft.icon&nsfw=false&humor=false";
 
     /// <summary>The game's logo (title artwork on a transparent background). Null if none exists.</summary>
     public Task<string?> GetLogoAsync(Game item, CancellationToken ct) =>
-        GetArtAsync(item, "logos", LogoDir, "?types=static&mimes=image/png&nsfw=false&humor=false", ct);
+        GetArtAsync(item, "logos", LogoDir, LogoQuery, ct);
 
     private async Task<string?> GetArtAsync(Game item, string kind, string dir, string query, CancellationToken ct)
     {
+        // The user's own pick always wins.
+        if (kind != "icons" && FindChosenArt(item, kind) is string chosen) return chosen;
         Directory.CreateDirectory(dir);
         var basePath = Path.Combine(dir, HashKey(item.Key));
         foreach (var ext in ImageExtensions)
             if (File.Exists(basePath + ext)) return basePath + ext;
-        if (File.Exists(basePath + ".none")) return null;
+        // "Nothing found" is remembered for a week, then asked again (SteamGridDB keeps gaining art).
+        var none = basePath + ".none";
+        if (File.Exists(none) && DateTime.Now - File.GetLastWriteTime(none) < TimeSpan.FromDays(7)) return null;
 
         string? endpoint = null;
         if (item.IsSteam) endpoint = $"{kind}/steam/{item.AppId}";
@@ -251,6 +322,12 @@ public sealed class SteamGridDbClient : IDisposable
         if (endpoint != null)
         {
             using var doc = await GetJsonAsync(endpoint + query, ct).ConfigureAwait(false);
+            url = FirstUrl(doc, squareOnly: false);
+        }
+        // Not linked to the Steam id on SteamGridDB: try the title.
+        if (url == null && item.IsSteam && await FindGameIdAsync(item.OriginalName.Length > 0 ? item.OriginalName : item.Name, ct).ConfigureAwait(false) is int byName)
+        {
+            using var doc = await GetJsonAsync($"{kind}/game/{byName}{query}", ct).ConfigureAwait(false);
             url = FirstUrl(doc, squareOnly: false);
         }
         if (url == null)
@@ -337,13 +414,24 @@ public sealed class SteamGridDbClient : IDisposable
             if (await FindGameIdAsync(item.Name, ct).ConfigureAwait(false) is not int gameId) return result;
             endpoint = $"icons/game/{gameId}";
         }
-        using var doc = await GetJsonAsync(endpoint + "?types=static&mimes=image/png&nsfw=false&humor=false", ct).ConfigureAwait(false);
-        if (doc == null || !doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array) return result;
-        foreach (var icon in data.EnumerateArray())
+        void Read(JsonDocument? doc)
         {
-            var url = icon.TryGetProperty("url", out var u) ? u.GetString() : null;
-            var thumb = icon.TryGetProperty("thumb", out var t) ? t.GetString() : null;
-            if (!string.IsNullOrEmpty(url)) result.Add(new GridImage(url, string.IsNullOrEmpty(thumb) ? url : thumb));
+            if (doc == null || !doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array) return;
+            foreach (var icon in data.EnumerateArray())
+            {
+                var url = icon.TryGetProperty("url", out var u) ? u.GetString() : null;
+                var thumb = icon.TryGetProperty("thumb", out var t) ? t.GetString() : null;
+                if (!string.IsNullOrEmpty(url) && result.All(r => r.Url != url))
+                    result.Add(new GridImage(url, string.IsNullOrEmpty(thumb) ? url : thumb));
+            }
+        }
+
+        using (var doc = await GetJsonAsync(endpoint + IconQuery, ct).ConfigureAwait(false)) Read(doc);
+        // A Steam game SteamGridDB doesn't link to its Steam id (or lists no icons under it): look it up by title too.
+        if (result.Count == 0 && item.IsSteam && await FindGameIdAsync(item.OriginalName.Length > 0 ? item.OriginalName : item.Name, ct).ConfigureAwait(false) is int byName)
+        {
+            using var doc = await GetJsonAsync($"icons/game/{byName}{IconQuery}", ct).ConfigureAwait(false);
+            Read(doc);
         }
         return result;
     }

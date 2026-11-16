@@ -43,7 +43,7 @@ public static class Startup
 
     /// <summary>
     /// Use the launcher instead of the Windows desktop for this user: no taskbar or Start menu
-    /// until "Exit to desktop". Only this user account is affected.
+    /// until "Exit SquareDeck". Only this user account is affected.
     /// </summary>
     public static bool ReplacesDesktop
     {
@@ -97,6 +97,76 @@ public static class WindowActivator
 
     [DllImport("user32.dll")]
     private static extern void keybd_event(byte virtualKey, byte scanCode, uint flags, UIntPtr extraInfo);
+
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, IntPtr processId);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint attach, uint attachTo, bool on);
+    [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+
+    /// <summary>
+    /// Puts a window on top of everything, even a full-screen game or the Xbox full screen experience, and gives it
+    /// the keyboard and controller. Windows normally refuses this to apps in the background, so this borrows the
+    /// input of whatever is in front for a moment.
+    /// </summary>
+    public static void ShowOnTop(Window window)
+    {
+        try
+        {
+            if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Maximized;
+            var handle = new WindowInteropHelper(window).Handle;
+            if (handle == IntPtr.Zero) { window.Activate(); return; }
+            const uint NoSize = 0x1, NoMove = 0x2, ShowWindow = 0x40;
+            SetWindowPos(handle, new IntPtr(-1), 0, 0, 0, 0, NoSize | NoMove | ShowWindow); // always on top
+            var front = GetForegroundWindow();
+            uint frontThread = front == IntPtr.Zero ? 0 : GetWindowThreadProcessId(front, IntPtr.Zero);
+            uint mine = GetCurrentThreadId();
+            bool attached = frontThread != 0 && frontThread != mine && AttachThreadInput(mine, frontThread, true);
+            const byte Alt = 0x12;
+            keybd_event(Alt, 0, 0, UIntPtr.Zero);
+            keybd_event(Alt, 0, 0x2, UIntPtr.Zero);
+            BringWindowToTop(handle);
+            SetForegroundWindow(handle);
+            if (attached) AttachThreadInput(mine, frontThread, false);
+            window.Activate();
+        }
+        catch (Exception) { }
+    }
+
+    /// <summary>
+    /// Puts the window back at the top of the always-on-top windows without taking the focus: run regularly while the
+    /// launch splash shows, so a store's window (Steam, EA app, Ubisoft Connect…) can't come up over it.
+    /// </summary>
+    public static void KeepOnTop(Window window)
+    {
+        try
+        {
+            var handle = new WindowInteropHelper(window).Handle;
+            if (handle == IntPtr.Zero) return;
+            const uint NoSize = 0x1, NoMove = 0x2, NoActivate = 0x10, ShowWindow = 0x40;
+            SetWindowPos(handle, new IntPtr(-1), 0, 0, 0, 0, NoSize | NoMove | NoActivate | ShowWindow);
+        }
+        catch (Exception) { }
+    }
+
+    /// <summary>True when the window in front is this one.</summary>
+    public static bool IsInFront(Window window)
+    {
+        try { return GetForegroundWindow() == new WindowInteropHelper(window).Handle; }
+        catch (Exception) { return false; }
+    }
+
+    /// <summary>Takes away "always on top" again.</summary>
+    public static void ClearOnTop(Window window)
+    {
+        try
+        {
+            var handle = new WindowInteropHelper(window).Handle;
+            if (handle != IntPtr.Zero) SetWindowPos(handle, new IntPtr(-2), 0, 0, 0, 0, 0x1 | 0x2 | 0x10);
+        }
+        catch (Exception) { }
+    }
 
     public static void BringToFront(Window window)
     {

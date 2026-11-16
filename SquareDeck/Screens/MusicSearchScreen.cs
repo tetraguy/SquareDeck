@@ -63,7 +63,7 @@ public sealed class MusicSearchScreen : ListScreen
         AddRow("My playlists", glyph: "", click: () => _ = PlaylistsAsync());
         if (!IsSpotify)
         {
-            AddRow("Open YouTube Music", glyph: "", click: () => Host.Push(new BrowserScreen("https://music.youtube.com/")));
+            AddRow("Open YouTube Music", glyph: "", click: () => Host.Push(BrowserScreen.Open(Host, "https://music.youtube.com/")));
             AddNote("YouTube Music opens inside the launcher. Sign in there once and it stays signed in.");
             return;
         }
@@ -109,7 +109,7 @@ public sealed class MusicSearchScreen : ListScreen
         if (string.IsNullOrWhiteSpace(text)) return;
         if (!IsSpotify)
         {
-            Host.Push(new BrowserScreen("https://music.youtube.com/search?q=" + Uri.EscapeDataString(text.Trim())));
+            Host.Push(BrowserScreen.Open(Host, "https://music.youtube.com/search?q=" + Uri.EscapeDataString(text.Trim())));
             return;
         }
         await RunAsync("Results for “" + text.Trim() + "”", ct => _spotify!.SearchAsync(text.Trim(), ct));
@@ -119,7 +119,7 @@ public sealed class MusicSearchScreen : ListScreen
     {
         if (!IsSpotify)
         {
-            Host.Push(new BrowserScreen("https://music.youtube.com/library/playlists"));
+            Host.Push(BrowserScreen.Open(Host, "https://music.youtube.com/library/playlists"));
             return;
         }
         await RunAsync("Your playlists", ct => _spotify!.MyPlaylistsAsync(ct));

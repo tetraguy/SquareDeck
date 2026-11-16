@@ -61,7 +61,8 @@ public partial class MainWindow
             if (WindowsNotifications.Status is "unsupported" or "denied") _windowsToastTimer.Interval = TimeSpan.FromMinutes(2);
             else _windowsToastTimer.Interval = TimeSpan.FromSeconds(6);
             foreach (var toast in fresh.Take(4)) // a burst of them shouldn't queue pop-ups for a minute
-                ShowToast(toast.App.Length > 0 ? toast.App.ToUpperInvariant() : "WINDOWS", toast.Title, toast.Text, "", "windows");
+                ShowToast(toast.App.Length > 0 ? toast.App.ToUpperInvariant() : "WINDOWS", toast.Title, toast.Text, toast.IconPath, "windows",
+                    toast.IconPath.Length > 0 ? ImageLoader.FromFile(toast.IconPath, 112) : null);
         }
         catch (Exception) { }
         finally { _checkingWindowsToasts = false; }
@@ -188,6 +189,9 @@ public partial class MainWindow
     /// </summary>
     private void UpdateGpuSaver()
     {
+        UpdateDynamicPlayback();
+        UpdateBackgroundMode();
+        UpdateGameMemory();
         bool save = Settings.FreeGpuDuringGames && AllGames.Any(g => g.IsRunning);
         if (save == _gpuSaving) return;
         _gpuSaving = save;
@@ -222,6 +226,20 @@ public partial class MainWindow
     {
         EventManager.RegisterClassHandler(typeof(Button), MouseEnterEvent, new MouseEventHandler(OnButtonHover));
         GameList.PreviewMouseDown += OnGameListPointer;
+        Motion.ButtonAnimations = Settings.ButtonAnimations;
+        Motion.ButtonStyle = Settings.ButtonAnimationStyle;
+        Motion.PageStyle = Settings.PageTransition;
+        Motion.TileStyle = Settings.TileHighlight;
+        // Mouse and touch: home buttons squash while held and spring back when let go.
+        foreach (var button in _buttons.Concat(AllTopButtons).Append(MusicButton).Append(StopButton))
+        {
+            var b = button;
+            b.PreviewMouseLeftButtonDown += (_, _) => Motion.HoldDown(b);
+            b.PreviewMouseLeftButtonUp += (_, _) => Motion.Release(b);
+            b.MouseLeave += (_, _) => Motion.Release(b);
+            b.PreviewTouchDown += (_, _) => Motion.HoldDown(b);
+            b.PreviewTouchUp += (_, _) => Motion.Release(b);
+        }
         PreviewMouseMove += (_, e) => { if (e.StylusDevice == null) _mouseMovedAt = DateTime.UtcNow; };
         UpdateHomeRing();
         _windowsToastTimer.Tick += (_, _) => _ = CheckWindowsToastsAsync();
@@ -240,7 +258,15 @@ public partial class MainWindow
         {
             if (e.StylusDevice == null) Hints.SetKeyboard(true);
             NoteActivity();
+            // The mouse's own Back button (on its side) goes back, like B.
+            if (e.ChangedButton == System.Windows.Input.MouseButton.XButton1 && _screens.Count > 0)
+            {
+                e.Handled = true;
+                Handle(NavAction.Back);
+            }
         };
+        // Tapping or clicking "Back" in a page's hints goes back too.
+        HintBar.BackRequested = () => { if (_screens.Count > 0) Handle(NavAction.Back); };
         PreviewMouseMove += (_, e) =>
         {
             var at = e.GetPosition(this);
@@ -272,6 +298,7 @@ public partial class MainWindow
         MusicBtn.Visibility = Shown(Settings.ShowMusicButton);
         FriendsBtn.Visibility = Shown(Settings.ShowFriendsButton);
         ExplorerBtn.Visibility = Shown(Settings.ShowExplorerButton);
+        NewsBtn.Visibility = Shown(Settings.ShowNewsButton);
 
         _buttons = ButtonRow.Children.OfType<Button>().Where(b => b.Visibility == Visibility.Visible).ToArray();
         if (_buttonIndex >= _buttons.Length) _buttonIndex = -1;
@@ -289,7 +316,67 @@ public partial class MainWindow
 
     private void Battery_Click(object sender, RoutedEventArgs e) => Push(new BatteryScreen());
 
-    private void Browser_Click(object sender, RoutedEventArgs e) => Push(new BrowserScreen());
+    private void Browser_Click(object sender, RoutedEventArgs e) => Push(BrowserScreen.Open(this));
+
+    // ================================================================ footer: pills and hints side by side
+
+    private bool _fittingFooter, _footerHooked;
+
+    /// <summary>
+    /// What's playing, the running game and the button hints share the footer. With music and a game at once they ran
+    /// into each other, so the pills' text gives way first (song title, then the game's name, then the status line),
+    /// down to just the cover and icon, keeping a gap before the hints.
+    /// </summary>
+    private void FitFooter()
+    {
+        if (!_footerHooked)
+        {
+            _footerHooked = true;
+            SizeChangedEventHandler again = (_, _) => QueueFitFooter();
+            FooterGrid.SizeChanged += again;
+            HomeHints.SizeChanged += again;
+            FooterLeft.SizeChanged += again;
+        }
+        if (_fittingFooter || FooterGrid.ActualWidth <= 0) return;
+        _fittingFooter = true;
+        try
+        {
+            const double MusicMax = 170, GameMax = 190, StatusMax = 170, MusicMin = 70, GameMin = 90;
+            MusicText.MaxWidth = MusicMax;
+            StatusText.MaxWidth = StatusMax;
+            if (_runningMarquee != null) _runningMarquee.MaxWidth = GameMax;
+
+            double room = FooterGrid.ActualWidth - FooterLeft.Margin.Left - HomeHints.ActualWidth - HomeHints.Margin.Right - 28;
+            FooterLeft.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double over = FooterLeft.DesiredSize.Width - room;
+            if (over <= 0) return;
+
+            double Natural(FrameworkElement e) { e.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity)); return e.DesiredSize.Width; }
+            double Take(double have, double floor)
+            {
+                double cut = Math.Min(over, Math.Max(0, have - floor));
+                over -= cut;
+                return have - cut;
+            }
+
+            if (MusicButton.Visibility == Visibility.Visible) MusicText.MaxWidth = Take(Natural(MusicText), MusicMin);
+            if (_runningMarquee != null && RunningPanel.Visibility == Visibility.Visible)
+                _runningMarquee.MaxWidth = Take(Natural(_runningMarquee), GameMin); // longer names scroll
+            if (StatusText.Text.Length > 0) StatusText.MaxWidth = Take(Natural(StatusText), 0);
+            // Still too wide: the song title goes, its cover and play / pause stay.
+            if (over > 0 && MusicButton.Visibility == Visibility.Visible) MusicText.MaxWidth = Take(MusicText.MaxWidth, 0);
+        }
+        finally { _fittingFooter = false; }
+    }
+
+    private bool _footerQueued;
+
+    private void QueueFitFooter()
+    {
+        if (_footerQueued || _fittingFooter) return;
+        _footerQueued = true;
+        Dispatcher.BeginInvoke(new Action(() => { _footerQueued = false; FitFooter(); }), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
 
     /// <summary>The button hints in the home screen's footer: the same bar every other page uses.</summary>
     private void UpdateHomeHints()
@@ -299,6 +386,7 @@ public partial class MainWindow
                           "{Details}  Details      {Options}  Options      {Select}  Start";
         if (HomeHints.Content is HintBar bar) bar.Template = template;
         else HomeHints.Content = new HintBar(template);
+        QueueFitFooter();
     }
 
     // ================================================================ screen shape
@@ -317,9 +405,8 @@ public partial class MainWindow
 
         RootGrid.Height = height;
         // The extra height is shared out so the home screen doesn't just gain a gap at the bottom.
-        RootGrid.RowDefinitions[0].Height = new GridLength(tall ? 142 : 118);
-        RootGrid.RowDefinitions[2].Height = new GridLength(tall ? 46 : 34);
-        RootGrid.RowDefinitions[4].Height = new GridLength(tall ? 44 : 34);
+        _tallLayout = tall;
+        ApplyRowHeights();
     }
 
     // ================================================================ screen saver
@@ -905,7 +992,7 @@ public partial class MainWindow
             }
             _menuMusic!.Volume = Math.Clamp(Settings.MenuMusicVolume, 0, 100) / 100.0;
 
-            bool busy = _screens.Count > 0 && _screens[^1] is ViewerScreen or BrowserScreen or MediaScreen or MusicSearchScreen;
+            bool busy = (_screens.Count > 0 && _screens[^1] is ViewerScreen or BrowserScreen or MediaScreen or MusicSearchScreen) || LocalMusic.IsPlaying;
             bool play = IsActive && !busy && _bootVideo == null && !AllGames.Any(g => g.IsRunning);
             if (play == _menuMusicPlaying) return;
             _menuMusicPlaying = play;

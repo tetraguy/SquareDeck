@@ -13,7 +13,21 @@ public sealed record Trailer(string Name, string? Url);
 
 /// <summary>One post from a game's Steam news feed (announcements, patch notes).</summary>
 /// <param name="Body">The whole post as plain text, for reading inside the launcher.</param>
-public sealed record NewsItem(string Title, string Url, string Snippet, DateTime Date, string Feed, string Body);
+public sealed record NewsItem(string Title, string Url, string Snippet, DateTime Date, string Feed, string Body,
+    string[]? Tags = null, int AppId = 0, string FeedName = "", string Image = "")
+{
+    /// <summary>Patch notes or an update, by Steam's own tag or the usual words in the title.</summary>
+    public bool IsPatch =>
+        (Tags?.Contains("patchnotes") ?? false) ||
+        System.Text.RegularExpressions.Regex.IsMatch(Title, @"\b(patch|hotfix|update|changelog|v\d+(\.\d+)+)\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>Posted by the developer on Steam (an announcement), rather than picked up from a news site.</summary>
+    public bool IsAnnouncement => FeedName == "steam_community_announcements";
+}
+
+/// <summary>A game on sale in the Steam store.</summary>
+public sealed record SaleItem(int AppId, string Name, int DiscountPercent, string OldPrice, string Price, string Image, DateTime? Ends);
 
 public sealed record Achievement(string Name, string Description, string Icon, bool? Unlocked);
 
@@ -298,17 +312,93 @@ public static class SteamStoreClient
                 var url = Str(n, "url");
                 if (title.Length == 0 || url.Length == 0) continue;
                 long unix = n.TryGetProperty("date", out var d) && d.TryGetInt64(out var u) ? u : 0;
-                var body = CleanArticle(Str(n, "contents"));
-                var flat = CleanText(Str(n, "contents"));
+                var raw = Str(n, "contents");
+                var body = CleanArticle(raw);
+                var flat = CleanText(raw);
+                var tags = n.TryGetProperty("tags", out var t) && t.ValueKind == JsonValueKind.Array
+                    ? t.EnumerateArray().Select(x => x.GetString() ?? "").ToArray() : null;
+                // The first picture in the post, if any (Steam writes {STEAM_CLAN_IMAGE} for its own image host).
+                var image = System.Text.RegularExpressions.Regex.Match(raw, @"\[img\](.*?)\[/img\]|<img[^>]+src=""([^""]+)""",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                string picture = image.Success ? (image.Groups[1].Success && image.Groups[1].Value.Length > 0 ? image.Groups[1].Value : image.Groups[2].Value) : "";
+                picture = picture.Replace("{STEAM_CLAN_IMAGE}", "https://clan.akamai.steamstatic.com/images");
+                if (!picture.StartsWith("http", StringComparison.OrdinalIgnoreCase)) picture = "";
                 items.Add(new NewsItem(
                     WebUtility.HtmlDecode(title), url, flat.Length > 300 ? flat[..300] + "\u2026" : flat,
-                    DateTimeOffset.FromUnixTimeSeconds(unix).LocalDateTime, Str(n, "feedlabel"), body));
+                    DateTimeOffset.FromUnixTimeSeconds(unix).LocalDateTime, Str(n, "feedlabel"), body,
+                    tags, appId, Str(n, "feedname"), picture));
             }
         }
         catch (Exception)
         {
         }
         return items;
+    }
+
+    /// <summary>Steam store search by name: app id, name, price text and a small picture.</summary>
+    public static async Task<List<(int AppId, string Name, string Price, string Image)>> SearchStoreAsync(string term, CancellationToken ct)
+    {
+        var items = new List<(int, string, string, string)>();
+        try
+        {
+            var json = await Http.GetStringAsync(
+                "https://store.steampowered.com/api/storesearch/?l=english&cc=US&term=" + Uri.EscapeDataString(term), ct).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("items", out var list) || list.ValueKind != JsonValueKind.Array) return items;
+            foreach (var e in list.EnumerateArray())
+            {
+                int id = e.TryGetProperty("id", out var i) && i.TryGetInt32(out var v) ? v : 0;
+                if (id == 0) continue;
+                string price = "";
+                if (e.TryGetProperty("price", out var p) && p.ValueKind == JsonValueKind.Object && p.TryGetProperty("final", out var f) && f.TryGetInt64(out var cents))
+                    price = FormatPrice(cents, Str(p, "currency"));
+                else if (e.TryGetProperty("price", out _) == false) price = "Free";
+                items.Add((id, WebUtility.HtmlDecode(Str(e, "name")), price, Str(e, "tiny_image")));
+            }
+        }
+        catch (Exception) { }
+        return items;
+    }
+
+    /// <summary>Games on sale on the Steam store's front page ("specials"). Empty if the store didn't answer.</summary>
+    public static async Task<List<SaleItem>> GetSpecialsAsync(CancellationToken ct)
+    {
+        var items = new List<SaleItem>();
+        try
+        {
+            var json = await Http.GetStringAsync("https://store.steampowered.com/api/featuredcategories/?l=english", ct).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("specials", out var specials) || !specials.TryGetProperty("items", out var list)) return items;
+            foreach (var e in list.EnumerateArray())
+            {
+                int id = e.TryGetProperty("id", out var i) && i.TryGetInt32(out var v) ? v : 0;
+                int discount = e.TryGetProperty("discount_percent", out var dp) && dp.TryGetInt32(out var dv) ? dv : 0;
+                if (id == 0 || discount <= 0) continue;
+                string currency = Str(e, "currency");
+                string Money(string field) => e.TryGetProperty(field, out var m) && m.TryGetInt64(out var cents)
+                    ? FormatPrice(cents, currency) : "";
+                long ends = e.TryGetProperty("discount_expiration", out var de) && de.TryGetInt64(out var ev) ? ev : 0;
+                string image = Str(e, "large_capsule_image");
+                if (image.Length == 0) image = Str(e, "header_image");
+                items.Add(new SaleItem(id, WebUtility.HtmlDecode(Str(e, "name")), discount, Money("original_price"), Money("final_price"),
+                    image, ends > 0 ? DateTimeOffset.FromUnixTimeSeconds(ends).LocalDateTime : null));
+            }
+        }
+        catch (Exception) { }
+        return items.GroupBy(x => x.AppId).Select(g => g.First()).ToList();
+    }
+
+    private static string FormatPrice(long cents, string currency)
+    {
+        decimal amount = cents / 100m;
+        return currency switch
+        {
+            "USD" => amount.ToString("$0.00"),
+            "EUR" => amount.ToString("0.00") + "\u20AC",
+            "GBP" => "\u00A3" + amount.ToString("0.00"),
+            "" => amount.ToString("0.00"),
+            _ => amount.ToString("0.00") + " " + currency
+        };
     }
 
     /// <summary>

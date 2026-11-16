@@ -312,7 +312,7 @@ public static class Updater
             ":wait\r\n" +
             $"tasklist /FI \"PID eq {pid}\" 2>nul | find \"{pid}\" >nul && (timeout /t 1 /nobreak >nul & goto wait)\r\n" +
             $"robocopy \"{source}\" \"{appDir}\" /E /R:5 /W:1 >nul\r\n" +
-            $"start \"\" \"{exe}\"\r\n");
+            $"start \"\" \"{exe}\" {App.RestartArgument}\r\n");
         Process.Start(new ProcessStartInfo("cmd.exe", "/c \"" + script + "\"")
         {
             UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetTempPath()

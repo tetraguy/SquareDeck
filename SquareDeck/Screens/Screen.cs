@@ -72,6 +72,9 @@ public abstract class Screen : UserControl
     /// <summary>The right thumbstick, each frame it is pushed (-1 to 1). True if the page scrolled itself.</summary>
     public virtual bool OnRightStick(double y) => false;
 
+    /// <summary>The right stick with both directions and whether it's pressed in, every frame. True if the page used it.</summary>
+    public virtual bool OnRightStick(double x, double y, bool pressed) => y != 0 && OnRightStick(y);
+
     /// <summary>Called when another page or pop-up opens on top of this one.</summary>
     public virtual void OnCovered() { }
 
@@ -164,12 +167,41 @@ public abstract class Screen : UserControl
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(60) });
 
         // The same wallpaper as the home screen, softened a little more so pages of text stay readable.
-        if (Theme.CurrentWallpaper != null)
+        // Styles that show the game's artwork behind the home screen show it, blurred, behind pages too.
+        var style = UiStyles.Current;
+        if (style.PageHero && Theme.CurrentHero != null && !Perf.Active)
+        {
+            var hero = new Image
+            {
+                Source = Theme.CurrentHero, Stretch = System.Windows.Media.Stretch.UniformToFill, IsHitTestVisible = false,
+                Margin = new Thickness(-60), Opacity = style.Glass ? 1 : 0.9,
+                Effect = new System.Windows.Media.Effects.BlurEffect { Radius = style.Glass ? 50 : 36, RenderingBias = System.Windows.Media.Effects.RenderingBias.Performance }
+            };
+            // Kept as a ready-made picture so the blur isn't redone whenever something on the page moves.
+            var heroHost = new Grid { IsHitTestVisible = false, ClipToBounds = true, CacheMode = new System.Windows.Media.BitmapCache(0.5), Children = { hero } };
+            Grid.SetRowSpan(heroHost, 3);
+            root.Children.Add(heroHost);
+            var heroScrim = new System.Windows.Shapes.Rectangle { Opacity = style.PageScrim, IsHitTestVisible = false };
+            heroScrim.SetResourceReference(Shape.FillProperty, "BgBrush");
+            Grid.SetRowSpan(heroScrim, 3);
+            root.Children.Add(heroScrim);
+        }
+        else if (Theme.CurrentWallpaper != null)
         {
             _wallpaperLayer = new System.Windows.Shapes.Rectangle { Fill = Theme.CurrentWallpaper, IsHitTestVisible = false };
-            Grid.SetRowSpan(_wallpaperLayer, 3);
-            root.Children.Add(_wallpaperLayer);
-            _wallpaperScrim = new System.Windows.Shapes.Rectangle { Opacity = 0.55, IsHitTestVisible = false };
+            UIElement wallpaper = _wallpaperLayer;
+            if (style.Glass && !Perf.Active)
+            {
+                _wallpaperLayer.Effect = new System.Windows.Media.Effects.BlurEffect { Radius = 40 };
+                _wallpaperLayer.Margin = new Thickness(-60);
+                // A still wallpaper is cached once blurred; a moving one changes every frame, so caching wouldn't help.
+                var host = new Grid { IsHitTestVisible = false, ClipToBounds = true, Children = { _wallpaperLayer } };
+                if (Theme.CurrentWallpaper is not System.Windows.Media.VisualBrush) host.CacheMode = new System.Windows.Media.BitmapCache(0.5);
+                wallpaper = host;
+            }
+            Grid.SetRowSpan(wallpaper, 3);
+            root.Children.Add(wallpaper);
+            _wallpaperScrim = new System.Windows.Shapes.Rectangle { Opacity = style.Glass ? style.PageScrim : 0.55, IsHitTestVisible = false };
             _wallpaperScrim.SetResourceReference(Shape.FillProperty, "BgBrush");
             Grid.SetRowSpan(_wallpaperScrim, 3);
             root.Children.Add(_wallpaperScrim);
@@ -186,17 +218,13 @@ public abstract class Screen : UserControl
         root.Children.Add(_backdrop);
 
         var header = new DockPanel { Margin = new Thickness(side, 30, side, 0), VerticalAlignment = VerticalAlignment.Top };
-        var back = new Button { Style = Ui.StyleOf("PillButton"), Content = "\u2039  Back", VerticalAlignment = VerticalAlignment.Center };
-        back.Focusable = false; // for mouse / touch; the controller uses B
-        back.Click += (_, _) => Host.Pop(this);
-        DockPanel.SetDock(back, Dock.Right);
-        header.Children.Add(back);
         _titleText = Ui.Text(title, 34, "FgBrush", bold: true);
         _header = header;
         header.Children.Add(_titleText);
         root.Children.Add(header);
 
         var bodyHost = new Grid { Margin = new Thickness(side, 0, side, 12) };
+        _bodyHost = bodyHost;
         bodyHost.Children.Add(body);
         Grid.SetRow(bodyHost, 1);
         root.Children.Add(bodyHost);
@@ -213,6 +241,28 @@ public abstract class Screen : UserControl
         root.Children.Add(footer);
 
         Content = root;
+    }
+
+    private Grid? _bodyHost;
+
+    /// <summary>Swaps the page's content for another layout (with the wide page margins).</summary>
+    protected void ReplaceBody(UIElement body)
+    {
+        if (_bodyHost == null) return;
+        _bodyHost.Children.Clear();
+        _bodyHost.Margin = new Thickness(26, 0, 26, 12);
+        _bodyHost.Children.Add(body);
+    }
+
+    /// <summary>
+    /// For full-window tools (Explorer, Task Manager) that draw their own header: drops the big page title
+    /// and gives the space to the body.
+    /// </summary>
+    protected void CompactHeader()
+    {
+        if (_pageRoot == null) return;
+        _pageRoot.RowDefinitions[0].Height = new GridLength(18);
+        if (_header != null) _header.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>
@@ -233,6 +283,9 @@ public abstract class Screen : UserControl
     private UIElement? _hero;
 
     /// <summary>Shows a picture, heavily blurred and dimmed, behind the page. Null removes it.</summary>
+    /// <summary>The page's blurred background picture (used by views placed inside a page).</summary>
+    public void SetBackdrop(System.Windows.Media.ImageSource? picture) => SetPageBackdrop(picture);
+
     protected void SetPageBackdrop(System.Windows.Media.ImageSource? picture)
     {
         if (_backdrop == null) return;
@@ -249,7 +302,10 @@ public abstract class ListScreen : Screen
 {
     protected StackPanel Rows { get; } = new() { Width = 940, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 20) };
 
-    protected ListScreen(string title, string hints = DefaultHints)
+    protected ListScreen(string title, string hints = DefaultHints) : this(title, hints, null) { }
+
+    /// <summary>With <paramref name="layout"/>, the scrolling rows are placed inside a layout of the page's own (Settings' two panes).</summary>
+    protected ListScreen(string title, string hints, Func<ScrollViewer, UIElement>? layout)
     {
         var scroll = new ScrollViewer
         {
@@ -259,10 +315,29 @@ public abstract class ListScreen : Screen
             Focusable = false,
             Content = Rows
         };
-        SetPage(title, scroll, hints);
+        RowsScroll = scroll;
+        // Remember the row with the highlight, so a rebuild (after changing a setting, or coming back from a page
+        // opened from it) puts the highlight back on that row instead of the top of the page.
+        Rows.PreviewGotKeyboardFocus += (_, e) =>
+        {
+            if (e.NewFocus is not Button b) return;
+            var buttons = Rows.Children.OfType<Button>().ToList();
+            int i = buttons.IndexOf(b);
+            if (i < 0) return;
+            _lastIndex = i;
+            _lastLabel = LabelOf(b)?.Label;
+        };
+        if (layout == null) SetPage(title, scroll, hints);
+        else SetPage(title, layout(scroll), hints, wide: true);
     }
 
+    protected ScrollViewer RowsScroll { get; }
+
+    /// <summary>While true, rebuilding the rows leaves the focus where it is (Settings changing pane as you move).</summary>
+    protected bool SuppressAutoFocus { get; set; }
+
     private int _lastIndex;
+    private string? _lastLabel;
 
     protected abstract void Build();
 
@@ -273,21 +348,81 @@ public abstract class ListScreen : Screen
     {
         var buttons = Rows.Children.OfType<Button>().ToList();
         int index = buttons.FindIndex(b => b.IsKeyboardFocused);
-        if (index >= 0) _lastIndex = index; else index = _lastIndex;
+        if (index >= 0) { _lastIndex = index; _lastLabel = LabelOf(buttons[index])?.Label; }
+        else index = _lastIndex;
+        string? label = _lastLabel;
+        double offset = RowsScroll.VerticalOffset;
 
         Rows.Children.Clear();
         Build();
         Ui.GroupRows(Rows); // runs of rows become grouped cards
 
         buttons = Rows.Children.OfType<Button>().ToList();
-        if (buttons.Count == 0) return;
+        if (buttons.Count == 0 || SuppressAutoFocus) return;
+        // The same row as before (by name, as rows can come and go), at the same scroll position.
+        if (FocusLabel == null && label != null && buttons.FirstOrDefault(b => LabelOf(b)?.Label == label) is { } same)
+        {
+            RowsScroll.ScrollToVerticalOffset(offset);
+            FocusLater(same);
+            return;
+        }
+        // Opened from Search: land on the row that was searched for.
+        if (FocusLabel != null)
+        {
+            var wanted = buttons.FirstOrDefault(b => LabelOf(b)?.Label == FocusLabel);
+            FocusLabel = null;
+            if (wanted != null)
+            {
+                FocusLater(wanted);
+                return;
+            }
+        }
         FocusLater(buttons[Math.Clamp(index, 0, buttons.Count - 1)]);
     }
 
+    /// <summary>A row to put the highlight on when the page opens (set by Search).</summary>
+    internal string? FocusLabel { get; set; }
+
+    /// <summary>Builds the page off screen and returns each row's name and subtitle (for Search).</summary>
+    internal List<(string Label, string? Subtitle)> RowLabels()
+    {
+        Rows.Children.Clear();
+        Build();
+        var result = new List<(string, string?)>();
+        foreach (var b in Rows.Children.OfType<Button>())
+            if (LabelOf(b) is { } l && l.Label.Length > 0) result.Add(l);
+        Rows.Children.Clear();
+        return result;
+    }
+
+    /// <summary>The name and subtitle written on a row (icons skipped).</summary>
+    internal static (string Label, string? Subtitle)? LabelOf(Button row)
+    {
+        var texts = new List<TextBlock>();
+        void Walk(object node)
+        {
+            if (node is TextBlock t && !Equals(t.FontFamily, Ui.IconFont) && !string.IsNullOrWhiteSpace(t.Text)) texts.Add(t);
+            if (node is DependencyObject d)
+                foreach (var child in LogicalTreeHelper.GetChildren(d)) Walk(child);
+        }
+        Walk(row);
+        if (texts.Count == 0) return null;
+        var sub = texts.Skip(1).FirstOrDefault(t => t.FontSize <= 14.5 && t.Parent is StackPanel);
+        return (texts[0].Text, sub?.Text);
+    }
+
     /// <summary>Recreates the rows with the highlight back on the first one (after moving to a different list).</summary>
+    /// <summary>Forgets which row had the highlight (a different page is about to be built).</summary>
+    protected void ForgetRow()
+    {
+        _lastIndex = 0;
+        _lastLabel = null;
+    }
+
     protected void RebuildFromTop()
     {
         _lastIndex = 0;
+        _lastLabel = null;
         System.Windows.Input.Keyboard.ClearFocus();
         Rebuild();
     }
@@ -432,11 +567,20 @@ public sealed class MenuScreen : Screen
             {
                 Text = inputInitial,
                 FontSize = 20,
-                Padding = new Thickness(8),
-                Margin = new Thickness(0, 16, 0, 0)
+                Padding = new Thickness(12, 9, 12, 9),
+                Margin = new Thickness(0, 16, 0, 0),
+                BorderThickness = new Thickness(2),
+                FocusVisualStyle = null
             };
+            // In the page's own colors rather than Windows' white box.
+            _input.SetResourceReference(Control.BackgroundProperty, "CircleBrush");
+            _input.SetResourceReference(Control.ForegroundProperty, "FgBrush");
+            _input.SetResourceReference(Control.BorderBrushProperty, "AccentBrush");
+            _input.SetResourceReference(TextBox.CaretBrushProperty, "AccentBrush");
+            _input.SetResourceReference(TextBox.SelectionBrushProperty, "AccentBrush");
             panel.Children.Add(_input);
-            panel.Children.Add(BuildKeyboard());
+            // The built-in keys, unless Settings asks for Windows' touch keyboard (which opens on focus, below).
+            if (!TouchKeyboard.UseWindows) panel.Children.Add(BuildKeyboard());
         }
 
         var buttons = new StackPanel { Margin = new Thickness(0, inputInitial != null ? 8 : 20, 0, 0) };
@@ -460,15 +604,19 @@ public sealed class MenuScreen : Screen
 
         var box = new Border
         {
-            Width = inputInitial != null ? 760 : 620,
+            Width = inputInitial != null ? (TouchKeyboard.UseWindows ? 680 : 760) : 620,
             Padding = new Thickness(34, 28, 34, 28),
             CornerRadius = new CornerRadius(20),
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 40, ShadowDepth = 8, Opacity = 0.45 },
             HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            // Above Windows' touch keyboard, which covers the bottom of the screen.
+            VerticalAlignment = inputInitial != null && TouchKeyboard.UseWindows ? VerticalAlignment.Top : VerticalAlignment.Center,
+            Margin = inputInitial != null && TouchKeyboard.UseWindows ? new Thickness(0, 50, 0, 0) : new Thickness(0),
             Child = panel
         };
-        box.SetResourceReference(Border.BackgroundProperty, "BgBrush");
+        box.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+        box.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+        box.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
 
         var backdrop = new Grid
         {
@@ -564,6 +712,7 @@ public sealed class MenuScreen : Screen
         {
             _input.Focus();
             _input.SelectAll();
+            if (TouchKeyboard.UseWindows) _ = TouchKeyboard.ShowAsync();
         }
         else base.FocusDefault();
     }
@@ -617,7 +766,9 @@ public sealed class BusyScreen : Screen
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 40, ShadowDepth = 8, Opacity = 0.45 },
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = panel
         };
-        box.SetResourceReference(Border.BackgroundProperty, "BgBrush");
+        box.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+        box.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+        box.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
         var backdrop = new Grid
         {
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0xC0, 0, 0, 0))

@@ -73,6 +73,12 @@ public sealed class Gamepad
     /// <summary>Right stick up/down from the last poll, -1 (down) to 1 (up); 0 inside the dead zone.</summary>
     public double RightStickY { get; private set; }
 
+    /// <summary>Right stick sideways, -1 to 1 (0 inside the dead zone). Used as a mouse in the browser.</summary>
+    public double RightStickX { get; private set; }
+
+    /// <summary>True while the right stick is pressed in (R3).</summary>
+    public bool RightStickPressed { get; private set; }
+
     /// <summary>Everything a controller reports, for the controller test page.</summary>
     public readonly record struct RawState(bool Connected, ushort Buttons, byte LeftTrigger, byte RightTrigger,
         short LeftX, short LeftY, short RightX, short RightY);
@@ -94,6 +100,7 @@ public sealed class Gamepad
         return default;
     }
     private bool _summonHeld;
+    private bool _guideDown, _guideSpoiled;
 
     private uint GetState(uint index, out XInputState state)
     {
@@ -116,6 +123,8 @@ public sealed class Gamepad
         ushort buttons = 0;
         bool leftTrigger = false, rightTrigger = false;
         RightStickY = 0;
+        RightStickX = 0;
+        RightStickPressed = false;
         try
         {
             for (uint i = 0; i < 4; i++)
@@ -126,6 +135,8 @@ public sealed class Gamepad
                 leftTrigger = pad.LeftTrigger > 120;
                 rightTrigger = pad.RightTrigger > 120;
                 if (Math.Abs((int)pad.ThumbRY) > 9000) RightStickY = pad.ThumbRY / 32767.0;
+                if (Math.Abs((int)pad.ThumbRX) > 9000) RightStickX = pad.ThumbRX / 32767.0;
+                RightStickPressed = (pad.Buttons & 0x0080) != 0;
                 if (pad.ThumbLX < -StickThreshold) buttons |= DpadLeft;
                 if (pad.ThumbLX > StickThreshold) buttons |= DpadRight;
                 if (pad.ThumbLY > StickThreshold) buttons |= DpadUp;
@@ -207,24 +218,27 @@ public sealed class Gamepad
     /// <summary>"default" (Guide, or View + Menu), "guide", "view+menu", "l3+r3" or "lb+rb+view".</summary>
     public string SummonCombo { get; set; } = "default";
 
+    /// <summary>True when the summon shortcut is the Guide button on its own (not a combination).</summary>
+    private bool GuideSummons => SummonCombo is "guide" or "default";
+
     private bool SummonHeld(ushort b)
     {
         const ushort LeftStick = 0x0040, RightStick = 0x0080;
         bool Both(ushort x, ushort y) => (b & x) != 0 && (b & y) != 0;
         return SummonCombo switch
         {
-            "guide" => (b & Guide) != 0,
+            "guide" => false, // handled on release, see PollSummon
             "view+menu" => Both(StartButton, ViewButton),
             "l3+r3" => Both(LeftStick, RightStick),
             "lb+rb+view" => Both(LeftShoulder, RightShoulder) && (b & ViewButton) != 0,
-            _ => (b & Guide) != 0 || Both(StartButton, ViewButton)
+            _ => Both(StartButton, ViewButton)
         };
     }
 
     public bool PollSummon()
     {
         if (!_available) return false;
-        bool held = false;
+        bool held = false, guideTap = false;
         try
         {
             for (uint i = 0; i < 4; i++)
@@ -232,6 +246,7 @@ public sealed class Gamepad
                 if (GetState(i, out var state) != 0) continue;
                 ushort b = state.Gamepad.Buttons;
                 held = SummonHeld(b);
+                guideTap = GuideTapped(b, state.Gamepad.LeftTrigger > 120 || state.Gamepad.RightTrigger > 120);
                 break;
             }
         }
@@ -243,7 +258,27 @@ public sealed class Gamepad
 
         bool fired = held && !_summonHeld;
         _summonHeld = held;
-        return fired;
+        return fired || guideTap;
+    }
+
+    /// <summary>
+    /// The Guide button counts only when pressed and released on its own. Held with another button it is one of
+    /// Windows' Game Bar shortcuts (Guide + Y takes a screenshot, Guide + X records...), and opening the quick menu
+    /// there put SquareDeck in front of the game, so the capture was named "SquareDeck" instead of the game.
+    /// </summary>
+    private bool GuideTapped(ushort b, bool trigger)
+    {
+        if (!GuideSummons) { _guideDown = false; return false; }
+        bool guide = (b & Guide) != 0;
+        if (guide)
+        {
+            if (!_guideDown) { _guideDown = true; _guideSpoiled = false; }
+            if ((b & ~Guide) != 0 || trigger) _guideSpoiled = true; // another button with it: Game Bar's, not ours
+            return false;
+        }
+        if (!_guideDown) return false;
+        _guideDown = false;
+        return !_guideSpoiled;
     }
 
     /// <summary>Battery of the first connected controller: "Wired", "Full", "Medium", "Low", "Empty", or null.</summary>

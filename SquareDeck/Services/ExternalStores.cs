@@ -6,21 +6,35 @@ using Microsoft.Win32;
 namespace SquareDeck.Services;
 
 /// <summary>
-/// Finds games installed through other launchers: Epic, GOG, Xbox / Game Pass, Battle.net,
+/// Finds games installed through other launchers: Epic, GOG, Xbox / Game Pass, Battle.net, Ubisoft Connect, EA app,
 /// and the non-Steam shortcuts added to Steam. Each finder is independent and never throws.
 /// </summary>
 public static class ExternalStores
 {
     /// <summary>Everything found. Slow (Xbox needs PowerShell), so call it off the UI thread.</summary>
-    public static async Task<List<Game>> ScanAsync(CancellationToken ct)
+    /// <summary>The stores scanned, with the ids saved in Settings and the names shown there.</summary>
+    public static readonly (string Id, string Name)[] Stores =
     {
+        ("epic", "Epic Games"), ("gog", "GOG Galaxy"), ("xbox", "Xbox (Microsoft Store and Game Pass)"),
+        ("battlenet", "Battle.net"), ("ubisoft", "Ubisoft Connect"), ("ea", "EA app"),
+        ("steamshortcuts", "Non-Steam games added to Steam")
+    };
+
+    public static async Task<List<Game>> ScanAsync(CancellationToken ct, ICollection<string>? skip = null)
+    {
+        bool On(string id) => skip == null || !skip.Contains(id);
         var games = new List<Game>();
-        games.AddRange(Safe(ScanEpic));
-        games.AddRange(Safe(ScanGog));
-        games.AddRange(Safe(ScanBattleNet));
-        games.AddRange(Safe(ScanSteamShortcuts));
-        try { games.AddRange(await ScanXboxAsync(ct).ConfigureAwait(false)); }
-        catch (Exception) { }
+        if (On("epic")) games.AddRange(Safe(ScanEpic));
+        if (On("gog")) games.AddRange(Safe(ScanGog));
+        if (On("battlenet")) games.AddRange(Safe(ScanBattleNet));
+        if (On("ubisoft")) games.AddRange(Safe(ScanUbisoft));
+        if (On("ea")) games.AddRange(Safe(ScanEa));
+        if (On("steamshortcuts")) games.AddRange(Safe(ScanSteamShortcuts));
+        if (On("xbox"))
+        {
+            try { games.AddRange(await ScanXboxAsync(ct).ConfigureAwait(false)); }
+            catch (Exception) { }
+        }
         return games;
     }
 
@@ -166,6 +180,92 @@ public static class ExternalStores
             if (launcher != null) games.Add(Make("Battle.net", name, name, launcher, dir));
         }
         return games;
+    }
+
+    // ------------------------------------------------------------ Ubisoft Connect
+
+    /// <summary>
+    /// Ubisoft Connect lists its games under Ubisoft\Launcher\Installs\(game id), with the folder; the name is in the
+    /// "Uplay Install (game id)" uninstall entry. Games start through Ubisoft Connect with uplay://launch/(id)/0.
+    /// </summary>
+    private static List<Game> ScanUbisoft()
+    {
+        var games = new List<Game>();
+        foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
+        {
+            using var installs = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view).OpenSubKey(@"SOFTWARE\Ubisoft\Launcher\Installs");
+            if (installs == null) continue;
+            using var uninstall = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view).OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
+            foreach (var id in installs.GetSubKeyNames())
+            {
+                if (!int.TryParse(id, out _) || games.Any(g => g.LaunchId == "ubisoft:" + id)) continue;
+                using var key = installs.OpenSubKey(id);
+                var dir = (key?.GetValue("InstallDir") as string)?.Replace('/', '\\').TrimEnd('\\');
+                if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) continue;
+                string? name = null;
+                using (var entry = uninstall?.OpenSubKey("Uplay Install " + id)) name = entry?.GetValue("DisplayName") as string;
+                if (string.IsNullOrWhiteSpace(name)) name = Path.GetFileName(dir);
+                games.Add(Make("Ubisoft Connect", "ubisoft:" + id, name!, $"uplay://launch/{id}/0", dir));
+            }
+        }
+        return games;
+    }
+
+    // ------------------------------------------------------------ EA app (and Origin)
+
+    /// <summary>
+    /// EA games are in Windows' list of installed programs (publisher Electronic Arts). Each keeps its EA offer id in
+    /// __Installer\installerdata.xml, which the EA app opens with origin2://game/launch?offerIds=(id). A game without
+    /// one is started from its own program.
+    /// </summary>
+    private static List<Game> ScanEa()
+    {
+        var games = new List<Game>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
+        {
+            using var uninstall = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view).OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
+            if (uninstall == null) continue;
+            foreach (var sub in uninstall.GetSubKeyNames())
+            {
+                using var key = uninstall.OpenSubKey(sub);
+                if (key?.GetValue("Publisher") is not string publisher ||
+                    !(publisher.Contains("Electronic Arts", StringComparison.OrdinalIgnoreCase) || publisher.Equals("EA", StringComparison.OrdinalIgnoreCase))) continue;
+                var name = key.GetValue("DisplayName") as string;
+                var dir = (key.GetValue("InstallLocation") as string)?.Trim('"').TrimEnd('\\');
+                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) continue;
+                // The EA app, Origin and their helpers aren't games.
+                if (name.StartsWith("EA app", StringComparison.OrdinalIgnoreCase) || name.StartsWith("EA Desktop", StringComparison.OrdinalIgnoreCase) ||
+                    name.StartsWith("Origin", StringComparison.OrdinalIgnoreCase) || name.Contains("Anti-Cheat", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("EA Background", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!seen.Add(dir)) continue;
+
+                string? offer = EaOfferId(dir);
+                if (offer != null)
+                {
+                    games.Add(Make("EA app", "ea:" + offer, name, "origin2://game/launch?offerIds=" + Uri.EscapeDataString(offer), dir));
+                    continue;
+                }
+                var icon = (key.GetValue("DisplayIcon") as string)?.Split(',')[0].Trim('"');
+                if (!string.IsNullOrEmpty(icon) && icon.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && File.Exists(icon) &&
+                    !Path.GetFileName(icon).StartsWith("unins", StringComparison.OrdinalIgnoreCase))
+                    games.Add(Make("EA app", "ea:" + name, name, icon, dir));
+            }
+        }
+        return games;
+    }
+
+    private static string? EaOfferId(string dir)
+    {
+        try
+        {
+            var file = Path.Combine(dir, "__Installer", "installerdata.xml");
+            if (!File.Exists(file)) return null;
+            var match = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(file), @"<contentID>\s*([^<\s]+)\s*</contentID>",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return match.Success ? match.Groups[1].Value : null;
+        }
+        catch (Exception) { return null; }
     }
 
     // ------------------------------------------------------------ Steam's non-Steam shortcuts

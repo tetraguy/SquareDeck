@@ -19,6 +19,7 @@ public sealed class SettingsScreen : ListScreen
         ("home", "Home screen", "", "Buttons, screen saver, startup and closing animations"),
         ("sound", "Sound", "", "Interface sounds, sound packs, chimes, menu music"),
         ("controller", "Controller and quick menu", "", "Vibration, button names, in-game menu"),
+        ("power", "Power and performance", "\uEC4A", "TDP limit, CPU boost, power mode, Performance mode"),
         ("games", "Games and library", "", "Stores, notifications while playing, achievements, keys"),
         ("access", "Accessibility", "", "Text size, high contrast, reduced motion"),
         ("network", "Network and browser", "", "Wi-Fi, Bluetooth, speed test, web browser"),
@@ -26,98 +27,352 @@ public sealed class SettingsScreen : ListScreen
         ("data", "Updates, backup and reset", "", "New versions, your data, start over")
     };
 
-    private readonly string? _category;
+    private string _category;
+    private readonly StackPanel _nav = new();
+    private Border _navPanel = null!;
+    private readonly System.Windows.Threading.DispatcherTimer _switchSoon = new() { Interval = TimeSpan.FromMilliseconds(160) };
+    private string? _pendingCategory;
+
+    /// <summary>Every settings page and row, for Search: its name, subtitle, page, and how to open it there.</summary>
+    internal static List<SearchSetting> BuildIndex(MainWindow host)
+    {
+        var list = new List<SearchSetting>();
+        foreach (var c in Categories)
+        {
+            var cat = c;
+            list.Add(new SearchSetting(cat.Name, cat.About, "Settings", cat.Glyph, () => new SettingsScreen(cat.Id)));
+            try
+            {
+                var page = new SettingsScreen(cat.Id) { Host = host };
+                foreach (var (label, sub) in page.RowLabels())
+                {
+                    string l = label;
+                    list.Add(new SearchSetting(l, sub, cat.Name, cat.Glyph, () => new SettingsScreen(cat.Id) { FocusLabel = l }));
+                }
+            }
+            catch (Exception) { }
+        }
+        return list;
+    }
 
     public SettingsScreen() : this(null) { }
 
-    private SettingsScreen(string? category)
-        : base(category == null ? "Settings" : Categories.First(c => c.Id == category).Name) => _category = category;
+    /// <summary>
+    /// Two panes: the sections on the left (moving through them shows each one straight away), their settings on
+    /// the right. Your profile and a search box sit at the top of the left side.
+    /// </summary>
+    internal SettingsScreen(string? category)
+        : base("Settings", "{Select}  Select      {Back}  Back", null)
+    {
+        _category = category ?? _lastCategory;
+        _switchSoon.Tick += (_, _) =>
+        {
+            _switchSoon.Stop();
+            if (_pendingCategory != null && _pendingCategory != _category) Show(_pendingCategory, focusContent: false);
+        };
+        BuildLayout();
+    }
+
+    private void BuildLayout()
+    {
+        // Replace the plain list page with two panes.
+        var navPanel = new Border { Width = 300, CornerRadius = new CornerRadius(18), Padding = new Thickness(10, 12, 10, 12), Margin = new Thickness(0, 0, 22, 0), ClipToBounds = true };
+        _navPanel = navPanel;
+        navPanel.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+        navPanel.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+        navPanel.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
+        navPanel.Child = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            PanningMode = PanningMode.VerticalOnly, Focusable = false, Content = _nav
+        };
+        _nav.PreviewGotKeyboardFocus += (_, _) => _focusInNav = true;
+        Rows.PreviewGotKeyboardFocus += (_, _) => _focusInNav = false;
+        Rows.Width = double.NaN;
+        Rows.HorizontalAlignment = HorizontalAlignment.Stretch;
+        Rows.Margin = new Thickness(0, 0, 14, 20);
+        if (RowsScroll.Parent is Panel old) old.Children.Remove(RowsScroll);
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.Children.Add(navPanel);
+        Grid.SetColumn(RowsScroll, 1);
+        grid.Children.Add(RowsScroll);
+        ReplaceBody(grid);
+    }
+
+    public override void OnShown()
+    {
+        SizeNav(animate: false);
+        BuildNav();
+        if (FocusLabel != null) { Rebuild(); return; } // opened from Search: land on that row
+        SuppressAutoFocus = true;
+        Rebuild();
+        SuppressAutoFocus = false;
+        FocusLater(NavRow(_category));
+    }
+
+    private bool _focusInNav = true;
+
+    public override void OnResumed()
+    {
+        BuildNav();
+        if (_focusInNav)
+        {
+            // Back from a page opened from the list of sections (profile, search): the highlight stays in the list.
+            SuppressAutoFocus = true;
+            Rebuild();
+            SuppressAutoFocus = false;
+            FocusLater(NavRow(_category));
+            return;
+        }
+        Rebuild(); // back on the setting that opened the page
+    }
+
+    public override void OnClosed() => _switchSoon.Stop();
+
+    public override void FocusDefault() => (NavRow(_category) ?? (UIElement?)Rows.Children.OfType<Button>().FirstOrDefault())?.Focus();
+
+    public override bool OnAction(NavAction action)
+    {
+        // B in the settings goes back to the list of sections first.
+        if (action == NavAction.Back && Rows.IsKeyboardFocusWithin && NavRow(_category) is { } row)
+        {
+            row.Focus();
+            return true;
+        }
+        return false;
+    }
+
+    private Button? NavRow(string id) => _nav.Children.OfType<Button>().FirstOrDefault(b => b.DataContext as string == "nav:" + id);
+
+    private bool Collapsed => Host.Settings.SettingsNavCollapsed;
+
+    /// <summary>Shrinks the list of sections to icons only, or opens it back up (like the library's sidebar).</summary>
+    private void ToggleNav()
+    {
+        Host.Settings.SettingsNavCollapsed = !Collapsed;
+        Host.Settings.Save();
+        SizeNav(animate: true);
+        BuildNav();
+        FocusLater(_nav.Children.OfType<Button>().FirstOrDefault(b => b.DataContext as string == "nav:toggle"));
+    }
+
+    private void SizeNav(bool animate)
+    {
+        double target = Collapsed ? 96 : 300;
+        _navPanel.Padding = Collapsed ? new Thickness(8, 12, 8, 12) : new Thickness(10, 12, 10, 12);
+        if (!animate || Theme.ReduceMotion)
+        {
+            _navPanel.BeginAnimation(WidthProperty, null);
+            _navPanel.Width = target;
+            return;
+        }
+        var slide = new System.Windows.Media.Animation.DoubleAnimation(_navPanel.ActualWidth > 0 ? _navPanel.ActualWidth : target, target, TimeSpan.FromMilliseconds(220))
+        {
+            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+        };
+        slide.Completed += (_, _) => { _navPanel.BeginAnimation(WidthProperty, null); _navPanel.Width = target; };
+        _navPanel.BeginAnimation(WidthProperty, slide);
+    }
+
+    private void BuildNav()
+    {
+        _nav.Children.Clear();
+        if (Collapsed) { BuildBlade(); return; }
+
+        var shrink = Ui.Row("Show icons only", null, "\uE76B");
+        shrink.FontSize = 15;
+        shrink.DataContext = "nav:toggle";
+        shrink.Margin = new Thickness(0, 0, 0, 6);
+        shrink.Click += (_, _) => ToggleNav();
+        _nav.Children.Add(shrink);
+        _nav.Children.Add(new Border { Height = 2 });
+
+        // You: profile picture, name and version; opens the profile page.
+        var me = new DockPanel();
+        var face = Avatars.Build(Host.Settings.Avatar, 44);
+        face.Margin = new Thickness(0, 0, 12, 0);
+        DockPanel.SetDock(face, Dock.Left);
+        me.Children.Add(face);
+        var (persona, account) = SteamLibrary.GetSteamNames();
+        var who = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var name = Ui.Text(persona ?? account ?? "Your profile", 17, "FgBrush", bold: true);
+        name.TextTrimming = TextTrimming.CharacterEllipsis;
+        who.Children.Add(name);
+        who.Children.Add(Ui.Text("SquareDeck " + Updater.Current, 13, "SubtleBrush"));
+        me.Children.Add(who);
+        var profile = new Button { Style = Ui.StyleOf("RowButton"), Content = me, Margin = new Thickness(0, 0, 0, 8), DataContext = "nav:profile" };
+        profile.Click += (_, _) => Host.Push(new ProfileScreen());
+        _nav.Children.Add(profile);
+        _nav.Children.Add(new Border { Height = 2 }); // keeps it out of the group below
+
+        // Find a setting by name.
+        var search = Ui.Row("Find a setting", null, "\uE721");
+        search.FontSize = 16;
+        search.DataContext = "nav:search";
+        search.Margin = new Thickness(0, 0, 0, 12);
+        search.Click += (_, _) => Host.Push(new SearchScreen(settingsOnly: true));
+        _nav.Children.Add(search);
+        _nav.Children.Add(new Border { Height = 2 });
+
+        foreach (var c in Categories)
+        {
+            string id = c.Id;
+            var row = Ui.Row(c.Name, null, c.Glyph);
+            row.FontSize = 16;
+            row.Margin = new Thickness(0, 1, 0, 1);
+            row.DataContext = "nav:" + id;
+            if (id == _category) row.Tag = "selected";
+            // Moving onto a section shows it; selecting it goes into its settings.
+            row.GotKeyboardFocus += (_, _) =>
+            {
+                _pendingCategory = id;
+                _switchSoon.Stop();
+                _switchSoon.Start();
+            };
+            row.Click += (_, _) => Show(id, focusContent: true);
+            _nav.Children.Add(row);
+        }
+        Ui.GroupRows(_nav);
+    }
+
+    /// <summary>The sections as a blade of icons: open it up, you, find a setting, then each section.</summary>
+    private void BuildBlade()
+    {
+        Button Add(Button b, string tag, Thickness margin)
+        {
+            b.DataContext = tag;
+            b.Margin = margin;
+            _nav.Children.Add(b);
+            return b;
+        }
+        Add(Ui.BladeButton("\uE76C", "Show the names"), "nav:toggle", new Thickness(0, 0, 0, 4)).Click += (_, _) => ToggleNav();
+        var face = Avatars.Build(Host.Settings.Avatar, 40);
+        Add(Ui.BladeButton(null, "Your profile", picture: face), "nav:profile", new Thickness(0, 4, 0, 0)).Click += (_, _) => Host.Push(new ProfileScreen());
+        Add(Ui.BladeButton("\uE721", "Find a setting"), "nav:search", new Thickness(0, 0, 0, 8)).Click += (_, _) => Host.Push(new SearchScreen(settingsOnly: true));
+        foreach (var c in Categories)
+        {
+            string id = c.Id;
+            var row = Add(Ui.BladeButton(c.Glyph, c.Name, selected: id == _category), "nav:" + id, new Thickness(0));
+            row.GotKeyboardFocus += (_, _) =>
+            {
+                _pendingCategory = id;
+                _switchSoon.Stop();
+                _switchSoon.Start();
+            };
+            row.Click += (_, _) => Show(id, focusContent: true);
+        }
+    }
+
+    /// <summary>Shows a section on the right, keeping the focus where it is unless asked to move into it.</summary>
+    private void Show(string id, bool focusContent)
+    {
+        _switchSoon.Stop();
+        _category = id;
+        _lastCategory = id;
+        if (Collapsed)
+        {
+            // The blade shows where you are with a stronger tint, so it's redrawn (keeping the focus on the same icon).
+            var focused = _nav.Children.OfType<Button>().FirstOrDefault(b => b.IsKeyboardFocused)?.DataContext as string;
+            BuildNav();
+            if (focused != null) _nav.Children.OfType<Button>().FirstOrDefault(b => b.DataContext as string == focused)?.Focus();
+        }
+        else
+            foreach (var b in _nav.Children.OfType<Button>())
+                if (b.DataContext is string tag && tag.StartsWith("nav:") && tag is not ("nav:profile" or "nav:search" or "nav:toggle"))
+                    b.Tag = tag == "nav:" + id ? "selected" : null;
+        SuppressAutoFocus = true;
+        ForgetRow(); // a different section starts at its top
+        Rebuild();
+        SuppressAutoFocus = false;
+        RowsScroll.ScrollToTop();
+        if (focusContent) FocusLater(Rows.Children.OfType<Button>().FirstOrDefault());
+        // No sound here: moving onto the section in the list already made one.
+    }
 
     protected override void Build()
     {
         var s = Host.Settings;
+        var cat = Categories.FirstOrDefault(c => c.Id == _category);
+        if (cat.Id == null) { _category = "look"; cat = Categories[0]; }
+
+        // The section's name and what's in it, at the top of the right pane.
+        var title = Ui.Text(cat.Name, 30, "FgBrush", bold: true);
+        title.Margin = new Thickness(6, 0, 0, 2);
+        Rows.Children.Add(title);
+        var about = Ui.Text(cat.About, 15, "SubtleBrush");
+        about.Margin = new Thickness(6, 0, 0, 0);
+        Rows.Children.Add(about);
+
         switch (_category)
         {
-            case null:
-                BuildHome();
-                break;
-
             case "look": BuildLook(s); break;
             case "home": BuildHome(s); break;
             case "sound": BuildSound(s); break;
             case "controller": BuildController(s); break;
+            case "power": BuildPower(s); break;
             case "games": BuildGames(s); break;
+            case "access": BuildAccess(s); break;
             case "network": BuildNetwork(s); break;
             case "system": BuildSystem(s); break;
             case "data": BuildData(s); break;
         }
     }
 
+    private static readonly int[] TextSizes = { 100, 115, 130, 150 };
+
+    /// <summary>Accessibility, in its own section.</summary>
+    private void BuildAccess(Settings s)
+    {
+        void Apply()
+        {
+            s.Save();
+            Host.ApplyLook();
+            Host.ApplySettings();
+            Rebuild();
+        }
+
+        AddHeader("Seeing");
+        AddRow("Text and control size", s.TextScale + "%", "\uE8D3", click: () =>
+        {
+            s.TextScale = TextSizes[(Array.IndexOf(TextSizes, s.TextScale) + 1) % TextSizes.Length];
+            s.Save();
+            Host.ApplyLook();
+            Host.ApplySettings();
+            Host.Pop(this);                          // pages take the new size when they open,
+            Host.Push(new SettingsScreen("access")); // so reopen this one to show it straight away
+        });
+        AddNote("Makes text and buttons larger on every page. The home screen keeps its layout; its tiles are already large.");
+        string contrast = s.ThemeMode switch { "hc-dark" => "White on black", "hc-light" => "Black on white", _ => "Off" };
+        AddRow("High contrast", contrast, "\uE793", click: () =>
+        {
+            s.ThemeMode = s.ThemeMode switch { "hc-dark" => "hc-light", "hc-light" => "system", _ => "hc-dark" };
+            s.DarkTheme = Theme.ShouldBeDark(s);
+            Apply();
+        });
+        AddRow("Color filters (Windows)", glyph: "\uE790", click: () => ProcessUtil.Open("ms-settings:easeofaccess-colorfilter"));
+        AddNote("Grayscale, inverted and color-blindness filters for the whole screen, games included. Win+Ctrl+C switches them on and off.");
+
+        AddHeader("Motion");
+        AddRow("Reduce motion", OnOff(s.ReduceMotion), "\uE916", click: () =>
+        {
+            s.ReduceMotion = !s.ReduceMotion;
+            Apply();
+        });
+        AddNote("Stops the pulsing highlight, page slides, fades, animated covers and the startup animation.");
+    }
+
     private static string _lastCategory = "look";
 
-    /// <summary>The first page: who and what this is, then the categories as a grid of cards.</summary>
-    private void BuildHome()
-    {
-        // A summary card: profile picture, name, version, and a way to the profile page.
-        var top = new DockPanel { LastChildFill = true };
-        var face = Avatars.Build(Host.Settings.Avatar, 64);
-        face.Margin = new Thickness(0, 0, 18, 0);
-        DockPanel.SetDock(face, Dock.Left);
-        top.Children.Add(face);
-        var who = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        // The Steam account signed in on this PC, rather than the Windows user name.
-        var steamId = SteamLibrary.GetSteamId64();
-        var (persona, account) = SteamLibrary.GetSteamNames();
-        who.Children.Add(Ui.Text(persona ?? account ?? (steamId != null ? "Steam account" : "Not signed in to Steam"), 22, "FgBrush", bold: true));
-        who.Children.Add(Ui.Text((steamId != null ? "Steam ID " + steamId : "Sign in to Steam to see your account") +
-                                 "  \u00B7  SquareDeck " + Updater.Current, 15, "SubtleBrush"));
-        top.Children.Add(who);
-        var summary = new Border { CornerRadius = new CornerRadius(16), Padding = new Thickness(22, 16, 22, 16), Child = top };
-        summary.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-        var profile = Ui.Tile(summary);
-        profile.Margin = new Thickness(-8, 0, -8, 6);
-        profile.DataContext = "profile";
-        profile.Click += (_, _) => Host.Push(new ProfileScreen());
-        // Wrapped, so the list's own "keep the highlight in place" logic leaves the focus to this page.
-        Rows.Children.Add(new Grid { Children = { profile } });
-
-        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new Thickness(-8, 0, -8, 0) };
-        Button? focus = null;
-        foreach (var c in Categories)
-        {
-            string id = c.Id;
-            var stack = new StackPanel { Height = 140 };
-            var badge = Ui.IconBadge(c.Glyph, 52);
-            badge.HorizontalAlignment = HorizontalAlignment.Left;
-            badge.Margin = new Thickness(0, 0, 0, 14);
-            stack.Children.Add(badge);
-            stack.Children.Add(Ui.Text(c.Name, 18, "FgBrush", bold: true));
-            var about = Ui.Text(c.About, 14, "SubtleBrush");
-            about.TextWrapping = TextWrapping.Wrap;
-            about.TextTrimming = TextTrimming.CharacterEllipsis;
-            about.MaxHeight = 40;
-            about.Margin = new Thickness(0, 4, 0, 0);
-            stack.Children.Add(about);
-            var card = new Border { CornerRadius = new CornerRadius(16), Padding = new Thickness(20, 18, 20, 16), Child = stack };
-            card.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-            var tile = Ui.Tile(card);
-            tile.DataContext = id;
-            tile.GotKeyboardFocus += (_, _) => _lastCategory = id;
-            tile.Click += (_, _) =>
-            {
-                if (id == "access") Host.Push(new AccessibilityScreen());
-                else Host.Push(new SettingsScreen(id));
-            };
-            if (id == _lastCategory) focus = tile;
-            grid.Children.Add(tile);
-        }
-        Rows.Children.Add(grid);
-        FocusLater(focus ?? grid.Children.OfType<Button>().First());
-    }
 
     private void BuildLook(Settings s)
     {
         AddHeader("Theme");
+        AddRow("UI style", UiStyles.Find(s.UiStyle).Name, "\uE771", click: () => Host.Push(new UiStyleScreen()),
+            subtitle: "Switch, Xbox, PlayStation 5, Steam Big Picture, Neon, Minimal, Retro or Glass");
+        AddRow("Moving background", s.DynamicBackground.Length == 0 ? "Off" : System.IO.Path.GetFileNameWithoutExtension(s.DynamicBackground),
+            "\uE714", click: () => Host.Push(new DynamicBackgroundScreen()), subtitle: "Waves or blades in motion, with a blur level");
         AddRow("Theme", ThemeLabel(s.ThemeMode), "", click: () =>
         {
             // Light -> Dark -> OLED black -> Follow system -> Light
@@ -135,7 +390,8 @@ public sealed class SettingsScreen : ListScreen
 
         AddHeader("Artwork");
         AddRow("Hero background behind the home row", OnOff(s.HeroBackgrounds), "", click: () =>
-            Toggle(() => s.HeroBackgrounds = !s.HeroBackgrounds));
+            Toggle(() => s.HeroBackgrounds = !s.HeroBackgrounds),
+            subtitle: s.DynamicBackground.Length > 0 ? "Turned off while a moving background is on" : null);
         AddRow("Animated cover on the highlighted game", OnOff(s.AnimatedCovers), "", click: () =>
             Toggle(() => s.AnimatedCovers = !s.AnimatedCovers));
         AddRow("Color the game details page from the cover art", OnOff(s.DetailsGradient), "", click: () =>
@@ -163,8 +419,45 @@ public sealed class SettingsScreen : ListScreen
                 "instead of leaving bars at the top and bottom.");
     }
 
+    private static readonly (string Id, string Name)[] ButtonStyles =
+        { ("grow", "Grow and glow"), ("lift", "Lift"), ("bounce", "Bounce"), ("pulse", "Pulse"), ("wiggle", "Wiggle") };
+    private static readonly (string Id, string Name)[] PageStyles =
+        {
+            ("slide", "Slide up"), ("slide-left", "Slide in from the side"), ("slide-down", "Drop down"), ("rise", "Rise"),
+            ("fade", "Fade"), ("zoom", "Zoom"), ("pop", "Pop"), ("spring", "Spring"), ("drop", "Bounce"), ("flip", "Card flip"),
+            ("swing", "Swing"), ("focus", "Come into focus"), ("none", "None")
+        };
+    private static readonly (string Id, string Name)[] TileStyles =
+        { ("pulse", "Pulsing ring"), ("steady", "Steady ring"), ("grow", "Tile grows") };
+
+    private async Task ChooseAsync((string Id, string Name)[] options, string title, string? message, Action<string> set)
+    {
+        int choice = await Host.AskAsync(title, message, options.Select(o => o.Name).ToArray());
+        if (choice >= 0) Toggle(() => set(options[choice].Id));
+    }
+
     private void BuildHome(Settings s)
     {
+        AddHeader("Animations");
+        AddRow("Home buttons", s.ButtonAnimations ? ButtonStyles.FirstOrDefault(b => b.Id == s.ButtonAnimationStyle).Name ?? "Grow and glow" : "Off",
+            "\uE916", click: async () =>
+            {
+                var options = ButtonStyles.Append(("off", "Off")).ToArray();
+                int choice = await Host.AskAsync("Home button animation", "How the round buttons and top-bar icons react when highlighted. " +
+                                                 "All of them spring when pressed.", options.Select(o => o.Item2).ToArray());
+                if (choice < 0) return;
+                Toggle(() =>
+                {
+                    s.ButtonAnimations = options[choice].Item1 != "off";
+                    if (s.ButtonAnimations) s.ButtonAnimationStyle = options[choice].Item1;
+                });
+            }, subtitle: "Grow, lift, bounce, pulse or wiggle when highlighted");
+        AddRow("Opening pages", PageStyles.FirstOrDefault(p => p.Id == s.PageTransition).Name ?? "Slide up", "\uE8A7",
+            click: () => _ = ChooseAsync(PageStyles, "Opening pages", "How pages and pop-ups appear.", v => s.PageTransition = v));
+        AddRow("Selected game", TileStyles.FirstOrDefault(t => t.Id == s.TileHighlight).Name ?? "Pulsing ring", "\uE7FC",
+            click: () => _ = ChooseAsync(TileStyles, "Selected game", "How the highlighted game on the home row stands out.", v => s.TileHighlight = v));
+        AddNote("Startup and closing animations are under Appearance. Reduce motion (Accessibility) turns all of these off.");
+
         AddHeader("Home row");
         AddRow("Continue where you left off", OnOff(s.ContinueTile), "\uE768", click: () =>
             Toggle(() => s.ContinueTile = !s.ContinueTile),
@@ -175,6 +468,8 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Friends button", OnOff(s.ShowFriendsButton), "", click: () => Toggle(() => s.ShowFriendsButton = !s.ShowFriendsButton));
         AddRow("Web browser button", OnOff(s.ShowBrowserButton), "", click: () => Toggle(() => s.ShowBrowserButton = !s.ShowBrowserButton));
         AddRow("Explorer (files) button", OnOff(s.ShowExplorerButton), "", click: () => Toggle(() => s.ShowExplorerButton = !s.ShowExplorerButton));
+        AddRow("News button", OnOff(s.ShowNewsButton), "\uE789", click: () => Toggle(() => s.ShowNewsButton = !s.ShowNewsButton),
+            subtitle: "Game news, patches, announcements and sales");
         AddNote("Home, Favorites, Apps, Captures, Stores, Settings and Power are always shown. Hidden pages can still be opened from Settings.");
 
         AddHeader("Screen saver");
@@ -204,7 +499,7 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Startup animation", MainWindow.BootAnimations.FirstOrDefault(b => b.Id == s.BootAnimation).Name ?? "Logo pop", "",
             click: ChooseBootAnimation);
         AddRow("Boot video", s.BootVideo.Length > 0 ? Path.GetFileName(s.BootVideo) : "Built-in animation", "", click: ChooseBootVideo);
-        AddRow("Closing animation on Exit to desktop", OnOff(s.ExitAnimation), "", click: () =>
+        AddRow("Closing animation on Exit SquareDeck", OnOff(s.ExitAnimation), "", click: () =>
             Toggle(() => s.ExitAnimation = !s.ExitAnimation));
         AddRow("Closing animation style", MainWindow.ExitStyles.FirstOrDefault(x => x.Id == s.ExitStyle).Name ?? "Logo goodbye", "",
             click: ChooseExitStyle);
@@ -254,6 +549,12 @@ public sealed class SettingsScreen : ListScreen
 
     private void BuildController(Settings s)
     {
+        AddHeader("Typing");
+        AddRow("Keyboard for typing", s.TouchKeyboard == "windows" ? "Windows touch keyboard" : "SquareDeck keyboard", "\uE765",
+            click: () => Toggle(() => s.TouchKeyboard = s.TouchKeyboard == "windows" ? "squaredeck" : "windows"),
+            subtitle: s.TouchKeyboard == "windows" ? "Best on a touchscreen; Windows' keyboard opens when you type"
+                                                   : "Built in, works with the controller");
+
         if (AllyButtons.Model.Length > 0 || AllyButtons.IsSupported)
         {
             AddHeader(AllyButtons.Model.Length > 0 ? AllyButtons.Model : "ROG Ally");
@@ -269,6 +570,16 @@ public sealed class SettingsScreen : ListScreen
         });
         AddNote("Xbox shows A B X Y, PlayStation shows ✕ ○ □ △, Switch shows B A Y X for the same button positions. " +
                 "When you use a keyboard or mouse the hints switch to keys (Enter, Esc, X, Y) by themselves.");
+        AddRow("How buttons are drawn", Hints.Looks.FirstOrDefault(x => x.Id == s.GlyphLook).Name ?? "Simple", "\uE7FC", click: () =>
+        {
+            int index = Array.FindIndex(Hints.Looks, x => x.Id == s.GlyphLook);
+            Toggle(() => s.GlyphLook = Hints.Looks[(index + 1) % Hints.Looks.Length].Id);
+        });
+        AddNote("Simple draws the button's name on a pill. Controller icons and Pixel art show pictures of the buttons, " +
+                "for the controller chosen above, and of the keys when you use a keyboard.");
+        int pagesOn = MainWindow.CyclePages.Count(p => !s.PagesOff.Contains(p.Id));
+        AddRow("Pages LB / RB switch between", $"{pagesOn} of {MainWindow.CyclePages.Length}", "",
+            click: () => Host.Push(new PageOrderScreen()), subtitle: "Choose which pages, and their order");
         AddRow("Which button does what", string.Join(" ", Hints.Map.Select(Hints.ButtonName)), "",
             click: () => Host.Push(new ControlsScreen()));
         AddRow("Vibration strength", s.RumbleStrength <= 0 ? "Off" : s.RumbleStrength + "%", "", click: RumbleStrength);
@@ -286,8 +597,197 @@ public sealed class SettingsScreen : ListScreen
             "", click: () => Toggle(() => s.OverlaySide = s.OverlaySide switch { "right" => "left", "left" => "center", _ => "right" }));
     }
 
+    /// <summary>Power and performance: TDP control for AMD handhelds, and the launcher's own Performance mode.</summary>
+    private void BuildPower(Settings s)
+    {
+        var chip = TdpControl.Chip;
+        AddHeader("Processor power (TDP)");
+        if (chip == null)
+        {
+            AddNote("TDP control works with AMD processors (Ryzen Z2 Extreme, Z1 Extreme and similar). This PC has " +
+                    (TdpControl.CpuName.Length > 0 ? TdpControl.CpuName : "a processor SquareDeck couldn't identify") + ".");
+        }
+        else if (!TdpControl.Installed)
+        {
+            AddNote(chip.Name + ". " + chip.Note);
+            AddRow("Set up TDP control", "Not set up", "\uE896", click: SetUpTdp,
+                subtitle: TdpControl.HasBundled ? "Installs RyzenAdj, which comes with SquareDeck (one Windows permission prompt)"
+                                                : "Downloads RyzenAdj from GitHub and installs it (one Windows permission prompt)");
+            AddNote("Setting the power limit needs administrator rights. Setup installs RyzenAdj (an open-source tool, " +
+                    "github.com/FlyGoat/RyzenAdj) into Program Files and adds a background task, \"SquareDeck\\ApplyTdp\", " +
+                    "that applies your limits without asking each time. You can remove both here later.");
+        }
+        else
+        {
+            AddRow("TDP control", OnOff(s.TdpEnabled), "\uEC4A", click: () =>
+            {
+                s.TdpEnabled = !s.TdpEnabled;
+                SaveTdp();
+            }, subtitle: s.TdpEnabled ? (TdpControl.LastResult.Length > 0 ? TdpControl.LastResult : chip.Name) : chip.Name);
+            if (s.TdpEnabled)
+            {
+                AddRow("TDP limit", TdpControl.Clamp(s.TdpWatts) + " W", "\uE945", click: () => _ = PickWattsAsync("TDP limit",
+                    "The processor's power limit. Lower lasts longer on battery and runs cooler; higher runs games faster.",
+                    s.TdpWatts, w => { s.TdpWatts = w; SaveTdp(); }));
+                AddRow("Quick presets", null, "\uE9E9", click: () => _ = TdpPresetAsync(s));
+                AddRow("Different limit when plugged in", s.TdpPluggedWatts > 0 ? TdpControl.Clamp(s.TdpPluggedWatts) + " W" : "Same", "\uEBB5", click: async () =>
+                {
+                    int choice = await Host.AskAsync("When plugged in", "Use a different limit while the charger is connected?", "Same as on battery", "Choose a limit…");
+                    if (choice == 0) { s.TdpPluggedWatts = 0; SaveTdp(); }
+                    else if (choice == 1)
+                        await PickWattsAsync("TDP when plugged in", "Used while the charger is connected.",
+                            s.TdpPluggedWatts > 0 ? s.TdpPluggedWatts : chip.Max, w => { s.TdpPluggedWatts = w; SaveTdp(); });
+                });
+                AddRow("Temperature limit", s.TdpTempLimit > 0 ? s.TdpTempLimit + " °C" : "Device default", "\uE9CA", click: async () =>
+                {
+                    int[] temps = { 0, 80, 85, 90, 95 };
+                    int choice = await Host.AskAsync("Temperature limit", "The processor slows down before it gets hotter than this. Lower is cooler and quieter.",
+                        temps.Select(t => t == 0 ? "Device default" : t + " °C").ToArray());
+                    if (choice < 0) return;
+                    s.TdpTempLimit = temps[choice];
+                    SaveTdp();
+                });
+            }
+        }
+
+        AddHeader("Processor");
+        AddRow("CPU boost", OnOff(s.CpuBoost), "\uE9F5", click: () => { s.CpuBoost = !s.CpuBoost; SaveTdp(); },
+            subtitle: "Short bursts above the base speed. Off saves battery and heat; most games barely notice");
+        AddRow("Maximum CPU speed", s.MaxCpu >= 100 ? "No limit" : s.MaxCpu + "%", "\uEC48", click: async () =>
+        {
+            int[] caps = { 100, 90, 80, 70, 60, 50 };
+            int choice = await Host.AskAsync("Maximum CPU speed", "Caps how fast the processor may run. Leaves more of the power limit for graphics.",
+                caps.Select(c => c >= 100 ? "No limit" : c + "%").ToArray());
+            if (choice < 0) return;
+            s.MaxCpu = caps[choice];
+            SaveTdp();
+        });
+        AddRow("Windows power mode", TdpControl.PowerModeName(s.WindowsPowerMode), "\uE83F", click: async () =>
+        {
+            var modes = TdpControl.WindowsPowerModes;
+            int choice = await Host.AskAsync("Windows power mode", "The same as Settings > System > Power in Windows (used with the Balanced power plan).",
+                modes.Select(m => m.Name).ToArray());
+            if (choice < 0) return;
+            s.WindowsPowerMode = modes[choice].Id;
+            SaveTdp();
+        });
+        AddNote("Games can have their own TDP, CPU boost, speed and power mode: open a game's options (Y) > Game profile. " +
+                "The TDP can also be changed while playing from the Guide menu or Quick settings, until the game closes.");
+
+        if (TdpControl.Installed)
+        {
+            AddHeader("TDP control setup");
+            AddRow("Keep re-applying", OnOff(s.TdpReapply), "\uE72C", click: () => { s.TdpReapply = !s.TdpReapply; SaveTdp(); },
+                subtitle: "Every 15 seconds, for devices whose own software puts its limit back (Armoury Crate, Legion Space)");
+            AddRow("Apply now", TdpControl.LastResult, "\uE768", click: async () => { await TdpControl.ApplyAsync(); Rebuild(); });
+            AddRow("Remove TDP control", null, "\uE74D", click: async () =>
+            {
+                if (await Host.AskAsync("Remove TDP control?", "This removes RyzenAdj and the background task. The current limit stays until the device restarts or its own software changes it.", "Remove", "Cancel") != 0) return;
+                var error = await TdpControl.UninstallAsync();
+                if (error != null) await Host.AskAsync("Couldn't remove everything", error, "OK");
+                s.TdpEnabled = false;
+                s.Save();
+                Rebuild();
+            });
+        }
+
+        AddHeader("Launcher performance");
+        AddRow("Performance mode", Perf.Label(s.PerformanceMode), "\uEC4A", click: () =>
+        {
+            // Off -> on battery only -> always -> off
+            s.PerformanceMode = s.PerformanceMode switch { "off" => "battery", "battery" => "on", _ => "off" };
+            s.Save();
+            Host.ApplyPerformance();
+            Rebuild();
+        }, subtitle: Perf.Active ? "On now: lighter effects to save battery and graphics power" : "Uses less graphics power and battery");
+        AddNote("Turns off drop shadows, glows and live blurs (artwork is softened a cheaper way), the pulsing highlight and " +
+                "animated covers, and draws animations at 30 frames a second (from the next start). While a game runs and " +
+                "SquareDeck is in the background, it always stops drawing and gives the game its CPU and graphics time.");
+
+    }
+
+    private void SaveTdp()
+    {
+        Host.Settings.Save();
+        TdpControl.UpdateReapplyTimer();
+        _ = ApplyTdpAndRefreshAsync();
+        Rebuild();
+    }
+
+    private async Task ApplyTdpAndRefreshAsync()
+    {
+        await TdpControl.ApplyAsync();
+        if (IsLoaded) Rebuild();
+    }
+
+    private async Task PickWattsAsync(string title, string message, int watts, Action<int> chosen)
+    {
+        var chip = TdpControl.Chip;
+        if (chip == null) return;
+        var dialog = new SliderDialog(title, message, "Watts", "\uE945", TdpControl.Clamp(watts), null, chip.Min, chip.Max, v => v + " W");
+        Host.Push(dialog);
+        chosen(TdpControl.Clamp(await dialog.Result));
+    }
+
+    private async Task TdpPresetAsync(Settings s)
+    {
+        var chip = TdpControl.Chip!;
+        var presets = new[] { ("Silent", 8), ("Battery saver", 12), ("Balanced", 18), ("Performance", 25), ("Turbo", chip.Max) }
+            .Where(p => p.Item2 >= chip.Min && p.Item2 <= chip.Max).ToArray();
+        int choice = await Host.AskAsync("TDP preset", null, presets.Select(p => $"{p.Item1}  ({p.Item2} W)").ToArray());
+        if (choice < 0) return;
+        s.TdpWatts = presets[choice].Item2;
+        SaveTdp();
+    }
+
+    private async void SetUpTdp()
+    {
+        if (await Host.AskAsync("Set up TDP control?",
+                (TdpControl.HasBundled ? "SquareDeck will install the copy of RyzenAdj that comes with it. " : "SquareDeck will download RyzenAdj from GitHub. ") +
+                "Windows will ask for permission to install it with a " +
+                "background task that applies your limits. Changing power limits is at your own risk; stay within your device's range.",
+                "Set up", "Cancel") != 0) return;
+        Host.ShowToast("TDP control", "Setting up…", TdpControl.HasBundled ? "Installing RyzenAdj" : "Downloading RyzenAdj", "", "info");
+        var error = await TdpControl.InstallAsync();
+        if (error != null)
+        {
+            await Host.AskAsync("TDP control isn't set up", error, "OK");
+        }
+        else
+        {
+            Host.Settings.TdpEnabled = true;
+            Host.Settings.TdpWatts = TdpControl.Chip?.Default ?? 15;
+            Host.Settings.Save();
+            await TdpControl.ApplyAsync();
+            Host.ShowToast("TDP control", "Ready", TdpControl.LastResult, "", "info");
+        }
+        Rebuild();
+    }
+
     private void BuildGames(Settings s)
     {
+        AddHeader("Launching games");
+        AddRow("Countdown before a game starts", s.LaunchCountdown ? s.LaunchCountdownSeconds + " seconds" : "Off", "\uE916", click: () =>
+        {
+            // Off -> 3 -> 5 -> 10 -> off
+            Toggle(() =>
+            {
+                if (!s.LaunchCountdown) { s.LaunchCountdown = true; s.LaunchCountdownSeconds = 3; }
+                else if (s.LaunchCountdownSeconds < 5) s.LaunchCountdownSeconds = 5;
+                else if (s.LaunchCountdownSeconds < 10) s.LaunchCountdownSeconds = 10;
+                else s.LaunchCountdown = false;
+            });
+        }, subtitle: "A moment to change your mind, with Start now and Cancel");
+        AddRow("Splash screen while a game starts", OnOff(s.LaunchSplash), "\uE7F4", click: () => Toggle(() => s.LaunchSplash = !s.LaunchSplash),
+            subtitle: "The game's cover fills the screen until the game is running");
+        AddRow("Start Steam games directly", OnOff(s.SteamDirectLaunch), "\uE756", click: () => Toggle(() => s.SteamDirectLaunch = !s.SteamDirectLaunch),
+            subtitle: "From the game's own program instead of a Steam link, so Steam's launch pop-up stays away");
+        AddNote("With this on, SquareDeck starts the game's .exe itself and tells it which Steam game it is. Steam must already be " +
+                "running; if it isn't, or the program can't be found, the game starts through Steam as usual. SquareDeck remembers each " +
+                "game's program the first time you play it, and you can pick it yourself in the game's options (Program to start " +
+                "directly). Launch options set in Steam aren't used, the Steam overlay may not appear, and a few games (with their own " +
+                "launcher or copy protection) still restart themselves through Steam.");
+
         AddHeader("Captures");
         AddRow("Open Captures as albums (one per game)", OnOff(s.CaptureAlbums), "\uE8B9",
             click: () => Toggle(() => s.CaptureAlbums = !s.CaptureAlbums),
@@ -299,19 +799,34 @@ public sealed class SettingsScreen : ListScreen
         int hidden = Host.HiddenCount;
         if (hidden > 0)
             AddRow("Restore removed games", hidden.ToString(), "", click: () => { Host.RestoreHidden(); Rebuild(); });
-        AddRow("Include Epic, GOG, Xbox, Battle.net and Steam shortcuts", OnOff(s.OtherStores), "", click: () =>
+        AddHeader("Other game stores");
+        AddRow("Show games from other stores", OnOff(s.OtherStores), "\uE7BF", click: () =>
         {
             Toggle(() => s.OtherStores = !s.OtherStores);
             _ = Host.ReloadAsync(waitForArt: false);
         });
+        if (s.OtherStores)
+        {
+            // Each store on its own, so one can be left out without losing the others.
+            foreach (var (id, name) in ExternalStores.Stores)
+            {
+                string store = id;
+                AddRow(name, OnOff(!s.DisabledStores.Contains(id)), "\uE719", click: () =>
+                {
+                    Toggle(() =>
+                    {
+                        if (!s.DisabledStores.Remove(store)) s.DisabledStores.Add(store);
+                    });
+                    _ = Host.ReloadAsync(waitForArt: false);
+                });
+            }
+        }
 
         AddHeader("While playing");
         AddRow("Free graphics memory for the game", OnOff(s.FreeGpuDuringGames), "\uE7F4", click: () =>
             Toggle(() => s.FreeGpuDuringGames = !s.FreeGpuDuringGames));
         AddNote("While a game runs, the launcher stops using the graphics card and lets go of its pictures, so the game gets the " +
                 "video memory. Recommended; turn off only if switching back to the launcher feels slow.");
-        AddRow("3-second countdown before a game starts", OnOff(s.LaunchCountdown), "", click: () =>
-            Toggle(() => s.LaunchCountdown = !s.LaunchCountdown));
         AddRow("Do not disturb (hide Windows notifications)", OnOff(s.DoNotDisturb), "", click: () =>
             Toggle(() => s.DoNotDisturb = !s.DoNotDisturb));
         AddRow("Return to the launcher when a game closes", OnOff(s.ReturnToLauncher), "", click: () =>
@@ -340,9 +855,25 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Network speed test", glyph: "", click: () => Host.Push(new SpeedTestScreen()));
 
         AddHeader("Web browser");
-        AddRow("Open the browser", glyph: "", click: () => Host.Push(new BrowserScreen()));
+        AddRow("Open the browser", glyph: "", click: () => Host.Push(BrowserScreen.Open(Host)));
         AddRow("Show its button on the home screen", OnOff(s.ShowBrowserButton), "", click: () =>
             Toggle(() => s.ShowBrowserButton = !s.ShowBrowserButton));
+        AddRow("Keep the browser open when you leave it", OnOff(s.BrowserKeepOpen), "\uE8A7", click: () =>
+        {
+            Toggle(() => s.BrowserKeepOpen = !s.BrowserKeepOpen);
+            if (!s.BrowserKeepOpen) BrowserScreen.DisposeKept();
+        }, subtitle: "Tabs and pages stay as they were when you come back");
+        AddRow("Most tabs open at once", s.BrowserMaxTabs + " tabs", "\uE737", click: async () =>
+        {
+            int[] counts = { 2, 3, 4, 6, 8, 10, 15 };
+            int choice = await Host.AskAsync("Most tabs open at once",
+                "Every open tab uses memory and battery, even in the background. When the limit is reached, open a new tab by closing one.",
+                counts.Select(c => c + " tabs" + (c == 6 ? " (recommended)" : "")).ToArray());
+            if (choice >= 0) Toggle(() => s.BrowserMaxTabs = counts[choice]);
+        }, subtitle: "Fewer tabs keep the browser quick on a handheld");
+        AddRow("Right stick in the browser", s.BrowserStickMouse ? "Moves a pointer" : "Scrolls the page", "\uE962", click: () =>
+            Toggle(() => s.BrowserStickMouse = !s.BrowserStickMouse),
+            subtitle: "As a pointer, press the stick in (or A just after moving it) to click");
         AddRow("Home page", s.BrowserHome, "", click: async () =>
         {
             var text = await Host.PromptAsync("Browser home page", "The page the browser opens with.", s.BrowserHome);
@@ -370,6 +901,15 @@ public sealed class SettingsScreen : ListScreen
         AddHeader("This PC");
         AddRow("Display, sound output, sleep, power plan", glyph: "", click: () => Host.Push(new PcSettingsScreen()));
         AddRow("Battery", glyph: "", click: () => Host.Push(new BatteryScreen()));
+        AddRow("Low battery notification", s.LowBatteryAlert ? "At " + s.LowBatteryLevel + "%" : "Off", "\uEBA0", click: async () =>
+        {
+            int[] levels = { 0, 30, 25, 20, 15, 10 };
+            int choice = await Host.AskAsync("Low battery notification",
+                "A notification when the battery gets down to this level, even over a game, and again at 5%.",
+                levels.Select(l => l == 0 ? "Off" : "At " + l + "%").ToArray());
+            if (choice < 0) return;
+            Toggle(() => { s.LowBatteryAlert = levels[choice] > 0; if (levels[choice] > 0) s.LowBatteryLevel = levels[choice]; });
+        }, subtitle: "Shown over games too");
         AddRow("Device information", glyph: "", click: () => Host.Push(new DeviceInfoScreen()));
         AddRow("Restart to UEFI / BIOS setup", glyph: "\uE950", click: () => _ = Host.RestartToFirmwareAsync());
         AddRow("Format a USB drive or memory card", glyph: "", click: () => Host.Push(new StorageScreen()));
@@ -377,11 +917,36 @@ public sealed class SettingsScreen : ListScreen
         AddHeader("Tools");
         AddRow("Task Manager", "Apps, processes, performance", "", click: () => Host.Push(new TaskManagerScreen()));
         AddRow("File explorer", glyph: "", click: () => Host.Push(new ExplorerScreen()));
-        AddRow("Xbox mode home app", AnyFse.IsInstalled() && AnyFse.LaunchesUs() && AnyFse.IsHomeApp() ? "SquareDeck" : "Set up", "\uE7FC",
-            click: () => Host.Push(new AnyFseScreen()), subtitle: "Open SquareDeck as the full screen experience's home, through AnyFSE");
+        bool homeApp = HomeApp.IsHomeApp || (AnyFse.IsInstalled() && AnyFse.LaunchesUs() && AnyFse.IsHomeApp());
+        AddRow("Xbox mode home app", homeApp ? "SquareDeck" : "Set up", "\uE7FC",
+            click: () => Host.Push(new HomeAppScreen()), subtitle: "Start Xbox mode (the full screen experience) straight into SquareDeck");
         if (AllyButtons.Model.Length > 0 || AllyButtons.IsSupported)
             AddRow("ROG Ally buttons", s.AllyRemap ? "Remapped" : "Off", "\uE765", click: () => Host.Push(new AllyButtonsScreen()),
                 subtitle: "Armoury Crate, Command Center and Mode+ buttons");
+
+        AddHeader("Windows");
+        void Tweak(string label, Func<bool> get, Action<bool> set, string glyph, string about) =>
+            AddRow(label, OnOff(get()), glyph, click: () =>
+            {
+                try { set(!get()); }
+                catch (Exception ex) { _ = Host.AskAsync("Couldn't change that", ex.Message, "OK"); }
+                Rebuild();
+            }, subtitle: about);
+        Tweak("Dark mode for Windows", () => WindowsTweaks.DarkMode, v => WindowsTweaks.DarkMode = v, "\uE793", "Windows' own apps, menus and taskbar");
+        Tweak("Game Mode", () => WindowsTweaks.GameMode, v => WindowsTweaks.GameMode = v, "\uE7FC", "Gives games priority and keeps Windows Update quiet while you play");
+        Tweak("Background recording", () => WindowsTweaks.BackgroundRecording, v => WindowsTweaks.BackgroundRecording = v, "\uE714",
+            "Game Bar keeps the last minutes of play to save as a clip. Off saves battery and performance");
+        Tweak("Xbox button opens Game Bar", () => WindowsTweaks.GameBarOnGuide, v => WindowsTweaks.GameBarOnGuide = v, "\uE990",
+            "Turn off so the Guide button only brings up SquareDeck");
+        Tweak("Transparency effects", () => WindowsTweaks.Transparency, v => WindowsTweaks.Transparency = v, "\uE727", "See-through Windows menus (off saves a little battery)");
+        Tweak("Sticky Keys shortcut", () => WindowsTweaks.StickyKeysShortcut, v => WindowsTweaks.StickyKeysShortcut = v, "\uE765",
+            "The pop-up after pressing Shift five times, often set off by handheld buttons");
+        AddRow("More Windows settings", null, "\uE713", click: async () =>
+        {
+            var pages = WindowsTweaks.Pages;
+            int choice = await Host.AskWithIconsAsync("Windows settings", "Opens the page in Windows Settings.", pages.Select(p => (p.Name, p.Glyph)).ToArray());
+            if (choice >= 0) ProcessUtil.Open(pages[choice].Uri);
+        }, subtitle: "Windows Update, night light, HDR and VRR, battery saver, storage and more");
 
         AddHeader("Starting with Windows");
         AddRow("Start with Windows", OnOff(Startup.RunAtSignIn), "", click: () =>
@@ -423,7 +988,7 @@ public sealed class SettingsScreen : ListScreen
 
     private async void ChooseExitStyle()
     {
-        int choice = await Host.AskAsync("Closing animation", "Plays when you choose Exit to desktop from the Power menu.",
+        int choice = await Host.AskAsync("Closing animation", "Plays when you choose Exit SquareDeck from the Power menu.",
             MainWindow.ExitStyles.Select(x => x.Name).ToArray());
         if (choice >= 0) Toggle(() => { Host.Settings.ExitStyle = MainWindow.ExitStyles[choice].Id; Host.Settings.ExitAnimation = true; });
     }
@@ -529,12 +1094,46 @@ public sealed class SettingsScreen : ListScreen
     }
 
     /// <summary>Asks for the user's Steam Web API key and saves it. Shared with the Friends page.</summary>
+    public const string SteamKeyPage = "https://steamcommunity.com/dev/apikey";
+
     public static async Task EditSteamKeyAsync(MainWindow host, Action done)
     {
-        var key = await host.PromptAsync("Steam Web API key",
-            "Get your own free key at steamcommunity.com/dev/apikey (any domain name works), then paste it here. " +
-            "It is stored only on this PC. Leave it empty to remove it.",
-            host.Settings.SteamWebApiKey);
+        // A key copied from Steam's page is offered straight away.
+        string copied = "";
+        try
+        {
+            var text = System.Windows.Clipboard.ContainsText() ? System.Windows.Clipboard.GetText().Trim() : "";
+            if (System.Text.RegularExpressions.Regex.IsMatch(text, "^[0-9A-Fa-f]{32}$") && text != host.Settings.SteamWebApiKey) copied = text;
+        }
+        catch (Exception) { }
+
+        bool has = host.Settings.SteamWebApiKey.Length > 0;
+        var options = new List<(string, string)>
+        {
+            (copied.Length > 0 ? "Use the key I copied" : "Enter my key", copied.Length > 0 ? "\uE77F" : "\uE765"),
+            ("Get a key from Steam (opens in the browser)", "\uE774")
+        };
+        if (has) options.Add(("Remove my key", "\uE74D"));
+        int choice = await host.AskWithIconsAsync("Steam Web API key",
+            "A free key from Steam lets SquareDeck list your friends and the games you own but haven't installed. " +
+            "On Steam's page, sign in, type any domain name (for example \"localhost\"), agree, and copy the key. " +
+            "It's stored only on this PC.", options.ToArray());
+        if (choice == 1)
+        {
+            host.Push(BrowserScreen.Open(host, SteamKeyPage));
+            host.ShowToast("Steam Web API key", "Copy your key, then come back", "Press B to leave the browser, then choose Steam Web API key again.", "", "info");
+            return;
+        }
+        if (choice == 2)
+        {
+            host.Settings.SteamWebApiKey = "";
+            host.Settings.Save();
+            done();
+            return;
+        }
+        if (choice != 0) return;
+        var key = await host.PromptAsync("Steam Web API key", "Paste or type the 32-character key from " + SteamKeyPage + ".",
+            copied.Length > 0 ? copied : host.Settings.SteamWebApiKey);
         if (key == null) return;
         host.Settings.SteamWebApiKey = key.Trim();
         host.Settings.Save();
@@ -681,7 +1280,7 @@ public sealed class SettingsScreen : ListScreen
 
             int choice = await Host.AskAsync("Replace the Windows desktop?",
                 "After you next sign in, Windows opens this launcher instead of the desktop: no taskbar or Start menu " +
-                "until you choose Power \u2192 Exit to desktop. Programs that normally start with Windows will not start " +
+                "until you choose Power \u2192 Exit SquareDeck. Programs that normally start with Windows will not start " +
                 "until then. If the launcher ever fails to open, press Ctrl+Shift+Esc, choose Run new task and type " +
                 "explorer.exe. Only your user account is affected.",
                 "Replace the desktop", "Cancel");
@@ -711,7 +1310,6 @@ public sealed class SettingsScreen : ListScreen
         return known.Name ?? "Custom (" + hex.ToUpperInvariant() + ")";
     }
 
-    public override void OnResumed() => Rebuild(); // values may have changed on a sub-page
 
     private static string Mask(string key) => key.Length <= 4 ? "****" : "•••• " + key[^4..];
 
@@ -1097,6 +1695,26 @@ public sealed class QuickSettingsScreen : Screen
         _brightnessRow.Visibility = Visibility.Collapsed; // shown once we know the screen supports it
         rows.Children.Add(_brightnessRow);
 
+        // TDP, when TDP control is set up and on: for now only (until the game closes, or the launcher restarts).
+        if (TdpControl.Ready && TdpControl.Chip is { } chip)
+        {
+            rows.Children.Add(Ui.SliderRow("TDP", "\uEC4A", out var tdp, out var tdpText));
+            tdp.Minimum = chip.Min;
+            tdp.Maximum = chip.Max;
+            tdp.SmallChange = 1;
+            tdp.LargeChange = 5;
+            tdp.IsSnapToTickEnabled = true;
+            tdp.TickFrequency = 1;
+            tdp.Value = TdpControl.EffectiveWatts;
+            tdpText.Text = TdpControl.EffectiveWatts + " W";
+            tdp.ValueChanged += (_, e) =>
+            {
+                int w = (int)Math.Round(e.NewValue);
+                tdpText.Text = w + " W";
+                TdpControl.SetSessionWatts(w);
+            };
+        }
+
         var wifi = Ui.ValueRow("Wi-Fi", "", out _wifiText);
         wifi.Click += async (_, _) => { if (_wifi != null) await SetRadiosAsync(!_wifi.Value, null); };
         rows.Children.Add(wifi);
@@ -1159,7 +1777,9 @@ public sealed class QuickSettingsScreen : Screen
             VerticalAlignment = VerticalAlignment.Center,
             Child = panel
         };
-        box.SetResourceReference(Border.BackgroundProperty, "BgBrush");
+        box.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+        box.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+        box.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
         var backdrop = new Grid
         {
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0xA0, 0, 0, 0))
@@ -1313,6 +1933,92 @@ public sealed class DeviceInfoScreen : ListScreen
 }
 
 /// <summary>Choose which controller button does what in the launcher.</summary>
+/// <summary>Settings > Controller > Pages LB / RB switch between: which pages, and in what order.</summary>
+public sealed class PageOrderScreen : ListScreen
+{
+    public PageOrderScreen() : base("Pages LB / RB switch between",
+        "{Select}  On / off      {Details}  Move up      {Options}  Move down      {Back}  Back") { }
+
+    protected override void Build()
+    {
+        var s = Host.Settings;
+        AddNote("LB goes left and RB goes right through these pages, in this order, and wraps around at the ends. " +
+                "Pages that are off are skipped, but you can still open them from their buttons.");
+        var order = MainWindow.PageOrderOf(s);
+        for (int n = 0; n < order.Count; n++)
+        {
+            var page = MainWindow.CyclePages[order[n]];
+            bool on = !s.PagesOff.Contains(page.Id);
+            string? note = page.Id switch
+            {
+                "music" when !s.ShowMusicButton => "Its button is hidden, so it's skipped",
+                "friends" when !s.ShowFriendsButton => "Its button is hidden, so it's skipped",
+                _ => null
+            };
+            string id = page.Id;
+            var row = AddRow($"{n + 1}.  {page.Name}", on ? "On" : "Off", page.Glyph, click: () => Toggle(id), subtitle: note);
+            row.Tag = id;
+        }
+        AddHeader("Order");
+        AddNote($"Highlight a page and press {Hints.KeyLabel("Details")} to move it up or {Hints.KeyLabel("Options")} to move it down.");
+        AddRow("Back to the original order, all on", null, "", click: Reset);
+    }
+
+    public override bool OnAction(NavAction action)
+    {
+        if (action is NavAction.X or NavAction.Y && System.Windows.Input.Keyboard.FocusedElement is Button { Tag: string id })
+        {
+            Move(id, action == NavAction.X ? -1 : 1);
+            return true;
+        }
+        return base.OnAction(action);
+    }
+
+    private void Toggle(string id)
+    {
+        var s = Host.Settings;
+        if (!s.PagesOff.Remove(id))
+        {
+            // At least two pages stay on, or LB / RB would have nowhere to go.
+            if (MainWindow.CyclePages.Count(p => !s.PagesOff.Contains(p.Id)) <= 2)
+            {
+                _ = Host.AskAsync("Keep at least two pages", "LB and RB need somewhere to go. Switch another page on first.", "OK");
+                return;
+            }
+            s.PagesOff.Add(id);
+        }
+        Save();
+    }
+
+    private void Move(string id, int step)
+    {
+        var s = Host.Settings;
+        var ids = MainWindow.PageOrderOf(s).Select(i => MainWindow.CyclePages[i].Id).ToList();
+        int at = ids.IndexOf(id), to = at + step;
+        if (at < 0 || to < 0 || to >= ids.Count) return;
+        (ids[at], ids[to]) = (ids[to], ids[at]);
+        s.PageOrder = ids;
+        UiSound.Move();
+        Save(focusId: id);
+    }
+
+    private void Reset()
+    {
+        Host.Settings.PageOrder = new();
+        Host.Settings.PagesOff = new();
+        Save();
+    }
+
+    private void Save(string? focusId = null)
+    {
+        Host.Settings.Save();
+        Rebuild();
+        // The moved page keeps the highlight (its row's name changes with its number).
+        if (focusId != null && Rows.Children.OfType<Button>().FirstOrDefault(b => b.Tag as string == focusId) is { } row)
+            FocusLater(row);
+    }
+}
+
 public sealed class ControlsScreen : ListScreen
 {
     private static readonly string[] Roles = { "Select / start", "Back", "Details", "Options" };

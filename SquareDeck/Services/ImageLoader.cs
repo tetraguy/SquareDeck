@@ -36,6 +36,19 @@ public static class ImageLoader
     {
         try
         {
+            // Windows icon files hold several sizes; use the largest instead of whichever comes first.
+            if (data.Length > 6 && data[0] == 0 && data[1] == 0 && data[2] == 1 && data[3] == 0)
+            {
+                using var icoStream = new MemoryStream(data);
+                var decoder = new IconBitmapDecoder(icoStream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                var best = decoder.Frames.OrderByDescending(f => f.PixelWidth).FirstOrDefault();
+                if (best != null)
+                {
+                    best.Freeze();
+                    return best;
+                }
+            }
+
             using var ms = new MemoryStream(data);
             // Every decoded picture sits in memory (and in video memory once drawn), so decode no larger than
             // asked for, never larger than the picture itself, and never more than MaxDecodeWidth across.
