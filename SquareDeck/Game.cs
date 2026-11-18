@@ -112,6 +112,30 @@ public sealed class Game : INotifyPropertyChanged
         set { _portraitCover = value; Changed(); Changed(nameof(TileImage)); }
     }
 
+    private (string Path, int Width)? _parkedCover, _parkedPortrait;
+
+    /// <summary>
+    /// Lets go of the cover pictures while a game is being played, remembering their files so they can be read back
+    /// afterwards. Pictures that didn't come from a file (app icons) are small and stay.
+    /// </summary>
+    public void Park()
+    {
+        if (_cover != null && _parkedCover == null && Services.ImageLoader.OriginOf(_cover) is { } c) { _parkedCover = c; Cover = null; }
+        if (_portraitCover != null && _parkedPortrait == null && Services.ImageLoader.OriginOf(_portraitCover) is { } p) { _parkedPortrait = p; PortraitCover = null; }
+    }
+
+    public bool Parked => _parkedCover != null || _parkedPortrait != null;
+
+    /// <summary>Reads the parked pictures back in (off the interface thread) and puts them back on the tile.</summary>
+    public async Task UnparkAsync()
+    {
+        var cover = _parkedCover;
+        var portrait = _parkedPortrait;
+        _parkedCover = _parkedPortrait = null;
+        if (cover is { } c && _cover == null) Cover = await Task.Run(() => Services.ImageLoader.FromFile(c.Path, c.Width)) ?? _cover;
+        if (portrait is { } p && _portraitCover == null) PortraitCover = await Task.Run(() => Services.ImageLoader.FromFile(p.Path, p.Width)) ?? _portraitCover;
+    }
+
     /// <summary>True once the tall cover has been looked for (found or not), so it isn't asked for again.</summary>
     public bool PortraitTried { get; set; }
 

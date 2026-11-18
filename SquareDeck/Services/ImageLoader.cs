@@ -20,11 +20,20 @@ public static class ImageLoader
     /// <summary>The widest any picture is decoded (a 4K screenshot is shown at 2560 pixels; nobody can tell on a TV).</summary>
     public const int MaxDecodeWidth = 2560;
 
+    /// <summary>Where each picture decoded from a file came from, so it can be let go and decoded again later.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ImageSource, Tuple<string, int>> Origins = new();
+
+    /// <summary>The file (and decode width) a picture was read from, if it came from one.</summary>
+    public static (string Path, int Width)? OriginOf(ImageSource? image) =>
+        image != null && Origins.TryGetValue(image, out var o) ? (o.Item1, o.Item2) : null;
+
     public static ImageSource? FromFile(string path, int decodeWidth)
     {
         try
         {
-            return FromBytes(File.ReadAllBytes(path), decodeWidth);
+            var image = FromBytes(File.ReadAllBytes(path), decodeWidth);
+            if (image != null) Origins.AddOrUpdate(image, Tuple.Create(path, decodeWidth));
+            return image;
         }
         catch (Exception)
         {

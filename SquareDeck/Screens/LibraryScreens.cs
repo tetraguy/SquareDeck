@@ -2598,6 +2598,9 @@ public sealed class LibraryScreen : Screen
     // ---- art for the Grid and Rectangle views, fetched a few at a time and kept for the session
 
     private static readonly Dictionary<string, ImageSource?> HeaderArt = new();
+
+    /// <summary>Forgets the wide and tall art fetched for the library (it's read again from disk when the page opens).</summary>
+    public static void ForgetArt() => HeaderArt.Clear();
     private CancellationTokenSource? _artCts;
     private readonly List<(Game Game, Image Picture, Action Shown)> _artQueue = new();
 

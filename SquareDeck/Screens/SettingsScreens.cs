@@ -940,6 +940,13 @@ public sealed class SettingsScreen : ListScreen
         AddHeader("While playing");
         AddRow("Free graphics memory for the game", OnOff(s.FreeGpuDuringGames), "\uE7F4", click: () =>
             Toggle(() => s.FreeGpuDuringGames = !s.FreeGpuDuringGames));
+        AddRow("Use as little memory as possible while playing", OnOff(s.LeanWhilePlaying), "\uE964", click: () =>
+            Toggle(() => s.LeanWhilePlaying = !s.LeanWhilePlaying),
+            subtitle: "Behind a game, SquareDeck lets go of covers and pictures, stops an idle Spotify player and lets Windows reclaim its memory first");
+        if (s.LeanWhilePlaying)
+            AddRow("Close open pages while playing", OnOff(s.ClosePagesWhilePlaying), "\uE8BB", click: () =>
+                Toggle(() => s.ClosePagesWhilePlaying = !s.ClosePagesWhilePlaying),
+                subtitle: "Frees the most memory. After the game you come back to Home instead of the page you left");
         AddNote("While a game runs, the launcher stops using the graphics card and lets go of its pictures, so the game gets the " +
                 "video memory. Recommended; turn off only if switching back to the launcher feels slow.");
         AddRow("Do not disturb (hide Windows notifications)", OnOff(s.DoNotDisturb), "", click: () =>

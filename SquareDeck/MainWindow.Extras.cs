@@ -332,7 +332,7 @@ public partial class MainWindow
     private void Summon()
     {
         if (_overlay is { IsVisible: true } open) { open.Dismiss(); return; }
-        if (!IsActive && QuickMenuWanted()) ToggleOverlay();
+        if (QuickMenuWanted() && (!IsActive || AllGames.Any(g => g.IsRunning))) ToggleOverlay();
         else WindowActivator.BringToFront(this);
     }
 
@@ -1270,8 +1270,18 @@ public partial class MainWindow
             if (_backgroundMode) _padTimer.Interval = TimeSpan.FromMilliseconds(50);
         };
         _padTimer.Interval = TimeSpan.FromMilliseconds(16); // the menu should feel as quick as the launcher
-        _overlay.Show();
-        WindowActivator.KeepOnTop(_overlay); // over full-screen games and the Xbox full screen experience, without taking the focus
+        try
+        {
+            _overlay.Show();
+            WindowActivator.KeepOnTop(_overlay); // over full-screen games and the Xbox full screen experience, without taking the focus
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("Quick menu (showing)", ex);
+            try { _overlay?.Close(); } catch (Exception) { }
+            _overlay = null;
+            WindowActivator.BringToFront(this);
+        }
     }
 
     /// <summary>
@@ -1279,7 +1289,10 @@ public partial class MainWindow
     /// a game SquareDeck started is running, or another app fills the screen in front.
     /// </summary>
     private bool QuickMenuWanted() =>
-        Settings.InGameQuickMenu && (AllGames.Any(g => g.IsRunning) || WindowActivator.FrontApp() is { FullScreen: true });
+        // Any app in front counts, not only exactly full-screen ones: borderless games are often a pixel short of the
+        // screen, and games from the Xbox app aren't always recognised as running. Bringing SquareDeck forward
+        // instead often does nothing at all, because Windows won't let a background app take the focus from a game.
+        Settings.InGameQuickMenu && (AllGames.Any(g => g.IsRunning) || WindowActivator.FrontApp() != null);
 
     // ================================================================ stores
 

@@ -3,6 +3,30 @@
 All notable changes to SquareDeck, newest first. Each section can be pasted as the description of the
 matching GitHub release; the launcher's updater shows that description as the changelog before installing.
 
+## 5.21.1
+
+### Fixed
+- **The in-game quick menu opens reliably.** The summon buttons and the keyboard shortcut now open it over any
+  app in front, not only one that exactly fills the screen. Before, a borderless game a pixel short of the screen,
+  or a game from the Xbox app that SquareDeck didn't recognise as running, made SquareDeck try to come forward
+  instead, and Windows often blocks that, so nothing happened. It also opens if you've switched back to SquareDeck
+  while a game is still running.
+
+## 5.21.0
+
+### Changed
+- **Uses much less memory while you play.** About 15 seconds after a game is in front, SquareDeck goes lean:
+  - Every cover and tall grid picture is let go of. Their files are remembered, so they come back within a second
+    or two when you return.
+  - Open pages close, so you come back to Home. Pages that are busy or worth keeping stay open: a download, a
+    question, a video or web page, a cloud game.
+  - Caches of library art, game logos and friends' pictures are emptied.
+  - The built-in Spotify player stops if it isn't playing. It starts again the next time you play something.
+  - The memory is compacted and handed back to Windows every 45 seconds, and Windows is told SquareDeck's memory
+    is the first to reclaim if the game needs more.
+  Turn it off, or keep your pages open, in Settings > Games > While playing.
+- **The memory manager keeps the heap smaller all the time** (.NET's "conserve memory" setting).
+
 ## 5.20.2
 
 ### Changed

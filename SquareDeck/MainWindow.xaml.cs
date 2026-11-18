@@ -108,6 +108,7 @@ public partial class MainWindow : Window
         InitPower();
         ApplyUiStyle();
         InitDynamicBackground();
+        InitLeanMode();
 
         GameList.ItemsSource = _view;
         RefreshHomeButtons();
@@ -1668,6 +1669,14 @@ public partial class MainWindow : Window
                 if (QuickMenuWanted()) ToggleOverlay();
                 else if (Settings.GuideSummon) WindowActivator.BringToFront(this);
             }
+            _gamepad.Reset();
+            return;
+        }
+        // SquareDeck in front while a game it started is still running (switched back with Alt+Tab, say): the summon
+        // buttons open the quick menu here too, so Exit game and the rest are a press away.
+        if (Settings.InGameQuickMenu && AllGames.Any(g => g.IsRunning) && _gamepad.PollSummon())
+        {
+            ToggleOverlay();
             _gamepad.Reset();
             return;
         }

@@ -302,8 +302,9 @@ public partial class MainWindow
     {
         bool gameRunning = AllGames.Any(g => g.IsRunning);
         bool background = _holdVisible == 0 && (WindowState == WindowState.Minimized || (gameRunning && !IsActive));
-        if (background == _backgroundMode) return;
+        if (background == _backgroundMode) { UpdateLean(background && gameRunning); return; }
         _backgroundMode = background;
+        UpdateLean(background && gameRunning);
 
         if (background)
         {

@@ -116,6 +116,9 @@ public sealed class FriendsScreen : GridScreen
 
     private readonly DispatcherTimer _refresh = new() { Interval = TimeSpan.FromSeconds(60) };
     private static readonly Dictionary<string, System.Windows.Media.ImageSource?> Pictures = new();
+
+    /// <summary>Forgets friends' pictures (fetched again when the page opens).</summary>
+    public static void ForgetPictures() => Pictures.Clear();
     private CancellationTokenSource _cts = new();
     private List<Friend>? _friends;
     private string? _error;

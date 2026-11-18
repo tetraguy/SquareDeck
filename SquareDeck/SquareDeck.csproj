@@ -11,7 +11,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>SquareDeck</AssemblyName>
     <RootNamespace>SquareDeck</RootNamespace>
-    <Version>5.20.2</Version>
+    <Version>5.21.1</Version>
     <ApplicationIcon>Assets\SquareDeck.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -44,4 +44,8 @@
     <None Update="HomeApp\Public\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Lean memory: the garbage collector compacts harder to keep the heap small (0-9; 0 = off). -->
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
+  </ItemGroup>
 </Project>

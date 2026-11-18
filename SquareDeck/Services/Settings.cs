@@ -323,6 +323,8 @@ public sealed class Settings
 
     /// <summary>Hand the graphics card back to the game: draw the launcher in software while a game runs.</summary>
     public bool FreeGpuDuringGames { get; set; } = true;
+    public bool LeanWhilePlaying { get; set; } = true;      // let go of covers, pages and caches while a game runs in front
+    public bool ClosePagesWhilePlaying { get; set; } = true; // part of the above: open pages close (you come back to Home)
 
     /// <summary>Search Spotify and YouTube Music from the Music page.</summary>
     public bool MusicServices { get; set; }

@@ -61,7 +61,8 @@ one home screen in front of all of it: pick it up, press A, play.
   volume, brightness, TDP and exit
 - **Xbox mode home app:** boot straight into SquareDeck on Windows 11's full screen experience, no extra tool needed
 - **ROG Ally buttons:** remap Armoury Crate, Command Center and the back-button combos
-- Frees memory and graphics resources while a game runs, and comes back with focus when it closes
+- Lean mode while a game runs: lets go of covers, pages and caches, frees graphics memory and lets Windows reclaim
+  its memory first, then comes back with focus when the game closes
 - Rests while another app is in front: music, moving backgrounds and animated covers pause
 - Performance mode, low-battery notice and Do not disturb while playing
 
