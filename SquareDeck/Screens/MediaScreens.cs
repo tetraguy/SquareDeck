@@ -263,6 +263,7 @@ public sealed class CapturesScreen : GridScreen
             }, null, panel);
             tile.GotKeyboardFocus += (_, _) => _focusPath = "album:" + name;
             if (_focusPath == "album:" + name) focus = tile;
+            if (Host.Settings.CaptureAlbumIcons) AddAlbumIcon(tile, name);
             pending.Add((view, latest.FullName));
         }
         Task.Run(() =>
@@ -275,6 +276,33 @@ public sealed class CapturesScreen : GridScreen
             }
         }, ct);
         FocusLater(focus ?? panel.Children.OfType<Button>().FirstOrDefault());
+    }
+
+    /// <summary>The game's own small picture (its icon, else its cover) before an album's name, when it's in the library.</summary>
+    private void AddAlbumIcon(Button tile, string album)
+    {
+        string key = new string(album.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        if (key.Length == 0) return;
+        var game = Host.AllGames.FirstOrDefault(g => new string(g.Name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant() == key)
+                   ?? Host.AllGames.FirstOrDefault(g => new string(g.OriginalName.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant() == key);
+        if (game?.Cover == null || tile.Content is not StackPanel stack || stack.Children.Count < 2 || stack.Children[^1] is not TextBlock caption) return;
+        stack.Children.Remove(caption);
+        var icon = new Border
+        {
+            Width = 24, Height = 24, CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner * 0.5, 5)), Margin = new Thickness(0, 0, 8, 0),
+            Background = new ImageBrush(game.Cover) { Stretch = game.UsesIcon && !game.IconFills ? Stretch.Uniform : Stretch.UniformToFill },
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        if (game.UsesIcon && !game.IconFills && game.TileBackground != null)
+            icon.Child = new Border { Background = new ImageBrush(game.Cover) { Stretch = Stretch.Uniform }, Margin = new Thickness(3) };
+        if (icon.Child != null) icon.Background = game.TileBackground;
+        caption.Margin = new Thickness(0);
+        caption.VerticalAlignment = VerticalAlignment.Center;
+        var row = new DockPanel { Margin = new Thickness(2, 8, 2, 0), LastChildFill = true };
+        DockPanel.SetDock(icon, Dock.Left);
+        row.Children.Add(icon);
+        row.Children.Add(caption);
+        stack.Children.Add(row);
     }
 
     private void BuildFilters(int all, int images, int videos, int albums)
@@ -678,20 +706,34 @@ public sealed class MediaScreen : Screen
         page.Children.Add(layout);
         _nowPage = page;
 
-        // Three tabs: whatever is playing on the PC, your own music folder, and Spotify.
+        // Four tabs: whatever is playing on the PC, your own music folder, Spotify, and the streaming services.
         var root = new DockPanel();
         DockPanel.SetDock(_tabBar, Dock.Top);
         root.Children.Add(_tabBar);
         root.Children.Add(_tabHost);
-        SetPage("Music", root, "LB / RB  Tabs      {Select}  Choose      {Details}  Play / Search      {Options}  More      LT / RT  Previous / next      {Back}  Back");
+        SetPage("Multimedia", root, "LB / RB  Tabs      {Select}  Choose      {Details}  Play / Search      {Options}  More      LT / RT  Previous / next      {Back}  Back");
         _timer.Tick += async (_, _) => await RefreshAsync();
         _visualTimer.Tick += (_, _) => DrawBars();
     }
 
     private static readonly (string Id, string Name, string Glyph)[] Tabs =
     {
-        ("now", "Now playing", "\uE8D6"), ("local", "My music", "\uE8B7"), ("spotify", "Spotify", "\uE93C")
+        ("now", "Now playing", "\uE8D6"), ("local", "My music", "\uE8B7"), ("spotify", "Spotify", "\uE93C"), ("streaming", "Streaming", "\uE714")
     };
+
+    private StreamingView? _streaming;
+    private ScrollViewer? _streamingScroll;
+
+    /// <summary>The right stick scrolls the Streaming tab's services.</summary>
+    public override bool OnRightStick(double x, double y, bool pressed)
+    {
+        if (_tab == "streaming" && _streamingScroll != null)
+        {
+            if (y != 0) _streamingScroll.ScrollToVerticalOffset(_streamingScroll.VerticalOffset - y * Math.Abs(y) * 26);
+            return y != 0;
+        }
+        return base.OnRightStick(x, y, pressed);
+    }
 
     private readonly StackPanel _tabBar = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 18) };
     private readonly Grid _tabHost = new();
@@ -734,6 +776,17 @@ public sealed class MediaScreen : Screen
             _timer.Stop();
             _visualTimer.Stop();
         }
+        else if (id == "streaming")
+        {
+            _streaming ??= new StreamingView(this);
+            _streaming.Build(); // shows the service that's open now, if any
+            if (_streaming.Parent is ScrollViewer old) old.Content = null; // from the last visit to this tab
+            _streamingScroll = new ScrollViewer { Content = _streaming, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, Focusable = false };
+            _tabHost.Children.Add(_streamingScroll);
+            first = _streaming.FirstFocus;
+            _timer.Stop();
+            _visualTimer.Stop();
+        }
         else if (id == "spotify")
         {
             _spotify ??= new SpotifyView(this);
@@ -761,6 +814,7 @@ public sealed class MediaScreen : Screen
         if (action == NavAction.LB) { ShowTab(Tabs[(index + Tabs.Length - 1) % Tabs.Length].Id, focus: true); UiSound.Page(); return true; }
         if (_tab == "local" && _local != null) return _local.OnAction(action);
         if (_tab == "spotify" && _spotify != null) return _spotify.OnAction(action);
+        if (_tab == "streaming") return _streaming?.Move(action) ?? false;
         // Now playing: X play / pause, LT / RT previous / next.
         switch (action)
         {
@@ -814,6 +868,14 @@ public sealed class MediaScreen : Screen
         _timer.Stop();
         _visualTimer.Stop();
         _spotify?.Stop();
+    }
+
+    /// <summary>Back from a streaming service (kept open, or closed): the Streaming tab shows which.</summary>
+    public override void OnResumed()
+    {
+        if (_tab != "streaming" || _streaming == null) return;
+        _streaming.Build();
+        Host.FocusSoon(_streaming.FirstFocus);
     }
 
     /// <summary>Works out a readable name for the app that is playing, and how to bring it forward.</summary>

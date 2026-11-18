@@ -536,7 +536,7 @@ public sealed class SpotifyView : Grid
         {
             Step(_client.NeedsNewSignIn ? "Sign in again (the player needs a few more permissions)" : "Sign in to Spotify", "",
                 "Finish signing in in the browser window that opens", () => _ = SignInAsync());
-            Step("Change the Client ID", "", null, () => _ = EnterClientIdAsync());
+            Step(_client.UsesBuiltInApp ? "Use my own Spotify app (optional)" : "Change the Client ID", "", null, () => _ = EnterClientIdAsync());
         }
         Step("Open the Spotify app instead", "", null, () => ProcessUtil.Open("spotify:"));
         Ui.GroupRows(rows);
@@ -547,8 +547,10 @@ public sealed class SpotifyView : Grid
     private async Task EnterClientIdAsync()
     {
         var host = _page.Host;
-        var id = await host.PromptAsync("Spotify Client ID", "From your app at developer.spotify.com (32 letters and numbers).", host.Settings.SpotifyClientId);
+        var id = await host.PromptAsync("Spotify Client ID",
+            "From your own app at developer.spotify.com (32 letters and numbers). Leave it empty to use SquareDeck's.", host.Settings.SpotifyClientId);
         if (id == null) return;
+        if (id.Trim() != host.Settings.SpotifyClientId) host.Settings.SpotifyToken = ""; // a sign-in belongs to one app
         host.Settings.SpotifyClientId = id.Trim();
         host.Settings.Save();
         Show();
@@ -618,6 +620,15 @@ public sealed class SpotifyView : Grid
         var host = _page.Host;
         switch (problem)
         {
+            case "nodevice" when host.Settings.SpotifyInLauncher && SpotifyPlayer.DeviceId == null:
+                // Nothing playing anywhere: play right here, then try the command again.
+                if (await PlayHereAsync())
+                {
+                    try { problem = await command(_client); } catch (Exception ex) { problem = ex.Message; }
+                    if (problem == null) { await Task.Delay(350); await RefreshAsync(); }
+                    else host.ShowToast("Spotify", "Couldn't do that", problem, "", "info");
+                }
+                break;
             case "nodevice":
                 int choice = await host.AskWithIconsAsync("Nothing to play on",
                     "Spotify isn't open on any device. Open it on this PC (it starts in the background), or choose another device.",
@@ -668,8 +679,15 @@ public sealed class SpotifyView : Grid
         {
             "Smartphone" => "", "Speaker" => "", "TV" => "", _ => ""
         })).Append(("Open Spotify on this PC", "")).ToArray();
-        int choice = await host.AskWithIconsAsync("Play on", devices.Count == 0 ? "No Spotify devices are open right now." : null, options);
+        bool offerHere = host.Settings.SpotifyInLauncher && !devices.Any(d => d.Id == SpotifyPlayer.DeviceId);
+        if (offerHere) options = options.Prepend(("SquareDeck (play here)", "\uE7FC")).ToArray();
+        int choice = await host.AskWithIconsAsync("Play on", devices.Count == 0 && !offerHere ? "No Spotify devices are open right now." : null, options);
         if (choice < 0) return;
+        if (offerHere)
+        {
+            if (choice == 0) { if (await PlayHereAsync()) { try { await _client.TransferAsync(SpotifyPlayer.DeviceId!, _cts.Token); } catch (Exception) { } await RefreshAsync(); } return; }
+            choice--;
+        }
         if (choice == devices.Count) { await StartLocalSpotifyAsync(null); return; }
         await Do(c => c.TransferAsync(devices[choice].Id, _cts.Token));
     }
@@ -755,8 +773,35 @@ public sealed class SpotifyView : Grid
         badge.Children.Add(new Border { CornerRadius = new CornerRadius(8), Background = new ImageBrush(image) { Stretch = Stretch.UniformToFill } });
     }
 
+    /// <summary>
+    /// Makes SquareDeck itself the device the music plays on (when that's switched on): starts the built-in player if
+    /// needed and moves playback to it. False, with the reason shown, if it can't.
+    /// </summary>
+    private async Task<bool> PlayHereAsync()
+    {
+        var host = _page.Host;
+        if (!host.Settings.SpotifyInLauncher) return false;
+        string? id = SpotifyPlayer.DeviceId;
+        if (id == null)
+        {
+            await host.RunBusyAsync("Starting Spotify in SquareDeck…", async () => id = await SpotifyPlayer.EnsureStartedAsync(host, host.Settings));
+        }
+        if (id == null)
+        {
+            host.ShowToast("Spotify", "Couldn't play here", SpotifyPlayer.Problem ?? "Spotify's player didn't start.", "", "info");
+            return false;
+        }
+        if (_state?.DeviceId != id)
+        {
+            try { await _client.TransferAsync(id, _cts.Token, play: false); } catch (Exception) { }
+            await Task.Delay(400); // Spotify takes a moment to switch devices
+        }
+        return true;
+    }
+
     private async Task ChooseAsync(SpotifyItem item, List<string> trackUris)
     {
+        await PlayHereAsync();
         if (item.Kind is "playlist" or "album")
         {
             int choice = await _page.Host.AskWithIconsAsync(item.Name, item.Detail, ("Play", ""), ("Show songs", ""));

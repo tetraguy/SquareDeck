@@ -47,6 +47,9 @@
         <CornerRadius x:Key="RoundCorner">48</CornerRadius>
         <CornerRadius x:Key="RoundInnerCorner">39</CornerRadius>
         <Visibility x:Key="RoundLabelVisibility">Collapsed</Visibility>
+        <!-- Glossy styles (Aero): a shine over the top half of the round buttons -->
+        <Visibility x:Key="GlossVisibility">Collapsed</Visibility>
+        <SolidColorBrush x:Key="GlossBrush" Color="Transparent"/>
         <Orientation x:Key="RoundOrientation">Vertical</Orientation>
         <Thickness x:Key="RoundMargin">6,0</Thickness>
 
@@ -68,6 +71,8 @@
                             <Border Margin="9" Background="{DynamicResource RoundFill}" CornerRadius="{DynamicResource RoundInnerCorner}"
                                     BorderBrush="{DynamicResource PanelStroke}" BorderThickness="{DynamicResource PanelStrokeThickness}"
                                     Effect="{DynamicResource ButtonShadow}"/>
+                            <Border Margin="10" CornerRadius="{DynamicResource RoundInnerCorner}" Background="{DynamicResource GlossBrush}"
+                                    Visibility="{DynamicResource GlossVisibility}" IsHitTestVisible="False"/>
                             <StackPanel Orientation="{DynamicResource RoundOrientation}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Margin="12,0">
                                 <TextBlock Text="{TemplateBinding Content}" FontFamily="Segoe MDL2 Assets"

@@ -371,7 +371,11 @@ public sealed class CoverPickerScreen : GridScreen
     }
 }
 
-/// <summary>Everything about one Steam game: store info, screenshots, trailer, play time, achievements.</summary>
+/// <summary>
+/// Everything about one game: store info, screenshots, trailer, play time, achievements. Games from other stores and
+/// ones added by hand get the same page: their details come from the same game's Steam store page when it's sold
+/// there, or from Wikipedia, and their artwork and release date from SteamGridDB.
+/// </summary>
 public sealed class DetailsScreen : Screen
 {
     private const int MaxAchievementCards = 150;
@@ -406,6 +410,14 @@ public sealed class DetailsScreen : Screen
     private StoreDetails? _details;
     private (int Unlocked, int Total)? _progress;
     private string? _focusId;
+
+    // Where the store details come from: the game's own app id for Steam games, the matching Steam app for others
+    // (0 when there's none), and Wikipedia's summary when that's all there is.
+    private int _storeId;
+    private GameLookup.WikiSummary? _wiki;
+    private DateTime? _sgdbReleased;
+    private long _folderSize;
+    private readonly TextBlock _source = Ui.Text("", 13, "SubtleBrush");
 
     public DetailsScreen(Game game)
     {
@@ -466,6 +478,9 @@ public sealed class DetailsScreen : Screen
         about.Children.Add(factsCard);
         _page.Children.Add(SectionTitle("About"));
         _page.Children.Add(about);
+        _source.Margin = new Thickness(4, 8, 0, 0);
+        _source.TextWrapping = TextWrapping.Wrap;
+        _page.Children.Add(_source);
         _page.Children.Add(_sections);
 
         _scroll = new ScrollViewer
@@ -717,7 +732,10 @@ public sealed class DetailsScreen : Screen
             inCollections == 0 ? "Add to a collection" : $"In {inCollections} {(inCollections == 1 ? "collection" : "collections")}", () => _ = CollectionsAsync());
         if (_details is { Trailers.Count: > 0 }) Pill("", "Trailer", "Watch the trailer", WatchTrailer);
         Pill("", "Rate", "Rating, status and notes", () => Host.Push(new GameNotesScreen(_game)));
-        if (_game.IsSteam) Pill("", "Store", "Open the Steam store page", () => ProcessUtil.Open("steam://store/" + _game.AppId));
+        if (_storeId > 0) Pill("\uE719", "Store", _game.IsSteam ? "Open the Steam store page" : "Open its page on the Steam store", () => ProcessUtil.Open("steam://store/" + _storeId));
+        if (_wiki?.Url is { Length: > 0 } wikiUrl) Pill("\uE774", "Wikipedia", "Read the full article", () => Host.Push(BrowserScreen.Open(Host, wikiUrl)));
+        if (!_game.IsSteam && InstallFolder() is string dir)
+            Pill("\uE838", "Files", "Open the install folder", () => Host.Push(new ExplorerScreen(dir)));
         Pill("", "Time to beat", "How long to beat", () =>
             ProcessUtil.Open("https://howlongtobeat.com/?q=" + Uri.EscapeDataString(_game.OriginalName)));
         if (_game.IsGame && !_game.OnWishlist) Pill("", "More", "More options", () => _ = Host.OpenOptionsAsync(_game));
@@ -767,7 +785,7 @@ public sealed class DetailsScreen : Screen
         // Steam serves some trailers only as adaptive streams, which can't be played here: open the store page then.
         var playable = _details?.Trailers.FirstOrDefault(t => t.Url != null);
         if (playable?.Url != null) Host.Push(new ViewerScreen(new Uri(playable.Url)));
-        else ProcessUtil.Open($"steam://store/{_game.AppId}");
+        else ProcessUtil.Open($"steam://store/{_storeId}");
     }
 
     // ---------------------------------------------------------------- top facts
@@ -826,7 +844,8 @@ public sealed class DetailsScreen : Screen
         else if (_details is { AchievementTotal: > 0 })
             Stat("", _details.AchievementTotal.ToString(), "Achievements");
         if (_reviews != null) Stat("", _reviews.Split(',')[0], "Steam reviews" + (_reviews.Contains(',') ? "  ·  " + _reviews[(_reviews.IndexOf(',') + 1)..].Trim() : ""));
-        if (_game.SizeOnDisk > 0) Stat("", $"{_game.SizeOnDisk / 1024d / 1024d / 1024d:0.0} GB", "Size on disk");
+        long size = _game.SizeOnDisk > 0 ? _game.SizeOnDisk : Math.Abs(_folderSize);
+        if (size > 0) Stat("\uEDA2", (_folderSize < 0 ? "≥ " : "") + (size >= 1L << 30 ? $"{size / 1024d / 1024d / 1024d:0.0} GB" : $"{size / 1024d / 1024d:0} MB"), "Size on disk");
         if (_game.HasUpdate) Stat("", "Update", _game.UpdateText);
         _stats.Visibility = _stats.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -873,10 +892,19 @@ public sealed class DetailsScreen : Screen
         }
         Fact("Developer", _details?.Developers ?? "");
         Fact("Publisher", _details?.Publishers ?? "");
-        Fact("Released", _details?.ReleaseDate ?? "");
+        Fact("Released", _details?.ReleaseDate is { Length: > 0 } date ? date : _sgdbReleased?.ToString("MMMM d, yyyy") ?? "");
         Fact("Genres", _details?.Genres ?? "");
         Fact("Store", _game.OnWishlist ? "Steam (wishlist)" : _game.IsGame ? _game.SourceName : "");
         if (_game.IsSteam) Fact("Steam app ID", _game.AppId.ToString());
+        else
+        {
+            if (_wiki?.Description is { Length: > 0 } kind) Fact("What it is", char.ToUpper(kind[0]) + kind[1..]);
+            string? folder = InstallFolder();
+            if (folder != null) Fact("Installed in", folder);
+            if (_game.LaunchPath.Length > 0 && !_game.LaunchPath.Contains("://") && !_game.LaunchPath.StartsWith("shell:", StringComparison.OrdinalIgnoreCase))
+                Fact("Starts", System.IO.Path.GetFileName(_game.LaunchPath) + (string.IsNullOrWhiteSpace(_game.LaunchArgs) ? "" : "  " + _game.LaunchArgs));
+            if (_storeId > 0) Fact("Also on Steam", "App " + _storeId);
+        }
         if (_facts.Children.Count == 0) _facts.Children.Add(Line("No details yet.", 15));
     }
 
@@ -887,39 +915,13 @@ public sealed class DetailsScreen : Screen
         var ct = _cts.Token;
         if (!_game.IsSteam)
         {
-            _description.Text = "Store details are only available for Steam games.";
-            await LoadLogoAsync(ct);
+            await LoadOtherStoreAsync(ct);
             return;
         }
+        _storeId = _game.AppId;
         try
         {
-            var details = await Task.Run(() => SteamStoreClient.GetDetailsAsync(_game.AppId, ct), ct);
-            if (ct.IsCancellationRequested) return;
-            if (details == null)
-            {
-                _description.Text = "Store details aren't available for this title right now.";
-            }
-            else
-            {
-                _details = details;
-                var meta = new List<string>();
-                if (details.Developers.Length > 0) meta.Add(details.Developers);
-                if (details.ReleaseDate.Length > 0) meta.Add(details.ReleaseDate);
-                _meta.Text = string.Join("  ·  ", meta);
-                _description.Text = details.Description.Length > 0 ? details.Description : "No description.";
-                BuildFacts();
-                BuildBadges();
-                BuildStats();
-                if (Host.IsTop(this)) BuildActions(); // the trailer button depends on the details
-
-                // Fallbacks for the artwork: the store's header image for the cover, a screenshot for the banner.
-                if (_cover.Source == null && details.HeaderImage != null)
-                    _cover.Source = await Task.Run(() => ImageLoader.FromUrlAsync(details.HeaderImage, 600, ct), ct);
-                if (_heroImage.Source == null && details.Screenshots.Count > 0)
-                    _ = LoadHeroFallbackAsync(details.Screenshots[0].Full, ct);
-
-                AddScreenshots(details);
-            }
+            if (!await LoadStoreAsync(ct)) _description.Text = "Store details aren't available for this title right now.";
             await LoadLogoAsync(ct);
             _ = LoadReviewsAsync(ct);
             await LoadNewsAsync(ct);
@@ -931,6 +933,117 @@ public sealed class DetailsScreen : Screen
         {
             _description.Text = "Couldn't load store details.";
         }
+    }
+
+    /// <summary>
+    /// A game added by hand or from another store: the Steam store's page for the same game when there is one,
+    /// else Wikipedia; SteamGridDB for the artwork and release date; and what's on this PC (folder, size, program).
+    /// </summary>
+    private async Task LoadOtherStoreAsync(CancellationToken ct)
+    {
+        _description.Text = "Looking up " + _game.Name + "…";
+        _ = MeasureFolderAsync(ct);
+        _ = LoadSgdbInfoAsync(ct);
+        _ = LoadLogoAsync(ct);
+        try
+        {
+            string name = _game.OriginalName.Length > 0 ? _game.OriginalName : _game.Name;
+            _storeId = await Task.Run(() => GameLookup.FindSteamMatchAsync(name, ct), ct);
+            if (_storeId == 0 && _game.Name != name) _storeId = await Task.Run(() => GameLookup.FindSteamMatchAsync(_game.Name, ct), ct);
+            if (_storeId > 0 && await LoadStoreAsync(ct))
+            {
+                _source.Text = "Description, screenshots and reviews from the game's Steam store page.";
+                _ = LoadReviewsAsync(ct);
+                await LoadNewsAsync(ct);
+                return;
+            }
+
+            _wiki = await Task.Run(() => GameLookup.GetWikipediaAsync(name, ct), ct);
+            if (ct.IsCancellationRequested) return;
+            if (_wiki != null)
+            {
+                _description.Text = _wiki.Extract;
+                _source.Text = "From Wikipedia (" + _wiki.Title + "), available under CC BY-SA.";
+            }
+            else
+            {
+                _description.Text = "No store or encyclopedia page was found for this title. The artwork comes from SteamGridDB; " +
+                                    "you can add your own notes with Rate.";
+            }
+            BuildFacts();
+            if (Host.IsTop(this)) BuildActions();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception)
+        {
+            _description.Text = "Couldn't look up details right now. Check the internet connection.";
+        }
+    }
+
+    private string? InstallFolder()
+    {
+        if (!string.IsNullOrEmpty(_game.InstallDir) && System.IO.Directory.Exists(_game.InstallDir)) return _game.InstallDir;
+        try
+        {
+            if (_game.LaunchPath.Length > 0 && System.IO.File.Exists(_game.LaunchPath)) return System.IO.Path.GetDirectoryName(_game.LaunchPath);
+        }
+        catch (Exception) { }
+        return null;
+    }
+
+    private async Task MeasureFolderAsync(CancellationToken ct)
+    {
+        if (_game.SizeOnDisk > 0 || InstallFolder() is not string folder) return;
+        // A drive's top level isn't a game's own folder: don't count it.
+        if (System.IO.Path.GetPathRoot(folder) == folder) return;
+        try
+        {
+            _folderSize = await Task.Run(() => GameLookup.FolderSize(folder, ct), ct);
+            if (!ct.IsCancellationRequested) BuildStats();
+        }
+        catch (Exception) { }
+    }
+
+    private async Task LoadSgdbInfoAsync(CancellationToken ct)
+    {
+        try
+        {
+            var info = await Task.Run(async () =>
+            {
+                using var client = new SteamGridDbClient(Host.Settings.SteamGridDbApiKey);
+                return await client.GetGameInfoAsync(_game.OriginalName.Length > 0 ? _game.OriginalName : _game.Name, ct);
+            }, ct);
+            if (info?.Released is not DateTime released || ct.IsCancellationRequested) return;
+            _sgdbReleased = released;
+            if (_meta.Text.Length == 0) _meta.Text = released.ToString("yyyy");
+            BuildFacts();
+        }
+        catch (Exception) { }
+    }
+
+    /// <summary>The Steam store's details for the store id; false if the store had nothing.</summary>
+    private async Task<bool> LoadStoreAsync(CancellationToken ct)
+    {
+        var details = await Task.Run(() => SteamStoreClient.GetDetailsAsync(_storeId, ct), ct);
+        if (ct.IsCancellationRequested || details == null) return false;
+        _details = details;
+        var meta = new List<string>();
+        if (details.Developers.Length > 0) meta.Add(details.Developers);
+        if (details.ReleaseDate.Length > 0) meta.Add(details.ReleaseDate);
+        _meta.Text = string.Join("  ·  ", meta);
+        _description.Text = details.Description.Length > 0 ? details.Description : "No description.";
+        BuildFacts();
+        BuildBadges();
+        BuildStats();
+        if (Host.IsTop(this)) BuildActions(); // the trailer and store buttons depend on the details
+
+        // Fallbacks for the artwork: the store's header image for the cover, a screenshot for the banner.
+        if (_cover.Source == null && details.HeaderImage != null)
+            _cover.Source = await Task.Run(() => ImageLoader.FromUrlAsync(details.HeaderImage, 600, ct), ct);
+        if (_heroImage.Source == null && details.Screenshots.Count > 0)
+            _ = LoadHeroFallbackAsync(details.Screenshots[0].Full, ct);
+        AddScreenshots(details);
+        return true;
     }
 
     private async Task LoadHeroFallbackAsync(string url, CancellationToken ct)
@@ -967,7 +1080,7 @@ public sealed class DetailsScreen : Screen
     {
         try
         {
-            var summary = await Task.Run(() => SteamStoreClient.GetReviewSummaryAsync(_game.AppId, ct), ct);
+            var summary = await Task.Run(() => SteamStoreClient.GetReviewSummaryAsync(_storeId, ct), ct);
             if (summary is not { } r || ct.IsCancellationRequested) return;
             _reviews = $"{r.Verdict}, {r.Percent}% of {r.Total:N0}";
             BuildStats();
@@ -978,7 +1091,7 @@ public sealed class DetailsScreen : Screen
     /// <summary>Recent announcements and patch notes, as cards you can read without a browser.</summary>
     private async Task LoadNewsAsync(CancellationToken ct)
     {
-        var items = await Task.Run(() => SteamStoreClient.GetNewsAsync(_game.AppId, 6, ct), ct);
+        var items = await Task.Run(() => SteamStoreClient.GetNewsAsync(_storeId, 6, ct), ct);
         if (ct.IsCancellationRequested || items.Count == 0) return;
 
         var strip = new StackPanel { Orientation = Orientation.Horizontal };
@@ -1352,7 +1465,30 @@ public sealed class StoreSearchScreen : ListScreen
 public sealed class LibraryScreen : Screen
 {
     // With the sidebar shrunk to a blade, tiles are a little smaller so every row holds exactly six.
-    private double TileSize => Collapsed ? 148 : 164;
+    private double TileSize => Layout switch { "compact" => 124, "large" => 226, _ => Collapsed ? 148 : 164 };
+
+    /// <summary>
+    /// The page's layout (Settings > Games and library, or the toolbar):
+    ///  - sidebar: sections on the left, tiles on the right (the usual);
+    ///  - compact: an icons-only sidebar and small tiles, to see more at once;
+    ///  - large: no sidebar (a "Show" button picks the section), big tiles;
+    ///  - list: sections on the left, one row per game with its facts;
+    ///  - shelves: no sidebar, rows that scroll sideways (recently played, favorites, each store, collections);
+    ///  - spotlight: an icons-only sidebar, the highlighted game large across the top, tiles below.
+    /// </summary>
+    public static readonly (string Id, string Name, string About)[] Layouts =
+    {
+        ("sidebar", "Sidebar", "Sections on the left, tiles on the right"),
+        ("compact", "Compact", "Icons-only sidebar and small tiles, to see more at once"),
+        ("large", "Large tiles", "No sidebar and big tiles; pick the section with Show"),
+        ("list", "List", "One row per game, with its store, play time and when you last played"),
+        ("shelves", "Shelves", "Rows that scroll sideways: recent, favorites, each store, collections"),
+        ("spotlight", "Spotlight", "The highlighted game large across the top, tiles below"),
+    };
+
+    private string Layout => Layouts.Any(l => l.Id == Host.Settings.LibraryLayout) ? Host.Settings.LibraryLayout : "sidebar";
+    private bool SidebarHidden => Layout is "large" or "shelves";
+    private readonly Border _spotlight = new() { Margin = new Thickness(0, 0, 4, 14), Height = 250, Visibility = Visibility.Collapsed };
     private const string Uncategorized = "Uncategorized";
     private const int MaxNotInstalledShown = 400;
 
@@ -1383,6 +1519,7 @@ public sealed class LibraryScreen : Screen
         };
 
         var right = new StackPanel { Margin = new Thickness(22, 0, 0, 0) };
+        right.Children.Add(_spotlight);
         right.Children.Add(_toolbar);
         right.Children.Add(_groups);
 
@@ -1500,11 +1637,13 @@ public sealed class LibraryScreen : Screen
 
     // ---------------------------------------------------------------- sidebar size
 
-    private bool Collapsed => Host.Settings.LibrarySidebarCollapsed;
+    private bool Collapsed => Layout is "compact" or "spotlight" || Host.Settings.LibrarySidebarCollapsed;
 
     /// <summary>Shrinks the sidebar to a blade of icons, or opens it back up.</summary>
     private void ToggleSidebar()
     {
+        // The compact and spotlight layouts always use the icons-only sidebar; opening it goes back to the usual one.
+        if (Layout is "compact" or "spotlight") { Host.Settings.LibraryLayout = "sidebar"; Host.Settings.LibrarySidebarCollapsed = true; }
         Host.Settings.LibrarySidebarCollapsed = !Collapsed;
         Host.Settings.Save();
         _lastFocus = "side:toggle";
@@ -1514,6 +1653,10 @@ public sealed class LibraryScreen : Screen
 
     private void SizeSidebar(bool animate)
     {
+        _sidePanel.Visibility = SidebarHidden ? Visibility.Collapsed : Visibility.Visible;
+        if (_sidePanel.Parent is Grid layout && layout.Children.Count > 1 && layout.Children[1] is FrameworkElement rightSide)
+            rightSide.Margin = SidebarHidden ? new Thickness(-22, 0, 0, 0) : new Thickness(0);
+        _spotlight.Visibility = Layout == "spotlight" ? Visibility.Visible : Visibility.Collapsed;
         double target = Collapsed ? 92 : 264;
         _sidebar.Width = Collapsed ? 72 : 236;
         _sidePanel.Padding = Collapsed ? new Thickness(6, 4, 6, 8) : new Thickness(10, 4, 4, 8);
@@ -1542,7 +1685,11 @@ public sealed class LibraryScreen : Screen
 
     public override void OnResumed() => Rebuild();
 
-    public override void OnClosed() => Host.LibraryChanged -= OnLibraryChanged;
+    public override void OnClosed()
+    {
+        Host.LibraryChanged -= OnLibraryChanged;
+        _artCts?.Cancel();
+    }
 
     private void OnLibraryChanged()
     {
@@ -1601,6 +1748,10 @@ public sealed class LibraryScreen : Screen
         BuildSidebar(everything);
         BuildToolbar();
         _groups.Children.Clear();
+        // Art still on its way for the old tiles isn't wanted any more.
+        _artCts?.Cancel();
+        _artCts = new CancellationTokenSource();
+        _artQueue.Clear();
 
         IEnumerable<Game> games = everything.Where(g => Matches(g, _filter));
         if (_search.Length > 0)
@@ -1643,6 +1794,10 @@ public sealed class LibraryScreen : Screen
             if ((_filter != "notinstalled" || Host.OwnedGamesState == "ready") && (_filter != "wishlist" || Host.WishlistState == "ready"))
                 AddNote("Nothing to show here. Pick another section on the left, or clear the search.");
         }
+        else if (Layout == "shelves" && _filter == "all" && _search.Length == 0)
+        {
+            AddShelves(list);
+        }
         else if (_grouped)
         {
             var byCategory = list.GroupBy(g => Host.CategoryOf(g) ?? Uncategorized)
@@ -1662,6 +1817,28 @@ public sealed class LibraryScreen : Screen
         // Covers for games that aren't installed are only fetched once they are actually on screen.
         if (online) Host.EnsureCovers(list);
         RestoreFocus();
+    }
+
+    /// <summary>Shelves: rows of games that scroll sideways, each with a heading.</summary>
+    private void AddShelves(List<Game> all)
+    {
+        var installed = all.Where(g => g.IsInstalled).ToList();
+        void Shelf(string heading, IEnumerable<Game> games)
+        {
+            var list = games.Take(30).ToList();
+            if (list.Count == 0) return;
+            var header = Ui.Header(heading);
+            _groups.Children.Add(header);
+            AddGames(list, shelf: true);
+        }
+        Shelf("Recently played", installed.Where(g => g.RecentAt > DateTime.MinValue.AddYears(1)).OrderByDescending(g => g.RecentAt));
+        Shelf("Favorites", installed.Where(g => g.IsFavorite));
+        Shelf("Update waiting", installed.Where(g => g.HasUpdate));
+        foreach (var store in installed.GroupBy(g => g.SourceName).OrderByDescending(x => x.Count()))
+            Shelf(store.Key, store.OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase));
+        foreach (var c in Host.Library.Collections)
+            Shelf(c.Name, installed.Where(g => Matches(g, "col:" + c.Id)));
+        Shelf("Not installed", all.Where(g => !g.IsInstalled && !g.OnWishlist).OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase));
     }
 
     private void AddNote(string text)
@@ -1907,7 +2084,11 @@ public sealed class LibraryScreen : Screen
             string label = FilterName(filter);
             // Stores, categories and your own lists all share one icon, so the blade shows their initials instead.
             bool initials = filter.StartsWith("src:") || filter.StartsWith("cat:") || filter.StartsWith("status:");
-            var row = blade ? BladeRow(initials ? null : glyph, initials ? Initials(label) : null, label + (count != null ? $"  ({count})" : ""), _filter == filter)
+            // Stores with a logo show it instead.
+            var logo = filter.StartsWith("src:") ? StoreLogos.For(filter[4..]) : null;
+            if (logo != null) initials = false;
+            var row = blade ? BladeRow(initials ? null : glyph, initials ? Initials(label) : null, label + (count != null ? $"  ({count})" : ""), _filter == filter, logo)
+                            : logo != null ? Ui.Row(label, count?.ToString(), null, new Image { Source = logo })
                             : Ui.Row(label, count?.ToString(), glyph);
             row.Margin = blade ? new Thickness(0) : new Thickness(0, 2, 6, 2);
             row.FontSize = 17;
@@ -1963,10 +2144,14 @@ public sealed class LibraryScreen : Screen
     }
 
     /// <summary>A sidebar row in the icon-only blade: just the icon (or initials), the name as a tooltip.</summary>
-    private static Button BladeRow(string? glyph, string? initials, string tip, bool selected = false)
+    private static Button BladeRow(string? glyph, string? initials, string tip, bool selected = false, ImageSource? logo = null)
     {
         UIElement face;
-        if (initials != null)
+        if (logo != null)
+        {
+            face = new Image { Source = logo, Width = 36, Height = 36, Margin = new Thickness(2), Stretch = Stretch.Uniform };
+        }
+        else if (initials != null)
         {
             var badge = new Grid { Width = 40, Height = 40 };
             var tint = new Border { CornerRadius = new CornerRadius(11), Opacity = selected ? 0.42 : 0.16 };
@@ -2004,6 +2189,9 @@ public sealed class LibraryScreen : Screen
         _toolbar.Children.Clear();
         _toolbar.Children.Add(_searchBar);
         AddTool("Sort: " + SortLabel, ChooseSort);
+        AddTool("View: " + ViewLabel, ChooseView);
+        AddTool("Layout: " + Layouts.First(l => l.Id == Layout).Name, ChooseLayout);
+        if (SidebarHidden && Layout != "shelves") AddTool("Show: " + FilterName(_filter), ChooseSection);
         AddTool("Group by category: " + (_grouped ? "On" : "Off"), () => { _grouped = !_grouped; Rebuild(); });
         AddTool("+  Add custom game", () => Host.Push(new AddCustomGameScreen()));
         AddTool("Play time", () => Host.Push(new PlaytimeScreen()));
@@ -2027,13 +2215,33 @@ public sealed class LibraryScreen : Screen
 
     // ---------------------------------------------------------------- tiles
 
-    private void AddGames(IEnumerable<Game> games)
+    private void AddGames(IEnumerable<Game> games, bool shelf = false)
     {
-        var panel = new WrapPanel();
+        // Shelves: one row that scrolls sideways. List: one game per row. Otherwise tiles that wrap.
+        Panel panel = shelf ? new StackPanel { Orientation = Orientation.Horizontal } : Layout == "list" ? new StackPanel() : new WrapPanel();
+        if (Layout == "list" && !shelf)
+        {
+            foreach (var game in games)
+            {
+                var g = game;
+                var row = ListRow(g, out var rowTitle);
+                row.Tag = g;
+                row.Click += (_, _) => _ = Host.ActivateAsync(g);
+                row.GotKeyboardFocus += (_, _) => { _lastFocus = g.Key; rowTitle.Active = true; };
+                row.LostKeyboardFocus += (_, _) => rowTitle.Active = false;
+                panel.Children.Add(row);
+            }
+            _groups.Children.Add(panel);
+            return;
+        }
+        // Square: the cover as it is. Grid: tall 2:3 poster art. Rectangle: the wide 460×215 header, three to a row.
+        string view = Host.Settings.LibraryView;
+        double tileWidth = view == "header" ? TileSize * 2 + 4 : TileSize;
+        double tileHeight = view == "grid" ? Math.Round(TileSize * 1.5) : view == "header" ? Math.Round(tileWidth * 215 / 460) : TileSize;
         foreach (var game in games)
         {
             var g = game;
-            var box = GridScreen.ImageBox(TileSize, TileSize, out var cover);
+            var box = GridScreen.ImageBox(tileWidth, tileHeight, out var cover);
             var face = (Grid)box.Child;
 
             // Shown until (or unless) there is a cover.
@@ -2061,16 +2269,24 @@ public sealed class LibraryScreen : Screen
             {
                 bool icon = g.UsesIcon, fills = icon && g.IconFills;
                 cover.Stretch = icon && !fills ? Stretch.Uniform : Stretch.UniformToFill;
-                cover.Margin = icon && !fills ? new Thickness(TileSize * 0.24) : new Thickness(0);
+                cover.Margin = icon && !fills ? new Thickness(Math.Min(tileWidth, tileHeight) * 0.24) : new Thickness(0);
                 if (icon && g.TileBackground != null) box.Background = g.TileBackground;
                 // The name is only a placeholder until there is a picture.
                 name.Visibility = g.Cover == null ? Visibility.Visible : Visibility.Collapsed;
             }
             ApplyFace();
             System.ComponentModel.PropertyChangedEventManager.AddHandler(g, (_, _) => ApplyFace(), "");
+            if (view != "square" && g.Actual.IsGame)
+            {
+                // Grid / Rectangle art goes on top of the square cover once it arrives (the cover shows meanwhile).
+                var art = new Image { Stretch = Stretch.UniformToFill, Visibility = Visibility.Collapsed };
+                RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.HighQuality);
+                face.Children.Insert(face.Children.IndexOf(cover) + 1, art);
+                QueueArt(g, art, () => { art.Visibility = Visibility.Visible; name.Visibility = Visibility.Collapsed; });
+            }
             AddBadges(face, g);
 
-            var stack = new StackPanel { Width = TileSize };
+            var stack = new StackPanel { Width = tileWidth };
             stack.Children.Add(box);
 
             // Achievement progress, once it is known for the game.
@@ -2081,7 +2297,7 @@ public sealed class LibraryScreen : Screen
                 var fill = new Border
                 {
                     Height = 4, CornerRadius = new CornerRadius(2), HorizontalAlignment = HorizontalAlignment.Left,
-                    Width = TileSize * progress.Unlocked / progress.Total
+                    Width = tileWidth * progress.Unlocked / progress.Total
                 };
                 fill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
                 var bar = new Grid { ToolTip = $"{progress.Unlocked} of {progress.Total} achievements" };
@@ -2092,7 +2308,7 @@ public sealed class LibraryScreen : Screen
 
             // Long names slide along while the tile is highlighted, and end in "…" otherwise.
             var titleText = Ui.Text(g.Name, 15, "FgBrush", bold: true);
-            var title = new MarqueeText(titleText, onlyWhenActive: true) { Margin = new Thickness(2, 6, 2, 0), Width = TileSize - 4, HorizontalAlignment = HorizontalAlignment.Left };
+            var title = new MarqueeText(titleText, onlyWhenActive: true) { Margin = new Thickness(2, 6, 2, 0), Width = tileWidth - 4, HorizontalAlignment = HorizontalAlignment.Left };
             stack.Children.Add(title);
 
             // e.g. "Steam · Co-op · ★★★★☆ · 12/40"
@@ -2113,13 +2329,20 @@ public sealed class LibraryScreen : Screen
             tile.Tag = g;
             tile.Margin = new Thickness(0, 0, 4, 6);
             tile.Click += (_, _) => _ = Host.ActivateAsync(g);
-            tile.GotKeyboardFocus += (_, _) => { _lastFocus = g.Key; title.Active = true; };
+            tile.GotKeyboardFocus += (_, _) => { _lastFocus = g.Key; title.Active = true; ShowSpotlight(g); };
             tile.LostKeyboardFocus += (_, _) => title.Active = false;
             tile.MouseEnter += (_, _) => title.Active = true;
             tile.MouseLeave += (_, _) => title.Active = tile.IsKeyboardFocused;
             panel.Children.Add(tile);
         }
-        _groups.Children.Add(panel);
+        if (shelf)
+            _groups.Children.Add(new ScrollViewer
+            {
+                Content = panel, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                PanningMode = PanningMode.HorizontalOnly, Focusable = false, Margin = new Thickness(0, 0, 0, 8)
+            });
+        else _groups.Children.Add(panel);
+        LoadArt();
     }
 
     /// <summary>Small markers in the corners of a cover: running, update waiting.</summary>
@@ -2201,7 +2424,7 @@ public sealed class LibraryScreen : Screen
         if (System.Windows.Input.Keyboard.FocusedElement is Button { Tag: Game game })
         {
             if (action == NavAction.Y) _ = Host.OpenOptionsAsync(game);
-            else if (game.IsSteam) Host.Push(new DetailsScreen(game));
+            else if (game.IsGame) Host.Push(new DetailsScreen(game));
         }
         return true;
     }
@@ -2243,6 +2466,183 @@ public sealed class LibraryScreen : Screen
     }
 
     // ---------------------------------------------------------------- toolbar actions
+
+    /// <summary>Pick one of the six layouts (also in Settings > Games and library).</summary>
+    private async void ChooseLayout()
+    {
+        int choice = await Host.AskAsync("Library layout", string.Join("\n", Layouts.Select(l => $"{l.Name}: {l.About}")), Layouts.Select(l => l.Name).ToArray());
+        if (choice < 0 || Layouts[choice].Id == Layout) return;
+        Host.Settings.LibraryLayout = Layouts[choice].Id;
+        Host.Settings.Save();
+        if (Layout == "shelves") _filter = "all";
+        SizeSidebar(animate: false);
+        Rebuild();
+    }
+
+    /// <summary>Without a sidebar: the sections in a list (the main ones, then each store).</summary>
+    private async void ChooseSection()
+    {
+        var everything = Host.AllGames.Where(g => g.IsGame && g.IsInstalled);
+        var filters = new List<string> { "all", "favorites", "installed", "notinstalled", "wishlist", "collections", "updates", "rated" };
+        filters.AddRange(everything.Select(g => g.SourceName).Distinct().OrderBy(x => x).Select(x => "src:" + x));
+        filters.AddRange(Host.Library.Collections.Select(c => "col:" + c.Id));
+        var menu = new MenuScreen("Show", null, filters.Select(FilterName).ToArray());
+        Host.Push(menu);
+        int choice = await menu.Result;
+        if (choice < 0 || choice >= filters.Count) return;
+        _filter = filters[choice];
+        _lastFocus = null;
+        Rebuild();
+    }
+
+    /// <summary>Spotlight: the highlighted game large across the top: its cover over a blur of itself, name and facts.</summary>
+    private void ShowSpotlight(Game g)
+    {
+        if (Layout != "spotlight") return;
+        var grid = new Grid { ClipToBounds = true };
+        double corner = Math.Max(Theme.TileCorner + 6, 8);
+        grid.SizeChanged += (_, _) => grid.Clip = new RectangleGeometry(new Rect(grid.RenderSize), corner, corner);
+        if (g.Cover != null)
+        {
+            var back = new Image { Source = g.Cover, Stretch = Stretch.UniformToFill, Opacity = 0.55, Margin = new Thickness(-60) };
+            if (!Perf.Active) back.Effect = new System.Windows.Media.Effects.BlurEffect { Radius = 50 };
+            grid.Children.Add(back);
+        }
+        var shade = new LinearGradientBrush(Color.FromArgb(0xD0, 0, 0, 0), Color.FromArgb(0x30, 0, 0, 0), 0);
+        grid.Children.Add(new Border { Background = shade });
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(24), VerticalAlignment = VerticalAlignment.Center };
+        var art = new Border { Width = 200, Height = 200, CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner + 2, 6)), Margin = new Thickness(0, 0, 26, 0),
+                               Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 2, Opacity = 0.5 } };
+        if (g.Cover != null) art.Background = new ImageBrush(g.Cover) { Stretch = g.UsesIcon && !g.IconFills ? Stretch.Uniform : Stretch.UniformToFill };
+        else art.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+        row.Children.Add(art);
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center, MaxWidth = 900 };
+        words.Children.Add(new TextBlock { Text = g.Name, FontSize = 36, FontWeight = FontWeights.Bold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
+        double minutes = g.IsSteam ? SteamLibrary.GetPlaytimeMinutes(g.AppId) ?? 0 : Host.Playtime.TotalSeconds(g.Key) / 60;
+        var facts = new List<string> { g.IsInstalled ? g.SourceName : g.OnWishlist ? "Wishlist" : "Not installed" };
+        if (minutes >= 1) facts.Add(minutes >= 60 ? $"{minutes / 60:0.#} hours played" : $"{minutes:0} minutes played");
+        if (g.RecentAt > DateTime.MinValue.AddYears(1) && g.RecentAt < DateTime.Now.AddDays(1)) facts.Add("Last played " + Ui.Ago(g.RecentAt));
+        if (Host.CategoryOf(g) is string category) facts.Add(category);
+        words.Children.Add(new TextBlock { Text = string.Join("   ·   ", facts), FontSize = 17, Foreground = new SolidColorBrush(Color.FromArgb(0xD8, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(0, 8, 0, 0) });
+        var hint = new HintBar("{Select}  Play      {Details}  Details") { Margin = new Thickness(0, 16, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        words.Children.Add(hint);
+        row.Children.Add(words);
+        grid.Children.Add(row);
+        _spotlight.Child = grid;
+    }
+
+    /// <summary>List layout: one row per game, its cover small on the left and its facts across.</summary>
+    private Button ListRow(Game g, out MarqueeText title)
+    {
+        var grid = new Grid { Height = 74 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(74) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+        var box = GridScreen.ImageBox(62, 62, out var cover);
+        cover.SetBinding(Image.SourceProperty, new System.Windows.Data.Binding(nameof(Game.Cover)) { Source = g });
+        if (g.UsesIcon && !g.IconFills) { cover.Stretch = Stretch.Uniform; cover.Margin = new Thickness(12); if (g.TileBackground != null) box.Background = g.TileBackground; }
+        box.VerticalAlignment = VerticalAlignment.Center;
+        if (!g.IsInstalled && !g.OnWishlist) box.Opacity = 0.5;
+        grid.Children.Add(box);
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 10, 0) };
+        var name = Ui.Text(g.Name, 17, "FgBrush", bold: true);
+        title = new MarqueeText(name, onlyWhenActive: true);
+        words.Children.Add(title);
+        var mine = Host.Library.Find(g.Key);
+        var line = new List<string> { g.IsInstalled ? g.SourceName : g.OnWishlist ? "Wishlist" : "Not installed" };
+        if (Host.CategoryOf(g) is string category) line.Add(category);
+        if (mine is { Rating: > 0 }) line.Add(Ui.Stars(mine.Rating));
+        if (!string.IsNullOrWhiteSpace(mine?.Status)) line.Add(mine.Status);
+        words.Children.Add(Ui.Text(string.Join("  ·  ", line), 13, "SubtleBrush"));
+        Grid.SetColumn(words, 1);
+        grid.Children.Add(words);
+        double minutes = g.IsSteam ? SteamLibrary.GetPlaytimeMinutes(g.AppId) ?? 0 : Host.Playtime.TotalSeconds(g.Key) / 60;
+        TextBlock Cell(string text, int column)
+        {
+            var t = Ui.Text(text, 14, "SubtleBrush");
+            t.VerticalAlignment = VerticalAlignment.Center;
+            t.TextTrimming = TextTrimming.CharacterEllipsis;
+            Grid.SetColumn(t, column);
+            grid.Children.Add(t);
+            return t;
+        }
+        Cell(minutes >= 60 ? $"{minutes / 60:0.#} h played" : minutes >= 1 ? $"{minutes:0} min played" : "", 2);
+        Cell(g.RecentAt > DateTime.MinValue.AddYears(1) && g.RecentAt < DateTime.Now.AddDays(1) ? Ui.Ago(g.RecentAt) : "", 3);
+        Cell(g.SizeOnDisk > 0 ? $"{g.SizeOnDisk / 1073741824.0:0.#} GB" : "", 4);
+        var card = new Border { Child = grid, Padding = new Thickness(8, 4, 12, 4), CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner, 8)) };
+        card.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        var button = Ui.Tile(card);
+        button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        button.Margin = new Thickness(0, 0, 4, 2);
+        return button;
+    }
+
+    private string ViewLabel => Host.Settings.LibraryView switch { "grid" => "Grid", "header" => "Rectangle", _ => "Square" };
+
+    /// <summary>How the games look: square covers, tall grid art, or wide header capsules.</summary>
+    private async void ChooseView()
+    {
+        int choice = await Host.AskAsync("View",
+            "Square shows each game's cover as it is. Grid uses tall poster art, Rectangle the wide banner from the store page.",
+            "Square", "Grid", "Rectangle");
+        if (choice < 0) return;
+        string view = choice switch { 1 => "grid", 2 => "header", _ => "square" };
+        if (view == Host.Settings.LibraryView) return;
+        Host.Settings.LibraryView = view;
+        Host.Settings.Save();
+        Rebuild();
+    }
+
+    // ---- art for the Grid and Rectangle views, fetched a few at a time and kept for the session
+
+    private static readonly Dictionary<string, ImageSource?> HeaderArt = new();
+    private CancellationTokenSource? _artCts;
+    private readonly List<(Game Game, Image Picture, Action Shown)> _artQueue = new();
+
+    private void QueueArt(Game game, Image picture, Action shown) => _artQueue.Add((game, picture, shown));
+
+    private async void LoadArt()
+    {
+        if (_artQueue.Count == 0) return;
+        var cts = _artCts ??= new CancellationTokenSource();
+        var jobs = _artQueue.ToList();
+        _artQueue.Clear();
+        bool header = Host.Settings.LibraryView == "header";
+        using var client = new SteamGridDbClient(Host.Settings.SteamGridDbApiKey);
+        using var gate = new SemaphoreSlim(3);
+        var work = jobs.Select(async job =>
+        {
+            var actual = job.Game.Actual;
+            ImageSource? known = header ? (HeaderArt.TryGetValue(actual.Key, out var h) ? h : null) : actual.PortraitCover;
+            bool tried = header ? HeaderArt.ContainsKey(actual.Key) : actual.PortraitTried;
+            if (known == null && !tried)
+            {
+                await gate.WaitAsync();
+                try
+                {
+                    if (cts.IsCancellationRequested) return;
+                    known = await Task.Run(async () =>
+                    {
+                        var path = header ? await client.GetHeaderAsync(actual, cts.Token) : await client.GetPortraitAsync(actual, cts.Token);
+                        return path == null ? null : (ImageSource?)ImageLoader.FromFile(path, header ? 520 : 360);
+                    }, cts.Token);
+                }
+                catch (Exception) { known = null; }
+                finally { gate.Release(); }
+                if (cts.IsCancellationRequested) return;
+                if (header) HeaderArt[actual.Key] = known;
+                else { actual.PortraitTried = true; if (known != null) actual.PortraitCover = known; }
+            }
+            if (known != null && !cts.IsCancellationRequested)
+            {
+                job.Picture.Source = known;
+                job.Shown();
+            }
+        });
+        try { await Task.WhenAll(work); } catch (Exception) { }
+    }
 
     private async void ChooseSort()
     {

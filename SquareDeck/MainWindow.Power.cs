@@ -20,12 +20,14 @@ public partial class MainWindow
 
     private void InitPower()
     {
-        Activated += (_, _) => UpdateBackgroundMode();
-        Deactivated += (_, _) => UpdateBackgroundMode();
+        Activated += (_, _) => { UpdateBackgroundMode(); UpdateFocusPause(); };
+        Deactivated += (_, _) => { UpdateBackgroundMode(); UpdateFocusPause(); };
         StateChanged += (_, _) => UpdateBackgroundMode();
         Perf.Update(Settings);
         TdpControl.Init(Settings);
         LocalMusic.Init(Settings);
+        // Background music makes way for Spotify playing inside the launcher.
+        SpotifyPlayer.Changed += () => Dispatcher.BeginInvoke(new Action(() => { UpdateMenuMusic(); UpdateNowPlaying(); }));
 
         // Checked once a minute, also while a game is in front (the clock timer stops then).
         var batteryWatch = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
@@ -212,7 +214,7 @@ public partial class MainWindow
     /// While a game runs, SquareDeck gives back as much memory as it can, every time (not only with "Free graphics
     /// memory for the game" on):
     ///  - the moving background is unloaded completely (paused, a video still keeps its decoder and frames in memory);
-    ///  - the menu music player is closed;
+    ///  - the menu music player is closed (and later carries on from where it was);
     ///  - a browser kept open in the background is closed (its web pages can use hundreds of megabytes);
     ///  - the game artwork and animated cover are let go, and the memory is handed back to Windows.
     /// Everything comes back when the game closes.
@@ -225,8 +227,9 @@ public partial class MainWindow
         if (game)
         {
             StopDynamicBackground(); // the setting stays; only the video is unloaded
-            StopMenuMusic();
+            SuspendMenuMusic(); // closed to save memory; it picks up from the same spot afterwards
             if (!_screens.OfType<Screens.BrowserScreen>().Any()) Screens.BrowserScreen.DisposeKept();
+            if (!_screens.OfType<Screens.StreamingScreen>().Any()) Screens.StreamingScreen.CloseKept(); // video pages use a lot of memory
             if (_animatedGame != null) _animatedGame.AnimatedCover = null;
             ClearHero();
             Motion.StopPulse(RingOf(GameList.SelectedItem));
@@ -263,6 +266,36 @@ public partial class MainWindow
         if (AllGames.Any(g => g.IsRunning) && !IsActive) GameNotice.Show(title, detail, "\uEBA0"); // over the game
         else ShowToast("Battery", title, detail, "", "info");
         UiSound.Error();
+    }
+
+    private bool _focusPaused;
+
+    /// <summary>
+    /// With another app in front, SquareDeck rests: the menu music and moving background pause (see
+    /// UpdateMenuMusic and UpdateDynamicPlayback), an animated cover stops, and the highlight stops pulsing.
+    /// It all carries on when SquareDeck is back in front. The screen itself stays drawn, so a pop-up from another
+    /// app over the launcher doesn't leave a blank screen behind it.
+    /// </summary>
+    private void UpdateFocusPause()
+    {
+        UpdateMenuMusic();
+        bool pause = !IsActive;
+        if (pause == _focusPaused) return;
+        _focusPaused = pause;
+        if (pause)
+        {
+            Motion.StopPulse(RingOf(GameList.SelectedItem));
+            if (_animatedGame != null)
+            {
+                _animatedGame.AnimatedCover = null; // the video is let go; it comes back when the game is highlighted again
+                _animatedGame = null;
+            }
+        }
+        else if (!_backgroundMode)
+        {
+            if (!Theme.ReduceMotion) Motion.StartPulse(RingOf(GameList.SelectedItem));
+            _ = ShowAnimatedCoverAsync((GameList.SelectedItem as Game)?.Actual);
+        }
     }
 
     private void UpdateBackgroundMode()

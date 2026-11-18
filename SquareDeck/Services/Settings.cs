@@ -33,6 +33,20 @@ public sealed class Settings
     // Explorer: folders pinned to its sidebar, grid or list, sort order, and hidden files.
     public List<string> ExplorerPins { get; set; } = new();
     public string ExplorerView { get; set; } = "grid";
+    public bool WelcomeMessage { get; set; } = true;
+    // The performance overlay (Power and performance)
+    public bool OsdEnabled { get; set; }
+    public string OsdWhen { get; set; } = "games";        // games (full-screen programs) | always
+    public string OsdPosition { get; set; } = "top-left";
+    public string OsdLayout { get; set; } = "row";         // row | column | tiles
+    public string OsdDetail { get; set; } = "standard";    // minimal | standard | full
+    public string OsdStyle { get; set; } = "dark";         // dark | glass | text | neon | accent | retro
+    public string OsdSize { get; set; } = "medium";
+    public int OsdOpacity { get; set; } = 90;          // "Good morning, Richy" by the profile picture at startup
+    public List<string> CloudServices { get; set; } = new(); // cloud gaming services shown on the Stores page (xcloud, geforcenow, luna, antstream)
+    public string CloudCorner { get; set; } = "top-right";    // where the little exit button sits during a cloud game
+    public string LibraryLayout { get; set; } = "sidebar"; // Game library: sidebar, compact, large, list, shelves or spotlight
+    public string LibraryView { get; set; } = "square"; // Game library: square covers, tall "grid" art, or wide "header" capsules
     public string ExplorerSort { get; set; } = "name";
     public bool ExplorerSortDescending { get; set; }
     public bool ExplorerShowHidden { get; set; }
@@ -58,6 +72,18 @@ public sealed class Settings
     public string WindowsPowerMode { get; set; } = "";
     /// <summary>Processor temperature limit in °C (0 = the device's own).</summary>
     public int TdpTempLimit { get; set; }
+
+    /// <summary>Boost window: "off" (all three limits equal) or "short" (brief bursts above the limit, like the device's own software).</summary>
+    public string TdpBoostWindow { get; set; } = "off";
+
+    /// <summary>RyzenAdj's own power profile: "" (leave), "saving" or "performance".</summary>
+    public string RyzenProfile { get; set; } = "";
+
+    /// <summary>Energy preference for the CPU, 0 (performance) to 100 (power saving); -1 leaves Windows' setting.</summary>
+    public int CpuEpp { get; set; } = -1;
+
+    /// <summary>Share of CPU cores Windows may use, in percent (100 = all). Fewer cores save battery in light games.</summary>
+    public int CpuCores { get; set; } = 100;
     /// <summary>Apply the limit again every few seconds (for devices whose own software puts theirs back).</summary>
     public bool TdpReapply { get; set; }
 
@@ -101,7 +127,11 @@ public sealed class Settings
     public List<string> DisabledStores { get; set; } = new();
 
     /// <summary>Keyboard for typing in SquareDeck: "squaredeck" (built-in, works with a controller) or "windows" (touch keyboard).</summary>
-    public string TouchKeyboard { get; set; } = "squaredeck";
+    public string TouchKeyboard { get; set; } = "windows";
+
+    /// <summary>The keyboard was picked by hand (Windows' touch keyboard became the default in 5.9; earlier picks of
+    /// SquareDeck's keyboard were the old default, so they're moved over once).</summary>
+    public bool KeyboardChosen { get; set; }
 
     /// <summary>Home background: empty for none, "preset:N" for a built-in one, or an image path.</summary>
     public string Wallpaper { get; set; } = "";
@@ -150,6 +180,15 @@ public sealed class Settings
     /// <summary>Length of the launch countdown, in seconds.</summary>
     public int LaunchCountdownSeconds { get; set; } = 3;
 
+    /// <summary>Before a Steam game with a waiting update starts, ask whether to update it first.</summary>
+    public bool AskAboutUpdates { get; set; } = true;
+
+    /// <summary>Background music pauses while your own music plays (the Music page, Spotify, any media player).</summary>
+    public bool MenuMusicPausesForMedia { get; set; } = true;
+
+    /// <summary>YouTube in the Streaming tab uses its TV layout (built for arrow keys / a controller).</summary>
+    public bool StreamingYouTubeTv { get; set; }
+
     /// <summary>Show a splash screen with the game's cover from pressing Play until the game is running.</summary>
     public bool LaunchSplash { get; set; } = true;
 
@@ -183,6 +222,9 @@ public sealed class Settings
 
     /// <summary>Background music on the home screen: empty for none, or "pack:&lt;folder&gt;" for a music sound pack.</summary>
     public string MenuMusic { get; set; } = "";
+
+    /// <summary>Looks the user saved (Settings > Appearance > My themes): every appearance setting at once.</summary>
+    public List<SavedTheme> SavedThemes { get; set; } = new();
 
     /// <summary>Loudness of the menu music, in percent.</summary>
     public int MenuMusicVolume { get; set; } = 30;
@@ -269,6 +311,12 @@ public sealed class Settings
 
     /// <summary>Open Captures showing one album per game.</summary>
     public bool CaptureAlbums { get; set; }
+    public bool CaptureAlbumIcons { get; set; } = true; // the game's picture next to each album's name
+    public bool RumbleOnNotifications { get; set; } = true; // a short buzz when a notification pops up
+    public bool RumbleInSettings { get; set; } = true;      // a light tick moving from row to row in Settings
+    public bool PerformanceBoost { get; set; }              // free memory before a game starts, with an animation
+    public string BoostAnimation { get; set; } = "rings";   // rings, warp, gauge, orbit, shockwave or random
+    public bool BoostRumble { get; set; } = true;           // the animation's vibration pattern
 
     /// <summary>Store apps hidden from the Stores page (by name).</summary>
     public List<string> HiddenStores { get; set; } = new();
@@ -287,6 +335,9 @@ public sealed class Settings
 
     /// <summary>The permissions version of the Spotify sign-in (see SpotifyClient.ScopesVersion).</summary>
     public int SpotifyScopes { get; set; }
+
+    /// <summary>Spotify plays inside SquareDeck (as a Spotify device called "SquareDeck"), no Spotify app needed.</summary>
+    public bool SpotifyInLauncher { get; set; } = true;
 
     /// <summary>The folder the Music page's own player plays from.</summary>
     public string MusicFolder { get; set; } = "";
@@ -358,6 +409,15 @@ public sealed class Settings
     /// <summary>Show the battery percentage next to the battery icon.</summary>
     public bool ShowBatteryPercent { get; set; } = true;
 
+    /// <summary>Battery of connected Bluetooth headphones beside the Bluetooth icon on the home screen.</summary>
+    public bool ShowHeadphoneBattery { get; set; } = true;
+
+    /// <summary>Steam friends pinned to the top of the Friends page (SteamID64s).</summary>
+    public List<string> PinnedFriends { get; set; } = new();
+
+    /// <summary>Pop-ups when friends come online or start a game: "all", "pinned" or "off".</summary>
+    public string FriendAlerts { get; set; } = "all";
+
     /// <summary>Controller buttons for Select, Back, Details, Options, in that order.</summary>
     public string ButtonMap { get; set; } = "ABXY";
 
@@ -407,7 +467,12 @@ public sealed class Settings
                     s.BrowserFavorites ??= new();
                     s.UiStyle = UiStyles.Upgrade(s.UiStyle); // Glass became Frosted; Xbox and PlayStation were retired
                     s.TaskManagerSort ??= "memory";
-                    s.TouchKeyboard ??= "squaredeck";
+                    s.TouchKeyboard ??= "windows";
+                    if (!s.KeyboardChosen)
+                    {
+                        s.TouchKeyboard = "windows";
+                        s.KeyboardChosen = true;
+                    }
                     s.AllyBindings ??= AllyButtons.DefaultBindings();
                     foreach (var (k, v) in AllyButtons.DefaultBindings()) s.AllyBindings.TryAdd(k, v);
                     s.SpotifyClientId ??= "";
@@ -423,6 +488,11 @@ public sealed class Settings
                     s.HiddenPlayers ??= new();
                     s.PageOrder ??= new();
                     s.PagesOff ??= new();
+                    s.TdpBoostWindow ??= "off";
+                    s.RyzenProfile ??= "";
+                    s.SavedThemes ??= new();
+                    s.PinnedFriends ??= new();
+                    s.FriendAlerts ??= "all";
                     s.PreviousHomeApp ??= "";
                     s.MenuMusic ??= "";
                     s.SkippedVersion ??= "";
@@ -470,4 +540,40 @@ public sealed class BrowserFavorite
 {
     public string Title { get; set; } = "";
     public string Url { get; set; } = "";
+}
+
+/// <summary>A look the user saved: UI style, colors, wallpaper, moving background, sounds, music and button pictures.</summary>
+public sealed class SavedTheme
+{
+    public string Name { get; set; } = "My theme";
+    public DateTime Saved { get; set; } = DateTime.Now;
+    public string UiStyle { get; set; } = "switch";
+    public string? ThemeMode { get; set; }
+    public string ThemePalette { get; set; } = "";
+    public string AccentColor { get; set; } = "";
+    public string Wallpaper { get; set; } = "";
+    public string DynamicBackground { get; set; } = "";
+    public int DynamicBlur { get; set; }
+    public int TileCorner { get; set; }
+    public string SoundSet { get; set; } = "classic";
+    public string SoundFolder { get; set; } = "";
+    public string MenuMusic { get; set; } = "";
+    public string GlyphLook { get; set; } = "text";
+    public bool HeroBackgrounds { get; set; } = true;
+
+    public static SavedTheme From(Settings s, string name) => new()
+    {
+        Name = name, Saved = DateTime.Now, UiStyle = s.UiStyle, ThemeMode = s.ThemeMode, ThemePalette = s.ThemePalette ?? "",
+        AccentColor = s.AccentColor ?? "", Wallpaper = s.Wallpaper ?? "", DynamicBackground = s.DynamicBackground ?? "",
+        DynamicBlur = s.DynamicBlur, TileCorner = s.TileCorner, SoundSet = s.SoundSet ?? "classic", SoundFolder = s.SoundFolder ?? "",
+        MenuMusic = s.MenuMusic ?? "", GlyphLook = s.GlyphLook ?? "text", HeroBackgrounds = s.HeroBackgrounds
+    };
+
+    /// <summary>Copies this look into the settings (the caller applies and saves).</summary>
+    public void ApplyTo(Settings s)
+    {
+        s.UiStyle = UiStyle; s.ThemeMode = ThemeMode; s.ThemePalette = ThemePalette; s.AccentColor = AccentColor;
+        s.Wallpaper = Wallpaper; s.DynamicBackground = DynamicBackground; s.DynamicBlur = DynamicBlur; s.TileCorner = TileCorner;
+        s.SoundSet = SoundSet; s.SoundFolder = SoundFolder; s.MenuMusic = MenuMusic; s.GlyphLook = GlyphLook; s.HeroBackgrounds = HeroBackgrounds;
+    }
 }

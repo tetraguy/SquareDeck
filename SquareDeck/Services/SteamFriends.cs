@@ -10,12 +10,38 @@ public sealed record Friend(string Id, string Name, int State, string? Game, int
     public bool IsOnline => State != 0;
     public bool InGame => !string.IsNullOrEmpty(Game);
 
+    /// <summary>The 184 px picture (Avatar is the 64 px one).</summary>
+    public string AvatarFull { get; init; } = "";
+
+    /// <summary>When they were last seen on Steam, if their profile shares it.</summary>
+    public DateTime? LastOnline { get; init; }
+
+    /// <summary>Their profile's real name or country, when public; shown under the name.</summary>
+    public string Country { get; init; } = "";
+
+    /// <summary>"Last online 3 days ago" for friends who are offline.</summary>
+    public string LastSeenText
+    {
+        get
+        {
+            if (LastOnline is not DateTime t) return "Offline";
+            var ago = DateTime.Now - t;
+            if (ago.TotalMinutes < 60) return "Last online a few minutes ago";
+            if (ago.TotalHours < 24) return $"Last online {(int)ago.TotalHours} h ago";
+            if (ago.TotalDays < 2) return "Last online yesterday";
+            if (ago.TotalDays < 30) return $"Last online {(int)ago.TotalDays} days ago";
+            return "Last online " + t.ToString("MMM yyyy");
+        }
+    }
+
     public string Status => InGame ? "Playing " + Game : State switch
     {
         0 => "Offline",
         2 => "Busy",
         3 => "Away",
         4 => "Snooze",
+        5 => "Looking to trade",
+        6 => "Looking to play",
         _ => "Online"
     };
 }
@@ -63,10 +89,16 @@ public static class SteamFriends
                         p.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
                     int state = p.TryGetProperty("personastate", out var st) && st.TryGetInt32(out var n) ? n : 0;
                     var game = Str("gameextrainfo");
+                    long logoff = p.TryGetProperty("lastlogoff", out var lo) && lo.TryGetInt64(out var l) ? l : 0;
                     friends.Add(new Friend(Str("steamid"), Str("personaname"), state,
                         game.Length > 0 ? game : null,
                         int.TryParse(Str("gameid"), out var appId) ? appId : null,
-                        Str("avatarmedium")));
+                        Str("avatarmedium"))
+                    {
+                        AvatarFull = Str("avatarfull"),
+                        LastOnline = logoff > 0 ? DateTimeOffset.FromUnixTimeSeconds(logoff).LocalDateTime : null,
+                        Country = Str("loccountrycode")
+                    });
                 }
             }
 

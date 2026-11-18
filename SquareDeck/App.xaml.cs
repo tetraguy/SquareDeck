@@ -45,6 +45,23 @@ public partial class App : Application
             return;
         }
 
+        // Anything that goes wrong is written to crash.log. Errors on the interface thread are caught, so one
+        // broken page or menu doesn't take the whole launcher down.
+        DispatcherUnhandledException += (_, args) =>
+        {
+            SquareDeck.Services.CrashLog.Write("Interface", args.Exception);
+            args.Handled = true;
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception ex) SquareDeck.Services.CrashLog.Write("Background", ex);
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            SquareDeck.Services.CrashLog.Write("Task", args.Exception);
+            args.SetObserved();
+        };
+
         base.OnStartup(e);
         SquareDeck.Services.Perf.CapFrameRate(SquareDeck.Services.Settings.Load()); // must happen before any animation exists
         var window = new MainWindow();

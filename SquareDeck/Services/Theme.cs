@@ -24,7 +24,9 @@ public static class Theme
     /// <summary>Built-in picture wallpapers (in the Wallpapers folder next to the app): a name and its file.</summary>
     public static readonly (string Name, string File)[] PictureWallpapers =
     {
-        ("Leonida", "Leonida.jpg")
+        ("Leonida", "Leonida.jpg"), ("Alone", "Alone.jpg"), ("Blue Moon", "Blue Moon.jpg"), ("Cafe", "Cafe.jpg"),
+        ("Crimson", "Crimson.jpg"), ("Gold Dust", "Gold Dust.jpg"), ("Lavender", "Lavender.jpg"), ("Next Door", "Next Door.jpg"),
+        ("Nostalgia", "Nostalgia.jpg"), ("Jewels", "Jewels.jpg"), ("Terra", "Terra.jpg")
     };
 
     public const string LeonidaWallpaper = "image:Leonida.jpg";
@@ -38,7 +40,47 @@ public static class Theme
         // Leonida at dusk: violet sky, pastel Art Deco buildings, a hot-pink and orange sunset over peach sand.
         ["gtavi"] = ("GTA VI",
             new[] { "#24143F", "#FFF3EC", "#F4BCCB", "#4A2A6A", "#3A2058", "#FF4F9A" },
-            new[] { "#FFE6D9", "#2A1846", "#7B4C8C", "#FFF8F4", "#F6CFC6", "#E8337A" })
+            new[] { "#FFE6D9", "#2A1846", "#7B4C8C", "#FFF8F4", "#F6CFC6", "#E8337A" }),
+        // Arctic blues and frost.
+        ["nord"] = ("Nord",
+            new[] { "#2E3440", "#ECEFF4", "#A3ABBA", "#3B4252", "#434C5E", "#88C0D0" },
+            new[] { "#ECEFF4", "#2E3440", "#5E6779", "#FFFFFF", "#D8DEE9", "#5E81AC" }),
+        // Night violet with a purple highlight.
+        ["dracula"] = ("Dracula",
+            new[] { "#282A36", "#F8F8F2", "#B4B8D0", "#343746", "#3C3F52", "#BD93F9" },
+            new[] { "#F6F5FB", "#282A36", "#6C6F85", "#FFFFFF", "#E4E1F2", "#7C5CE0" }),
+        // Deep teal and warm cream.
+        ["solarized"] = ("Solarized",
+            new[] { "#002B36", "#EEE8D5", "#93A1A1", "#073642", "#0A4250", "#B58900" },
+            new[] { "#FDF6E3", "#073642", "#586E75", "#FFFDF6", "#EEE8D5", "#268BD2" }),
+        // Soft pastels on plum.
+        ["catppuccin"] = ("Catppuccin",
+            new[] { "#1E1E2E", "#CDD6F4", "#A6ADC8", "#313244", "#2A2B3C", "#F5C2E7" },
+            new[] { "#EFF1F5", "#4C4F69", "#6C6F85", "#FFFFFF", "#DCE0E8", "#8839EF" }),
+        // Pine greens.
+        ["evergreen"] = ("Evergreen",
+            new[] { "#13201A", "#E8F3EC", "#9DB8A8", "#1F3329", "#243B30", "#6FCF97" },
+            new[] { "#EEF5EF", "#16281F", "#4F6B5C", "#FFFFFF", "#D5E6DA", "#2E8B57" }),
+        // Charcoal and glowing orange.
+        ["ember"] = ("Ember",
+            new[] { "#1C1210", "#FFEFE6", "#D2A99A", "#2C1C18", "#33211C", "#FF6B35" },
+            new[] { "#FFF3EC", "#2B1712", "#7A5246", "#FFFFFF", "#F4D9CC", "#E4572E" }),
+        // Navy depths and bright sky blue.
+        ["abyss"] = ("Abyss",
+            new[] { "#0B1A2A", "#E6F2FF", "#9AB4CF", "#122840", "#163050", "#38BDF8" },
+            new[] { "#EAF4FB", "#0C2236", "#4A6580", "#FFFFFF", "#D2E5F3", "#0284C7" }),
+        // Cherry blossom pinks.
+        ["blossom"] = ("Blossom",
+            new[] { "#241821", "#FFEFF5", "#D9AFC2", "#33222F", "#3B2837", "#FF8FB8" },
+            new[] { "#FFF2F6", "#3A1F2D", "#8A5C70", "#FFFFFF", "#F8D6E3", "#E0457B" }),
+        // 80s neon: indigo night and hot magenta.
+        ["synthwave"] = ("Synthwave",
+            new[] { "#1A1033", "#F5EEFF", "#BBA8E0", "#2A1B4D", "#2F1F58", "#FF3EA5" },
+            new[] { "#F6F0FF", "#22123F", "#6E5A96", "#FFFFFF", "#E5DAFA", "#C2187A" }),
+        // Royal: aubergine and gold.
+        ["royal"] = ("Royal",
+            new[] { "#151019", "#FFF8E7", "#C9BDA2", "#231B2B", "#2B2134", "#E8B84A" },
+            new[] { "#FBF7EE", "#231A2E", "#6F6280", "#FFFFFF", "#ECE3D2", "#A87B1E" })
     };
 
     public static readonly (string Name, int Radius)[] CornerStyles = { ("Square", 0), ("Rounded", 10), ("Round", 22) };

@@ -22,6 +22,12 @@ public static class GameCard
     /// <param name="OnAccent">Black or white, whichever reads on the accent.</param>
     public sealed record Palette(Color Accent, Color Deep, Color OnAccent);
 
+    /// <summary>
+    /// A corner radius that fits the UI style: the usual round one, or nearly square for the pixel, blueprint and
+    /// newsprint styles, whose tiles have sharp corners.
+    /// </summary>
+    public static double Round(double usual) => Theme.TileCorner <= 4 ? Math.Min(usual, Theme.TileCorner + 2) : usual;
+
     public static Palette ColorsOf(Game? game)
     {
         Color? main = null;
@@ -56,7 +62,7 @@ public static class GameCard
     {
         var card = new Border
         {
-            Width = width, Padding = new Thickness(40, 36, 40, 34), CornerRadius = new CornerRadius(30),
+            Width = width, Padding = new Thickness(40, 36, 40, 34), CornerRadius = new CornerRadius(Round(30)),
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = content,
             BorderThickness = new Thickness(1.5), BorderBrush = new SolidColorBrush(Color.FromArgb(0x70, p.Accent.R, p.Accent.G, p.Accent.B)),
             Background = new LinearGradientBrush(
@@ -90,7 +96,7 @@ public static class GameCard
     {
         var cover = new Border
         {
-            Width = size, Height = size, CornerRadius = new CornerRadius(size * 0.18), HorizontalAlignment = HorizontalAlignment.Center,
+            Width = size, Height = size, CornerRadius = new CornerRadius(Round(size * 0.18)), HorizontalAlignment = HorizontalAlignment.Center,
             Effect = Perf.Active ? null : new DropShadowEffect { BlurRadius = 28, ShadowDepth = 8, Opacity = 0.55 }
         };
         if (game.Cover == null)
@@ -129,13 +135,15 @@ public static class GameCard
     {
         var fore = new SolidColorBrush(primary ? p.OnAccent : Colors.White);
         var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-        row.Children.Add(new TextBlock { Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 16, Foreground = fore,
-                                         VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 10, 0) });
-        row.Children.Add(new TextBlock { Text = label, FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = fore, VerticalAlignment = VerticalAlignment.Center });
+        row.Children.Add(new TextBlock { Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 15, Foreground = fore,
+                                         VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 9, 0),
+                                         Visibility = glyph.Length > 0 ? Visibility.Visible : Visibility.Collapsed });
+        row.Children.Add(new TextBlock { Text = label, FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = fore, VerticalAlignment = VerticalAlignment.Center });
         var scale = new ScaleTransform(1, 1);
         var face = new Border
         {
-            CornerRadius = new CornerRadius(28), Padding = new Thickness(28, 13, 30, 14), MinWidth = 190, Child = row,
+            // Sized so three fit side by side on the card, with room to grow when highlighted.
+            CornerRadius = new CornerRadius(Round(24)), Padding = new Thickness(20, 10, 22, 11), MinWidth = 140, Child = row,
             BorderThickness = new Thickness(3), BorderBrush = Brushes.Transparent,
             Background = primary ? new SolidColorBrush(p.Accent) : new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF)),
             RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = scale
@@ -148,7 +156,7 @@ public static class GameCard
         void Highlight(bool on)
         {
             face.BorderBrush = on ? Brushes.White : Brushes.Transparent;
-            double to = on && !Theme.ReduceMotion ? 1.05 : 1;
+            double to = on && !Theme.ReduceMotion ? 1.03 : 1;
             scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(120)));
             scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(120)));
         }
@@ -225,7 +233,7 @@ public sealed class GameBusyScreen : Screen
         art.Children.Add(spinner);
         var cover = GameCard.Cover(game, 132);
         cover.VerticalAlignment = VerticalAlignment.Center;
-        cover.CornerRadius = new CornerRadius(66); // round, inside the ring
+        cover.CornerRadius = new CornerRadius(GameCard.Round(66)); // round inside the ring (square in the sharp-cornered styles)
         art.Children.Add(cover);
         panel.Children.Add(art);
         var label = GameCard.Eyebrow(message, p);
@@ -312,7 +320,8 @@ public sealed class CountdownScreen : Screen
 
         _timer.Tick += (_, _) =>
         {
-            if (--_seconds > 0) { Show(); return; }
+            if (--_seconds > 0) { Show(); Host.Rumble(70); return; }
+            Host.Rumble(160); // a longer pulse as the game starts
             _go = true;
             Host.Pop(this);
         };
@@ -333,6 +342,7 @@ public sealed class CountdownScreen : Screen
     public override void OnShown()
     {
         _timer.Start();
+        Host.Rumble(70); // a small pulse on each second, if vibration is on
         // The ring empties smoothly over the whole countdown.
         if (_ring.Tag is double around)
             _ring.BeginAnimation(Shape.StrokeDashOffsetProperty, new DoubleAnimation(0, around, TimeSpan.FromSeconds(_total)));
@@ -368,5 +378,208 @@ public sealed class CountdownScreen : Screen
         _timer.Stop();
         _cts.Cancel();
         _done.TrySetResult(_go);
+    }
+}
+
+/// <summary>
+/// "An update is available" before a Steam game starts: its cover with a download badge, what Steam says about the
+/// update, and Update / Play anyway / Cancel, in the game's colors and the UI style's corners and font. While Steam
+/// downloads, a bar fills with the progress; when it's done the card says so and Play is ready.
+/// </summary>
+public sealed class GameUpdateScreen : Screen
+{
+    private readonly TaskCompletionSource<bool> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromSeconds(1.5) };
+    private readonly Game _game;
+    private readonly GameCard.Palette _p;
+    private readonly TextBlock _eyebrow, _title, _body, _percent;
+    private readonly Border _bar, _fill;
+    private readonly Grid _progress;
+    private readonly StackPanel _buttons;
+    private Button _first = null!;
+    private bool _play, _asked, _finished;
+
+    public override bool IsDialog => true;
+
+    /// <summary>True to start the game (updated or not), false to go back.</summary>
+    public Task<bool> Result => _done.Task;
+
+    public GameUpdateScreen(Game game)
+    {
+        _game = game;
+        _p = GameCard.ColorsOf(game);
+        var panel = new StackPanel();
+
+        // The cover, with a round download badge in the game's color on its corner.
+        var art = new Grid { Width = 140, Height = 140, HorizontalAlignment = HorizontalAlignment.Center };
+        var cover = GameCard.Cover(game, 124);
+        cover.VerticalAlignment = VerticalAlignment.Center;
+        art.Children.Add(cover);
+        var badge = new Border
+        {
+            Width = 46, Height = 46, CornerRadius = new CornerRadius(GameCard.Round(23)), Background = new SolidColorBrush(_p.Accent),
+            BorderThickness = new Thickness(4), BorderBrush = new SolidColorBrush(Color.FromArgb(0xFF, _p.Deep.R, _p.Deep.G, _p.Deep.B)),
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
+            Child = new TextBlock { Text = "", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 18, Foreground = new SolidColorBrush(_p.OnAccent),
+                                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+        };
+        art.Children.Add(badge);
+        panel.Children.Add(art);
+
+        _eyebrow = GameCard.Eyebrow("Update available", _p);
+        _eyebrow.Margin = new Thickness(0, 22, 0, 8);
+        panel.Children.Add(_eyebrow);
+        _title = GameCard.Text(game.Name, 26, bold: true);
+        _title.TextTrimming = TextTrimming.CharacterEllipsis;
+        _title.MaxHeight = 70;
+        panel.Children.Add(_title);
+        _body = GameCard.Text("", 17, opacity: 0.78);
+        _body.Margin = new Thickness(0, 10, 0, 0);
+        _body.MaxWidth = 520;
+        panel.Children.Add(_body);
+
+        // Download progress: a bar in the game's color with the percentage beside it.
+        _progress = new Grid { Margin = new Thickness(10, 22, 10, 0), Visibility = Visibility.Collapsed };
+        _progress.ColumnDefinitions.Add(new ColumnDefinition());
+        _progress.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _bar = new Border { Height = 10, CornerRadius = new CornerRadius(GameCard.Round(5)), Background = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF)), VerticalAlignment = VerticalAlignment.Center };
+        _fill = new Border
+        {
+            Height = 10, Width = 0, CornerRadius = new CornerRadius(GameCard.Round(5)), Background = new SolidColorBrush(_p.Accent), HorizontalAlignment = HorizontalAlignment.Left,
+            Effect = Perf.Active ? null : new DropShadowEffect { Color = _p.Accent, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.8 }
+        };
+        _bar.Child = _fill;
+        _progress.Children.Add(_bar);
+        _percent = GameCard.Text("", 16, bold: true);
+        _percent.Margin = new Thickness(14, 0, 0, 0);
+        _percent.MinWidth = 48;
+        Grid.SetColumn(_percent, 1);
+        _progress.Children.Add(_percent);
+        panel.Children.Add(_progress);
+
+        _buttons = GameCard.Buttons();
+        panel.Children.Add(_buttons);
+        Content = GameCard.Frame(_p, panel, 680);
+
+        _poll.Tick += async (_, _) => await PollAsync();
+        Show(game.UpdateText);
+    }
+
+    /// <summary>Lays the card out for what Steam says now: waiting, downloading (with a percentage) or done.</summary>
+    private void Show(string state)
+    {
+        bool downloading = state.StartsWith("Updating", StringComparison.Ordinal);
+        int percent = 0;
+        if (downloading) int.TryParse(new string(state.Where(char.IsDigit).ToArray()), out percent);
+
+        if (state.Length == 0 && (_asked || downloading || _finished || !_game.HasUpdate))
+        {
+            // Up to date (it finished while the card was open).
+            _finished = true;
+            _eyebrow.Text = Spaced("Up to date");
+            _body.Text = "The update is installed. Ready when you are.";
+            _progress.Visibility = Visibility.Visible;
+            SetBar(100);
+            SetButtons(("Play", "", true, () => Close(true)), ("Not now", "", false, () => Close(false)));
+            UiSound.Toast();
+            return;
+        }
+
+        _progress.Visibility = downloading || _asked ? Visibility.Visible : Visibility.Collapsed;
+        if (downloading)
+        {
+            _eyebrow.Text = Spaced("Updating");
+            _body.Text = "Steam is downloading the update. You can wait here, or play the version you have.";
+            SetBar(percent);
+            if (_buttons.Children.Count != 2 || _asked == false)
+                SetButtons(("Play anyway", "", false, () => Close(true)), ("Cancel", "", false, () => Close(false)));
+            _asked = true;
+        }
+        else if (_asked)
+        {
+            _eyebrow.Text = Spaced("Waiting for Steam");
+            _body.Text = "Start the update in Steam's Downloads page (it's open now), then come back. The bar fills as it downloads.";
+            SetBar(0);
+            _percent.Text = "…";
+        }
+        else
+        {
+            _eyebrow.Text = Spaced("Update available");
+            _body.Text = "A new version is waiting in Steam. Update first, or play the version you have now. " +
+                         "Some online games won't connect until they're updated.";
+            SetButtons(("Update", "", true, StartUpdate), ("Play anyway", "", false, () => Close(true)), ("Cancel", "", false, () => Close(false)));
+        }
+    }
+
+    private static string Spaced(string text) => string.Join(" ", text.ToUpperInvariant().ToCharArray());
+
+    private void SetBar(int percent)
+    {
+        percent = Math.Clamp(percent, 0, 100);
+        _percent.Text = percent + "%";
+        _bar.UpdateLayout();
+        double to = Math.Max(0, (_bar.ActualWidth > 0 ? _bar.ActualWidth : 480) * percent / 100.0);
+        if (Theme.ReduceMotion) _fill.Width = to;
+        else _fill.BeginAnimation(WidthProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(400)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+    }
+
+    private void SetButtons(params (string Label, string Glyph, bool Primary, Action Click)[] buttons)
+    {
+        _buttons.Children.Clear();
+        foreach (var b in buttons)
+        {
+            var pill = GameCard.Pill(b.Label, b.Glyph, b.Primary, _p, b.Click);
+            pill.Margin = new Thickness(5, 4, 5, 4);
+            _buttons.Children.Add(pill);
+        }
+        _first = (Button)_buttons.Children[0];
+        if (IsLoaded) Dispatcher.BeginInvoke(() => _first.Focus(), DispatcherPriority.Input);
+    }
+
+    /// <summary>
+    /// Steam has no quiet "update this now" command, so its Downloads page opens, where the waiting update can be
+    /// started with one press. The card stays here and follows the download.
+    /// </summary>
+    private void StartUpdate()
+    {
+        _asked = true;
+        ProcessUtil.Open("steam://open/downloads");
+        Show(_game.UpdateText);
+        _poll.Start();
+    }
+
+    private async Task PollAsync()
+    {
+        try
+        {
+            var states = await Task.Run(SteamLibrary.GetUpdateStates);
+            if (!states.TryGetValue(_game.AppId, out var state)) return;
+            _game.UpdateText = state;
+            if (!_finished) Show(state);
+            if (_finished) _poll.Stop();
+        }
+        catch (Exception) { }
+    }
+
+    private void Close(bool play)
+    {
+        _play = play;
+        Host.Pop(this);
+    }
+
+    public override void FocusDefault() => _first.Focus();
+
+    public override void OnShown()
+    {
+        // Already downloading? Follow it straight away.
+        if (_game.UpdateText.StartsWith("Updating", StringComparison.Ordinal)) _poll.Start();
+    }
+
+    public override void OnResumed() => _first.Focus();
+
+    public override void OnClosed()
+    {
+        _poll.Stop();
+        _done.TrySetResult(_play);
     }
 }

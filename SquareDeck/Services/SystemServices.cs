@@ -168,6 +168,65 @@ public static class WindowActivator
         catch (Exception) { }
     }
 
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, System.Text.StringBuilder text, int max);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+    [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr hwnd);
+
+    [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public Rect Monitor, Work; public uint Flags; }
+
+    /// <summary>The app whose window is in front: its window, process, title, and whether it fills its screen.</summary>
+    public readonly record struct FrontWindow(IntPtr Handle, int ProcessId, string Title, string Process, bool FullScreen);
+
+    // The desktop, the taskbar, the Xbox app (the home of the full screen experience) and SquareDeck itself aren't games.
+    private static readonly string[] NotGames = { "explorer", "XboxPcApp", "XboxApp", "GamingApp", "ShellExperienceHost", "StartMenuExperienceHost",
+                                                  "SearchHost", "TextInputHost", "ApplicationFrameHost", "LockApp", "SquareDeck" };
+
+    /// <summary>The app in front, if it's something other than the desktop, the Xbox app or SquareDeck.</summary>
+    public static FrontWindow? FrontApp()
+    {
+        try
+        {
+            var hwnd = GetForegroundWindow();
+            if (hwnd == IntPtr.Zero) return null;
+            GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid == 0 || pid == Environment.ProcessId) return null;
+            string process;
+            try { using var p = System.Diagnostics.Process.GetProcessById((int)pid); process = p.ProcessName; }
+            catch (Exception) { return null; }
+            if (NotGames.Any(n => n.Equals(process, StringComparison.OrdinalIgnoreCase))) return null;
+            var title = new System.Text.StringBuilder(256);
+            GetWindowText(hwnd, title, title.Capacity);
+            bool full = false;
+            if (GetWindowRect(hwnd, out var r))
+            {
+                var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+                if (GetMonitorInfo(MonitorFromWindow(hwnd, 2), ref info))
+                    full = r.Left <= info.Monitor.Left && r.Top <= info.Monitor.Top && r.Right >= info.Monitor.Right && r.Bottom >= info.Monitor.Bottom;
+            }
+            string name = title.ToString().Trim();
+            return new FrontWindow(hwnd, (int)pid, name.Length > 0 ? name : process, process, full);
+        }
+        catch (Exception) { return null; }
+    }
+
+    /// <summary>Asks an app to close (like its close button), and ends it if it's still running a few seconds later.</summary>
+    public static async Task CloseAppAsync(FrontWindow app)
+    {
+        try
+        {
+            PostMessage(app.Handle, 0x0010 /* WM_CLOSE */, IntPtr.Zero, IntPtr.Zero);
+            for (int i = 0; i < 20 && IsWindow(app.Handle); i++) await Task.Delay(250);
+            using var p = System.Diagnostics.Process.GetProcessById(app.ProcessId);
+            if (!p.HasExited && IsWindow(app.Handle)) p.Kill(entireProcessTree: true);
+        }
+        catch (Exception) { }
+    }
+
     public static void BringToFront(Window window)
     {
         try

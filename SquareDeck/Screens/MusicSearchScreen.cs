@@ -47,7 +47,7 @@ public sealed class MusicSearchScreen : ListScreen
         if (IsSpotify && !(_spotify?.HasClientId ?? false))
         {
             AddNote("Spotify needs a free app of your own before the launcher can search it. Create one at developer.spotify.com, " +
-                    "add the redirect URI " + SpotifyClient.RedirectUri + ", then paste its Client ID in Settings > Sound > Music page.");
+                    "add the redirect URI " + SpotifyClient.RedirectUri + ", then paste its Client ID in Settings > Sound > Multimedia page.");
             AddRow("Open the Spotify developer dashboard", glyph: "", click: () => ProcessUtil.Open("https://developer.spotify.com/dashboard"));
             AddRow("Open the Spotify app instead", glyph: "", click: () => ProcessUtil.Open("spotify:"));
             return;

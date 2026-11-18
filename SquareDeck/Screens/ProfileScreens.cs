@@ -301,7 +301,7 @@ public sealed class ProfileScreen : Screen
         row.Children.Add(buttons);
 
         var info = new StackPanel { Margin = new Thickness(28, 0, 24, 0), VerticalAlignment = VerticalAlignment.Center };
-        var name = Ui.Text(steam?.Name ?? Environment.UserName, 38, "FgBrush", bold: true);
+        var name = Ui.Text(steam?.Name ?? UserName.Display, 38, "FgBrush", bold: true);
         name.Foreground = Brushes.White;
         name.TextTrimming = TextTrimming.CharacterEllipsis;
         info.Children.Add(name);

@@ -653,7 +653,16 @@ public sealed class StoresScreen : GridScreen
             {
                 if (!Stores.Open(s)) _ = Host.AskAsync("Couldn't open " + s.Name, "Its app didn't start.", "OK");
             }, s);
-            _ = LoadIconAsync(icon, box, s);
+            // The store's own logo where SquareDeck has one; otherwise its app icon on a gradient of its colors.
+            if (StoreLogos.For(s.Name) is { } logo) { icon.Source = logo; icon.Margin = new Thickness(28); }
+            else _ = LoadIconAsync(icon, box, s);
+        }
+
+        // Cloud gaming services turned on in Settings, with their logos.
+        foreach (var service in CloudService.All.Where(c => Host.Settings.CloudServices.Contains(c.Id)))
+        {
+            var cs = service;
+            AddTile(cs.Face(TileSize, TileSize, 18), cs.Name, TileSize, () => Host.Push(new CloudGameScreen(cs)));
         }
 
         AddTile(GlyphBox(TileSize, TileSize, "\uE710"), "Add more stores", TileSize, () => Host.Push(new AddStoresScreen()));
@@ -765,6 +774,8 @@ public sealed class AddStoresScreen : ListScreen
 
     protected override void Build()
     {
+        BuildCloud();
+        AddHeader("Stores to install");
         if (_busy != null) { AddNote(_busy); return; }
         if (_missing == null) { AddNote("Checking which stores are installed…"); return; }
         if (_missing.Count == 0) { AddNote("Every store this launcher knows about is already installed."); return; }
@@ -774,6 +785,25 @@ public sealed class AddStoresScreen : ListScreen
         {
             var s = store;
             AddRow(s.Name, "Not installed", "", click: () => Install(s));
+        }
+    }
+
+    /// <summary>Cloud gaming services: nothing to install, just switch each on to give it a tile on the Stores page.</summary>
+    private void BuildCloud()
+    {
+        var settings = Host.Settings;
+        AddHeader("Cloud gaming");
+        AddNote("Play in the cloud with nothing to download. Each service you turn on gets a tile on the Stores page (these are the same switches as in Settings > Games).");
+        foreach (var service in CloudService.All)
+        {
+            var cs = service;
+            bool on = settings.CloudServices.Contains(cs.Id);
+            AddRow(cs.Name, on ? "On" : "Off", "\uE753", click: () =>
+            {
+                if (!settings.CloudServices.Remove(cs.Id)) settings.CloudServices.Add(cs.Id);
+                settings.Save();
+                Rebuild();
+            }, subtitle: cs.About);
         }
     }
 

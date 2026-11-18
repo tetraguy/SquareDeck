@@ -816,7 +816,7 @@ public sealed class BrowserScreen : Screen
     //    same site, which a plain search of the page misses, so links were sometimes unreachable;
     //  - scrolls whatever part of the page actually scrolls (mail, chat and feed sites scroll a panel, not the page);
     //  - draws a clear ring around what the d-pad has landed on.
-    private const string HelperScript = """
+    internal const string HelperScript = """
         (function(){ if(window.__sd) return;
           var SEL='a[href],button,input:not([type=hidden]),select,textarea,summary,video,[role=button],[role=link],[role=tab],[role=menuitem],[role=option],[role=checkbox],[role=switch],[contenteditable=true],[tabindex]:not([tabindex="-1"])';
           function ring(doc){ try{ if(doc.getElementById('sd-focus-ring')) return; var s=doc.createElement('style'); s.id='sd-focus-ring';
@@ -1241,6 +1241,7 @@ public sealed class NotificationsScreen : Screen
     private const double BladeWidth = 480;
 
     private readonly StackPanel _rows = new();
+    private Button _close = null!;
     private readonly TranslateTransform _slide = new(BladeWidth, 0);
     private readonly Grid _backdrop = new();
     private bool _closing;
@@ -1252,8 +1253,9 @@ public sealed class NotificationsScreen : Screen
         var title = Ui.Text("Notifications", 28);
         var close = Ui.PanelButton("");
         close.FontFamily = Ui.IconFont;
-        close.Focusable = false;
+        close.Focusable = true; // reachable with the controller: Up from the first notification, or Right
         close.Click += (_, _) => Dismiss();
+        _close = close;
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };
         DockPanel.SetDock(close, Dock.Right);
         header.Children.Add(close);
@@ -1306,7 +1308,11 @@ public sealed class NotificationsScreen : Screen
 
     public override void OnResumed() => FocusDefault();
 
-    public override void FocusDefault() => _rows.Children.OfType<Button>().FirstOrDefault()?.Focus();
+    public override void FocusDefault()
+    {
+        if (_rows.Children.OfType<Button>().FirstOrDefault() is { } first) first.Focus();
+        else _close.Focus(); // nothing to list: the close button
+    }
 
     /// <summary>Slides the panel back out, then closes it.</summary>
     private void Dismiss()
@@ -1326,7 +1332,21 @@ public sealed class NotificationsScreen : Screen
         {
             case NavAction.Back: Dismiss(); return true;
             case NavAction.X: Clear(); return true;
-            case NavAction.Left or NavAction.Right: return true; // one column: nothing to the sides
+            case NavAction.Up when _rows.Children.OfType<Button>().FirstOrDefault() is { } first && first.IsKeyboardFocusWithin:
+                _close.Focus(); // above the first notification: the close button
+                return true;
+            case NavAction.Up when _close.IsKeyboardFocused:
+                return true;
+            case NavAction.Down when _close.IsKeyboardFocused:
+                if (_rows.Children.OfType<Button>().FirstOrDefault() is { } top) { top.Focus(); top.BringIntoView(); }
+                return true;
+            case NavAction.Right:
+                _close.Focus(); // the close button sits to the right of everything
+                return true;
+            case NavAction.Left when _close.IsKeyboardFocused:
+                if (_rows.Children.OfType<Button>().Any()) FocusDefault();
+                return true;
+            case NavAction.Left: return true; // one column: nothing to the left
         }
         return false;
     }

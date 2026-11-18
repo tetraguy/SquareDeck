@@ -18,7 +18,9 @@ public partial class MainWindow
     {
         ("Waves", new[] { "Black Wave", "Blue Wave", "Gold Wave", "Silver Wave" }),
         ("Blades", new[] { "Black Blades", "Green Blades", "Mint Blades", "Blurry Blades", "Fuzzy Blades" }),
-        ("Pixel art", new[] { "Lofi City", "City Dawn", "Cyberpunk Rain", "Night River", "Mushroom Forest", "Yellowstone", "Chill Mario" })
+        ("Pixel art", new[] { "Lofi City", "City Dawn", "Cyberpunk Rain", "Night River", "Mushroom Forest", "Yellowstone", "Chill Mario",
+                              "Ocarina", "Pokee", "Stars and Me", "Witcher" }),
+        ("Scenery", new[] { "Aero", "Heaven", "Pasture", "Plague" })
     };
 
     public static readonly (int Radius, string Name)[] DynamicBlurLevels =
@@ -142,11 +144,21 @@ public partial class MainWindow
         DynamicLayer.Visibility = Visibility.Collapsed;
     }
 
+    /// <summary>A cloud game is open (even with something drawn over it): music and moving backgrounds stay paused.</summary>
+    private bool CloudOpen => _screens.Any(x => x is Screens.CloudGameScreen);
+
+    /// <summary>Checks again whether the menu music and the moving background should be playing.</summary>
+    public void RefreshBackgroundPlayback()
+    {
+        UpdateMenuMusic();
+        UpdateDynamicPlayback();
+    }
+
     /// <summary>Plays only while SquareDeck is in front, not minimized, and no game is running.</summary>
     private void UpdateDynamicPlayback()
     {
         if (_dynamicVideo == null) return;
-        bool pause = !IsActive || WindowState == WindowState.Minimized || AllGames.Any(g => g.IsRunning);
+        bool pause = !IsActive || WindowState == WindowState.Minimized || AllGames.Any(g => g.IsRunning) || CloudOpen;
         if (pause == _dynamicPaused) return;
         _dynamicPaused = pause;
         if (pause) _dynamicVideo.Pause();

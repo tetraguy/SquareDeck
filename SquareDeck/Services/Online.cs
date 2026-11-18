@@ -409,10 +409,12 @@ public sealed class SpotifyClient
     public static string RedirectUri => $"http://127.0.0.1:{Port}/callback";
     // Playlists, Liked Songs, recently played, and playing / controlling music on your Spotify devices.
     private const string Scopes = "playlist-read-private playlist-read-collaborative user-read-playback-state user-modify-playback-state " +
-                                  "user-read-currently-playing user-library-read user-read-recently-played";
+                                  "user-read-currently-playing user-library-read user-read-recently-played " +
+                                  // Playing inside SquareDeck (Spotify's Web Playback SDK).
+                                  "streaming user-read-email user-read-private";
 
     /// <summary>Bumped when new permissions are needed, so an older sign-in is asked to sign in again.</summary>
-    public const int ScopesVersion = 2;
+    public const int ScopesVersion = 3;
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
     private readonly Settings _settings;
@@ -421,7 +423,18 @@ public sealed class SpotifyClient
 
     public SpotifyClient(Settings settings) => _settings = settings;
 
-    public bool HasClientId => _settings.SpotifyClientId.Trim().Length > 0;
+    /// <summary>
+    /// SquareDeck's own Spotify app, used unless you enter the Client ID of an app of your own in Settings. A Client ID
+    /// isn't a secret (sign-in uses PKCE, with no client secret), so it can ship with the launcher.
+    /// </summary>
+    public const string BuiltInClientId = "cf67066c8c464657aab3f60fd20ce346";
+
+    /// <summary>The Client ID in use: your own if you entered one, else SquareDeck's.</summary>
+    public string ClientId => _settings.SpotifyClientId.Trim() is { Length: > 0 } own ? own : BuiltInClientId;
+
+    public bool UsesBuiltInApp => _settings.SpotifyClientId.Trim().Length == 0;
+
+    public bool HasClientId => ClientId.Length > 0;
     public bool IsSignedIn => LocalSecret.Unprotect(_settings.SpotifyToken).Length > 0;
 
     /// <summary>Signed in before the built-in player needed more permissions: sign in once more.</summary>
@@ -451,7 +464,7 @@ public sealed class SpotifyClient
         try
         {
             string url = "https://accounts.spotify.com/authorize?response_type=code" +
-                         "&client_id=" + Uri.EscapeDataString(_settings.SpotifyClientId.Trim()) +
+                         "&client_id=" + Uri.EscapeDataString(ClientId) +
                          "&redirect_uri=" + Uri.EscapeDataString(RedirectUri) +
                          "&scope=" + Uri.EscapeDataString(Scopes) +
                          "&code_challenge_method=S256&code_challenge=" + challenge + "&state=" + state;
@@ -488,7 +501,7 @@ public sealed class SpotifyClient
             await TokenAsync(new Dictionary<string, string>
             {
                 ["grant_type"] = "authorization_code", ["code"] = code!, ["redirect_uri"] = RedirectUri,
-                ["client_id"] = _settings.SpotifyClientId.Trim(), ["code_verifier"] = verifier
+                ["client_id"] = ClientId, ["code_verifier"] = verifier
             }, ct).ConfigureAwait(false);
             _settings.SpotifyScopes = ScopesVersion;
             _settings.Save();
@@ -524,6 +537,9 @@ public sealed class SpotifyClient
         }
     }
 
+    /// <summary>A current sign-in token, refreshed when needed (for the built-in player).</summary>
+    public Task<string> GetAccessTokenAsync(CancellationToken ct) => AccessTokenAsync(ct);
+
     private async Task<string> AccessTokenAsync(CancellationToken ct)
     {
         if (_accessToken != null && DateTime.UtcNow < _expires) return _accessToken;
@@ -531,7 +547,7 @@ public sealed class SpotifyClient
         if (refresh.Length == 0) throw new InvalidOperationException("Sign in to Spotify first.");
         await TokenAsync(new Dictionary<string, string>
         {
-            ["grant_type"] = "refresh_token", ["refresh_token"] = refresh, ["client_id"] = _settings.SpotifyClientId.Trim()
+            ["grant_type"] = "refresh_token", ["refresh_token"] = refresh, ["client_id"] = ClientId
         }, ct).ConfigureAwait(false);
         return _accessToken!;
     }
@@ -646,8 +662,8 @@ public sealed class SpotifyClient
     public Task<string?> VolumeAsync(int percent, CancellationToken ct) => CommandAsync(HttpMethod.Put, "me/player/volume?volume_percent=" + Math.Clamp(percent, 0, 100), null, ct);
 
     /// <summary>Moves playback to a device (and starts it).</summary>
-    public Task<string?> TransferAsync(string deviceId, CancellationToken ct) =>
-        CommandAsync(HttpMethod.Put, "me/player", JsonSerializer.Serialize(new { device_ids = new[] { deviceId }, play = true }), ct);
+    public Task<string?> TransferAsync(string deviceId, CancellationToken ct, bool play = true) =>
+        CommandAsync(HttpMethod.Put, "me/player", JsonSerializer.Serialize(new { device_ids = new[] { deviceId }, play }), ct);
 
     /// <summary>Plays a playlist or album from one of its songs.</summary>
     public Task<string?> PlayFromAsync(string contextUri, string trackUri, CancellationToken ct) =>

@@ -136,8 +136,12 @@ public partial class MainWindow
         res["SideActiveFill"] = new SolidColorBrush(Color.FromArgb(0x40, accent.R, accent.G, accent.B));
 
         // Poster tiles.
-        bool shapeChanged = Game.Portrait != s.Portrait;
+        // The picture sits inside the gap, the ring and 4 more on each side (TileInnerMargin); make that area 2:3.
+        double inset = 2 * (s.TileGap + s.RingThickness + 4);
+        double posterWidth = Math.Round((270 - inset) / 1.5 + inset);
+        bool shapeChanged = Game.Portrait != s.Portrait || (s.Portrait && Math.Abs(Game.PortraitWidth - posterWidth) > 0.5);
         Game.Portrait = s.Portrait;
+        Game.PortraitWidth = posterWidth;
         if (shapeChanged)
         {
             foreach (var g in _view) g.RefreshShape();
@@ -235,7 +239,7 @@ public partial class MainWindow
             case "stage":
                 // The selected game in the middle; its name, buttons and details centered under it.
                 _rowSide = Math.Max(RowSideMargin, RootGrid.Width / _tileScale / 2 - 90 - s.TileGap);
-                Place(StylePanel, 2, 5);
+                Place(StylePanel, 2, 4); // above the footer, not over its button hints
                 StylePanel.VerticalAlignment = VerticalAlignment.Top;
                 StylePanel.HorizontalAlignment = HorizontalAlignment.Center;
                 StylePanel.Margin = new Thickness(0, 2, 0, 0);
@@ -255,7 +259,55 @@ public partial class MainWindow
         SetItemsPanelSide(_rowSide);
         FitButtonRow();
         UpdateLayoutDetails();
+        QueueFitStylePanel();
         if (s.Portrait) StartPortraits();
+    }
+
+    private bool _stylePanelHooked, _stylePanelQueued;
+
+    /// <summary>
+    /// Stage layout: the logo, buttons, page dots and details under the game are scaled down when together they're
+    /// taller than the space above the footer (Pixel Dawn's logo, square buttons and wide type ran into the hints).
+    /// Run again whenever the panel's content changes, for example when a game's logo arrives.
+    /// </summary>
+    private void FitStylePanel()
+    {
+        if (!_stylePanelHooked)
+        {
+            _stylePanelHooked = true;
+            StylePanel.SizeChanged += (_, _) => QueueFitStylePanel();
+        }
+        if (UiStyles.Current.Layout != "stage" || StylePanel.Visibility != Visibility.Visible)
+        {
+            if (StylePanel.LayoutTransform != Transform.Identity) StylePanel.LayoutTransform = Transform.Identity;
+            return;
+        }
+        int first = Grid.GetRow(StylePanel), span = Grid.GetRowSpan(StylePanel);
+        double room = 0;
+        for (int i = first; i < first + span && i < RootGrid.RowDefinitions.Count; i++)
+            room += RootGrid.RowDefinitions[i].ActualHeight;
+        room -= StylePanel.Margin.Top + StylePanel.Margin.Bottom + 6;
+        if (room <= 0) return;
+
+        // Its natural height, at full size.
+        double needed = 0;
+        foreach (UIElement child in StylePanel.Children)
+        {
+            if (child.Visibility == Visibility.Collapsed) continue;
+            child.Measure(new Size(RootGrid.Width, double.PositiveInfinity));
+            needed += child.DesiredSize.Height;
+        }
+        double k = needed > room ? Math.Max(0.6, room / needed) : 1;
+        double now = StylePanel.LayoutTransform is ScaleTransform t ? t.ScaleX : 1;
+        if (Math.Abs(now - k) < 0.01) return;
+        StylePanel.LayoutTransform = k >= 1 ? Transform.Identity : new ScaleTransform(k, k);
+    }
+
+    private void QueueFitStylePanel()
+    {
+        if (_stylePanelQueued) return;
+        _stylePanelQueued = true;
+        Dispatcher.BeginInvoke(new Action(() => { _stylePanelQueued = false; FitStylePanel(); }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     /// <summary>
@@ -398,6 +450,7 @@ public partial class MainWindow
         if (s.Actions.Length == 0 || item == null || item.IsActionTile)
         {
             if (s.Actions.Length > 0) _actions.Visibility = Visibility.Collapsed;
+            if (_actionIndex >= 0) { _actionIndex = -1; UpdateHomeRing(); } // nothing left to highlight: back to the games
             return;
         }
         _actions.Visibility = Visibility.Visible;
@@ -464,13 +517,82 @@ public partial class MainWindow
                     () => { ToggleFavorite(game); UpdateLayoutDetails(); }));
         }
 
+        // The controller was on these buttons: keep the highlight (they were just rebuilt for the new game).
+        if (_actionIndex >= 0) Dispatcher.BeginInvoke(new Action(() => { if (_actionIndex >= 0) SetActionIndex(_actionIndex); }), System.Windows.Threading.DispatcherPriority.Loaded);
+
         static TextBlock Word(string text) => new() { Text = text, FontSize = 18, Foreground = Brushes.White, Margin = new Thickness(26, 0, 26, 0),
                                                       VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
         static TextBlock Glyph(string glyph) => new() { Text = glyph, FontFamily = Ui.IconFont, FontSize = 18, Foreground = Brushes.White,
                                                         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
     }
 
-    /// <summary>A clickable shape (mouse and touch; the controller uses A for Play and Y for More).</summary>
+    // ================================================================ the action buttons with a controller
+
+    private int _actionIndex = -1; // -1: not in the Play / favorite / More buttons
+
+    /// <summary>The Play / favorite / More buttons under the game, when this style shows them.</summary>
+    private List<Border> ActionButtons() =>
+        _actions is { Visibility: Visibility.Visible } a && a.IsVisible ? a.Children.OfType<Border>().Where(b => b.Tag is Action).ToList() : new();
+
+    private bool ActionsReachable => ActionButtons().Count > 0;
+
+    /// <summary>Highlights one of the action buttons (or none): a bright ring, and it grows a little.</summary>
+    private void SetActionIndex(int index)
+    {
+        var buttons = ActionButtons();
+        if (index >= buttons.Count) index = buttons.Count - 1;
+        if (index >= 0 && index != _actionIndex) Rumble();
+        _actionIndex = index;
+        for (int i = 0; i < buttons.Count; i++)
+        {
+            bool on = i == index;
+            buttons[i].BorderThickness = new Thickness(on ? 3 : 1);
+            buttons[i].BorderBrush = on ? Brushes.White : new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF));
+            Motion.Highlight(buttons[i], on, 1.06);
+        }
+        UpdateHomeRing();
+        ButtonLabel.Text = "";
+    }
+
+    /// <summary>
+    /// The controller in the action buttons: Left / Right between them, A presses, Up or B back to the games,
+    /// Down on to the buttons or footer below.
+    /// </summary>
+    private void HandleActionRow(NavAction action, Action goDown)
+    {
+        var buttons = ActionButtons();
+        if (buttons.Count == 0) { SetActionIndex(-1); return; }
+        int index = Math.Clamp(_actionIndex, 0, buttons.Count - 1);
+        switch (action)
+        {
+            case NavAction.Left: SetActionIndex(Math.Max(0, index - 1)); break;
+            case NavAction.Right: SetActionIndex(Math.Min(buttons.Count - 1, index + 1)); break;
+            case NavAction.Up:
+            case NavAction.Back:
+                SetActionIndex(-1);
+                break;
+            case NavAction.Down:
+                SetActionIndex(-1);
+                goDown();
+                break;
+            case NavAction.Accept:
+                var target = buttons[index];
+                UiSound.Select();
+                Motion.PressThen(target, () =>
+                {
+                    (target.Tag as Action)?.Invoke();
+                    // Favorite rebuilds the buttons: keep the highlight on the same one.
+                    Dispatcher.BeginInvoke(new Action(() => { if (_actionIndex >= 0) SetActionIndex(index); }), System.Windows.Threading.DispatcherPriority.Loaded);
+                });
+                break;
+            case NavAction.Y:
+                SetActionIndex(-1);
+                if (GameList.SelectedItem is Game g) _ = OpenOptionsAsync(g);
+                break;
+        }
+    }
+
+    /// <summary>A clickable shape (mouse, touch, and the controller through Down from the games).</summary>
     private static Border ActionButton(UIElement content, Brush fill, double height, double width, double corner, Action click)
     {
         var b = new Border
@@ -481,6 +603,7 @@ public partial class MainWindow
         };
         b.MouseEnter += (_, _) => b.BorderBrush = new SolidColorBrush(Color.FromArgb(0xA0, 0xFF, 0xFF, 0xFF));
         b.MouseLeave += (_, _) => b.BorderBrush = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF));
+        b.Tag = click; // the controller presses it through this (see HandleActionRow)
         b.MouseLeftButtonUp += (_, e) => { e.Handled = true; UiSound.Select(); click(); };
         b.TouchUp += (_, e) => { e.Handled = true; click(); };
         return b;

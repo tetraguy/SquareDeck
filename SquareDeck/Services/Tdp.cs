@@ -191,12 +191,22 @@ public static class TdpControl
             {
                 // Without the helper, CPU boost and speed can still be set (Windows allows that for your own plan).
                 await SetCpuWithoutHelperAsync(EffectiveBoost, EffectiveMaxCpu);
+                await ApplyCpuExtrasAsync(s);
                 LastResult = s.TdpEnabled ? "TDP control isn't set up yet" : "";
                 return false;
             }
 
-            int mw = watts * 1000;
-            string request = string.Join(' ', mw, mw, mw, s.TdpEnabled ? s.TdpTempLimit : 0, EffectiveBoost ? 1 : 0, EffectiveMaxCpu);
+            // Sustained (STAPM), slow and fast limits. With the short boost window the slow and fast limits sit a little
+            // above the chosen one, so the chip can burst briefly (loading screens, busy scenes) and settle back.
+            int mw = watts * 1000, slow = mw, fast = mw;
+            if (s.TdpBoostWindow == "short" && Chip is { } chip && watts > 0)
+            {
+                slow = Math.Min(chip.Max, (int)Math.Round(watts * 1.1)) * 1000;
+                fast = Math.Min(chip.Max, (int)Math.Round(watts * 1.25)) * 1000;
+            }
+            int profile = s.RyzenProfile switch { "saving" => 1, "performance" => 2, _ => 0 };
+            string request = string.Join(' ', mw, fast, slow, s.TdpEnabled ? s.TdpTempLimit : 0, EffectiveBoost ? 1 : 0, EffectiveMaxCpu, profile);
+            await ApplyCpuExtrasAsync(s);
             Directory.CreateDirectory(Settings.DataDir);
             await File.WriteAllTextAsync(RequestPath, request);
             var startedAt = DateTime.UtcNow;
@@ -240,6 +250,51 @@ public static class TdpControl
         {
             Gate.Release();
             Changed?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Energy preference and how many cores Windows may use, on the current power plan (allowed without administrator
+    /// rights). Only changed when set to something other than "leave as it is".
+    /// </summary>
+    private static async Task ApplyCpuExtrasAsync(Settings s)
+    {
+        try
+        {
+            bool any = false;
+            foreach (var which in new[] { "/setacvalueindex", "/setdcvalueindex" })
+            {
+                if (s.CpuEpp is >= 0 and <= 100)
+                {
+                    await ProcessUtil.RunAsync("powercfg.exe", $"{which} SCHEME_CURRENT SUB_PROCESSOR PERFEPP {s.CpuEpp}");
+                    any = true;
+                }
+                int cores = Math.Clamp(s.CpuCores, 25, 100);
+                if (cores < 100 || _coresChanged)
+                {
+                    await ProcessUtil.RunAsync("powercfg.exe", $"{which} SCHEME_CURRENT SUB_PROCESSOR CPMAXCORES {cores}");
+                    any = true;
+                }
+            }
+            _coresChanged = s.CpuCores < 100;
+            if (any) await ProcessUtil.RunAsync("powercfg.exe", "/setactive SCHEME_CURRENT");
+        }
+        catch (Exception) { }
+    }
+
+    private static bool _coresChanged = true; // the first time, "all cores" is written too, undoing an earlier limit
+
+    /// <summary>The installed helper script is from before 5.9 and can't apply the power profile.</summary>
+    public static bool HelperNeedsUpdate
+    {
+        get
+        {
+            try
+            {
+                var script = Path.Combine(InstallDir, "apply-tdp.ps1");
+                return Installed && File.Exists(script) && !File.ReadAllText(script).Contains("SquareDeck-helper-v2");
+            }
+            catch (Exception) { return false; }
         }
     }
 
@@ -422,7 +477,7 @@ public static class TdpControl
     private static string Ps(string text) => text.Replace("'", "''");
 
     private static string ApplyScript() => $$"""
-        # Written by SquareDeck. The "SquareDeck\ApplyTdp" scheduled task runs this with administrator rights.
+        # Written by SquareDeck (SquareDeck-helper-v2). The "SquareDeck\ApplyTdp" scheduled task runs this with administrator rights.
         # It reads only numbers from the request file, checks they're in a safe range, and only runs the RyzenAdj
         # next to this script (in Program Files, which only administrators can change).
         $request = '{{Ps(RequestPath)}}'
@@ -438,6 +493,10 @@ public static class TdpControl
                 foreach ($w in @($stapm, $fast, $slow)) { if ($w -lt 3000 -or $w -gt 60000) { throw 'Limit out of range' } }
                 $a = @("--stapm-limit=$stapm", "--fast-limit=$fast", "--slow-limit=$slow")
                 if ($temp -ge 60 -and $temp -le 105) { $a += "--tctl-temp=$temp" }
+                if ($v.Count -ge 7) {
+                    if ([int]$v[6] -eq 1) { $a += '--power-saving' }
+                    elseif ([int]$v[6] -eq 2) { $a += '--max-performance' }
+                }
                 $out = & (Join-Path $PSScriptRoot 'ryzenadj.exe') @a 2>&1 | ForEach-Object { "$_" }
                 $code = $LASTEXITCODE
             }

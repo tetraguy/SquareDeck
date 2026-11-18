@@ -92,7 +92,13 @@ public sealed class Game : INotifyPropertyChanged
     }
 
     /// <summary>Width of the tile on the home row. Must match what MainWindow uses for scrolling.</summary>
-    public double TileWidth => Portrait ? 180 : IsContinueTile ? 640 : 270;
+    public double TileWidth => Portrait ? PortraitWidth : IsContinueTile ? 640 : 270;
+
+    /// <summary>
+    /// Width of a poster tile: set by the style so the picture area inside the ring and gap is exactly 2:3. A fixed 180
+    /// left it narrower than 2:3, so the sides of the tall art were cut off.
+    /// </summary>
+    public static double PortraitWidth { get; set; } = 180;
 
     /// <summary>Styles with tall poster-shaped (2:3) tiles instead of square ones (Waves, Desktop, Stage...).</summary>
     public static bool Portrait { get; set; }
@@ -184,6 +190,16 @@ public sealed class Game : INotifyPropertyChanged
         set { if (_iconFills == value) return; _iconFills = value; Changed(); }
     }
     private bool _iconFills;
+
+    /// <summary>
+    /// The app's icon only exists at a small size (32–64 px), so it's drawn smaller rather than blown up and blurry.
+    /// </summary>
+    public bool IconIsSmall
+    {
+        get => _iconIsSmall;
+        set { if (_iconIsSmall == value) return; _iconIsSmall = value; Changed(); }
+    }
+    private bool _iconIsSmall;
 
     /// <summary>Gradient behind an app icon, built from the icon's own colors.</summary>
     public Brush? TileBackground

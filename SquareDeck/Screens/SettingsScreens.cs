@@ -15,16 +15,17 @@ public sealed class SettingsScreen : ListScreen
 {
     private static readonly (string Id, string Name, string Glyph, string About)[] Categories =
     {
-        ("look", "Appearance", "", "Theme, colors, wallpaper, clock, screen shape"),
-        ("home", "Home screen", "", "Buttons, screen saver, startup and closing animations"),
-        ("sound", "Sound", "", "Interface sounds, sound packs, chimes, menu music"),
-        ("controller", "Controller and quick menu", "", "Vibration, button names, in-game menu"),
-        ("power", "Power and performance", "\uEC4A", "TDP limit, CPU boost, power mode, Performance mode"),
-        ("games", "Games and library", "", "Stores, notifications while playing, achievements, keys"),
+        ("look", "Appearance", "", "UI style, colors, your saved looks, top bar, display"),
+        ("home", "Home screen", "", "Home row and buttons, animations, screen saver, startup"),
+        ("sound", "Sound", "", "Interface sounds, menu music, Multimedia page, output"),
+        ("controller", "Controller and quick menu", "", "Buttons, vibration, typing, quick menu, handheld buttons"),
+        ("power", "Power and performance", "\uEC4A", "TDP limit, Ryzen tuning, power mode, Performance mode"),
+        ("apps", "Apps", "\uE71D", "Installed apps: uninstall, repair, reset; startup and default apps"),
+        ("games", "Games and library", "", "Launching, while playing, library, achievements, keys"),
         ("access", "Accessibility", "", "Text size, high contrast, reduced motion"),
-        ("network", "Network and browser", "", "Wi-Fi, Bluetooth, speed test, web browser"),
-        ("system", "System and tools", "", "PC settings, Task Manager, files, AnyFSE, startup"),
-        ("data", "Updates, backup and reset", "", "New versions, your data, start over")
+        ("network", "Network and browser", "", "Wi-Fi, Bluetooth, troubleshooting, web browser"),
+        ("system", "System and tools", "", "Notifications, disk cleanup, tools, Xbox mode, startup"),
+        ("data", "Updates, backup and reset", "", "New versions, backup, downloaded art, start over")
     };
 
     private string _category;
@@ -65,6 +66,12 @@ public sealed class SettingsScreen : ListScreen
         : base("Settings", "{Select}  Select      {Back}  Back", null)
     {
         _category = category ?? _lastCategory;
+        // A light tick on the controller each time the highlight moves to another row (if vibration is on).
+        AddHandler(UIElement.GotKeyboardFocusEvent, new System.Windows.Input.KeyboardFocusChangedEventHandler((_, e) =>
+        {
+            if (Host?.Settings.RumbleInSettings == true && e.NewFocus is Button && e.OldFocus is Button && !ReferenceEquals(e.NewFocus, e.OldFocus))
+                Host.Rumble(16);
+        }), true);
         _switchSoon.Tick += (_, _) =>
         {
             _switchSoon.Stop();
@@ -312,6 +319,7 @@ public sealed class SettingsScreen : ListScreen
             case "sound": BuildSound(s); break;
             case "controller": BuildController(s); break;
             case "power": BuildPower(s); break;
+            case "apps": BuildApps(s); break;
             case "games": BuildGames(s); break;
             case "access": BuildAccess(s); break;
             case "network": BuildNetwork(s); break;
@@ -368,11 +376,14 @@ public sealed class SettingsScreen : ListScreen
 
     private void BuildLook(Settings s)
     {
-        AddHeader("Theme");
+        AddHeader("Style");
         AddRow("UI style", UiStyles.Find(s.UiStyle).Name, "\uE771", click: () => Host.Push(new UiStyleScreen()),
             subtitle: "Switch, Xbox, PlayStation 5, Steam Big Picture, Neon, Minimal, Retro or Glass");
         AddRow("Moving background", s.DynamicBackground.Length == 0 ? "Off" : System.IO.Path.GetFileNameWithoutExtension(s.DynamicBackground),
             "\uE714", click: () => Host.Push(new DynamicBackgroundScreen()), subtitle: "Waves or blades in motion, with a blur level");
+        AddRow("Windows lock screen", glyph: "\uEE3F", click: () => Host.Push(new LockScreenScreen()),
+            subtitle: "Use one of SquareDeck's wallpapers, or a picture of your own, when the device is locked");
+        AddHeader("Colors");
         AddRow("Theme", ThemeLabel(s.ThemeMode), "", click: () =>
         {
             // Light -> Dark -> OLED black -> Follow system -> Light
@@ -382,10 +393,12 @@ public sealed class SettingsScreen : ListScreen
             s.Save();
             Rebuild();
         });
-        AddRow("Looks, wallpaper and tile corners", glyph: "", click: () => Host.Push(new ThemeScreen()));
         AddRow("Highlight color", AccentLabel(s.AccentColor), "", click: () => Host.Push(new AccentScreen()));
         AddRow("Tint the highlight with the game's colors", OnOff(s.GameAccent), "", click: () =>
             Toggle(() => s.GameAccent = !s.GameAccent));
+
+        AddHeader("Your looks");
+        AddRow("My themes, looks and wallpaper", glyph: "", click: () => Host.Push(new ThemeScreen()));
         AddRow("Profile picture", glyph: "", click: () => Host.Push(new AvatarScreen()));
 
         AddHeader("Artwork");
@@ -402,8 +415,10 @@ public sealed class SettingsScreen : ListScreen
             "", click: ClockOptions);
         AddRow("Show battery percentage", OnOff(s.ShowBatteryPercent), "", click: () =>
             Toggle(() => s.ShowBatteryPercent = !s.ShowBatteryPercent));
+        AddRow("Headphone battery", OnOff(s.ShowHeadphoneBattery), "\uE7F6", click: () =>
+            Toggle(() => s.ShowHeadphoneBattery = !s.ShowHeadphoneBattery), subtitle: "Beside the Bluetooth icon, when Bluetooth headphones are connected");
 
-        AddHeader("Screen");
+        AddHeader("Display");
         var displays = Monitors.List();
         var chosen = Monitors.Find(s.MainDisplay);
         AddRow("Main display for the launcher", chosen?.Label ?? (s.MainDisplay.Length > 0 ? "Not connected (using Windows' choice)" : "Windows decides"),
@@ -438,6 +453,20 @@ public sealed class SettingsScreen : ListScreen
 
     private void BuildHome(Settings s)
     {
+        AddHeader("Home row and buttons");
+        AddRow("Continue where you left off", OnOff(s.ContinueTile), "\uE768", click: () =>
+            Toggle(() => s.ContinueTile = !s.ContinueTile),
+            subtitle: "Your last game as a large tile with its artwork, first on the home row");
+
+        AddHeader("Buttons under the games");
+        AddRow("Music button", OnOff(s.ShowMusicButton), "", click: () => Toggle(() => s.ShowMusicButton = !s.ShowMusicButton));
+        AddRow("Friends button", OnOff(s.ShowFriendsButton), "", click: () => Toggle(() => s.ShowFriendsButton = !s.ShowFriendsButton));
+        AddRow("Web browser button", OnOff(s.ShowBrowserButton), "", click: () => Toggle(() => s.ShowBrowserButton = !s.ShowBrowserButton));
+        AddRow("Explorer (files) button", OnOff(s.ShowExplorerButton), "", click: () => Toggle(() => s.ShowExplorerButton = !s.ShowExplorerButton));
+        AddRow("News button", OnOff(s.ShowNewsButton), "\uE789", click: () => Toggle(() => s.ShowNewsButton = !s.ShowNewsButton),
+            subtitle: "Game news, patches, announcements and sales");
+        AddNote("Home, Favorites, Apps, Captures, Stores, Settings and Power are always shown. Hidden pages can still be opened from Settings.");
+
         AddHeader("Animations");
         AddRow("Home buttons", s.ButtonAnimations ? ButtonStyles.FirstOrDefault(b => b.Id == s.ButtonAnimationStyle).Name ?? "Grow and glow" : "Off",
             "\uE916", click: async () =>
@@ -456,21 +485,7 @@ public sealed class SettingsScreen : ListScreen
             click: () => _ = ChooseAsync(PageStyles, "Opening pages", "How pages and pop-ups appear.", v => s.PageTransition = v));
         AddRow("Selected game", TileStyles.FirstOrDefault(t => t.Id == s.TileHighlight).Name ?? "Pulsing ring", "\uE7FC",
             click: () => _ = ChooseAsync(TileStyles, "Selected game", "How the highlighted game on the home row stands out.", v => s.TileHighlight = v));
-        AddNote("Startup and closing animations are under Appearance. Reduce motion (Accessibility) turns all of these off.");
-
-        AddHeader("Home row");
-        AddRow("Continue where you left off", OnOff(s.ContinueTile), "\uE768", click: () =>
-            Toggle(() => s.ContinueTile = !s.ContinueTile),
-            subtitle: "Your last game as a large tile with its artwork, first on the home row");
-
-        AddHeader("Buttons under the games");
-        AddRow("Music button", OnOff(s.ShowMusicButton), "", click: () => Toggle(() => s.ShowMusicButton = !s.ShowMusicButton));
-        AddRow("Friends button", OnOff(s.ShowFriendsButton), "", click: () => Toggle(() => s.ShowFriendsButton = !s.ShowFriendsButton));
-        AddRow("Web browser button", OnOff(s.ShowBrowserButton), "", click: () => Toggle(() => s.ShowBrowserButton = !s.ShowBrowserButton));
-        AddRow("Explorer (files) button", OnOff(s.ShowExplorerButton), "", click: () => Toggle(() => s.ShowExplorerButton = !s.ShowExplorerButton));
-        AddRow("News button", OnOff(s.ShowNewsButton), "\uE789", click: () => Toggle(() => s.ShowNewsButton = !s.ShowNewsButton),
-            subtitle: "Game news, patches, announcements and sales");
-        AddNote("Home, Favorites, Apps, Captures, Stores, Settings and Power are always shown. Hidden pages can still be opened from Settings.");
+        AddNote("Startup and closing animations are further down. Reduce motion (Accessibility) turns all of these off.");
 
         AddHeader("Screen saver");
         AddRow("Screen saver", MainWindow.Screensavers.FirstOrDefault(x => x.Id == s.Screensaver).Name ?? "Off", "", click: () =>
@@ -498,6 +513,11 @@ public sealed class SettingsScreen : ListScreen
             Toggle(() => s.StartupIntro = !s.StartupIntro));
         AddRow("Startup animation", MainWindow.BootAnimations.FirstOrDefault(b => b.Id == s.BootAnimation).Name ?? "Logo pop", "",
             click: ChooseBootAnimation);
+        AddRow("Welcome message", OnOff(s.WelcomeMessage), "\uE8BD",
+            click: () => Toggle(() => s.WelcomeMessage = !s.WelcomeMessage),
+            subtitle: $"\"{MainWindow.Greeting(DateTime.Now)}, {MainWindow.FirstName()}\" slides out next to your profile picture at startup");
+        if (s.WelcomeMessage) AddRow("Show the welcome message now", glyph: "\uE768", click: () => { if (Host.RootScreen is { } root) Host.Pop(root); Host.ShowWelcome(); },
+            subtitle: "Goes back to the home screen and plays it");
         AddRow("Boot video", s.BootVideo.Length > 0 ? Path.GetFileName(s.BootVideo) : "Built-in animation", "", click: ChooseBootVideo);
         AddRow("Closing animation on Exit SquareDeck", OnOff(s.ExitAnimation), "", click: () =>
             Toggle(() => s.ExitAnimation = !s.ExitAnimation));
@@ -507,9 +527,13 @@ public sealed class SettingsScreen : ListScreen
 
     private void BuildSound(Settings s)
     {
+        AddHeader("Interface sounds");
         AddRow("Interface sounds", !s.UiSounds ? "Off" : UiSound.SetName(s.SoundSet) + ", " + s.SoundVolume + "%",
             "", click: () => Host.Push(new SoundsScreen()));
         AddNote("Choose a built-in set or one of the sound packs, set the loudness, and pick which kinds of sound play.");
+        AddRow("Game start chime", UiSound.LaunchChimes.FirstOrDefault(c => c.Id == s.LaunchChime).Name ?? "Rise", "",
+            click: ChooseLaunchChime);
+
         AddHeader("Background music");
         AddRow("Music on the launcher's screens", BackgroundMusic.NameOf(s.MenuMusic), "\uE8D6", click: () => _ = ChooseBackgroundMusicAsync(Host, Rebuild));
         if (s.MenuMusic.Length > 0)
@@ -518,51 +542,54 @@ public sealed class SettingsScreen : ListScreen
                 int[] levels = { 10, 20, 30, 50, 75, 100 };
                 Toggle(() => s.MenuMusicVolume = levels[(Array.IndexOf(levels, s.MenuMusicVolume) + 1) % levels.Length]);
             });
-        AddNote("Plays quietly only while no game is running, and pauses for videos, the Music page and the browser.");
+        if (s.MenuMusic.Length > 0)
+            AddRow("Pause it while your music plays", OnOff(s.MenuMusicPausesForMedia), "\uE8D6", click: () =>
+                Toggle(() => s.MenuMusicPausesForMedia = !s.MenuMusicPausesForMedia),
+                subtitle: "Music from the Multimedia page, Spotify or any other player takes over, and it comes back when that stops");
+        AddNote("Plays quietly only while SquareDeck is in front and no game is running, and pauses for videos, streaming and the browser.");
         AddRow("Add your own music (MP3 files)", glyph: "\uE8B7", click: () =>
         {
             try { Directory.CreateDirectory(BackgroundMusic.UserDir); } catch (Exception) { }
             ProcessUtil.Open(BackgroundMusic.UserDir);
         });
 
-        AddHeader("Music page");
+        AddHeader("Multimedia page");
         AddRow("Search Spotify and YouTube Music", OnOff(s.MusicServices), "\uE721", click: () => Toggle(() => s.MusicServices = !s.MusicServices));
         if (s.MusicServices)
         {
             var spotify = new SpotifyClient(s);
-            AddRow("Spotify Client ID", s.SpotifyClientId.Length > 0 ? Mask(s.SpotifyClientId) : "Not set", "\uE8D7", click: () => _ = EditSpotifyIdAsync());
+            AddRow("Spotify Client ID", s.SpotifyClientId.Length > 0 ? Mask(s.SpotifyClientId) : "SquareDeck's (built in)", "\uE8D7", click: () => _ = EditSpotifyIdAsync(),
+                subtitle: "Only needed to use a Spotify app of your own; leave it empty to use SquareDeck's");
             if (spotify.HasClientId)
                 AddRow(spotify.IsSignedIn ? "Signed in to Spotify (sign out)" : "Sign in to Spotify", glyph: "\uE77B", click: () => _ = SpotifySignInAsync(spotify));
-            AddNote("YouTube Music opens inside the launcher; sign in there once to see your playlists. Spotify needs a free app of your own: " +
-                    "create one at developer.spotify.com, add the redirect URI " + SpotifyClient.RedirectUri + ", and paste its Client ID here. " +
-                    "Playing on a device from the launcher needs Spotify Premium; without it, results open in the Spotify app.");
+            if (spotify.HasClientId)
+            {
+                AddRow("Play Spotify inside SquareDeck", OnOff(s.SpotifyInLauncher), "\uE7FC", click: () =>
+                {
+                    s.SpotifyInLauncher = !s.SpotifyInLauncher;
+                    if (!s.SpotifyInLauncher) SpotifyPlayer.Stop();
+                    Toggle(() => { });
+                }, subtitle: spotify.NeedsNewSignIn
+                    ? "Sign in to Spotify again first: it needs one more permission"
+                    : "Music plays from the launcher itself, no Spotify app needed (Spotify Premium)");
+                if (SpotifyPlayer.IsRunning)
+                    AddRow("Stop the built-in Spotify player", glyph: "\uE71A", click: () => { SpotifyPlayer.Stop(); Rebuild(); },
+                        subtitle: "SquareDeck stops being a Spotify device until you play something here again");
+            }
+            AddNote("YouTube Music opens inside the launcher; sign in there once to see your playlists. Spotify works with SquareDeck's " +
+                    "built-in app: just sign in. To use an app of your own instead, create one at developer.spotify.com, add the redirect URI " +
+                    SpotifyClient.RedirectUri + ", and enter its Client ID above. Playing from the launcher needs Spotify Premium; " +
+                    "without it, results open in the Spotify app.");
         }
 
-        AddHeader("Interface");
-        AddRow("Game start chime", UiSound.LaunchChimes.FirstOrDefault(c => c.Id == s.LaunchChime).Name ?? "Rise", "",
-            click: ChooseLaunchChime);
-        AddRow("Startup chime and animation", OnOff(s.StartupIntro), "", click: () =>
-            Toggle(() => s.StartupIntro = !s.StartupIntro));
+        AddHeader("Sound output");
         AddRow("Volume, brightness and radios", glyph: "", click: () => Host.Push(new QuickSettingsScreen()));
         AddRow("Sound output device", glyph: "", click: () => Host.Push(new PcSettingsScreen()));
     }
 
     private void BuildController(Settings s)
     {
-        AddHeader("Typing");
-        AddRow("Keyboard for typing", s.TouchKeyboard == "windows" ? "Windows touch keyboard" : "SquareDeck keyboard", "\uE765",
-            click: () => Toggle(() => s.TouchKeyboard = s.TouchKeyboard == "windows" ? "squaredeck" : "windows"),
-            subtitle: s.TouchKeyboard == "windows" ? "Best on a touchscreen; Windows' keyboard opens when you type"
-                                                   : "Built in, works with the controller");
-
-        if (AllyButtons.Model.Length > 0 || AllyButtons.IsSupported)
-        {
-            AddHeader(AllyButtons.Model.Length > 0 ? AllyButtons.Model : "ROG Ally");
-            AddRow("Remap the Armoury Crate and Command Center buttons", s.AllyRemap ? "On" : "Off", "\uE765",
-                click: () => Host.Push(new AllyButtonsScreen()));
-        }
-
-        AddHeader("Controller");
+        AddHeader("Buttons");
         AddRow("Button names shown on screen", Hints.Styles.FirstOrDefault(x => x.Id == s.GlyphStyle).Name ?? "Xbox", "", click: () =>
         {
             int index = Array.FindIndex(Hints.Styles, x => x.Id == s.GlyphStyle);
@@ -582,8 +609,20 @@ public sealed class SettingsScreen : ListScreen
             click: () => Host.Push(new PageOrderScreen()), subtitle: "Choose which pages, and their order");
         AddRow("Which button does what", string.Join(" ", Hints.Map.Select(Hints.ButtonName)), "",
             click: () => Host.Push(new ControlsScreen()));
+
+        AddHeader("Vibration and testing");
         AddRow("Vibration strength", s.RumbleStrength <= 0 ? "Off" : s.RumbleStrength + "%", "", click: RumbleStrength);
+        AddRow("Vibrate when a notification pops up", OnOff(s.RumbleOnNotifications), "\uEA8F",
+            click: () => Toggle(() => s.RumbleOnNotifications = !s.RumbleOnNotifications));
+        AddRow("Vibrate while moving through Settings", OnOff(s.RumbleInSettings), "\uE7FC",
+            click: () => Toggle(() => s.RumbleInSettings = !s.RumbleInSettings), subtitle: "A light tick from row to row");
         AddRow("Controller test", glyph: "", click: () => Host.Push(new ControllerTestScreen()));
+
+        AddHeader("Typing");
+        AddRow("Keyboard for typing", s.TouchKeyboard == "windows" ? "Windows touch keyboard" : "SquareDeck keyboard", "\uE765",
+            click: () => Toggle(() => { s.TouchKeyboard = s.TouchKeyboard == "windows" ? "squaredeck" : "windows"; s.KeyboardChosen = true; }),
+            subtitle: s.TouchKeyboard == "windows" ? "Best on a touchscreen; Windows' keyboard opens when you type"
+                                                   : "Built in, works with the controller");
 
         AddHeader("Summon and quick menu");
         AddRow("Summon buttons bring the launcher forward", OnOff(s.GuideSummon), "", click: () =>
@@ -595,12 +634,75 @@ public sealed class SettingsScreen : ListScreen
             click: ChooseSummonKey);
         AddRow("Where the quick menu appears", s.OverlaySide switch { "left" => "Slides in from the left", "center" => "Pop-up in the middle", _ => "Slides in from the right" },
             "", click: () => Toggle(() => s.OverlaySide = s.OverlaySide switch { "right" => "left", "left" => "center", _ => "right" }));
+
+        if (AllyButtons.Model.Length > 0 || AllyButtons.IsSupported)
+        {
+            AddHeader(AllyButtons.Model.Length > 0 ? AllyButtons.Model : "ROG Ally");
+            AddRow("Remap the Armoury Crate and Command Center buttons", s.AllyRemap ? "On" : "Off", "\uE765",
+                click: () => Host.Push(new AllyButtonsScreen()));
+        }
     }
 
     /// <summary>Power and performance: TDP control for AMD handhelds, and the launcher's own Performance mode.</summary>
+    private void BuildApps(Settings s)
+    {
+        AddHeader("Apps on this device");
+        AddRow("Installed apps", glyph: "\uE71D", click: () => Host.Push(new InstalledAppsScreen()),
+            subtitle: "See every app, and uninstall, modify, repair or reset them");
+        AddRow("Apps that start with Windows", glyph: "\uE7E8", click: () => ProcessUtil.Open("ms-settings:startupapps"),
+            subtitle: "Opens Windows Settings");
+        AddRow("Default apps", glyph: "\uE7AC", click: () => ProcessUtil.Open("ms-settings:defaultapps"),
+            subtitle: "Which app opens each kind of file and link (opens Windows Settings)");
+        AddRow("Optional features", glyph: "\uE8F1", click: () => ProcessUtil.Open("ms-settings:optionalfeatures"),
+            subtitle: "Opens Windows Settings");
+    }
+
     private void BuildPower(Settings s)
     {
         var chip = TdpControl.Chip;
+        // What's inside and how busy it is, live.
+        AddHeader("This device");
+        Rows.Children.Add(new HardwarePanel());
+
+        AddHeader("Performance Boost");
+        AddRow("Performance Boost", OnOff(s.PerformanceBoost), "\uE945",
+            click: () => Toggle(() => s.PerformanceBoost = !s.PerformanceBoost),
+            subtitle: "Frees memory used by other programs just before a game starts, with an animation");
+        string animation = s.BoostAnimation == "random" ? "Surprise me" : BoostScreen.Styles.FirstOrDefault(x => x.Id == s.BoostAnimation).Name ?? "Pulse rings";
+        AddRow("Animation", animation, "\uE768", click: ChooseBoostAnimation);
+        AddRow("Vibration with the animation", OnOff(s.BoostRumble), "\uE7FC",
+            click: () => Toggle(() => s.BoostRumble = !s.BoostRumble),
+            subtitle: s.RumbleStrength > 0 ? "Each animation has its own pattern, timed to it" : "Turn on vibration in Controller settings to feel it");
+        AddRow("Try it", glyph: "\uE768", click: () => Host.Push(new BoostScreen(null, s.BoostAnimation, s.BoostRumble, preview: true)),
+            subtitle: "Plays the animation without freeing anything");
+        AddHeader("Performance overlay");
+        AddRow("Performance overlay", OnOff(s.OsdEnabled), "\uE9D9",
+            click: () => Toggle(() => s.OsdEnabled = !s.OsdEnabled),
+            subtitle: "FPS, CPU and GPU use, CPU speed, memory, TDP and battery, floating over your games");
+        if (s.OsdEnabled)
+        {
+            string Name<T>(IEnumerable<T> list, Func<T, string> id, Func<T, string> name, string current) => list.Where(x => id(x) == current).Select(name).FirstOrDefault() ?? name(list.First());
+            AddRow("Show it", s.OsdWhen == "always" ? "All the time" : "In full-screen games", "\uE7FC",
+                click: () => Toggle(() => s.OsdWhen = s.OsdWhen == "always" ? "games" : "always"),
+                subtitle: "In games means whenever a program other than SquareDeck fills the screen");
+            AddRow("Details", Name(PerfOverlay.Details, d => d.Id, d => d.Name, s.OsdDetail), "\uE8FD",
+                click: () => Pick("Overlay details", PerfOverlay.Details.Select(d => (d.Id, d.Name, d.About)).ToArray(), id => s.OsdDetail = id),
+                subtitle: PerfOverlay.Details.FirstOrDefault(d => d.Id == s.OsdDetail).About ?? "");
+            AddRow("Layout", Name(PerfOverlay.Layouts, d => d.Id, d => d.Name, s.OsdLayout), "\uE8A9",
+                click: () => Pick("Overlay layout", PerfOverlay.Layouts.Select(d => (d.Id, d.Name, d.About)).ToArray(), id => s.OsdLayout = id));
+            AddRow("Style", Name(PerfOverlay.Looks, d => d.Id, d => d.Name, s.OsdStyle), "\uE790",
+                click: () => Pick("Overlay style", PerfOverlay.Looks.Select(d => (d.Id, d.Name, "")).ToArray(), id => s.OsdStyle = id));
+            AddRow("Position", Name(PerfOverlay.Positions, d => d.Id, d => d.Name, s.OsdPosition), "\uE8A0",
+                click: () => Pick("Overlay position", PerfOverlay.Positions.Select(d => (d.Id, d.Name, "")).ToArray(), id => s.OsdPosition = id));
+            AddRow("Size", Name(PerfOverlay.Sizes, d => d.Id, d => d.Name, s.OsdSize), "\uE8E8",
+                click: () => Toggle(() => s.OsdSize = s.OsdSize switch { "small" => "medium", "medium" => "large", _ => "small" }));
+            AddRow("Opacity", $"{Math.Clamp(s.OsdOpacity, 30, 100)}%", "\uE706",
+                click: () => Toggle(() => s.OsdOpacity = s.OsdOpacity >= 100 ? 40 : Math.Min(100, s.OsdOpacity + 10)));
+            AddNote(FrameCounter.Available
+                ? "FPS comes from PresentMon in SquareDeck's Tools folder. It needs SquareDeck to run as administrator, or your account in Windows' \"Performance Log Users\" group."
+                : "To show FPS, put Intel's PresentMon (free, github.com/GameTechDev/PresentMon) in SquareDeck's Tools\\PresentMon folder. Everything else works without it.");
+            AddNote("The overlay shows over borderless and windowed games. Games in exclusive full-screen mode draw over everything, so switch them to borderless to see it.");
+        }
         AddHeader("Processor power (TDP)");
         if (chip == null)
         {
@@ -647,10 +749,29 @@ public sealed class SettingsScreen : ListScreen
                     s.TdpTempLimit = temps[choice];
                     SaveTdp();
                 });
+                AddRow("Boost window", s.TdpBoostWindow == "short" ? "Short bursts" : "Off", "\uE9F5", click: () =>
+                {
+                    s.TdpBoostWindow = s.TdpBoostWindow == "short" ? "off" : "short";
+                    SaveTdp();
+                }, subtitle: s.TdpBoostWindow == "short"
+                    ? $"Up to {Math.Min(chip.Max, (int)Math.Round(TdpControl.Clamp(s.TdpWatts) * 1.25))} W for a few seconds, then back to the limit"
+                    : "The limit holds all the time. Short bursts help loading screens and busy moments");
+                AddRow("Power profile", s.RyzenProfile switch { "saving" => "Power saving", "performance" => "Maximum performance", _ => "Device default" }, "\uE83F",
+                    click: async () =>
+                    {
+                        string[] ids = { "", "saving", "performance" };
+                        int choice = await Host.AskAsync("Power profile",
+                            "AMD's own tuning for Ryzen Z1 and Z2 chips, on top of the limit. Power saving keeps clocks lower when there's little to do; " +
+                            "maximum performance holds them high (more heat and fan).",
+                            "Device default", "Power saving", "Maximum performance");
+                        if (choice < 0) return;
+                        s.RyzenProfile = ids[choice];
+                        SaveTdp();
+                    }, subtitle: TdpControl.HelperNeedsUpdate ? "Needs the TDP helper updated (below)" : "AMD's power saving or maximum performance tuning");
             }
         }
 
-        AddHeader("Processor");
+        AddHeader("Processor (Ryzen Z1 / Z2)");
         AddRow("CPU boost", OnOff(s.CpuBoost), "\uE9F5", click: () => { s.CpuBoost = !s.CpuBoost; SaveTdp(); },
             subtitle: "Short bursts above the base speed. Off saves battery and heat; most games barely notice");
         AddRow("Maximum CPU speed", s.MaxCpu >= 100 ? "No limit" : s.MaxCpu + "%", "\uEC48", click: async () =>
@@ -660,6 +781,28 @@ public sealed class SettingsScreen : ListScreen
                 caps.Select(c => c >= 100 ? "No limit" : c + "%").ToArray());
             if (choice < 0) return;
             s.MaxCpu = caps[choice];
+            SaveTdp();
+        });
+        AddRow("Energy preference", s.CpuEpp < 0 ? "Windows default" : s.CpuEpp switch { <= 10 => "Performance", <= 40 => "Balanced performance", <= 70 => "Balanced saving", _ => "Power saving" }, "\uEBB4",
+            click: async () =>
+            {
+                int[] values = { -1, 0, 33, 60, 85 };
+                int choice = await Host.AskAsync("Energy preference",
+                    "How eagerly the processor speeds up (EPP). Saving waits a little longer before clocking up, which helps battery in lighter games.",
+                    "Windows default", "Performance", "Balanced performance", "Balanced saving", "Power saving");
+                if (choice < 0) return;
+                s.CpuEpp = values[choice];
+                SaveTdp();
+            });
+        AddRow("CPU cores in use", s.CpuCores >= 100 ? "All" : s.CpuCores + "%", "\uE964", click: async () =>
+        {
+            int[] shares = { 100, 75, 50, 25 };
+            int choice = await Host.AskAsync("CPU cores in use",
+                "Windows parks the rest. On a Z1 Extreme or Z2 Extreme (8 cores), half is plenty for older and indie games and saves battery. " +
+                "Demanding games want all of them.",
+                shares.Select(c => c >= 100 ? "All cores" : c + "% of the cores").ToArray());
+            if (choice < 0) return;
+            s.CpuCores = shares[choice];
             SaveTdp();
         });
         AddRow("Windows power mode", TdpControl.PowerModeName(s.WindowsPowerMode), "\uE83F", click: async () =>
@@ -676,10 +819,13 @@ public sealed class SettingsScreen : ListScreen
 
         if (TdpControl.Installed)
         {
-            AddHeader("TDP control setup");
+            AddHeader("TDP helper");
             AddRow("Keep re-applying", OnOff(s.TdpReapply), "\uE72C", click: () => { s.TdpReapply = !s.TdpReapply; SaveTdp(); },
                 subtitle: "Every 15 seconds, for devices whose own software puts its limit back (Armoury Crate, Legion Space)");
             AddRow("Apply now", TdpControl.LastResult, "\uE768", click: async () => { await TdpControl.ApplyAsync(); Rebuild(); });
+            if (TdpControl.HelperNeedsUpdate)
+                AddRow("Update the TDP helper", "Needed for the power profile", "\uE895", click: SetUpTdp,
+                    subtitle: "Reinstalls RyzenAdj and its task with this version's script (one Windows permission prompt)");
             AddRow("Remove TDP control", null, "\uE74D", click: async () =>
             {
                 if (await Host.AskAsync("Remove TDP control?", "This removes RyzenAdj and the background task. The current limit stays until the device restarts or its own software changes it.", "Remove", "Cancel") != 0) return;
@@ -747,6 +893,7 @@ public sealed class SettingsScreen : ListScreen
                 "Windows will ask for permission to install it with a " +
                 "background task that applies your limits. Changing power limits is at your own risk; stay within your device's range.",
                 "Set up", "Cancel") != 0) return;
+        bool updating = TdpControl.Installed; // an update keeps the limit you chose
         Host.ShowToast("TDP control", "Setting up…", TdpControl.HasBundled ? "Installing RyzenAdj" : "Downloading RyzenAdj", "", "info");
         var error = await TdpControl.InstallAsync();
         if (error != null)
@@ -756,7 +903,7 @@ public sealed class SettingsScreen : ListScreen
         else
         {
             Host.Settings.TdpEnabled = true;
-            Host.Settings.TdpWatts = TdpControl.Chip?.Default ?? 15;
+            if (!updating) Host.Settings.TdpWatts = TdpControl.Chip?.Default ?? 15;
             Host.Settings.Save();
             await TdpControl.ApplyAsync();
             Host.ShowToast("TDP control", "Ready", TdpControl.LastResult, "", "info");
@@ -778,6 +925,8 @@ public sealed class SettingsScreen : ListScreen
                 else s.LaunchCountdown = false;
             });
         }, subtitle: "A moment to change your mind, with Start now and Cancel");
+        AddRow("Ask about updates before playing", OnOff(s.AskAboutUpdates), "\uE896", click: () => Toggle(() => s.AskAboutUpdates = !s.AskAboutUpdates),
+            subtitle: "When a Steam game has an update waiting: update it first, or play anyway");
         AddRow("Splash screen while a game starts", OnOff(s.LaunchSplash), "\uE7F4", click: () => Toggle(() => s.LaunchSplash = !s.LaunchSplash),
             subtitle: "The game's cover fills the screen until the game is running");
         AddRow("Start Steam games directly", OnOff(s.SteamDirectLaunch), "\uE756", click: () => Toggle(() => s.SteamDirectLaunch = !s.SteamDirectLaunch),
@@ -788,18 +937,44 @@ public sealed class SettingsScreen : ListScreen
                 "directly). Launch options set in Steam aren't used, the Steam overlay may not appear, and a few games (with their own " +
                 "launcher or copy protection) still restart themselves through Steam.");
 
-        AddHeader("Captures");
-        AddRow("Open Captures as albums (one per game)", OnOff(s.CaptureAlbums), "\uE8B9",
-            click: () => Toggle(() => s.CaptureAlbums = !s.CaptureAlbums),
-            subtitle: "Albums are made from the game name in each capture's file name");
+        AddHeader("While playing");
+        AddRow("Free graphics memory for the game", OnOff(s.FreeGpuDuringGames), "\uE7F4", click: () =>
+            Toggle(() => s.FreeGpuDuringGames = !s.FreeGpuDuringGames));
+        AddNote("While a game runs, the launcher stops using the graphics card and lets go of its pictures, so the game gets the " +
+                "video memory. Recommended; turn off only if switching back to the launcher feels slow.");
+        AddRow("Do not disturb (hide Windows notifications)", OnOff(s.DoNotDisturb), "", click: () =>
+            Toggle(() => s.DoNotDisturb = !s.DoNotDisturb));
+        AddRow("Return to the launcher when a game closes", OnOff(s.ReturnToLauncher), "", click: () =>
+            Toggle(() => s.ReturnToLauncher = !s.ReturnToLauncher));
+        AddRow("Session summary when a game closes", OnOff(s.SessionSummary), "", click: () =>
+            Toggle(() => s.SessionSummary = !s.SessionSummary));
 
-        AddHeader("Library");
+        AddHeader("Cloud gaming");
+        AddNote("Turned-on services appear on the Stores page. They open full screen, and the controller goes straight to the game. " +
+                "To leave, hold View + Start, press Ctrl + Shift + Q, or use the small button in a corner.");
+        foreach (var service in CloudService.All)
+        {
+            var cs = service;
+            bool on = s.CloudServices.Contains(cs.Id);
+            AddRow(cs.Name, OnOff(on), "\uE753", click: () => Toggle(() =>
+            {
+                if (s.CloudServices.Contains(cs.Id)) s.CloudServices.Remove(cs.Id); else s.CloudServices.Add(cs.Id);
+            }), subtitle: cs.About);
+        }
+        AddRow("Exit button corner", s.CloudCorner switch { "top-left" => "Top left", "bottom-left" => "Bottom left", "bottom-right" => "Bottom right", _ => "Top right" }, "\uE8A0",
+            click: () => Toggle(() => s.CloudCorner = s.CloudCorner switch { "top-right" => "bottom-right", "bottom-right" => "bottom-left", "bottom-left" => "top-left", _ => "top-right" }),
+            subtitle: "Where the nearly invisible exit button waits during a cloud game");
+        AddHeader("Library and stores");
+        AddRow("Library layout", LibraryScreen.Layouts.First(l => l.Id == s.LibraryLayout || (l.Id == "sidebar" && LibraryScreen.Layouts.All(x => x.Id != s.LibraryLayout))).Name, "\uE8A9",
+            click: ChooseLibraryLayout, subtitle: "How the Game library page is laid out: six to choose from");
+        AddRow("Library view", s.LibraryView switch { "grid" => "Grid", "header" => "Rectangle", _ => "Square" }, "\uE8B9",
+            click: () => { s.LibraryView = s.LibraryView switch { "square" => "grid", "grid" => "header", _ => "square" }; s.Save(); Rebuild(); },
+            subtitle: "Square covers, tall grid art or wide store headers");
         AddRow("Rescan Steam library", glyph: "", click: Rescan);
         AddRow("Re-download cover art", glyph: "", click: Redownload);
         int hidden = Host.HiddenCount;
         if (hidden > 0)
             AddRow("Restore removed games", hidden.ToString(), "", click: () => { Host.RestoreHidden(); Rebuild(); });
-        AddHeader("Other game stores");
         AddRow("Show games from other stores", OnOff(s.OtherStores), "\uE7BF", click: () =>
         {
             Toggle(() => s.OtherStores = !s.OtherStores);
@@ -822,23 +997,18 @@ public sealed class SettingsScreen : ListScreen
             }
         }
 
-        AddHeader("While playing");
-        AddRow("Free graphics memory for the game", OnOff(s.FreeGpuDuringGames), "\uE7F4", click: () =>
-            Toggle(() => s.FreeGpuDuringGames = !s.FreeGpuDuringGames));
-        AddNote("While a game runs, the launcher stops using the graphics card and lets go of its pictures, so the game gets the " +
-                "video memory. Recommended; turn off only if switching back to the launcher feels slow.");
-        AddRow("Do not disturb (hide Windows notifications)", OnOff(s.DoNotDisturb), "", click: () =>
-            Toggle(() => s.DoNotDisturb = !s.DoNotDisturb));
-        AddRow("Return to the launcher when a game closes", OnOff(s.ReturnToLauncher), "", click: () =>
-            Toggle(() => s.ReturnToLauncher = !s.ReturnToLauncher));
-        AddRow("Session summary when a game closes", OnOff(s.SessionSummary), "", click: () =>
-            Toggle(() => s.SessionSummary = !s.SessionSummary));
-
-        AddHeader("Achievements and play time");
+        AddHeader("Achievements, play time and captures");
         AddRow("Achievement pop-ups", OnOff(s.AchievementToasts), "", click: () =>
             Toggle(() => s.AchievementToasts = !s.AchievementToasts));
         AddRow("Recent achievements", glyph: "", click: () => Host.Push(new UnlocksScreen()));
         AddRow("Your play time", glyph: "", click: () => Host.Push(new PlaytimeScreen()));
+
+        AddRow("Open Captures as albums (one per game)", OnOff(s.CaptureAlbums), "\uE8B9",
+            click: () => Toggle(() => s.CaptureAlbums = !s.CaptureAlbums),
+            subtitle: "Albums are made from the game name in each capture's file name");
+        AddRow("Show the game's picture next to album names", OnOff(s.CaptureAlbumIcons), "\uE8B9",
+            click: () => Toggle(() => s.CaptureAlbumIcons = !s.CaptureAlbumIcons),
+            subtitle: "In the Captures albums, for games in your library");
 
         AddHeader("Service keys");
         AddRow("Steam Web API key (friends, not-installed games)", s.SteamWebApiKey.Length > 0 ? Mask(s.SteamWebApiKey) : "Not set", "",
@@ -852,7 +1022,11 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Wi-Fi", glyph: "", click: () => Host.Push(new WifiScreen()));
         AddRow("Bluetooth", glyph: "", click: () => Host.Push(new BluetoothScreen()));
         AddRow("Quick settings (volume, brightness, radios)", glyph: "", click: () => Host.Push(new QuickSettingsScreen()));
+
+        AddHeader("Troubleshooting");
         AddRow("Network speed test", glyph: "", click: () => Host.Push(new SpeedTestScreen()));
+        AddRow("Network troubleshooting", glyph: "\uE9D9", click: () => Host.Push(new NetworkToolsScreen()),
+            subtitle: "Diagnose, flush DNS, renew the IP address, reset Winsock and TCP/IP");
 
         AddHeader("Web browser");
         AddRow("Open the browser", glyph: "", click: () => Host.Push(BrowserScreen.Open(Host)));
@@ -911,18 +1085,34 @@ public sealed class SettingsScreen : ListScreen
             Toggle(() => { s.LowBatteryAlert = levels[choice] > 0; if (levels[choice] > 0) s.LowBatteryLevel = levels[choice]; });
         }, subtitle: "Shown over games too");
         AddRow("Device information", glyph: "", click: () => Host.Push(new DeviceInfoScreen()));
-        AddRow("Restart to UEFI / BIOS setup", glyph: "\uE950", click: () => _ = Host.RestartToFirmwareAsync());
+
+        AddHeader("Notifications");
+        AddRow("Show Windows notifications in the launcher", !s.WindowsNotifications ? "Off" : WindowsNotifications.Status switch
+            {
+                "allowed" => "On", "denied" => "On, but Windows hasn't allowed it", "unsupported" => "Not supported on this PC", _ => "On"
+            }, "\uEA8F", click: ToggleWindowsNotifications);
+        if (s.WindowsNotifications && WindowsNotifications.Status == "denied")
+            AddRow("Allow it in Windows (Privacy > Notifications)", glyph: "\uE713", click: () => ProcessUtil.Open("ms-settings:privacy-notifications"));
+        AddRow("Notifications", Host.Notifications.Unread > 0 ? Host.Notifications.Unread + " new" : null, "",
+            click: () => Host.Push(new NotificationsScreen()));
+
+        AddHeader("Maintenance");
+        AddRow("Disk cleanup", glyph: "\uE74D", click: () => Host.Push(new DiskCleanupScreen()),
+            subtitle: "Temporary files, crash reports, shader and browser caches, the Recycle Bin");
+        AddRow("Storage speed test", glyph: "\uEC4A", click: () => Host.Push(new StorageSpeedScreen()),
+            subtitle: "How fast the internal drive, a memory card or a USB drive reads and writes");
         AddRow("Format a USB drive or memory card", glyph: "", click: () => Host.Push(new StorageScreen()));
+        AddRow("Restart to UEFI / BIOS setup", glyph: "\uE950", click: () => _ = Host.RestartToFirmwareAsync());
 
         AddHeader("Tools");
         AddRow("Task Manager", "Apps, processes, performance", "", click: () => Host.Push(new TaskManagerScreen()));
         AddRow("File explorer", glyph: "", click: () => Host.Push(new ExplorerScreen()));
-        bool homeApp = HomeApp.IsHomeApp || (AnyFse.IsInstalled() && AnyFse.LaunchesUs() && AnyFse.IsHomeApp());
-        AddRow("Xbox mode home app", homeApp ? "SquareDeck" : "Set up", "\uE7FC",
-            click: () => Host.Push(new HomeAppScreen()), subtitle: "Start Xbox mode (the full screen experience) straight into SquareDeck");
-        if (AllyButtons.Model.Length > 0 || AllyButtons.IsSupported)
-            AddRow("ROG Ally buttons", s.AllyRemap ? "Remapped" : "Off", "\uE765", click: () => Host.Push(new AllyButtonsScreen()),
-                subtitle: "Armoury Crate, Command Center and Mode+ buttons");
+        AddRow("Open Terminal", "Command Prompt or PowerShell", "\uE756", click: async () =>
+        {
+            int shell = await Host.AskWithIconsAsync("Open Terminal", "Runs inside SquareDeck. Type with the keyboard, or press A for the touch keyboard.",
+                ("Command Prompt", "\uE756"), ("PowerShell", "\uE756"));
+            if (shell >= 0) Host.Push(new TerminalScreen(powerShell: shell == 1));
+        }, subtitle: "Type and run commands here; Y has handy ones (network, disk space, battery report)");
 
         AddHeader("Windows");
         void Tweak(string label, Func<bool> get, Action<bool> set, string glyph, string about) =>
@@ -956,12 +1146,16 @@ public sealed class SettingsScreen : ListScreen
             Rebuild();
         });
         AddRow("Replace the Windows desktop", OnOff(Startup.ReplacesDesktop), "", click: ToggleDesktop);
+        bool homeApp = HomeApp.IsHomeApp || (AnyFse.IsInstalled() && AnyFse.LaunchesUs() && AnyFse.IsHomeApp());
+        AddRow("Xbox mode home app", homeApp ? "SquareDeck" : "Set up", "\uE7FC",
+            click: () => Host.Push(new HomeAppScreen()), subtitle: "Start Xbox mode (the full screen experience) straight into SquareDeck");
     }
 
     private void BuildData(Settings s)
     {
         AddHeader("Updates");
-        AddRow("This version", "SquareDeck " + Updater.Current, "");
+        // Press it five times for a surprise.
+        AddRow("This version", "SquareDeck " + Updater.Current, "", click: () => EasterEgg.Tap(Host));
         AddRow("Check for updates automatically", OnOff(s.AutoUpdateCheck), "", click: () =>
             Toggle(() => s.AutoUpdateCheck = !s.AutoUpdateCheck));
         AddRow("Check for updates now", glyph: "", click: () => _ = Host.CheckForUpdatesAsync(manual: true));
@@ -972,15 +1166,6 @@ public sealed class SettingsScreen : ListScreen
         AddHeader("Your data");
         AddRow("Backup and restore", glyph: "", click: () => Host.Push(new BackupScreen()));
         AddRow("Downloaded art and video", CacheLabel(s), "", click: CacheOptions);
-        AddRow("Show Windows notifications in the launcher", !s.WindowsNotifications ? "Off" : WindowsNotifications.Status switch
-            {
-                "allowed" => "On", "denied" => "On, but Windows hasn't allowed it", "unsupported" => "Not supported on this PC", _ => "On"
-            }, "\uEA8F", click: ToggleWindowsNotifications);
-        if (s.WindowsNotifications && WindowsNotifications.Status == "denied")
-            AddRow("Allow it in Windows (Privacy > Notifications)", glyph: "\uE713", click: () => ProcessUtil.Open("ms-settings:privacy-notifications"));
-        AddRow("Notifications", Host.Notifications.Unread > 0 ? Host.Notifications.Unread + " new" : null, "",
-            click: () => Host.Push(new NotificationsScreen()));
-
         AddHeader("Start over");
         AddRow("Run first-time setup again", glyph: "", click: () => _ = Host.RunSetupAsync());
         AddRow("Reset the launcher", "Settings only, or everything", "", click: () => _ = Host.ResetLauncherAsync());
@@ -1057,6 +1242,33 @@ public sealed class SettingsScreen : ListScreen
         else return;
         s.Save();
         Rebuild();
+    }
+
+    private async void ChooseLibraryLayout()
+    {
+        var s = Host.Settings;
+        var layouts = LibraryScreen.Layouts;
+        int choice = await Host.AskAsync("Library layout", string.Join("\n", layouts.Select(l => $"{l.Name}: {l.About}")), layouts.Select(l => l.Name).ToArray());
+        if (choice < 0) return;
+        s.LibraryLayout = layouts[choice].Id;
+        s.Save();
+        Rebuild();
+    }
+
+    /// <summary>Pick one of the boost animations (or a different one each time); each plays as it's chosen.</summary>
+    private async void ChooseBoostAnimation()
+    {
+        var s = Host.Settings;
+        var names = BoostScreen.Styles.Select(x => x.Name).Append("Surprise me").ToArray();
+        int current = Array.FindIndex(BoostScreen.Styles, x => x.Id == s.BoostAnimation);
+        int choice = await Host.AskAsync("Boost animation",
+            string.Join("\n", BoostScreen.Styles.Select(x => $"{x.Name}: {x.About}")) + "\nSurprise me: a different one each time",
+            names);
+        if (choice < 0) return;
+        s.BoostAnimation = choice < BoostScreen.Styles.Length ? BoostScreen.Styles[choice].Id : "random";
+        s.Save();
+        Rebuild();
+        Host.Push(new BoostScreen(null, s.BoostAnimation, s.BoostRumble, preview: true));
     }
 
     private async void RumbleStrength()
@@ -1257,6 +1469,15 @@ public sealed class SettingsScreen : ListScreen
         Rebuild();
     }
 
+    /// <summary>A list of choices for a setting; the chosen id is stored and applied straight away.</summary>
+    private async void Pick(string title, (string Id, string Name, string About)[] options, Action<string> store)
+    {
+        string? message = options.Any(o => o.About.Length > 0) ? string.Join("\n", options.Select(o => $"{o.Name}: {o.About}")) : null;
+        int choice = await Host.AskAsync(title, message, options.Select(o => o.Name).ToArray());
+        if (choice < 0) return;
+        Toggle(() => store(options[choice].Id));
+    }
+
     private void Toggle(Action change)
     {
         change();
@@ -1405,23 +1626,32 @@ public sealed class AvatarScreen : GridScreen
 {
     public AvatarScreen() : base("Profile picture")
     {
-        for (int i = 0; i < Avatars.Presets.Length; i++)
-        {
-            string setting = "preset:" + i;
-            AddTile(Avatars.Build(setting, 120), null, 120, () => Pick(setting));
-        }
-        AddTile(GlyphBox(120, 120, ""), "Choose image…", 120, Browse);
-
-        // Your Steam profile picture, read from Steam's own files on this PC.
+        // Your own first: a picture from this PC, or your Steam avatar.
+        AddTile(GlyphBox(104, 104, "\uE8B9"), "Choose image…", 104, Browse);
         if (MainWindow.FindSteamAvatarFile() is string steam && ImageLoader.FromFile(steam, 240) is { } picture)
         {
             var face = new System.Windows.Shapes.Ellipse
             {
-                Width = 120, Height = 120,
+                Width = 104, Height = 104,
                 Fill = new System.Windows.Media.ImageBrush(picture) { Stretch = System.Windows.Media.Stretch.UniformToFill }
             };
-            AddTile(face, "Steam avatar", 120, () => Import(steam));
+            AddTile(face, "Steam avatar", 104, () => Import(steam));
         }
+        // Then the built-in pictures, a row per group.
+        foreach (var (group, from, count) in Avatars.Groups)
+        {
+            var heading = Ui.Text(group, 18, "FgBrush", bold: true);
+            heading.Margin = new Thickness(4, 14, 0, 10);
+            Body.Children.Add(heading);
+            var row = new WrapPanel();
+            Body.Children.Add(row);
+            for (int i = from; i < from + count && i < Avatars.Presets.Length; i++)
+            {
+                string setting = "preset:" + i;
+                var tile = AddTile(Avatars.Build(setting, 104), null, 104, () => Pick(setting), into: row);
+            }
+        }
+
     }
 
     /// <summary>Copies a picture into the launcher's folder and uses it.</summary>
@@ -1667,38 +1897,99 @@ public sealed class BluetoothScreen : ListScreen
     }
 }
 
-/// <summary>Volume, brightness and radios in one small panel (View button, Q, or the top-bar icon).</summary>
+/// <summary>
+/// Quick settings: a panel that slides in from the right (View button, Q, or the top-bar icon). The time and battery
+/// at the top, a grid of tiles that light up in the highlight color when on (Wi-Fi, Bluetooth, airplane mode, night
+/// light, mute, settings), sliders for volume, brightness and TDP, and the power menu at the bottom.
+/// It follows the UI style's colors and corners.
+/// </summary>
 public sealed class QuickSettingsScreen : Screen
 {
     private readonly Slider _volume, _brightness;
-    private readonly TextBlock _volumeText, _brightnessText, _muteText, _wifiText, _bluetoothText, _airplaneText;
+    private readonly TextBlock _volumeText, _brightnessText, _clock, _date, _battery, _batteryGlyph;
     private readonly Border _brightnessRow;
     private readonly System.Windows.Threading.DispatcherTimer _brightnessApply = new() { Interval = TimeSpan.FromMilliseconds(350) };
+    private readonly System.Windows.Threading.DispatcherTimer _tick = new() { Interval = TimeSpan.FromSeconds(15) };
+    private readonly QuickTile _wifiTile, _bluetoothTile, _airplaneTile, _nightTile, _muteTile;
+    private readonly Border _sheet;
     private bool? _wifi, _bluetooth;
     private bool _syncing;           // true while we set a slider ourselves, so that isn't treated as the user
     private bool _brightnessReady;
 
     public override bool IsDialog => true;
 
+    /// <summary>Corners that suit the UI style: round, or nearly square for the sharp-cornered styles.</summary>
+    internal static double Round(double usual) => Theme.TileCorner <= 4 ? Math.Min(usual, Theme.TileCorner + 2) : usual;
+
     public QuickSettingsScreen()
     {
         var panel = new StackPanel();
-        panel.Children.Add(Ui.Text("Quick settings", 26));
 
-        var rows = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
-        rows.Children.Add(Ui.SliderRow("Volume", "", out _volume, out _volumeText));
-        var mute = Ui.ValueRow("Mute", "", out _muteText);
-        mute.Click += (_, _) => { Audio.SetMute(!Audio.GetMute()); ShowAudio(); };
-        rows.Children.Add(mute);
+        // ---- the time, the date, and the battery
+        var top = new DockPanel { Margin = new Thickness(4, 0, 4, 18) };
+        var batteryRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        _batteryGlyph = Ui.Glyph("", 20, "FgBrush");
+        _batteryGlyph.Margin = new Thickness(0, 0, 8, 0);
+        _batteryGlyph.VerticalAlignment = VerticalAlignment.Center;
+        _battery = Ui.Text("", 18, "FgBrush", bold: true);
+        _battery.VerticalAlignment = VerticalAlignment.Center;
+        batteryRow.Children.Add(_batteryGlyph);
+        batteryRow.Children.Add(_battery);
+        DockPanel.SetDock(batteryRow, Dock.Right);
+        top.Children.Add(batteryRow);
+        var when = new StackPanel();
+        _clock = Ui.Text("", 40, "FgBrush", bold: true);
+        _date = Ui.Text("", 15, "SubtleBrush");
+        when.Children.Add(_clock);
+        when.Children.Add(_date);
+        top.Children.Add(when);
+        panel.Children.Add(top);
 
-        _brightnessRow = Ui.SliderRow("Brightness", "", out _brightness, out _brightnessText);
+        // ---- toggles
+        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new Thickness(-5, 0, -5, 0) };
+        _wifiTile = new QuickTile("", "Wi-Fi");
+        _wifiTile.Click += async (_, _) => { if (_wifi != null) await SetRadiosAsync(!_wifi.Value, null); };
+        _wifiTile.Hold += () => Host.Push(new WifiScreen());
+        _bluetoothTile = new QuickTile("", "Bluetooth");
+        _bluetoothTile.Click += async (_, _) => { if (_bluetooth != null) await SetRadiosAsync(null, !_bluetooth.Value); };
+        _bluetoothTile.Hold += () => Host.Push(new BluetoothScreen());
+        _airplaneTile = new QuickTile("", "Airplane");
+        _airplaneTile.Click += async (_, _) =>
+        {
+            // Windows has no public switch for its own airplane mode; this turns both radios off (or back on).
+            bool anyOn = _wifi == true || _bluetooth == true;
+            await SetRadiosAsync(!anyOn, !anyOn);
+        };
+        _nightTile = new QuickTile("", "Night light");
+        _nightTile.Click += async (_, _) =>
+        {
+            if (NightLight.IsOn is bool on && NightLight.Set(!on))
+            {
+                await Task.Delay(300);
+                ShowNight();
+            }
+            else ProcessUtil.Open("ms-settings:nightlight");
+        };
+        _muteTile = new QuickTile("", "Mute");
+        _muteTile.Click += (_, _) => { Audio.SetMute(!Audio.GetMute()); ShowAudio(); };
+        var settings = new QuickTile("", "Settings");
+        settings.Set(false, "All settings");
+        settings.Click += (_, _) => { Host.Pop(this); Host.Push(new SettingsScreen()); };
+        foreach (var t in new[] { _wifiTile, _bluetoothTile, _airplaneTile, _nightTile, _muteTile, settings }) grid.Children.Add(t);
+        panel.Children.Add(grid);
+
+        // ---- sliders
+        var sliders = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
+        var volumeRow = Ui.SliderRow("Volume", "", out _volume, out _volumeText);
+        sliders.Children.Add(Slim(volumeRow));
+        _brightnessRow = Slim(Ui.SliderRow("Brightness", "", out _brightness, out _brightnessText));
         _brightnessRow.Visibility = Visibility.Collapsed; // shown once we know the screen supports it
-        rows.Children.Add(_brightnessRow);
+        sliders.Children.Add(_brightnessRow);
 
         // TDP, when TDP control is set up and on: for now only (until the game closes, or the launcher restarts).
         if (TdpControl.Ready && TdpControl.Chip is { } chip)
         {
-            rows.Children.Add(Ui.SliderRow("TDP", "\uEC4A", out var tdp, out var tdpText));
+            var tdpRow = Ui.SliderRow("TDP", "", out var tdp, out var tdpText);
             tdp.Minimum = chip.Min;
             tdp.Maximum = chip.Max;
             tdp.SmallChange = 1;
@@ -1713,41 +2004,18 @@ public sealed class QuickSettingsScreen : Screen
                 tdpText.Text = w + " W";
                 TdpControl.SetSessionWatts(w);
             };
+            sliders.Children.Add(Slim(tdpRow));
         }
+        panel.Children.Add(sliders);
 
-        var wifi = Ui.ValueRow("Wi-Fi", "", out _wifiText);
-        wifi.Click += async (_, _) => { if (_wifi != null) await SetRadiosAsync(!_wifi.Value, null); };
-        rows.Children.Add(wifi);
-
-        var bluetooth = Ui.ValueRow("Bluetooth", "", out _bluetoothText);
-        bluetooth.Click += async (_, _) => { if (_bluetooth != null) await SetRadiosAsync(null, !_bluetooth.Value); };
-        rows.Children.Add(bluetooth);
-
-        var airplane = Ui.ValueRow("Airplane mode", "", out _airplaneText);
-        airplane.Click += async (_, _) =>
-        {
-            // Windows has no public switch for its own airplane mode; this turns both radios off (or back on).
-            bool anyOn = _wifi == true || _bluetooth == true;
-            await SetRadiosAsync(!anyOn, !anyOn);
-        };
-        rows.Children.Add(airplane);
-
-        // Night light: Windows' warmer evening colors.
-        var night = Ui.ValueRow("Night light", "\uE708", out var nightText);
-        void ShowNight() => nightText.Text = NightLight.IsOn switch { true => "On", false => "Off", _ => "Open settings" };
-        ShowNight();
-        night.Click += async (_, _) =>
-        {
-            if (NightLight.IsOn is bool on && NightLight.Set(!on))
-            {
-                await Task.Delay(300);
-                ShowNight();
-            }
-            else ProcessUtil.Open("ms-settings:nightlight");
-        };
-        rows.Children.Add(night);
-        Ui.GroupRows(rows);
-        panel.Children.Add(rows);
+        // ---- power, along the bottom
+        var power = new Button { Style = Ui.StyleOf("PanelButton"), HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 16, 0, 0) };
+        var powerRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+        powerRow.Children.Add(new TextBlock { Text = "", FontFamily = Ui.IconFont, FontSize = 16, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 10, 0) });
+        powerRow.Children.Add(new TextBlock { Text = "Power", VerticalAlignment = VerticalAlignment.Center });
+        power.Content = powerRow;
+        power.Click += (_, _) => { Host.Pop(this); _ = Host.PowerMenuAsync(); };
+        panel.Children.Add(power);
 
         _volume.ValueChanged += (_, e) =>
         {
@@ -1767,36 +2035,82 @@ public sealed class QuickSettingsScreen : Screen
             _brightnessApply.Stop();
             await Brightness.SetAsync((int)_brightness.Value);
         };
+        _tick.Tick += (_, _) => ShowClock();
 
-        var box = new Border
+        // A sheet on the right, over the dimmed screen.
+        _sheet = new Border
         {
-            Width = 640,
-            Padding = new Thickness(32),
-            CornerRadius = new CornerRadius(6),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = panel
+            Width = 470, Padding = new Thickness(26, 24, 26, 24), Margin = new Thickness(0, 18, 18, 18),
+            CornerRadius = new CornerRadius(Round(24)),
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            Child = panel, RenderTransform = new System.Windows.Media.TranslateTransform(),
+            Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 40, ShadowDepth = 0, Opacity = 0.45 }
         };
-        box.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
-        box.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
-        box.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
-        var backdrop = new Grid
-        {
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0xA0, 0, 0, 0))
-        };
-        backdrop.Children.Add(box);
+        _sheet.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+        _sheet.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+        _sheet.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
+        var backdrop = new Grid { Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x70, 0, 0, 0)) };
+        backdrop.Children.Add(_sheet);
         Content = backdrop;
+    }
+
+    /// <summary>The slider rows, a little tighter and rounder than on the settings pages.</summary>
+    private static Border Slim(Border row)
+    {
+        row.CornerRadius = new CornerRadius(Round(16));
+        row.Padding = new Thickness(14, 8, 14, 8);
+        row.Margin = new Thickness(0, 4, 0, 4);
+        if (row.Child is Grid g && g.ColumnDefinitions.Count > 1) g.ColumnDefinitions[1].Width = new GridLength(112);
+        return row;
     }
 
     public override void OnShown()
     {
+        ShowClock();
         ShowAudio();
+        ShowNight();
+        _tick.Start();
         _ = LoadAsync();
+        if (!Theme.ReduceMotion && _sheet.RenderTransform is System.Windows.Media.TranslateTransform slide)
+        {
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            slide.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(80, 0, TimeSpan.FromMilliseconds(220)) { EasingFunction = ease });
+            _sheet.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+        }
     }
 
-    public override void OnClosed() => _brightnessApply.Stop();
+    public override void OnResumed()
+    {
+        _ = ShowRadiosAsync(); // back from the Wi-Fi or Bluetooth page
+    }
 
-    public override void FocusDefault() => _volume.Focus();
+    public override void OnClosed()
+    {
+        _brightnessApply.Stop();
+        _tick.Stop();
+    }
+
+    public override void FocusDefault() => _wifiTile.Focus();
+
+    private void ShowClock()
+    {
+        var now = DateTime.Now;
+        _clock.Text = now.ToString("t");
+        _date.Text = now.ToString("dddd, MMMM d");
+        var battery = Battery.GetPercent();
+        _battery.Text = battery == null ? "" : battery + "%";
+        _batteryGlyph.Visibility = battery == null ? Visibility.Collapsed : Visibility.Visible;
+        // Battery glyphs, from empty (E850) to nine tenths (E859), and full (E83F).
+        if (battery is int b) _batteryGlyph.Text = b >= 100 ? "\uE83F" : ((char)(0xE850 + Math.Clamp(b / 10, 0, 9))).ToString();
+        if (battery is <= 15) _battery.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+    }
+
+    private void ShowNight()
+    {
+        bool? on = NightLight.IsOn;
+        _nightTile.Set(on == true, on switch { true => "On", false => "Off", _ => "Settings" });
+    }
 
     private void ShowAudio()
     {
@@ -1804,8 +2118,9 @@ public sealed class QuickSettingsScreen : Screen
         var volume = Audio.GetVolume();
         _volume.IsEnabled = volume != null;
         _volume.Value = volume ?? 0;
-        _volumeText.Text = volume == null ? "No device" : volume + "%";
-        _muteText.Text = Audio.GetMute() ? "On" : "Off";
+        _volumeText.Text = volume == null ? "—" : volume + "%";
+        bool muted = Audio.GetMute();
+        _muteTile.Set(muted, muted ? "Sound off" : "Sound on");
         _syncing = false;
     }
 
@@ -1827,10 +2142,16 @@ public sealed class QuickSettingsScreen : Screen
     {
         _wifi = await NetworkService.GetRadioStateAsync(RadioKind.WiFi);
         _bluetooth = await NetworkService.GetRadioStateAsync(RadioKind.Bluetooth);
-        _wifiText.Text = _wifi == null ? "Not available" : _wifi.Value ? "On" : "Off";
-        _bluetoothText.Text = _bluetooth == null ? "Not available" : _bluetooth.Value ? "On" : "Off";
+        string wifiName = "On";
+        if (_wifi == true)
+        {
+            try { if ((await NetworkService.GetStatusAsync()).WifiBars != null) wifiName = "Connected"; } catch (Exception) { }
+        }
+        _wifiTile.Set(_wifi == true, _wifi == null ? "Not available" : _wifi.Value ? wifiName : "Off");
+        _bluetoothTile.Set(_bluetooth == true, _bluetooth == null ? "Not available" : _bluetooth.Value ? "On" : "Off");
         bool hasRadio = _wifi != null || _bluetooth != null;
-        _airplaneText.Text = !hasRadio ? "Not available" : _wifi != true && _bluetooth != true ? "On" : "Off";
+        bool airplane = hasRadio && _wifi != true && _bluetooth != true;
+        _airplaneTile.Set(airplane, !hasRadio ? "Not available" : airplane ? "On" : "Off");
     }
 
     private async Task SetRadiosAsync(bool? wifi, bool? bluetooth)
@@ -1838,6 +2159,84 @@ public sealed class QuickSettingsScreen : Screen
         if (wifi != null && _wifi != null) await NetworkService.SetRadioAsync(RadioKind.WiFi, wifi.Value);
         if (bluetooth != null && _bluetooth != null) await NetworkService.SetRadioAsync(RadioKind.Bluetooth, bluetooth.Value);
         await ShowRadiosAsync();
+    }
+
+    public override bool OnAction(NavAction action)
+    {
+        // Y on a tile: its full page (Wi-Fi networks, Bluetooth devices).
+        if (action == NavAction.Y && System.Windows.Input.Keyboard.FocusedElement is QuickTile { } tile) { tile.RaiseHold(); return true; }
+        return false;
+    }
+}
+
+/// <summary>
+/// A quick-settings tile: an icon, a name and its state. Filled with the highlight color when on, quiet glass when
+/// off, and it grows a little and gets a ring when highlighted.
+/// </summary>
+public sealed class QuickTile : Button
+{
+    private readonly Border _face;
+    private readonly TextBlock _glyph, _label, _state;
+    private readonly System.Windows.Media.ScaleTransform _scale = new(1, 1);
+    private bool _on;
+
+    /// <summary>Y on the tile (or a right click): its full settings page.</summary>
+    public event Action? Hold;
+
+    public QuickTile(string glyph, string label)
+    {
+        Style = Ui.StyleOf("BareButton");
+        Focusable = true; // the bare style can't take the highlight by itself; the controller needs it to
+        Margin = new Thickness(5);
+        FocusVisualStyle = null;
+        _glyph = new TextBlock { Text = glyph, FontFamily = Ui.IconFont, FontSize = 24, Margin = new Thickness(0, 0, 0, 10) };
+        _label = Ui.Text(label, 16, bold: true);
+        _label.TextTrimming = TextTrimming.CharacterEllipsis;
+        _state = Ui.Text("", 13);
+        _state.TextTrimming = TextTrimming.CharacterEllipsis;
+        var stack = new StackPanel();
+        stack.Children.Add(_glyph);
+        stack.Children.Add(_label);
+        stack.Children.Add(_state);
+        _face = new Border
+        {
+            Height = 112, Padding = new Thickness(16, 14, 12, 12), CornerRadius = new CornerRadius(QuickSettingsScreen.Round(18)),
+            BorderThickness = new Thickness(3), BorderBrush = System.Windows.Media.Brushes.Transparent, Child = stack,
+            RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = _scale
+        };
+        Content = _face;
+        Paint();
+        GotKeyboardFocus += (_, _) => Highlight(true);
+        LostKeyboardFocus += (_, _) => Highlight(false);
+        MouseRightButtonUp += (_, e) => { e.Handled = true; RaiseHold(); };
+    }
+
+    internal void RaiseHold() => Hold?.Invoke();
+
+    public void Set(bool on, string state)
+    {
+        _on = on;
+        _state.Text = state;
+        Paint();
+    }
+
+    private void Paint()
+    {
+        _face.SetResourceReference(Border.BackgroundProperty, _on ? "AccentBrush" : "CircleBrush");
+        string fore = _on ? "BgBrush" : "FgBrush";
+        _glyph.SetResourceReference(TextBlock.ForegroundProperty, fore);
+        _label.SetResourceReference(TextBlock.ForegroundProperty, fore);
+        _state.SetResourceReference(TextBlock.ForegroundProperty, _on ? "BgBrush" : "SubtleBrush");
+        _state.Opacity = _on ? 0.8 : 1;
+    }
+
+    private void Highlight(bool on)
+    {
+        if (on) _face.SetResourceReference(Border.BorderBrushProperty, _on ? "FgBrush" : "AccentBrush");
+        else _face.BorderBrush = System.Windows.Media.Brushes.Transparent;
+        double to = on && !Theme.ReduceMotion ? 1.04 : 1;
+        _scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(to, TimeSpan.FromMilliseconds(120)));
+        _scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, new System.Windows.Media.Animation.DoubleAnimation(to, TimeSpan.FromMilliseconds(120)));
     }
 }
 
@@ -1927,8 +2326,9 @@ public sealed class DeviceInfoScreen : ListScreen
         Fact("Controller", Host.ControllerBattery ?? "Not connected", "");
 
         AddHeader("Launcher");
-        Fact("SquareDeck version",
-            System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3), "");
+        // Press it five times for a surprise.
+        AddRow("SquareDeck version", System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "", "",
+            click: () => EasterEgg.Tap(Host));
     }
 }
 
@@ -2058,4 +2458,211 @@ public sealed class ControlsScreen : ListScreen
         Host.SetButtonMap(map);
         Rebuild();
     }
+}
+
+/// <summary>
+/// The power menu: big round buttons in a row (lock, sleep, hibernate, restart, shut down, exit to the desktop) under
+/// your profile picture, name and the battery. Restart and shut down ask on the button itself: the first press turns
+/// it red and says "Press again", the second does it. A running game is named as a warning first.
+/// </summary>
+public sealed class PowerMenuScreen : Screen
+{
+    private readonly TaskCompletionSource<int> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly List<(Button Button, Border Circle, TextBlock Label, string Name, bool Confirm)> _items = new();
+    private readonly TextBlock _hint = Ui.Text("", 15, "SubtleBrush");
+    private int _armed = -1;
+    private int _choice = -1;
+
+    public override bool IsDialog => true;
+
+    /// <summary>Index of the chosen action (0 lock … 5 exit), or -1 for cancelled.</summary>
+    public Task<int> Result => _done.Task;
+
+    public PowerMenuScreen(string? warning)
+    {
+        var panel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+
+        // Who and how much battery, above the buttons.
+        var who = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 30) };
+        var name = Ui.Text(UserName.Display, 26, "FgBrush", bold: true);
+        name.VerticalAlignment = VerticalAlignment.Center;
+        who.Children.Add(name);
+        if (Battery.GetPercent() is int battery)
+        {
+            var pill = new Border { CornerRadius = new CornerRadius(QuickSettingsScreen.Round(14)), Padding = new Thickness(12, 4, 14, 5), Margin = new Thickness(16, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            pill.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var g = Ui.Glyph(battery >= 100 ? "" : ((char)(0xE850 + Math.Clamp(battery / 10, 0, 9))).ToString(), 15, "FgBrush");
+            g.Margin = new Thickness(0, 1, 8, 0);
+            row.Children.Add(g);
+            row.Children.Add(Ui.Text(battery + "%", 15, "FgBrush", bold: true));
+            pill.Child = row;
+            who.Children.Add(pill);
+        }
+        panel.Children.Add(who);
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+        Add(buttons, "", "Lock", false);
+        Add(buttons, "", "Sleep", false);
+        Add(buttons, "", "Hibernate", false);
+        Add(buttons, "", "Restart", true);
+        Add(buttons, "", "Shut down", true);
+        Add(buttons, "", "Exit", false);
+        panel.Children.Add(buttons);
+
+        _hint.HorizontalAlignment = HorizontalAlignment.Center;
+        _hint.Margin = new Thickness(0, 26, 0, 0);
+        _hint.TextAlignment = TextAlignment.Center;
+        _hint.TextWrapping = TextWrapping.Wrap;
+        _hint.MaxWidth = 760;
+        panel.Children.Add(_hint);
+        if (warning != null)
+        {
+            var warn = new Border { CornerRadius = new CornerRadius(QuickSettingsScreen.Round(14)), Padding = new Thickness(18, 10, 18, 11), Margin = new Thickness(0, 18, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
+            warn.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var g = Ui.Glyph("", 16, "AccentBrush");
+            g.Margin = new Thickness(0, 1, 10, 0);
+            row.Children.Add(g);
+            row.Children.Add(Ui.Text(warning, 15, "FgBrush"));
+            warn.Child = row;
+            panel.Children.Add(warn);
+        }
+
+        var card = new Border
+        {
+            Padding = new Thickness(48, 40, 48, 38), CornerRadius = new CornerRadius(QuickSettingsScreen.Round(30)),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = panel,
+            RenderTransformOrigin = new Point(0.5, 0.5),
+            Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 50, ShadowDepth = 0, Opacity = 0.5 }
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+        card.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
+        if (!Theme.ReduceMotion)
+        {
+            var scale = new System.Windows.Media.ScaleTransform(0.94, 0.94);
+            card.RenderTransform = scale;
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(0.94, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+            scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, new System.Windows.Media.Animation.DoubleAnimation(0.94, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+            card.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160)));
+        }
+        var backdrop = new Grid { Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0xB0, 0, 0, 0)) };
+        backdrop.Children.Add(card);
+        Content = backdrop;
+    }
+
+    private void Add(Panel row, string glyph, string name, bool confirm)
+    {
+        int index = _items.Count;
+        double size = 96;
+        var circle = new Border
+        {
+            Width = size, Height = size, CornerRadius = new CornerRadius(QuickSettingsScreen.Round(size / 2)),
+            BorderThickness = new Thickness(3), BorderBrush = System.Windows.Media.Brushes.Transparent,
+            Child = new TextBlock { Text = glyph, FontFamily = Ui.IconFont, FontSize = 34, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+        };
+        circle.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        ((TextBlock)circle.Child).SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+        var label = Ui.Text(name, 15, "FgBrush", bold: true);
+        label.HorizontalAlignment = HorizontalAlignment.Center;
+        label.Margin = new Thickness(0, 12, 0, 0);
+        var stack = new StackPanel { Width = 128 };
+        stack.Children.Add(circle);
+        stack.Children.Add(label);
+        var scale = new System.Windows.Media.ScaleTransform(1, 1);
+        var button = new Button
+        {
+            Style = Ui.StyleOf("BareButton"), Focusable = true, Content = stack, FocusVisualStyle = null, Margin = new Thickness(6, 0, 6, 0),
+            RenderTransformOrigin = new Point(0.5, 0.4), RenderTransform = scale
+        };
+        button.GotKeyboardFocus += (_, _) =>
+        {
+            if (_armed >= 0 && _armed != index) Disarm();
+            Paint(index, focused: true);
+            _hint.Text = Describe(index);
+            if (!Theme.ReduceMotion)
+            {
+                scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(1.08, TimeSpan.FromMilliseconds(120)));
+                scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, new System.Windows.Media.Animation.DoubleAnimation(1.08, TimeSpan.FromMilliseconds(120)));
+            }
+        };
+        button.LostKeyboardFocus += (_, _) =>
+        {
+            Paint(index, focused: false);
+            scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(120)));
+            scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(120)));
+        };
+        button.Click += (_, _) => Choose(index);
+        row.Children.Add(button);
+        _items.Add((button, circle, label, name, confirm));
+    }
+
+    private static string Describe(int index) => index switch
+    {
+        0 => "Lock the PC. Everything stays open.",
+        1 => "Low power, back in a moment. Games stay where they are.",
+        2 => "Saves everything to the drive and turns off. Uses no battery.",
+        3 => "Restart the PC.",
+        4 => "Turn the PC off.",
+        _ => "Close SquareDeck and go to the Windows desktop."
+    };
+
+    private void Paint(int index, bool focused)
+    {
+        var (_, circle, label, name, _) = _items[index];
+        bool armed = index == _armed;
+        if (armed)
+        {
+            circle.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD9, 0x3B, 0x3B));
+            ((TextBlock)circle.Child).Foreground = System.Windows.Media.Brushes.White;
+            label.Text = "Press again";
+        }
+        else
+        {
+            circle.SetResourceReference(Border.BackgroundProperty, focused ? "AccentBrush" : "CircleBrush");
+            ((TextBlock)circle.Child).SetResourceReference(TextBlock.ForegroundProperty, focused ? "BgBrush" : "FgBrush");
+            label.Text = name;
+        }
+        if (focused) circle.SetResourceReference(Border.BorderBrushProperty, "FgBrush");
+        else circle.BorderBrush = System.Windows.Media.Brushes.Transparent;
+    }
+
+    private void Disarm()
+    {
+        int was = _armed;
+        _armed = -1;
+        if (was >= 0) Paint(was, _items[was].Button.IsKeyboardFocused);
+    }
+
+    private void Choose(int index)
+    {
+        if (_items[index].Confirm && _armed != index)
+        {
+            // Restart and shut down: one more press to be sure.
+            _armed = index;
+            Paint(index, focused: true);
+            _hint.Text = $"Press A again to {_items[index].Name.ToLowerInvariant()}. Move away or press B to cancel.";
+            UiSound.Error();
+            return;
+        }
+        _choice = index;
+        Host.Pop(this);
+    }
+
+    public override bool OnAction(NavAction action)
+    {
+        if (action == NavAction.Back && _armed >= 0)
+        {
+            Disarm();
+            _hint.Text = "";
+            return true;
+        }
+        return false;
+    }
+
+    public override void FocusDefault() => _items[1].Button.Focus(); // Sleep, the one used most on a handheld
+
+    public override void OnClosed() => _done.TrySetResult(_choice);
 }

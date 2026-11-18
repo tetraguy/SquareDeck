@@ -81,7 +81,7 @@ public partial class MainWindow : Window
     private readonly HashSet<int> _steamWasRunning = new();
     // Steam games started from their own program: Steam may never mark them "running", so their processes are watched.
     private readonly Dictionary<int, DateTime> _directLaunched = new();
-    private readonly Queue<(string Heading, string Title, string Detail, string IconUrl, ImageSource? Picture)> _toasts = new();
+    private readonly Queue<(string Heading, string Title, string Detail, string IconUrl, ImageSource? Picture, string Kind, Game? Game)> _toasts = new();
     private bool _toastShowing;
 
     public MainWindow()
@@ -90,6 +90,9 @@ public partial class MainWindow : Window
         Theme.Apply(Settings);
         Hints.Map = Settings.ButtonMap;
         Hints.SetStyle(Settings.GlyphStyle);
+        // The keyboard choice from the start (it used to be applied only after a setting changed, so after a restart
+        // SquareDeck's own keyboard came back whatever Settings said).
+        TouchKeyboard.UseWindows = Settings.TouchKeyboard == "windows";
         Hints.SetLook(Settings.GlyphLook);
         ApplyHintLabels();
         UiSound.Configure(Settings);
@@ -147,6 +150,13 @@ public partial class MainWindow : Window
             _scroll = FindChild<ScrollViewer>(GameList);
             Focus();
             if (Settings.StartupIntro) PlayIntro();
+            // The greeting by the profile picture, once the intro has cleared.
+            if (Settings.WelcomeMessage)
+            {
+                var greet = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(Settings.StartupIntro ? 2600 : 700) };
+                greet.Tick += (_, _) => { greet.Stop(); if (Settings.SetupDone == true) ShowWelcome(); };
+                greet.Start();
+            }
             // Games load while the welcome pages show, so they can say what was found.
             var loading = ReloadAsync();
             if (Settings.SetupDone != true)
@@ -159,6 +169,7 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            Screens.PerfOverlay.CloseAll();
             _loadCts?.Cancel();
             OnClosedExtras();
         };
@@ -645,6 +656,7 @@ public partial class MainWindow : Window
         item.TileBackground = gradient;
         item.Cover = icon;
         item.IconFills = true; // chosen from SteamGridDB: as big as the tile, like a cover
+        item.IconIsSmall = false;
         item.UsesIcon = true;
     }
 
@@ -684,10 +696,13 @@ public partial class MainWindow : Window
         // Apps show their own icon, centered on a gradient made from the icon's colors.
         var (icon, gradient) = await Task.Run(() =>
         {
-            var source = ShellThumb.ForApp(item.LaunchId, 256);
+            var source = ShellThumb.BestForApp(item.LaunchId);
             return (source, source == null ? null : ImageLoader.GradientFrom(source));
         });
+        bool small = icon != null && await Task.Run(() => ShellThumb.Detail(icon)) <= 64;
         item.TileBackground = gradient;
+        item.IconIsSmall = small;
+        item.IconFills = false;
         item.Cover = icon;
         item.UsesIcon = icon != null;
     }
@@ -780,11 +795,27 @@ public partial class MainWindow : Window
             if (!await StopGameAsync(running, confirm: false, settleMs: 1500)) return;
         }
 
+        // An update waiting in Steam: update first, or play the version that's here?
+        if (Settings.AskAboutUpdates && item.IsSteam && item.HasUpdate)
+        {
+            var update = new GameUpdateScreen(item);
+            Push(update);
+            if (!await update.Result) return;
+        }
+
         if (Settings.LaunchCountdown && !item.IsRunning)
         {
             var countdown = new CountdownScreen(item, Settings.LaunchCountdownSeconds);
             Push(countdown);
             if (!await countdown.Result) return;
+        }
+
+        // Performance Boost: free memory first, with its animation.
+        if (Settings.PerformanceBoost && !item.IsRunning)
+        {
+            var boost = new BoostScreen(item, Settings.BoostAnimation, Settings.BoostRumble);
+            Push(boost);
+            await boost.Result;
         }
 
         // Switch to the game's own display / sound / power settings, and quieten Windows, before it starts.
@@ -1088,7 +1119,7 @@ public partial class MainWindow : Window
         // Everything that pops up is also kept in the notification center (with its game, for the icon there).
         Notifications.Add(kind, title, detail, iconUrl, game?.Key ?? "");
         UpdateBell();
-        _toasts.Enqueue((heading, title, detail, iconUrl, picture));
+        _toasts.Enqueue((heading, title, detail, iconUrl, picture, kind, game));
         if (!_toastShowing) _ = RunToastsAsync();
     }
 
@@ -1099,7 +1130,8 @@ public partial class MainWindow : Window
         {
             while (_toasts.Count > 0)
             {
-                var (heading, title, detail, iconUrl, picture) = _toasts.Dequeue();
+                var (heading, title, detail, iconUrl, picture, kind, game) = _toasts.Dequeue();
+                if (Settings.RumbleOnNotifications) Rumble(110); // feel it as it pops up
 
                 var icon = new Image { Width = 56, Height = 56, Margin = new Thickness(0, 0, 14, 0), Stretch = Stretch.UniformToFill };
                 if (picture != null) icon.Source = picture;
@@ -1131,6 +1163,15 @@ public partial class MainWindow : Window
                 };
                 toast.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
                 toast.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+                // Tap (or click) it to open what it's about; it goes away straight after.
+                var tapped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                toast.Cursor = System.Windows.Input.Cursors.Hand;
+                toast.MouseLeftButtonUp += (_, e) =>
+                {
+                    e.Handled = true;
+                    if (!tapped.TrySetResult()) return;
+                    OpenNotification(kind, title, detail, game);
+                };
                 ToastLayer.Children.Add(toast);
 
                 var quick = TimeSpan.FromMilliseconds(300);
@@ -1138,7 +1179,8 @@ public partial class MainWindow : Window
                 slide.BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(30, 0, quick));
                 UiSound.Toast();
 
-                await Task.Delay(4500);
+                await Task.WhenAny(Task.Delay(4500), tapped.Task);
+                toast.IsHitTestVisible = false;
                 toast.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0, quick));
                 await Task.Delay(340);
                 ToastLayer.Children.Remove(toast);
@@ -1148,6 +1190,24 @@ public partial class MainWindow : Window
         {
             _toastShowing = false;
         }
+    }
+
+    /// <summary>
+    /// Opens what a notification is about: the game's page (achievements, downloads, play sessions), the Friends page,
+    /// quick settings for the battery, the notification center for Windows notifications, or else the full text.
+    /// </summary>
+    public void OpenNotification(string kind, string title, string detail, Game? game)
+    {
+        UiSound.Select();
+        if (game != null && game.IsGame) { Push(new DetailsScreen(game)); return; }
+        switch (kind)
+        {
+            case "friend": Push(new FriendsScreen()); return;
+            case "battery": Push(new QuickSettingsScreen()); return;
+            case "windows": Push(new NotificationsScreen()); return;
+            case "download" when _installing != null: Push(new DetailsScreen(_installing)); return;
+        }
+        _ = AskAsync(title, detail.Length > 0 ? detail : null, "OK");
     }
 
     private static async Task LoadToastIconAsync(Image view, string url) =>
@@ -1321,7 +1381,7 @@ public partial class MainWindow : Window
             Add(Play, "Return to game", "\uE768", () => ReturnToGame(item));
             AddAsync(Play, "Stop game", "\uE71A", () => StopGameAsync(item, confirm: true), danger: true);
         }
-        if (item.IsSteam) Add(Play, "Game details", "\uE946", () => Push(new DetailsScreen(item)));
+        if (item.IsGame) Add(Play, "Game details", "\uE946", () => Push(new DetailsScreen(item)));
         if (item.IsGame && GameCaptures.For(item, 1).Count > 0)
             Add(Play, "Screenshots", "\uE722", () =>
             {
@@ -1584,6 +1644,13 @@ public partial class MainWindow : Window
 
     private void PollGamepad()
     {
+        // A cloud game is in front: the controller belongs to the page, except the hold-to-exit combo.
+        if (CloudGameScreen.Active is { } cloud && IsActive && _overlay is not { IsVisible: true })
+        {
+            cloud.PollController(_gamepad);
+            _gamepad.Reset();
+            return;
+        }
         // Ignore the controller while a game (or anything else) is in front of us.
         // The in-game quick menu is its own window: while it is up, the controller drives it.
         if (_overlay is { IsVisible: true } overlay)
@@ -1596,10 +1663,10 @@ public partial class MainWindow : Window
         if (!IsActive)
         {
             // ...except for the one shortcut that brings the launcher (or its quick menu) back.
-            if (Settings.GuideSummon && _gamepad.PollSummon())
+            if ((Settings.GuideSummon || Settings.InGameQuickMenu) && _gamepad.PollSummon())
             {
-                if (Settings.InGameQuickMenu && AllGames.Any(g => g.IsRunning)) ToggleOverlay();
-                else WindowActivator.BringToFront(this);
+                if (QuickMenuWanted()) ToggleOverlay();
+                else if (Settings.GuideSummon) WindowActivator.BringToFront(this);
             }
             _gamepad.Reset();
             return;
@@ -1657,7 +1724,7 @@ public partial class MainWindow : Window
     public static readonly (string Id, string Name, string Glyph)[] CyclePages =
     {
         ("games", "Home", "\uE80F"), ("favorites", "Favorites", "\uEB51"), ("apps", "Apps", "\uE71D"),
-        ("library", "Game library", "\uE8F1"), ("captures", "Captures", "\uE722"), ("music", "Music", "\uE8D6"),
+        ("library", "Game library", "\uE8F1"), ("captures", "Captures", "\uE722"), ("music", "Multimedia", "\uE8D6"),
         ("friends", "Friends", "\uE716"), ("settings", "Settings", "\uE713")
     };
 
@@ -1804,6 +1871,18 @@ public partial class MainWindow : Window
             return;
         }
 
+        int viewButtonIndex = Math.Max(0, _mode == HomeView.Apps ? AppsButton : _mode == HomeView.Favorites ? FavoritesButton : HomeButton);
+        if (_actionIndex >= 0)
+        {
+            // Below the action buttons: the round buttons in layouts that have them, else the footer.
+            HandleActionRow(action, () =>
+            {
+                if (!TabsOnTop && !SidebarNav) SetButtonIndex(viewButtonIndex);
+                else if (FooterButtons().Count > 0) { _stopReturnIndex = -1; SetStopFocus(true); }
+            });
+            return;
+        }
+
         if (_topIndex >= 0)
         {
             var top = TopButtons();
@@ -1880,6 +1959,8 @@ public partial class MainWindow : Window
         // Tabs on top: Up reaches them. Sidebar: Left from the first game reaches it.
         if (TabsOnTop && action == NavAction.Up) { SetButtonIndex(viewButton); return; }
         if (SidebarNav && action == NavAction.Left && GameList.SelectedIndex <= 0) { SetButtonIndex(viewButton); return; }
+        // Down from the games: first the Play / favorite / More buttons under the game, in styles that show them.
+        if (action == NavAction.Down && ActionsReachable) { SetActionIndex(0); return; }
         if ((TabsOnTop || SidebarNav) && action == NavAction.Down)
         {
             // Nothing below the games but the footer (Stop / now playing).
@@ -1903,7 +1984,7 @@ public partial class MainWindow : Window
                 if (selected != null) _ = ActivateAsync(selected);
                 break;
             case NavAction.X:
-                if (selected?.Actual is { IsSteam: true } steamGame) Push(new DetailsScreen(steamGame));
+                if (selected?.Actual is { IsGame: true } game) Push(new DetailsScreen(game));
                 break;
             case NavAction.Y:
                 if (selected != null) _ = OpenOptionsAsync(selected);
@@ -2017,6 +2098,22 @@ public partial class MainWindow : Window
         if (Settings.RumbleStrength > 0) _gamepad.Pulse(45, Settings.RumbleStrength);
     }
 
+    /// <summary>A controller pulse of <paramref name="milliseconds"/>, if the user turned vibration on.</summary>
+    public void Rumble(int milliseconds)
+    {
+        if (Settings.RumbleStrength > 0) _gamepad.Pulse(milliseconds, Settings.RumbleStrength);
+    }
+
+    /// <summary>
+    /// A pulse at a share of full power (0–1) relative to the user's vibration strength, for effects that build up
+    /// (the boost animations). Nothing when vibration is off.
+    /// </summary>
+    public void RumbleScaled(int milliseconds, double power)
+    {
+        if (Settings.RumbleStrength <= 0) return;
+        _gamepad.Pulse(milliseconds, (int)Math.Clamp(Settings.RumbleStrength * power * 1.6, 1, 100));
+    }
+
     private void GameList_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         e.Handled = true;
@@ -2111,25 +2208,19 @@ public partial class MainWindow : Window
 
     private void Power_Click(object sender, RoutedEventArgs e) => _ = PowerMenuAsync();
 
-    private async Task PowerMenuAsync()
+    public async Task PowerMenuAsync()
     {
-        int choice = await AskWithIconsAsync("Power", null,
-            ("Lock", "\uE72E"), ("Sleep", "\uE708"), ("Hibernate", "\uEC46"), ("Restart", "\uE777"),
-            ("Shut down", "\uE7E8"), ("Exit SquareDeck", "\uE8FC"), ("Cancel", "\uE711"));
-        switch (choice)
+        var running = AllGames.FirstOrDefault(g => g.IsRunning);
+        var menu = new PowerMenuScreen(running == null ? null : running.Name + " is still running. Restarting or shutting down loses unsaved progress.");
+        Push(menu);
+        switch (await menu.Result)
         {
             case 0: Power.Lock(); break;
             case 1: Power.Sleep(); break;
             case 2: Power.Hibernate(); break;
-            case 3:
-                if (await ConfirmPowerAsync("Restart the PC?", "Restart")) Power.Restart();
-                break;
-            case 4:
-                if (await ConfirmPowerAsync("Shut down the PC?", "Shut down")) Power.ShutDown();
-                break;
-            case 5:
-                await ExitToDesktopAsync();
-                break;
+            case 3: Power.Restart(); break;   // confirmed on the button itself
+            case 4: Power.ShutDown(); break;
+            case 5: await ExitToDesktopAsync(); break;
         }
     }
 
@@ -2163,6 +2254,9 @@ public partial class MainWindow : Window
 
     private void Bluetooth_Click(object sender, RoutedEventArgs e) => Push(new BluetoothScreen());
 
+    private DateTime _phonesCheckedAt;
+    private (string Name, int Percent)? _phones;
+
     /// <summary>Refreshes the Wi-Fi and Bluetooth icons in the top bar.</summary>
     private async void UpdateConnections()
     {
@@ -2183,6 +2277,27 @@ public partial class MainWindow : Window
         WifiIcon.Opacity = status.WifiBars == null ? 0.35 : 1;
 
         BluetoothButton.Visibility = status.BluetoothOn ? Visibility.Visible : Visibility.Collapsed;
+
+        // Headphones' battery beside the Bluetooth icon (Settings > Home screen > Headphone battery).
+        // Asked once a minute (the connection icons refresh every 10 seconds), and not during a game.
+        (string Name, int Percent)? phones = null;
+        if (status.BluetoothOn && Settings.ShowHeadphoneBattery && !AllGames.Any(g => g.IsRunning))
+        {
+            if (DateTime.UtcNow - _phonesCheckedAt > TimeSpan.FromSeconds(55))
+            {
+                _phonesCheckedAt = DateTime.UtcNow;
+                _phones = await NetworkService.GetHeadphoneBatteryAsync();
+            }
+            phones = _phones;
+        }
+        HeadphonePanel.Visibility = phones == null ? Visibility.Collapsed : Visibility.Visible;
+        if (phones is { } p)
+        {
+            HeadphoneText.Text = p.Percent + "%";
+            HeadphoneText.Foreground = p.Percent <= 15 ? Brushes.OrangeRed : (Brush)FindResource("FgBrush");
+            BluetoothButton.ToolTip = $"{p.Name}: {p.Percent}% battery";
+        }
+        else BluetoothButton.ToolTip = null;
     }
 
     private void Avatar_Click(object sender, RoutedEventArgs e) => Push(new ProfileScreen());
@@ -2199,6 +2314,7 @@ public partial class MainWindow : Window
         _clockTimer.Interval = TimeSpan.FromSeconds(Settings.ClockSeconds ? 1 : 5);
         UpdateClock();
         _gamepad.SummonCombo = Settings.SummonCombo;
+        try { Screens.PerfOverlay.Apply(Settings); } catch (Exception ex) { CrashLog.Write("Performance overlay", ex); }
         Motion.ButtonAnimations = Settings.ButtonAnimations;
         Motion.ButtonStyle = Settings.ButtonAnimationStyle;
         Motion.PageStyle = Settings.PageTransition;
@@ -2341,7 +2457,10 @@ public partial class MainWindow : Window
     public static readonly (string Id, string Name)[] BootAnimations =
     {
         ("logo", "Logo pop"), ("tiles", "Falling tiles"), ("sweep", "Color sweep"), ("rings", "Ripples"),
-        ("typed", "Typed name"), ("zoom", "Zoom through"), ("random", "Surprise me")
+        ("typed", "Typed name"), ("zoom", "Zoom through"),
+        ("glitch", "Glitch"), ("assemble", "Pixel assemble"), ("neon", "Neon sign"), ("liquid", "Liquid fill"), ("orbit", "Orbit"),
+        ("blinds", "Blinds"), ("burst", "Particle burst"), ("hologram", "Hologram scan"), ("flip", "Card flip"), ("aurora", "Aurora"),
+        ("random", "Surprise me")
     };
 
     /// <summary>Plays the chosen startup animation now, so it can be seen from Settings.</summary>
@@ -2386,8 +2505,11 @@ public partial class MainWindow : Window
         }
 
         int total = 1500; // when the cover starts to fade
+        if (PlayMoreIntro(style, cover, center, ref total)) style = "";
         switch (style)
         {
+            case "":
+                break;
             case "tiles":
             {
                 // Five tiles drop into a row, one after another, like the home screen assembling itself.

@@ -507,7 +507,7 @@ public sealed class OnboardingScreen : Screen
             summary.Children.Add(row);
         }
         Chosen("", "Look", UiStyles.Find(s.UiStyle).Name, 1);
-        Chosen("", "Background", s.DynamicBackground.Length > 0 ? s.DynamicBackground : "None", 2);
+        Chosen("", "Background", s.DynamicBackground.Length > 0 ? System.IO.Path.GetFileNameWithoutExtension(s.DynamicBackground) : "None", 2);
         Chosen("", "Controller", Hints.Styles.FirstOrDefault(x => x.Item1 == s.GlyphStyle).Item2 ?? "Xbox", 3);
         Chosen("", "Games", s.OtherStores ? "Steam and other launchers" : "Steam only", 4);
         Ui.GroupRows(summary);

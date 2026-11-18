@@ -42,6 +42,26 @@ public sealed class UiStyleScreen : GridScreen
         _match = row;
         Body.Children.Insert(Math.Max(0, at), row);
         if (focus) FocusLater(row);
+        ShowSurprise();
+    }
+
+    private Button? _surprise;
+
+    /// <summary>"Surprise me": switches to a random style other than the current one.</summary>
+    private void ShowSurprise()
+    {
+        if (_surprise != null) Body.Children.Remove(_surprise);
+        var row = Ui.Row("Surprise me", "", "\uE8B1", subtitle: "Switch to a random style you're not using now");
+        row.Margin = new Thickness(0, 0, 0, 14);
+        row.Click += (_, _) =>
+        {
+            var others = UiStyles.All.Where(x => x.Id != Host.Settings.UiStyle).ToList();
+            if (others.Count == 0) return;
+            Use(others[Random.Shared.Next(others.Count)]);
+        };
+        _surprise = row;
+        int at = _match != null ? Body.Children.IndexOf(_match) + 1 : 1;
+        Body.Children.Insert(Math.Max(0, at), row);
     }
 
     public override void OnShown()

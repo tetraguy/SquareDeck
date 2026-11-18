@@ -17,6 +17,16 @@ public sealed class ThemeScreen : ListScreen
     {
         var s = Host.Settings;
 
+        AddHeader("My themes");
+        AddRow("Save the current look", s.SavedThemes.Count > 0 ? $"{s.SavedThemes.Count} saved" : "", "\uE74E", click: () => _ = SaveCurrentAsync(),
+            subtitle: "UI style, colors, highlight, wallpaper, moving background, sounds, music and button pictures, together");
+        foreach (var saved in s.SavedThemes.ToList())
+        {
+            var t = saved;
+            AddRow(t.Name, UiStyles.Find(t.UiStyle).Name + (Theme.Palettes.TryGetValue(t.ThemePalette, out var tp) ? " · " + tp.Name : ""), "\uE790",
+                click: () => _ = SavedThemeMenuAsync(t), subtitle: "Saved " + t.Saved.ToString("MMM d, yyyy"));
+        }
+
         AddHeader("Ready-made looks");
         foreach (var preset in Theme.Presets)
         {
@@ -39,14 +49,8 @@ public sealed class ThemeScreen : ListScreen
 
         AddHeader("Make your own");
         AddRow("Wallpaper", WallpaperLabel(s.Wallpaper), "", click: () => Host.Push(new WallpaperScreen()));
-        AddRow("Color theme", Theme.Palettes.TryGetValue(s.ThemePalette, out var pal) ? pal.Name : "Standard", "\uE790", click: () =>
-        {
-            // Standard -> GTA VI -> ... -> Standard
-            var ids = new List<string> { "" };
-            ids.AddRange(Theme.Palettes.Keys);
-            s.ThemePalette = ids[(ids.IndexOf(s.ThemePalette) + 1) % ids.Count];
-            Apply();
-        }, subtitle: "Background and button colors (styles with their own colors keep them)");
+        AddRow("Color theme", Theme.Palettes.TryGetValue(s.ThemePalette, out var pal) ? pal.Name : "Standard", "\uE790",
+            click: () => Host.Push(new ColorThemeScreen()), subtitle: "Background and button colors (styles with their own colors keep them)");
         AddRow("Tile corners", Theme.CornerStyles.FirstOrDefault(c => c.Radius == s.TileCorner).Name ?? "Custom", "", click: () =>
         {
             // Square -> Rounded -> Round -> Square
@@ -81,6 +85,114 @@ public sealed class ThemeScreen : ListScreen
     }
 
     private void ChooseSounds() => Host.Push(new SoundsScreen());
+
+    private async Task SaveCurrentAsync()
+    {
+        var s = Host.Settings;
+        var name = await Host.PromptAsync("Save this look", "Give it a name, to find it again here.",
+            UiStyles.Find(s.UiStyle).Name + " " + (s.SavedThemes.Count + 1));
+        if (string.IsNullOrWhiteSpace(name)) return;
+        name = name.Trim();
+        // The same name replaces the earlier one.
+        s.SavedThemes.RemoveAll(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+        s.SavedThemes.Insert(0, SavedTheme.From(s, name));
+        s.Save();
+        UiSound.Select();
+        Rebuild();
+    }
+
+    private async Task SavedThemeMenuAsync(SavedTheme t)
+    {
+        var s = Host.Settings;
+        int choice = await Host.AskAsync(t.Name, UiStyles.Find(t.UiStyle).Name + ", saved " + t.Saved.ToString("MMMM d, yyyy"),
+            "Use this look", "Update with the current look", "Rename", "Delete", "Cancel");
+        switch (choice)
+        {
+            case 0:
+                t.ApplyTo(s);
+                s.DarkTheme = Theme.ShouldBeDark(s);
+                s.Save();
+                // Exactly as saved: the style's own matching is skipped, so nothing replaces what was chosen.
+                Host.ApplyLook();
+                Host.UseDynamicBackground(s.DynamicBackground);
+                Host.ApplySettings();
+                UiSound.Select();
+                break;
+            case 1:
+                int at = s.SavedThemes.IndexOf(t);
+                s.SavedThemes[at] = SavedTheme.From(s, t.Name);
+                s.Save();
+                break;
+            case 2:
+                var name = await Host.PromptAsync("Rename", null, t.Name);
+                if (string.IsNullOrWhiteSpace(name)) return;
+                t.Name = name.Trim();
+                s.Save();
+                break;
+            case 3:
+                if (await Host.AskAsync("Delete " + t.Name + "?", "The look you're using now isn't changed.", "Delete", "Cancel") != 0) return;
+                s.SavedThemes.Remove(t);
+                s.Save();
+                break;
+            default:
+                return;
+        }
+        Rebuild();
+    }
+}
+
+/// <summary>Color themes as swatches: background, tiles and highlight, in the light or dark version now in use.</summary>
+public sealed class ColorThemeScreen : GridScreen
+{
+    private bool _built;
+
+    public ColorThemeScreen() : base("Color theme") { }
+
+    public override void OnShown()
+    {
+        if (_built) return;
+        _built = true;
+        Add("", "Standard", Theme.CurrentIsDark ? new[] { "#2D2D2D", "#FFFFFF", "#B4B4B4", "#4B4B4B", "#3C3C3C", "#20E0D0" }
+                                                : new[] { "#EBEBEB", "#2D2D2D", "#6B6B6B", "#FFFFFF", "#D2D2D2", "#0AB9C9" });
+        foreach (var (id, theme) in Theme.Palettes) Add(id, theme.Name, Theme.CurrentIsDark ? theme.Dark : theme.Light);
+        if (UiStyles.PaletteFor(UiStyles.Current, Theme.CurrentIsDark) != null)
+        {
+            var note = Ui.Text("The UI style in use has colors of its own, so a color theme shows in styles without them.", 15, "SubtleBrush");
+            note.TextWrapping = TextWrapping.Wrap;
+            note.Margin = new Thickness(6, 4, 0, 10);
+            Body.Children.Insert(0, note);
+        }
+    }
+
+    private void Add(string id, string name, string[] c)
+    {
+        static System.Windows.Media.SolidColorBrush B(string hex) => new((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex));
+        // A small mock-up: the background with a row of tiles, the highlighted one ringed, and a line of text.
+        var box = new Grid { Width = 208, Height = 117, Background = B(c[0]) };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 0, 14) };
+        for (int i = 0; i < 3; i++)
+            row.Children.Add(new Border
+            {
+                Width = 44, Height = 44, Margin = new Thickness(5), CornerRadius = new CornerRadius(6), Background = B(c[4]),
+                BorderBrush = i == 0 ? B(c[5]) : null, BorderThickness = new Thickness(i == 0 ? 3 : 0)
+            });
+        box.Children.Add(row);
+        var line = new Border { Width = 92, Height = 8, CornerRadius = new CornerRadius(4), Background = B(c[1]), Opacity = 0.85,
+                                VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 16) };
+        box.Children.Add(line);
+        var dot = new Border { Width = 16, Height = 16, CornerRadius = new CornerRadius(8), Background = B(c[3]), BorderBrush = B(c[5]), BorderThickness = new Thickness(2),
+                               HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 10, 10, 0) };
+        box.Children.Add(dot);
+        bool current = Host.Settings.ThemePalette == id;
+        AddTile(box, current ? "\u2713 " + name : name, 208, () =>
+        {
+            Host.Settings.ThemePalette = id;
+            Host.Settings.Save();
+            Host.ApplyLook();
+            UiSound.Select();
+            Host.Pop(this);
+        });
+    }
 }
 
 /// <summary>Background for the home screen.</summary>
@@ -98,7 +210,11 @@ public sealed class WallpaperScreen : GridScreen
         foreach (var (name, file) in Theme.PictureWallpapers)
         {
             string setting = "image:" + file;
-            var swatch = new Border { Width = 208, Height = 117, Background = Theme.WallpaperBrush(setting) };
+            // A small copy for the tile, not the full-size picture.
+            var path = Path.Combine(AppContext.BaseDirectory, "Wallpapers", file);
+            var thumb = File.Exists(path) ? ImageLoader.FromFile(path, 420) : null;
+            if (thumb == null) continue;
+            var swatch = new Border { Width = 208, Height = 117, Background = new System.Windows.Media.ImageBrush(thumb) { Stretch = System.Windows.Media.Stretch.UniformToFill } };
             AddTile(swatch, name, 208, () => Pick(setting));
         }
         AddTile(GlyphBox(208, 117, ""), "Choose image…", 208, Browse);

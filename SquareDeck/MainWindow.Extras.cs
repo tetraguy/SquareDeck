@@ -332,7 +332,7 @@ public partial class MainWindow
     private void Summon()
     {
         if (_overlay is { IsVisible: true } open) { open.Dismiss(); return; }
-        if (Settings.InGameQuickMenu && AllGames.Any(g => g.IsRunning) && !IsActive) ToggleOverlay();
+        if (!IsActive && QuickMenuWanted()) ToggleOverlay();
         else WindowActivator.BringToFront(this);
     }
 
@@ -382,6 +382,8 @@ public partial class MainWindow
                     string? news = f.InGame && before.Game != f.Game ? "is playing " + f.Game
                         : f.IsOnline && !before.Online ? "is now online" : null;
                     if (news == null) continue;
+                    if (Settings.FriendAlerts == "off" ||
+                        (Settings.FriendAlerts == "pinned" && !Settings.PinnedFriends.Contains(f.Id))) continue;
                     // Their profile picture is fetched first, so it is already there when the pop-up appears.
                     ShowToast("FRIEND", f.Name, news, f.Avatar, "friend", await FriendPictureAsync(f.Avatar));
                 }
@@ -519,6 +521,20 @@ public partial class MainWindow
         try
         {
             var now = await MediaService.GetAsync(includeThumbnail: false);
+            // SquareDeck's own Spotify player: it knows the song, its artist and its cover itself (Windows may only
+            // see a page called "SquareDeck player").
+            var ours = SpotifyPlayer.Track;
+            _nowPlayingIsOurs = ours != null && SpotifyPlayer.IsRunning &&
+                                (now == null || now.Title == "SquareDeck player" || now.Title == ours.Title || SpotifyPlayer.IsPlaying);
+            if (_nowPlayingIsOurs && ours != null)
+                now = new NowPlaying(ours.Title, ours.Artist, "SquareDeck", SpotifyPlayer.IsPlaying, TimeSpan.Zero, TimeSpan.Zero, null);
+            bool playing = now?.IsPlaying == true;
+            if (playing != _mediaPlaying)
+            {
+                // Background music makes way for the music you chose, and comes back when it stops.
+                _mediaPlaying = playing;
+                UpdateMenuMusic();
+            }
             if (now == null)
             {
                 MusicButton.Visibility = Visibility.Collapsed;
@@ -535,8 +551,16 @@ public partial class MainWindow
             if (key != _musicArtKey)
             {
                 _musicArtKey = key;
-                var withArt = await MediaService.GetAsync(includeThumbnail: true);
-                _musicArt = withArt?.Thumbnail is { Length: > 0 } bytes ? ImageLoader.FromBytes(bytes, 96) : null;
+                if (_nowPlayingIsOurs && ours?.ArtUrl is { Length: > 0 } artUrl)
+                {
+                    try { _musicArt = await Task.Run(() => ImageLoader.FromUrlAsync(artUrl, 96)); }
+                    catch (Exception) { _musicArt = null; }
+                }
+                else
+                {
+                    var withArt = await MediaService.GetAsync(includeThumbnail: true);
+                    _musicArt = withArt?.Thumbnail is { Length: > 0 } bytes ? ImageLoader.FromBytes(bytes, 96) : null;
+                }
             }
             bool art = _musicArt != null;
             MusicArt.Background = art ? new ImageBrush(_musicArt) { Stretch = Stretch.UniformToFill } : null;
@@ -548,6 +572,7 @@ public partial class MainWindow
     }
 
     private string? _musicArtKey;
+    private bool _nowPlayingIsOurs;
     private ImageSource? _musicArt;
     private MarqueeText? _musicMarquee;
 
@@ -579,9 +604,26 @@ public partial class MainWindow
         UpdateNowPlaying();
     }
 
+    /// <summary>The now-playing pill: back to the player (the Multimedia page, on its Spotify tab for SquareDeck's own player).</summary>
+    private void MusicOpen_Click(object sender, RoutedEventArgs e) => OpenPlayer();
+
+    public void OpenPlayer()
+    {
+        if (_screens.OfType<MediaScreen>().FirstOrDefault() is { } open)
+        {
+            // Already open underneath: go back to it rather than opening a second one.
+            while (_screens.Count > 0 && !ReferenceEquals(_screens[^1], open)) Pop(_screens[^1]);
+            return;
+        }
+        if (_nowPlayingIsOurs) Settings.MusicTab = "spotify";
+        else if (Settings.MusicTab == "streaming") Settings.MusicTab = "now";
+        Push(new MediaScreen());
+    }
+
     private async void MusicToggle_Click(object sender, RoutedEventArgs e)
     {
-        await MediaService.PlayPauseAsync();
+        if (_nowPlayingIsOurs) SpotifyPlayer.TogglePlay();
+        else await MediaService.PlayPauseAsync();
         await Task.Delay(250);
         UpdateNowPlaying();
     }
@@ -612,7 +654,7 @@ public partial class MainWindow
             var running = AllGames.FirstOrDefault(g => g.IsRunning);
             ButtonLabel.Text = running == null ? "Stop" : "Stop " + running.Name;
         }
-        else ButtonLabel.Text = "Play / pause";
+        else ButtonLabel.Text = Hints.Format("{Select}  Open player      {Details}  Play / pause");
     }
 
     /// <summary>Kept for the callers that only care about Stop: true highlights it, false leaves the footer.</summary>
@@ -631,6 +673,9 @@ public partial class MainWindow
         {
             case NavAction.Left: SetFooterIndex(Math.Max(0, _footerIndex - 1)); break;
             case NavAction.Right: SetFooterIndex(Math.Min(buttons.Count - 1, _footerIndex + 1)); break;
+            case NavAction.X when buttons[Math.Clamp(_footerIndex, 0, buttons.Count - 1)] == MusicButton:
+                MusicToggle_Click(MusicButton, new RoutedEventArgs());
+                break;
             case NavAction.Up:
             case NavAction.Back:
                 SetFooterIndex(-1);
@@ -1191,20 +1236,50 @@ public partial class MainWindow
             _overlay.Dismiss();
             return;
         }
+        // The game SquareDeck started, if it's running; otherwise whatever full-screen app is in front (a game started
+        // from the Xbox app, Steam or a desktop shortcut).
         var running = AllGames.FirstOrDefault(g => g.IsRunning);
+        var front = running == null ? WindowActivator.FrontApp() : null;
+        string? name = running?.Name ?? front?.Title;
+        ImageSource? cover = running?.Cover;
         Color? tint = null;
-        try { if (running?.Cover is BitmapSource art) tint = ImageLoader.DominantColor(art); } catch (Exception) { }
-        _overlay = new QuickOverlay(running?.Name, Battery.GetPercent(), Settings.Clock24Hour, Settings.OverlaySide, running?.Cover, tint);
+        try { if (cover is BitmapSource art) tint = ImageLoader.DominantColor(art); } catch (Exception) { }
+        try { _overlay = new QuickOverlay(name, Battery.GetPercent(), Settings.Clock24Hour, Settings.OverlaySide, cover, tint); }
+        catch (Exception ex)
+        {
+            // If the menu can't be built, bring the launcher forward rather than going down.
+            CrashLog.Write("Quick menu", ex);
+            _overlay = null;
+            WindowActivator.BringToFront(this);
+            return;
+        }
         _overlay.OpenLauncher += () => WindowActivator.BringToFront(this);
+        _overlay.QuickAction += RunAllyAction;
         _overlay.ExitGame += async () =>
         {
-            WindowActivator.BringToFront(this);
-            if (running != null) await StopGameAsync(running, confirm: false);
+            if (running != null)
+            {
+                WindowActivator.BringToFront(this);
+                await StopGameAsync(running, confirm: false);
+            }
+            else if (front != null) await WindowActivator.CloseAppAsync(front.Value);
         };
-        _overlay.Closed += (_, _) => _overlay = null;
+        _overlay.Closed += (_, _) =>
+        {
+            _overlay = null;
+            if (_backgroundMode) _padTimer.Interval = TimeSpan.FromMilliseconds(50);
+        };
+        _padTimer.Interval = TimeSpan.FromMilliseconds(16); // the menu should feel as quick as the launcher
         _overlay.Show();
-        WindowActivator.ShowOnTop(_overlay); // over full-screen games and the Xbox full screen experience
+        WindowActivator.KeepOnTop(_overlay); // over full-screen games and the Xbox full screen experience, without taking the focus
     }
+
+    /// <summary>
+    /// Whether the summon buttons should open the quick menu (over a game) rather than bring the launcher forward:
+    /// a game SquareDeck started is running, or another app fills the screen in front.
+    /// </summary>
+    private bool QuickMenuWanted() =>
+        Settings.InGameQuickMenu && (AllGames.Any(g => g.IsRunning) || WindowActivator.FrontApp() is { FullScreen: true });
 
     // ================================================================ stores
 
@@ -1223,68 +1298,151 @@ public partial class MainWindow
 }
 
 /// <summary>
-/// A small panel shown over a running game: clock, battery, volume, brightness, and a way out.
-/// It is a separate always-on-top window so the launcher itself can stay in the background.
+/// The in-game quick menu: a sheet over whatever game is in front (one SquareDeck started, or any other full-screen
+/// app, such as one started from the Xbox app). It shows the game, the time and battery, live processor / graphics /
+/// memory use, quick actions (screenshot, record, keyboard, mute, night light, microphone), volume, brightness and TDP,
+/// and Resume / Open SquareDeck / Exit game.
+///
+/// It's a separate always-on-top window that never takes the focus from the game: taking it made some full-screen
+/// games minimize, and under the Xbox full screen experience Windows often refused it, so the menu never appeared.
+/// The controller drives it through the launcher (which reads the controller in the background), and the mouse and
+/// touch work on it directly.
 /// </summary>
 public sealed class QuickOverlay : Window
 {
-    private readonly List<FrameworkElement> _items = new();
+    /// <summary>One thing the controller can land on: a tile, a slider or a button, with the ring that shows it.</summary>
+    private sealed class Item
+    {
+        public required Border Ring;
+        public Action? Press;
+        public Slider? Slider;
+    }
+
+    private readonly List<List<Item>> _rows = new();
+    private int _row, _col;
     private readonly Slider _volume, _brightness;
     private readonly Border _brightnessRow;
-    private readonly Button _exit;
     private readonly DispatcherTimer _brightnessApply = new() { Interval = TimeSpan.FromMilliseconds(350) };
-    private int _index;
-    private bool _syncing, _exitArmed;
+    private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer _onTop = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    private readonly TextBlock _clock = new(), _battery = new(), _stats = new();
+    private readonly TextBlock _exitLabel = new();
+    private HardwareMonitor? _monitor;
+    private bool _syncing, _exitArmed, _closing, _muted;
+    private readonly bool _clock24;
+    private Item? _muteItem;
 
     public event Action? OpenLauncher;
     public event Action? ExitGame;
+    /// <summary>A quick action by id: screenshot, record, keyboard, nightlight, mic (run by the launcher).</summary>
+    public event Action<string>? QuickAction;
 
     private readonly string _side;
     private readonly TranslateTransform _slide = new();
-    private const double PanelWidth = 500;
-    private bool _closing;
+    private readonly ScaleTransform _pop = new(1, 1);
+    private const double PanelWidth = 520;
 
-    /// <param name="side">"left" or "right" for a panel that slides in from that edge; "center" for a pop-up in the middle.</param>
+    /// <param name="side">"left" or "right" for a sheet that slides in from that edge; "center" for a pop-up in the middle.</param>
     public QuickOverlay(string? gameName, int? battery, bool clock24, string side = "right", ImageSource? cover = null, Color? tint = null)
     {
         _side = side is "left" or "center" ? side : "right";
+        _clock24 = clock24;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
-        // A side panel leaves the game visible; the centered pop-up dims it more.
-        Background = new SolidColorBrush(Color.FromArgb(_side == "center" ? (byte)0x90 : (byte)0x48, 0, 0, 0));
+        Background = new SolidColorBrush(Color.FromArgb(_side == "center" ? (byte)0x90 : (byte)0x50, 0, 0, 0));
         Topmost = true;
         ShowInTaskbar = false;
+        ShowActivated = false; // never take the focus from the game
         ResizeMode = ResizeMode.NoResize;
-        WindowState = WindowState.Maximized;
+        // Sized to the screen by hand: a maximized window can't be shown without taking the focus.
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Left = 0;
+        Top = 0;
+        Width = SystemParameters.PrimaryScreenWidth;
+        Height = SystemParameters.PrimaryScreenHeight;
+        FontFamily = Application.Current.MainWindow?.FontFamily ?? new FontFamily("Segoe UI");
 
         var panel = new StackPanel();
-        if (cover != null)
-        {
-            // The running game's cover heads the menu.
-            var art = new Border
-            {
-                Width = 190, Height = 190, CornerRadius = new CornerRadius(8), HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 0, 20), Background = new ImageBrush(cover) { Stretch = Stretch.UniformToFill },
-                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 18, ShadowDepth = 3, Opacity = 0.45 }
-            };
-            panel.Children.Add(art);
-        }
-        string time = DateTime.Now.ToString(clock24 ? "H:mm" : "h:mm tt");
-        panel.Children.Add(Ui.Text(time + (battery != null ? $"      Battery {battery}%" : ""), 26));
-        if (gameName != null)
-        {
-            var playing = Ui.Text("Playing " + gameName, 17, "SubtleBrush");
-            playing.Margin = new Thickness(0, 6, 0, 0);
-            panel.Children.Add(playing);
-        }
 
-        var rows = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
-        rows.Children.Add(Ui.SliderRow("Volume", "", out _volume, out var volumeText));
-        // TDP for this session (only when TDP control is set up and on).
-        Slider? tdp = null;
+        // ---- the game, the time and the battery
+        var head = new Grid { Margin = new Thickness(0, 0, 0, 18) };
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition());
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var art = new Border
+        {
+            Width = 76, Height = 76, CornerRadius = new CornerRadius(Corner(14)), Margin = new Thickness(0, 0, 16, 0),
+            Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 2, Opacity = 0.45 }
+        };
+        if (cover != null) art.Background = new ImageBrush(cover) { Stretch = Stretch.UniformToFill };
+        else
+        {
+            art.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+            art.Child = Ui.Glyph("", 30, "AccentBrush");
+        }
+        head.Children.Add(art);
+        var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var now = Ui.Text("NOW PLAYING", 12, "AccentBrush", bold: true);
+        titles.Children.Add(now);
+        var name = Ui.Text(gameName ?? "Quick menu", 22, "FgBrush", bold: true);
+        name.TextTrimming = TextTrimming.CharacterEllipsis;
+        name.Margin = new Thickness(0, 2, 0, 0);
+        titles.Children.Add(name);
+        if (gameName == null) now.Visibility = Visibility.Collapsed;
+        Grid.SetColumn(titles, 1);
+        head.Children.Add(titles);
+        var status = new StackPanel { VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12, 0, 0, 0) };
+        _clock.FontSize = 20; _clock.FontWeight = FontWeights.SemiBold; _clock.HorizontalAlignment = HorizontalAlignment.Right;
+        _clock.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+        _battery.FontSize = 13; _battery.HorizontalAlignment = HorizontalAlignment.Right;
+        _battery.SetResourceReference(TextBlock.ForegroundProperty, "SubtleBrush");
+        status.Children.Add(_clock);
+        status.Children.Add(_battery);
+        Grid.SetColumn(status, 2);
+        head.Children.Add(status);
+        panel.Children.Add(head);
+
+        // ---- live use of the processor, graphics and memory
+        var statsPill = new Border { CornerRadius = new CornerRadius(Corner(12)), Padding = new Thickness(14, 8, 14, 9), Margin = new Thickness(0, 0, 0, 16) };
+        statsPill.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        _stats.FontSize = 14;
+        _stats.SetResourceReference(TextBlock.ForegroundProperty, "SubtleBrush");
+        _stats.Text = "Reading…";
+        statsPill.Child = _stats;
+        panel.Children.Add(statsPill);
+
+        // ---- quick actions
+        var actions = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new Thickness(-4, 0, -4, 10) };
+        var tiles = new List<Item>();
+        void Action(string glyph, string label, Action press)
+        {
+            var item = Tile(glyph, label, press);
+            tiles.Add(item);
+            actions.Children.Add(item.Ring);
+        }
+        Action("", "Screenshot", () => RunAction("screenshot"));
+        Action("", "Record", () => RunAction("record"));
+        Action("", "Keyboard", () => RunAction("keyboard"));
+        _muted = Audio.GetMute();
+        Action(_muted ? "" : "", _muted ? "Sound off" : "Sound on", ToggleMute);
+        _muteItem = tiles[^1];
+        Action("", "Night light", () => QuickAction?.Invoke("nightlight"));
+        Action("", "Microphone", () => QuickAction?.Invoke("mic"));
+        panel.Children.Add(actions);
+        _rows.Add(tiles.Take(3).ToList());
+        _rows.Add(tiles.Skip(3).ToList());
+
+        // ---- sliders
+        var sliders = new StackPanel();
+        var volumeRow = Slim(Ui.SliderRow("Volume", "", out _volume, out var volumeText));
+        sliders.Children.Add(volumeRow);
+        _rows.Add(new List<Item> { new() { Ring = volumeRow, Slider = _volume } });
+        _brightnessRow = Slim(Ui.SliderRow("Brightness", "", out _brightness, out var brightnessText));
+        _brightnessRow.Visibility = Visibility.Collapsed;
+        sliders.Children.Add(_brightnessRow);
         if (TdpControl.Ready && TdpControl.Chip is { } chip)
         {
-            rows.Children.Add(Ui.SliderRow("TDP", "\uEC4A", out tdp, out var tdpText));
+            var tdpRow = Slim(Ui.SliderRow("TDP", "", out var tdp, out var tdpText));
             tdp.Minimum = chip.Min;
             tdp.Maximum = chip.Max;
             tdp.SmallChange = 1;
@@ -1299,82 +1457,86 @@ public sealed class QuickOverlay : Window
                 tdpText.Text = w + " W";
                 TdpControl.SetSessionWatts(w);
             };
+            sliders.Children.Add(tdpRow);
+            _rows.Add(new List<Item> { new() { Ring = tdpRow, Slider = tdp } });
         }
-        _brightnessRow = Ui.SliderRow("Brightness", "", out _brightness, out var brightnessText);
-        _brightnessRow.Visibility = Visibility.Collapsed;
-        rows.Children.Add(_brightnessRow);
+        panel.Children.Add(sliders);
 
-        var back = Ui.Row(gameName != null ? "Back to game" : "Close", glyph: "");
-        back.Click += (_, _) => Dismiss();
-        rows.Children.Add(back);
-        var launcher = Ui.Row("Open the launcher", glyph: "");
-        launcher.Click += (_, _) => { Close(); OpenLauncher?.Invoke(); };
-        rows.Children.Add(launcher);
-        _exit = Ui.Row("Exit game", glyph: "");
-        _exit.Click += (_, _) =>
+        // ---- resume, open SquareDeck, exit
+        var buttons = new System.Windows.Controls.Primitives.UniformGrid { Columns = gameName != null ? 3 : 2, Margin = new Thickness(-4, 14, -4, 0) };
+        var bottom = new List<Item>();
+        var resume = Big("", gameName != null ? "Resume" : "Close", Dismiss, accent: true);
+        var open = Big("", "SquareDeck", () => { Close(); OpenLauncher?.Invoke(); });
+        buttons.Children.Add(resume.Ring);
+        buttons.Children.Add(open.Ring);
+        bottom.Add(resume);
+        bottom.Add(open);
+        if (gameName != null)
         {
-            // Two presses, so a slip of the thumb can't end a session.
-            if (!_exitArmed)
+            var exit = Big("", "Exit game", () =>
             {
-                _exitArmed = true;
-                _exit.Content = Ui.Text("Press again to exit the game (unsaved progress is lost)", 20);
-                return;
-            }
-            Close();
-            ExitGame?.Invoke();
-        };
-        if (gameName != null) rows.Children.Add(_exit);
-        panel.Children.Add(rows);
+                // Two presses, so a slip of the thumb can't end a session.
+                if (!_exitArmed)
+                {
+                    _exitArmed = true;
+                    _exitLabel.Text = "Press again";
+                    return;
+                }
+                Close();
+                ExitGame?.Invoke();
+            }, label: _exitLabel);
+            buttons.Children.Add(exit.Ring);
+            bottom.Add(exit);
+        }
+        panel.Children.Add(buttons);
+        _rows.Add(bottom);
 
-        var hint = Ui.Text("Up / Down to move      Left / Right to adjust      " + Hints.KeyLabel("Back") + " to close", 15, "SubtleBrush");
-        hint.Margin = new Thickness(0, 14, 0, 0);
+        var hint = new TextBlock
+        {
+            Text = Hints.KeyLabel("Select") + "  Select      " + Hints.KeyLabel("Back") + "  Back to the game",
+            FontSize = 13, Margin = new Thickness(2, 16, 0, 0), TextWrapping = TextWrapping.Wrap
+        };
+        hint.SetResourceReference(TextBlock.ForegroundProperty, "SubtleBrush");
         panel.Children.Add(hint);
 
-        Border box;
+        // ---- the sheet
+        Border sheet;
         if (_side == "center")
         {
-            box = new Border
+            sheet = new Border
             {
-                Width = 620, Padding = new Thickness(30), CornerRadius = new CornerRadius(8),
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = panel
+                Width = 600, Padding = new Thickness(28, 26, 28, 24), CornerRadius = new CornerRadius(Corner(26)),
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = panel,
+                RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = _pop
             };
         }
         else
         {
-            // A full-height panel against one edge of the screen, like a console's quick menu.
             bool left = _side == "left";
-            panel.VerticalAlignment = VerticalAlignment.Center;
-            box = new Border
+            sheet = new Border
             {
-                Width = PanelWidth, Padding = new Thickness(30, 40, 30, 40),
-                HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Stretch, Child = panel, RenderTransform = _slide,
-                BorderThickness = left ? new Thickness(0, 0, 3, 0) : new Thickness(3, 0, 0, 0),
-                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 30, ShadowDepth = 0, Opacity = 0.6 }
+                Width = PanelWidth, Padding = new Thickness(26, 24, 26, 22), CornerRadius = new CornerRadius(Corner(26)),
+                Margin = new Thickness(18), HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center, Child = panel, RenderTransform = _slide
             };
-            box.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
-            hint.TextWrapping = TextWrapping.Wrap;
-            _slide.X = left ? -PanelWidth : PanelWidth;
+            _slide.X = left ? -PanelWidth - 40 : PanelWidth + 40;
         }
-        box.SetResourceReference(Border.BackgroundProperty, "BgBrush");
-        if (tint is Color gameColor) box.Background = CoverGradient(gameColor);
-        Content = box;
-        // Click or tap outside the panel to close it.
+        sheet.Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 44, ShadowDepth = 0, Opacity = 0.55 };
+        sheet.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+        sheet.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+        sheet.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
+        if (tint is Color gameColor) sheet.Background = CoverGradient(gameColor);
+        Content = sheet;
+        // Click or tap outside the sheet to close it.
         MouseLeftButtonDown += (_, e) => { if (ReferenceEquals(e.OriginalSource, this)) Dismiss(); };
 
-        _items.Add(_volume);
-        if (tdp != null) _items.Add(tdp);
-        _items.Add(back);
-        _items.Add(launcher);
-        if (gameName != null) _items.Add(_exit);
-
+        // ---- values
         _syncing = true;
         var volume = Audio.GetVolume();
         _volume.IsEnabled = volume != null;
         _volume.Value = volume ?? 0;
         volumeText.Text = volume == null ? "No device" : volume + "%";
         _syncing = false;
-
         _volume.ValueChanged += (_, e) =>
         {
             volumeText.Text = (int)e.NewValue + "%";
@@ -1392,22 +1554,162 @@ public sealed class QuickOverlay : Window
             _brightnessApply.Stop();
             await Brightness.SetAsync((int)_brightness.Value);
         };
+        _battery.Text = battery != null ? $"Battery {battery}%" : "";
+        ShowClock();
 
+        _tick.Tick += (_, _) => { ShowClock(); _ = ShowStatsAsync(); };
+        _onTop.Tick += (_, _) => WindowActivator.KeepOnTop(this); // stay above the game (and the Xbox app) while open
+        SourceInitialized += (_, _) => NoActivate();
         Loaded += async (_, _) =>
         {
-            SlideTo(0, null);
-            _volume.Focus();
-            var level = await Brightness.GetAsync();
-            if (level == null) return;
+            try { _monitor = new HardwareMonitor(); } catch (Exception) { _monitor = null; }
+            _tick.Start();
+            _onTop.Start();
+            Arrive();
+            // Start on Resume: the one used most.
+            _row = _rows.Count - 1;
+            _col = 0;
+            Paint();
+            int? level;
+            try { level = await Brightness.GetAsync(); } catch (Exception) { level = null; }
+            if (level == null || _closing) return;
             _syncing = true;
             _brightness.Value = level.Value;
             _syncing = false;
             _brightnessRow.Visibility = Visibility.Visible;
-            _items.Insert(1, _brightness);
+            _rows.Insert(3, new List<Item> { new() { Ring = _brightnessRow, Slider = _brightness } });
+            if (_row >= 3) _row++; // keep the highlight where it was
+            Paint();
         };
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Dismiss(); };
-        Closed += (_, _) => _brightnessApply.Stop();
+        Closed += (_, _) =>
+        {
+            _brightnessApply.Stop();
+            _tick.Stop();
+            _onTop.Stop();
+            var monitor = _monitor;
+            _monitor = null;
+            if (monitor != null) Task.Run(monitor.Dispose); // waits for a reading in progress, off the UI thread
+        };
     }
+
+    private static double Corner(double usual) => QuickSettingsScreen.Round(usual);
+
+    // ---------------------------------------------------------------- building blocks
+
+    /// <summary>A quick-action tile: icon over its name, with a ring when highlighted.</summary>
+    private Item Tile(string glyph, string label, Action press)
+    {
+        var icon = Ui.Glyph(glyph, 22, "FgBrush");
+        icon.HorizontalAlignment = HorizontalAlignment.Center;
+        var text = Ui.Text(label, 13, "FgBrush", bold: true);
+        text.HorizontalAlignment = HorizontalAlignment.Center;
+        text.Margin = new Thickness(0, 8, 0, 0);
+        text.TextTrimming = TextTrimming.CharacterEllipsis;
+        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        stack.Children.Add(icon);
+        stack.Children.Add(text);
+        var face = new Border { Height = 86, CornerRadius = new CornerRadius(Corner(16)), Child = stack };
+        face.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        var ring = new Border { Margin = new Thickness(4), Padding = new Thickness(0), BorderThickness = new Thickness(3), CornerRadius = new CornerRadius(Corner(19)), BorderBrush = Brushes.Transparent, Child = face, Cursor = Cursors.Hand, Tag = text };
+        var item = new Item { Ring = ring, Press = press };
+        ring.MouseLeftButtonUp += (_, e) => { e.Handled = true; Select(item); press(); };
+        ring.TouchUp += (_, e) => { e.Handled = true; Select(item); press(); };
+        return item;
+    }
+
+    /// <summary>A large button along the bottom (Resume is filled with the highlight color).</summary>
+    private Item Big(string glyph, string text, Action press, bool accent = false, TextBlock? label = null)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var icon = Ui.Glyph(glyph, 16, accent ? "BgBrush" : "FgBrush");
+        icon.Margin = new Thickness(0, 1, 8, 0);
+        row.Children.Add(icon);
+        label ??= new TextBlock();
+        label.Text = text;
+        label.FontSize = 15;
+        label.FontWeight = FontWeights.SemiBold;
+        label.VerticalAlignment = VerticalAlignment.Center;
+        label.SetResourceReference(TextBlock.ForegroundProperty, accent ? "BgBrush" : "FgBrush");
+        row.Children.Add(label);
+        var face = new Border { Height = 52, CornerRadius = new CornerRadius(Corner(26)), Child = row };
+        face.SetResourceReference(Border.BackgroundProperty, accent ? "AccentBrush" : "CircleBrush");
+        var ring = new Border { Margin = new Thickness(4), BorderThickness = new Thickness(3), CornerRadius = new CornerRadius(Corner(29)), BorderBrush = Brushes.Transparent, Child = face, Cursor = Cursors.Hand };
+        var item = new Item { Ring = ring, Press = press };
+        ring.MouseLeftButtonUp += (_, e) => { e.Handled = true; Select(item); press(); };
+        ring.TouchUp += (_, e) => { e.Handled = true; Select(item); press(); };
+        return item;
+    }
+
+    /// <summary>The slider rows, tighter and rounder; the ring is the row's own border.</summary>
+    private static Border Slim(Border row)
+    {
+        row.CornerRadius = new CornerRadius(Corner(16));
+        row.Padding = new Thickness(14, 6, 14, 6);
+        row.Margin = new Thickness(0, 4, 0, 4);
+        row.BorderThickness = new Thickness(3);
+        row.BorderBrush = Brushes.Transparent;
+        if (row.Child is Grid g && g.ColumnDefinitions.Count > 1) g.ColumnDefinitions[1].Width = new GridLength(140);
+        return row;
+    }
+
+    private void RunAction(string id)
+    {
+        // Screenshots and recordings should show the game, not this menu: close first, then capture.
+        if (id is "screenshot" or "record")
+        {
+            Dismiss();
+            QuickAction?.Invoke(id);
+            return;
+        }
+        QuickAction?.Invoke(id);
+    }
+
+    private void ToggleMute()
+    {
+        _muted = !_muted;
+        Audio.SetMute(_muted);
+        if (_muteItem?.Ring.Child is Border { Child: StackPanel stack })
+        {
+            if (stack.Children[0] is TextBlock glyph) glyph.Text = _muted ? "" : "";
+            if (stack.Children[1] is TextBlock text) text.Text = _muted ? "Sound off" : "Sound on";
+        }
+    }
+
+    private void ShowClock() => _clock.Text = DateTime.Now.ToString(_clock24 ? "H:mm" : "h:mm tt");
+
+    private async Task ShowStatsAsync()
+    {
+        var monitor = _monitor;
+        if (monitor == null) return;
+        var (cpu, mhz, gpu) = await Task.Run(monitor.Sample);
+        var memory = Hardware.MemoryStatus();
+        var parts = new List<string>();
+        if (cpu is double c) parts.Add($"CPU {c:0}%" + (mhz is int m ? $" · {m / 1000.0:0.0} GHz" : ""));
+        if (gpu is double g) parts.Add($"GPU {g:0}%");
+        if (memory is { } mem && mem.Total > 0) parts.Add($"RAM {(mem.Total - mem.Available) / 1073741824.0:0.0} / {mem.Total / 1073741824.0:0} GB");
+        if (TdpControl.Ready) parts.Add($"{TdpControl.EffectiveWatts} W");
+        if (parts.Count > 0) _stats.Text = string.Join("      ", parts);
+    }
+
+    /// <summary>
+    /// Marks the window as one that never becomes the active window (WS_EX_NOACTIVATE), and keeps it off Alt+Tab
+    /// (WS_EX_TOOLWINDOW). Clicks and touches still reach it.
+    /// </summary>
+    private void NoActivate()
+    {
+        try
+        {
+            var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            const int ExStyle = -20, NoActivateFlag = 0x08000000, ToolWindow = 0x80;
+            int style = GetWindowLong(handle, ExStyle);
+            SetWindowLong(handle, ExStyle, style | NoActivateFlag | ToolWindow);
+        }
+        catch (Exception) { }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hwnd, int index);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hwnd, int index, int value);
 
     /// <summary>
     /// The same wash of the cover's color that the game's details page uses: strongest at the top,
@@ -1416,68 +1718,116 @@ public sealed class QuickOverlay : Window
     private static Brush CoverGradient(Color color)
     {
         var bg = (Application.Current.Resources["BgBrush"] as SolidColorBrush)?.Color ?? Colors.Black;
-        Color Mix(double amount) => Color.FromRgb(
+        Color Mix(double amount) => Color.FromArgb(0xF2,
             (byte)(bg.R + (color.R - bg.R) * amount),
             (byte)(bg.G + (color.G - bg.G) * amount),
             (byte)(bg.B + (color.B - bg.B) * amount));
-        double strength = Theme.CurrentIsDark ? 0.62 : 0.4;
+        double strength = Theme.CurrentIsDark ? 0.55 : 0.35;
         var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0.6, 1) };
         brush.GradientStops.Add(new GradientStop(Mix(strength), 0));
-        brush.GradientStops.Add(new GradientStop(Mix(strength * 0.55), 0.4));
-        brush.GradientStops.Add(new GradientStop(Mix(strength * 0.2), 0.75));
-        brush.GradientStops.Add(new GradientStop(bg, 1));
+        brush.GradientStops.Add(new GradientStop(Mix(strength * 0.5), 0.35));
+        brush.GradientStops.Add(new GradientStop(Mix(strength * 0.15), 0.7));
+        brush.GradientStops.Add(new GradientStop(Mix(0), 1));
         brush.Freeze();
         return brush;
     }
 
-    private void SlideTo(double x, Action? then)
+    // ---------------------------------------------------------------- showing and hiding
+
+    private void Arrive()
     {
-        if (_side == "center" || Theme.ReduceMotion)
+        if (Theme.ReduceMotion) { _slide.X = 0; return; }
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        if (_side == "center")
         {
-            _slide.X = x;
-            then?.Invoke();
-            return;
+            _pop.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.94, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+            _pop.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.94, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+            BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160)));
         }
-        var move = new DoubleAnimation(x, TimeSpan.FromMilliseconds(then == null ? 240 : 170))
-        {
-            EasingFunction = new CubicEase { EasingMode = then == null ? EasingMode.EaseOut : EasingMode.EaseIn }
-        };
-        if (then != null) move.Completed += (_, _) => then();
-        _slide.BeginAnimation(TranslateTransform.XProperty, move);
+        else _slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(240)) { EasingFunction = ease });
     }
 
-    /// <summary>Closes the menu, sliding the panel back off its edge first.</summary>
+    /// <summary>Closes the menu, sliding the sheet back off its edge first.</summary>
     public void Dismiss()
     {
         if (_closing) return;
         _closing = true;
-        SlideTo(_side == "left" ? -PanelWidth : PanelWidth, Close);
+        if (Theme.ReduceMotion) { Close(); return; }
+        if (_side == "center")
+        {
+            var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(140));
+            fade.Completed += (_, _) => Close();
+            BeginAnimation(OpacityProperty, fade);
+            return;
+        }
+        var move = new DoubleAnimation(_side == "left" ? -PanelWidth - 40 : PanelWidth + 40, TimeSpan.FromMilliseconds(170)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+        move.Completed += (_, _) => Close();
+        _slide.BeginAnimation(TranslateTransform.XProperty, move);
     }
+
+    // ---------------------------------------------------------------- controller
 
     /// <summary>Controller input, passed on by the launcher while this window is showing.</summary>
     public void HandleAction(NavAction action)
     {
+        if (_rows.Count == 0) return;
+        var current = _rows[_row][Math.Min(_col, _rows[_row].Count - 1)];
         switch (action)
         {
-            case NavAction.Up: Move(-1); break;
-            case NavAction.Down: Move(+1); break;
+            case NavAction.Up: MoveRow(-1); break;
+            case NavAction.Down: MoveRow(+1); break;
             case NavAction.Left or NavAction.Right:
-                if (_items[_index] is Slider slider)
-                    slider.Value = Math.Clamp(slider.Value + (action == NavAction.Right ? slider.SmallChange : -slider.SmallChange), slider.Minimum, slider.Maximum);
+                int step = action == NavAction.Right ? 1 : -1;
+                if (current.Slider is { IsEnabled: true } slider)
+                    slider.Value = Math.Clamp(slider.Value + step * slider.SmallChange * (slider.Maximum > 30 ? 2 : 1), slider.Minimum, slider.Maximum);
+                else if (_rows[_row].Count > 1)
+                {
+                    _col = Math.Clamp(_col + step, 0, _rows[_row].Count - 1);
+                    Paint();
+                    UiSound.Move();
+                }
                 break;
             case NavAction.Accept:
-                if (_items[_index] is Button button)
-                    button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                if (current.Press != null) { UiSound.Select(); current.Press(); }
                 break;
-            case NavAction.Back or NavAction.View:
+            case NavAction.Back:
+                // (Not View: it's half of the summon combo, and closed the menu the moment it opened.)
                 Dismiss();
                 break;
         }
     }
 
-    private void Move(int delta)
+    private void MoveRow(int delta)
     {
-        _index = Math.Clamp(_index + delta, 0, _items.Count - 1);
-        _items[_index].Focus();
+        int next = Math.Clamp(_row + delta, 0, _rows.Count - 1);
+        if (next == _row) return;
+        // Keep about the same place across rows of different widths (three tiles, one slider, three buttons).
+        double fraction = _rows[_row].Count > 1 ? (_col + 0.5) / _rows[_row].Count : 0.5;
+        _row = next;
+        _col = Math.Clamp((int)(fraction * _rows[_row].Count), 0, _rows[_row].Count - 1);
+        if (_exitArmed) { _exitArmed = false; _exitLabel.Text = "Exit game"; }
+        Paint();
+        UiSound.Move();
+    }
+
+    private void Select(Item item)
+    {
+        for (int r = 0; r < _rows.Count; r++)
+        {
+            int c = _rows[r].IndexOf(item);
+            if (c >= 0) { _row = r; _col = c; Paint(); return; }
+        }
+    }
+
+    /// <summary>The ring around the highlighted item, and none around the rest.</summary>
+    private void Paint()
+    {
+        for (int r = 0; r < _rows.Count; r++)
+            for (int c = 0; c < _rows[r].Count; c++)
+            {
+                var ring = _rows[r][c].Ring;
+                if (r == _row && c == Math.Min(_col, _rows[r].Count - 1)) ring.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+                else ring.BorderBrush = Brushes.Transparent;
+            }
     }
 }

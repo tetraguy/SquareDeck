@@ -249,6 +249,18 @@ public static class Ui
 
     public static Button PanelButton(string label) => new() { Style = StyleOf("PanelButton"), Content = label };
 
+    /// <summary>
+    /// A panel button with an icon. The icon is drawn in the icon font, so it shows with every UI style's own text
+    /// font (pixel and themed fonts have no icons of their own, and showed an empty box).
+    /// </summary>
+    public static Button PanelButton(string glyph, string label)
+    {
+        var line = new StackPanel { Orientation = Orientation.Horizontal };
+        line.Children.Add(new TextBlock { Text = glyph, FontFamily = IconFont, FontSize = 16, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 10, 0) });
+        line.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        return new Button { Style = StyleOf("PanelButton"), Content = line };
+    }
+
     /// <summary>A focusable tile that shows a highlight ring.</summary>
     public static Button Tile(UIElement content) => new() { Style = StyleOf("TileButton"), Content = content };
 
@@ -708,11 +720,34 @@ public static class Motion
 /// <summary>Profile pictures: a set of built-in ones, or any image file.</summary>
 public static class Avatars
 {
+    // Index order is kept (settings store "preset:N"): the first twelve are the originals, the rest added in 5.9.
     public static readonly (string Color, string Symbol)[] Presets =
     {
-        ("#E8453C", "\U0001F3AE"), ("#7B5BD6", "\U0001F47E"), ("#2B7DE0", "\U0001F680"), ("#F2A100", "⭐"),
+        ("#E8453C", "\U0001F3AE"), ("#7B5BD6", "\U0001F47E"), ("#2B7DE0", "\U0001F680"), ("#F2A100", "\u2B50"),
         ("#2EB872", "\U0001F431"), ("#D9603B", "\U0001F436"), ("#C2410C", "\U0001F98A"), ("#3F4A5A", "\U0001F43C"),
-        ("#0AB9C9", "\U0001F3A7"), ("#CA8A04", "⚡"), ("#DC2626", "\U0001F525"), ("#4338CA", "\U0001F319")
+        ("#0AB9C9", "\U0001F3A7"), ("#CA8A04", "\u26A1"), ("#DC2626", "\U0001F525"), ("#4338CA", "\U0001F319"),
+        // Creatures
+        ("#15803D", "\U0001F409"), ("#DB2777", "\U0001F984"), ("#65A30D", "\U0001F438"), ("#B45309", "\U0001F981"),
+        ("#EA580C", "\U0001F42F"), ("#0F766E", "\U0001F427"), ("#7C2D12", "\U0001F989"), ("#9333EA", "\U0001F419"),
+        ("#166534", "\U0001F996"), ("#475569", "\U0001F43A"), ("#A16207", "\U0001F43B"), ("#0369A1", "\U0001F988"),
+        // Characters
+        ("#334155", "\U0001F47B"), ("#0E7490", "\U0001F916"), ("#4D7C0F", "\U0001F47D"), ("#1F2937", "\U0001F480"),
+        ("#6D28D9", "\U0001F9D9"), ("#111827", "\U0001F977"), ("#BE123C", "\U0001F383"), ("#7E22CE", "\U0001F451"),
+        // Games
+        ("#B91C1C", "\U0001F3B2"), ("#CA8A04", "\U0001F3C6"), ("#DC2626", "\U0001F3AF"), ("#1D4ED8", "\U0001F579"),
+        ("#57534E", "\u2694"), ("#1E40AF", "\U0001F6E1"), ("#BE185D", "\U0001F48E"), ("#C2410C", "\U0001F3CE"),
+        // Hobbies and things
+        ("#15803D", "\u26BD"), ("#EA580C", "\U0001F3C0"), ("#9F1239", "\U0001F3B8"), ("#7C3AED", "\U0001F3B5"),
+        ("#D97706", "\U0001F355"), ("#DB2777", "\U0001F369"), ("#0891B2", "\U0001F4F8"), ("#4F46E5", "\U0001F4DA"),
+        // Nature
+        ("#EC4899", "\U0001F338"), ("#0284C7", "\U0001F30A"), ("#16A34A", "\U0001F335"), ("#0EA5E9", "\u2744"),
+        ("#F59E0B", "\u2600"), ("#8B5CF6", "\U0001F308"), ("#059669", "\U0001F340"), ("#B45309", "\U0001F341")
+    };
+
+    /// <summary>Groups for the picker: a name and the range of presets in it.</summary>
+    public static readonly (string Name, int From, int Count)[] Groups =
+    {
+        ("Classics", 0, 12), ("Creatures", 12, 12), ("Characters", 24, 8), ("Games", 32, 8), ("Hobbies", 40, 8), ("Nature", 48, 8)
     };
 
     /// <summary>Builds the round picture for a saved setting ("preset:N" or an image path).</summary>
@@ -737,7 +772,11 @@ public static class Avatars
         if (setting.StartsWith("preset:", StringComparison.Ordinal)) int.TryParse(setting[7..], out index);
         var (color, symbol) = Presets[Math.Clamp(index, 0, Presets.Length - 1)];
 
-        circle.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+        // A soft diagonal gradient from the color to a deeper shade of it.
+        var c = (Color)ColorConverter.ConvertFromString(color);
+        circle.Fill = new LinearGradientBrush(
+            Color.FromRgb((byte)Math.Min(255, c.R + 28), (byte)Math.Min(255, c.G + 28), (byte)Math.Min(255, c.B + 28)),
+            Color.FromRgb((byte)(c.R * 0.62), (byte)(c.G * 0.62), (byte)(c.B * 0.62)), 45);
         grid.Children.Add(new TextBlock
         {
             Text = symbol,

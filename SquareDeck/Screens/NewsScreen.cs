@@ -8,21 +8,22 @@ namespace SquareDeck.Screens;
 
 /// <summary>
 /// News for the games you play: the latest posts from their Steam pages (patch notes and announcements
-/// included), Steam's own news, and sales (your wishlist first, then the Steam store's specials).
+/// included), Steam's own news, IGN, and sales (your wishlist first, then the Steam store's specials).
+/// The sections sit on one bar at the top; the newest story is featured large, the rest are cards three to a row.
 /// </summary>
 public sealed class GameNewsScreen : Screen
 {
     private const int GamesToFollow = 18, PostsPerGame = 4;
     private static readonly int SteamNewsAppId = 593110; // Steam's own news feed
     private static readonly (string Id, string Name)[] Sections =
-        { ("all", "Latest"), ("patches", "Patches and updates"), ("announcements", "Announcements"), ("sales", "Sales") };
+        { ("all", "Latest"), ("patches", "Patches"), ("announcements", "Announcements"), ("ign", "IGN PC"), ("igngames", "IGN Games"), ("sales", "Sales") };
 
     // Kept between visits for a quarter of an hour, so opening News again is instant.
     private static List<(NewsItem Post, Game? Game, string GameName)>? _cachedNews;
     private static List<SaleItem>? _cachedSales;
     private static DateTime _cachedAt;
 
-    private readonly StackPanel _tabs = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+    private readonly WrapPanel _tabs = new() { Margin = new Thickness(0) }; // six tabs: wrap rather than run off the page
     private readonly StackPanel _list = new();
     private readonly TextBlock _note = Ui.Text("", 16, "SubtleBrush");
     private readonly CancellationTokenSource _cts = new();
@@ -30,12 +31,27 @@ public sealed class GameNewsScreen : Screen
     private string? _focusId;
     private bool _loading = true;
 
+    // IGN's feeds (PC articles, all games): read only while this page is open, and let go when it closes
+    // (never kept between visits).
+    private static readonly Dictionary<string, (string Url, string About)> Feeds = new()
+    {
+        ["ign"] = (RssFeed.IgnPc, "IGN's latest PC articles"),
+        ["igngames"] = (RssFeed.IgnGames, "IGN's latest games news")
+    };
+    private readonly Dictionary<string, List<NewsItem>?> _feeds = new();
+    private readonly HashSet<string> _feedsLoading = new();
+    private readonly Dictionary<string, string> _feedErrors = new();
+    private static bool IsFeed(string section) => Feeds.ContainsKey(section);
+
     public GameNewsScreen()
     {
         _note.TextWrapping = TextWrapping.Wrap;
         _note.Margin = new Thickness(6, 6, 0, 10);
         var body = new StackPanel { Margin = new Thickness(0, 0, 14, 24) };
-        body.Children.Add(_tabs);
+        // The sections sit together on one rounded bar; the one showing is filled with the highlight color.
+        var bar = new Border { CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner * 2, 6)), Padding = new Thickness(5), Margin = new Thickness(0, 0, 0, 6), HorizontalAlignment = HorizontalAlignment.Left, Child = _tabs };
+        bar.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        body.Children.Add(bar);
         body.Children.Add(_note);
         body.Children.Add(_list);
         SetPage("News", new ScrollViewer
@@ -49,11 +65,35 @@ public sealed class GameNewsScreen : Screen
     {
         Build();
         _ = LoadAsync(refresh: false);
+        foreach (var id in Feeds.Keys) _ = LoadFeedAsync(id);
+    }
+
+    private async Task LoadFeedAsync(string id)
+    {
+        if (!_feedsLoading.Add(id)) return;
+        _feedErrors.Remove(id);
+        try { _feeds[id] = await Task.Run(() => RssFeed.ReadAsync(Feeds[id].Url, "IGN", _cts.Token), _cts.Token); }
+        catch (OperationCanceledException) { return; }
+        catch (Exception) { _feedErrors[id] = "Couldn't reach IGN. Check the internet connection, then press Details to try again."; }
+        finally { _feedsLoading.Remove(id); }
+        if (Host.IsTop(this) && (_section == id || _focusId == null)) Build();
+        else if (Host.IsTop(this)) RefreshTabs();
+    }
+
+    private void RefreshTabs()
+    {
+        var focus = _focusId;
+        Build();
+        _focusId = focus;
     }
 
     public override void OnResumed() => Build();
 
-    public override void OnClosed() => _cts.Cancel();
+    public override void OnClosed()
+    {
+        _cts.Cancel();
+        _feeds.Clear();
+    }
 
     public override bool OnAction(NavAction action)
     {
@@ -67,7 +107,8 @@ public sealed class GameNewsScreen : Screen
                 MoveSection(-1);
                 return true;
             case NavAction.X:
-                _ = LoadAsync(refresh: true);
+                if (IsFeed(_section)) _ = LoadFeedAsync(_section);
+                else _ = LoadAsync(refresh: true);
                 return true;
         }
         return false;
@@ -138,12 +179,23 @@ public sealed class GameNewsScreen : Screen
         {
             string section = id;
             int count = Items(section).Count();
-            var tab = new Button
+            bool showing = _section == id;
+            bool counted = !((IsFeed(section) ? _feedsLoading.Contains(section) : _loading) || count == 0 || section == "sales" && _cachedSales == null);
+            var label = new StackPanel { Orientation = Orientation.Horizontal };
+            label.Children.Add(Ui.Text(name, 16, showing ? "BgBrush" : "FgBrush", bold: true));
+            if (counted)
             {
-                Style = Ui.StyleOf("PillButton"), Margin = new Thickness(0, 0, 10, 0),
-                Content = _loading || count == 0 || section == "sales" && _cachedSales == null ? name : $"{name}  {count}"
-            };
-            if (_section == id) tab.SetResourceReference(ForegroundProperty, "AccentBrush");
+                var number = Ui.Text(count > 99 ? "99+" : count.ToString(), 12, showing ? "BgBrush" : "SubtleBrush", bold: true);
+                number.Margin = new Thickness(8, 2, 0, 0);
+                number.Opacity = 0.8;
+                label.Children.Add(number);
+            }
+            var pill = new Border { CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner * 2 - 4, 4)), Padding = new Thickness(18, 8, 18, 9), Child = label,
+                                    BorderThickness = new Thickness(2), BorderBrush = Brushes.Transparent };
+            if (showing) pill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+            var tab = new Button { Style = Ui.StyleOf("BareButton"), Focusable = true, FocusVisualStyle = null, Content = pill, Margin = new Thickness(0, 0, 2, 0) };
+            tab.GotKeyboardFocus += (_, _) => pill.SetResourceReference(Border.BorderBrushProperty, showing ? "FgBrush" : "AccentBrush");
+            tab.LostKeyboardFocus += (_, _) => pill.BorderBrush = Brushes.Transparent;
             tab.DataContext = "tab:" + id;
             tab.GotKeyboardFocus += (_, _) => _focusId = "tab:" + section;
             tab.Click += (_, _) => { _section = section; Build(); };
@@ -167,96 +219,136 @@ public sealed class GameNewsScreen : Screen
         "sales" => (_cachedSales ?? new List<SaleItem>()).Cast<object>(),
         "patches" => (_cachedNews ?? new()).Where(n => n.Post.IsPatch).Cast<object>(),
         "announcements" => (_cachedNews ?? new()).Where(n => n.Post.IsAnnouncement && !n.Post.IsPatch).Cast<object>(),
+        _ when IsFeed(section) => (_feeds.GetValueOrDefault(section) ?? new()).Select(p => (Post: p, Game: (Game?)null, GameName: "IGN")).Cast<object>(),
         _ => (_cachedNews ?? new()).Cast<object>()
     };
 
     private void BuildNews()
     {
         var posts = Items(_section).Cast<(NewsItem Post, Game? Game, string GameName)>().ToList();
-        _note.Text = _loading && _cachedNews == null ? "Getting the latest news for your games…"
+        _note.Text = IsFeed(_section)
+            ? (_feedErrors.GetValueOrDefault(_section) ?? (_feedsLoading.Contains(_section) && _feeds.GetValueOrDefault(_section) == null
+                ? "Getting " + Feeds[_section].About + "…" : posts.Count == 0 ? "IGN's feed is empty right now." : ""))
+            : _loading && _cachedNews == null ? "Getting the latest news for your games…"
             : posts.Count == 0 ? "Nothing new here in the last two months."
             : _loading ? "Checking for newer posts…" : "";
         _note.Visibility = _note.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        DateTime? lastDay = null;
-        foreach (var (post, game, gameName) in posts)
-        {
-            // A small heading whenever the day changes.
-            var day = post.Date.Date;
-            if (lastDay != day)
-            {
-                lastDay = day;
-                var heading = Ui.Text(day == DateTime.Today ? "Today" : day == DateTime.Today.AddDays(-1) ? "Yesterday" : day.ToString("dddd, MMMM d"),
-                    18, "FgBrush", bold: true);
-                heading.Margin = new Thickness(4, 16, 0, 8);
-                _list.Children.Add(heading);
-            }
-            _list.Children.Add(NewsCard(post, game, gameName));
-        }
+        if (posts.Count == 0) return;
+        // The newest story big across the top, the rest as cards three to a row.
+        _list.Children.Add(HeroCard(posts[0].Post, posts[0].Game, posts[0].GameName));
+        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new Thickness(-6, 4, -6, 0) };
+        foreach (var (post, game, gameName) in posts.Skip(1)) grid.Children.Add(NewsCard(post, game, gameName));
+        _list.Children.Add(grid);
     }
 
+    /// <summary>The best picture for a post: its own, else the game's wide store header, else the game's cover.</summary>
+    private static void ShowPicture(Image image, NewsItem post, Game? game)
+    {
+        if (post.Image.Length > 0) _ = LoadAsync(image, post.Image);
+        else if (game is { IsSteam: true }) _ = LoadAsync(image, $"https://cdn.akamai.steamstatic.com/steam/apps/{game.AppId}/header.jpg");
+        else if (game?.Cover != null) image.Source = game.Cover;
+    }
+
+    /// <summary>A small rounded label on a picture: the game or source, or "Patch notes".</summary>
+    private static Border Chip(string text, bool accent)
+    {
+        var chip = new Border { CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner, 6)), Padding = new Thickness(9, 3, 9, 4), Margin = new Thickness(0, 0, 6, 0),
+                                Child = Ui.Text(text, 12, accent ? "BgBrush" : "FgBrush", bold: true), VerticalAlignment = VerticalAlignment.Center };
+        if (accent) chip.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+        else chip.Background = new SolidColorBrush(Color.FromArgb(0xB0, 0x10, 0x10, 0x14));
+        if (!accent && chip.Child is TextBlock t) t.Foreground = Brushes.White;
+        return chip;
+    }
+
+    private static string Kind(NewsItem post) => post.IsPatch ? "Patch notes" : post.IsAnnouncement ? "Announcement" : post.Feed;
+
+    /// <summary>Rounds a card's corners, its picture included (the clip follows the card's size).</summary>
+    private static void RoundCorners(Border card, double radius)
+    {
+        card.CornerRadius = new CornerRadius(radius);
+        card.SizeChanged += (_, _) => card.Clip = new RectangleGeometry(new Rect(card.RenderSize), radius, radius);
+    }
+
+    /// <summary>The featured story: its picture across the page, the title large over a shade at the bottom.</summary>
+    private Button HeroCard(NewsItem post, Game? game, string gameName)
+    {
+        var face = new Grid { Height = 330 };
+        var image = new Image { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Center };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+        face.Children.Add(image);
+        ShowPicture(image, post, game);
+        var shade = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
+        shade.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0, 0, 0), 0.25));
+        shade.GradientStops.Add(new GradientStop(Color.FromArgb(0xE8, 0, 0, 0), 1));
+        face.Children.Add(new Border { Background = shade });
+
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(28, 0, 28, 24), MaxWidth = 1100, HorizontalAlignment = HorizontalAlignment.Left };
+        var chips = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        chips.Children.Add(Chip(gameName.ToUpperInvariant(), accent: true));
+        if (Kind(post) is { Length: > 0 } kind) chips.Children.Add(Chip(kind, accent: false));
+        chips.Children.Add(Chip(Ui.Ago(post.Date), accent: false));
+        words.Children.Add(chips);
+        var title = new TextBlock { Text = post.Title, FontSize = 32, FontWeight = FontWeights.Bold, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 86 };
+        words.Children.Add(title);
+        if (post.Snippet.Length > 0)
+            words.Children.Add(new TextBlock { Text = post.Snippet, FontSize = 16, Foreground = new SolidColorBrush(Color.FromArgb(0xD8, 0xFF, 0xFF, 0xFF)), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 44, Margin = new Thickness(0, 6, 0, 0) });
+        face.Children.Add(words);
+
+        var card = new Border { Child = face };
+        card.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        RoundCorners(card, Math.Max(Theme.TileCorner + 6, 8));
+        return Wrap(card, post, new Thickness(-8, 4, -8, 6));
+    }
+
+    /// <summary>A story card: picture on top (with the game's name on it), then when, the title and a line of the text.</summary>
     private Button NewsCard(NewsItem post, Game? game, string gameName)
     {
-        var row = new DockPanel();
-
-        // The game's cover (or the post's own picture, for Steam news), on the left.
-        var picture = new Border { Width = 92, Height = 92, CornerRadius = new CornerRadius(10), ClipToBounds = true, Margin = new Thickness(0, 0, 18, 0) };
-        picture.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        var stack = new StackPanel();
+        var top = new Grid { Height = 176 };
+        top.SetResourceReference(Panel.BackgroundProperty, "TileBrush");
         var image = new Image { Stretch = Stretch.UniformToFill };
-        picture.Child = new Grid { Clip = new RectangleGeometry(new Rect(0, 0, 92, 92), 10, 10), Children = { image } };
-        if (game?.Cover != null && !(game.UsesIcon && !game.IconFills)) image.Source = game.Cover;
-        else if (game?.Cover != null)
-        {
-            picture.Background = game.TileBackground ?? picture.Background;
-            image.Stretch = Stretch.Uniform;
-            image.Margin = new Thickness(18);
-            image.Source = game.Cover;
-        }
-        else if (post.Image.Length > 0) _ = LoadAsync(image, post.Image);
-        else image.Source = null;
-        DockPanel.SetDock(picture, Dock.Left);
-        row.Children.Add(picture);
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+        top.Children.Add(image);
+        ShowPicture(image, post, game);
+        var chips = new WrapPanel { Margin = new Thickness(12), VerticalAlignment = VerticalAlignment.Top };
+        chips.Children.Add(Chip(gameName.ToUpperInvariant(), accent: true));
+        if (post.IsPatch || post.IsAnnouncement) chips.Children.Add(Chip(Kind(post), accent: false));
+        top.Children.Add(chips);
+        stack.Children.Add(top);
 
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var top = new WrapPanel();
-        top.Children.Add(Small(gameName.ToUpperInvariant(), "AccentBrush"));
-        if (post.IsPatch) top.Children.Add(Tag("Patch notes"));
-        else if (post.IsAnnouncement) top.Children.Add(Tag("Announcement"));
-        else if (post.Feed.Length > 0) top.Children.Add(Small("  ·  " + post.Feed, "SubtleBrush"));
-        top.Children.Add(Small("  ·  " + post.Date.ToString("h:mm tt"), "SubtleBrush"));
-        text.Children.Add(top);
-
-        var title = Ui.Text(post.Title, 19, "FgBrush", bold: true);
+        var words = new StackPanel { Margin = new Thickness(16, 12, 16, 16) };
+        var when = Ui.Text(Ui.Ago(post.Date) + (!post.IsPatch && !post.IsAnnouncement && post.Feed.Length > 0 ? "  ·  " + post.Feed : ""), 13, "SubtleBrush");
+        when.TextTrimming = TextTrimming.CharacterEllipsis;
+        words.Children.Add(when);
+        var title = Ui.Text(post.Title, 17, "FgBrush", bold: true);
         title.TextWrapping = TextWrapping.Wrap;
         title.TextTrimming = TextTrimming.CharacterEllipsis;
-        title.MaxHeight = 52;
+        title.Height = 46;
         title.Margin = new Thickness(0, 4, 0, 4);
-        text.Children.Add(title);
-        var snippet = Ui.Text(post.Snippet, 14, "SubtleBrush");
+        words.Children.Add(title);
+        var snippet = Ui.Text(post.Snippet, 13, "SubtleBrush");
         snippet.TextWrapping = TextWrapping.Wrap;
         snippet.TextTrimming = TextTrimming.CharacterEllipsis;
-        snippet.MaxHeight = 38;
-        text.Children.Add(snippet);
-        row.Children.Add(text);
+        snippet.Height = 36;
+        words.Children.Add(snippet);
+        stack.Children.Add(words);
 
-        var card = new Border { CornerRadius = new CornerRadius(14), Padding = new Thickness(14), Child = row };
+        var card = new Border { Child = stack };
         card.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        RoundCorners(card, Math.Max(Theme.TileCorner + 4, 6));
+        return Wrap(card, post, new Thickness(0, 0, 0, 4));
+    }
+
+    private Button Wrap(Border card, NewsItem post, Thickness margin)
+    {
         var button = Ui.Tile(card);
-        button.Margin = new Thickness(-8, 0, -8, -2);
+        button.Margin = margin;
+        button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         button.DataContext = "post:" + post.Url;
         button.GotKeyboardFocus += (_, _) => _focusId = "post:" + post.Url;
         button.Click += (_, _) => Host.Push(new NewsReaderScreen(post));
         return button;
-    }
-
-    private static TextBlock Small(string text, string brush) => Ui.Text(text, 13, brush, bold: brush == "AccentBrush");
-
-    private static Border Tag(string text)
-    {
-        var tag = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 1, 8, 2), Margin = new Thickness(10, 0, 0, 0),
-                               Child = Ui.Text(text, 12, "BgBrush", bold: true), VerticalAlignment = VerticalAlignment.Center };
-        tag.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
-        return tag;
     }
 
     private void BuildSales()

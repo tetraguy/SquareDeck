@@ -74,8 +74,17 @@
                     </Button>
                     <Button x:Name="BluetoothButton" Style="{StaticResource BareButton}" Margin="6,0,0,0"
                             VerticalAlignment="Center" Visibility="Collapsed" Click="Bluetooth_Click">
-                        <TextBlock Text="&#xE702;" FontFamily="Segoe MDL2 Assets" FontSize="24"
-                                   Foreground="{DynamicResource FgBrush}"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE702;" FontFamily="Segoe MDL2 Assets" FontSize="24"
+                                       Foreground="{DynamicResource FgBrush}" VerticalAlignment="Center"/>
+                            <!-- Battery of connected Bluetooth headphones -->
+                            <StackPanel x:Name="HeadphonePanel" Orientation="Horizontal" Margin="6,0,0,0" Visibility="Collapsed" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE7F6;" FontFamily="Segoe MDL2 Assets" FontSize="17"
+                                           Foreground="{DynamicResource FgBrush}" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="HeadphoneText" FontSize="14" Margin="4,0,0,0"
+                                           Foreground="{DynamicResource FgBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
                     </Button>
                     <!-- Battery of a wireless controller -->
                     <StackPanel x:Name="PadPanel" Orientation="Horizontal" Margin="14,0,0,0"
@@ -251,6 +260,11 @@
                                             <Setter TargetName="IconFace" Property="Visibility" Value="Visible"/>
                                             <Setter TargetName="CoverImage" Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
+                                        <!-- Icons that only exist small: drawn smaller instead of blurry -->
+                                        <DataTrigger Binding="{Binding IconIsSmall}" Value="True">
+                                            <Setter TargetName="IconImage" Property="Width" Value="84"/>
+                                            <Setter TargetName="IconImage" Property="Height" Value="84"/>
+                                        </DataTrigger>
                                         <!-- SteamGridDB icons fill the tile like a cover -->
                                         <DataTrigger Binding="{Binding IconFills}" Value="True">
                                             <Setter TargetName="IconImage" Property="Width" Value="NaN"/>
@@ -329,7 +343,7 @@
                 <Button x:Name="CapturesBtn" Style="{StaticResource RoundButton}" Content="&#xEB9F;" Foreground="#2B7DE0"
                         ToolTip="Captures" Click="Captures_Click"/>
                 <Button x:Name="MusicBtn" Style="{StaticResource RoundButton}" Content="&#xE8D6;" Foreground="#2EB872"
-                        ToolTip="Music" Click="Music_Click"/>
+                        ToolTip="Multimedia" Click="Music_Click"/>
                 <Button x:Name="FriendsBtn" Style="{StaticResource RoundButton}" Content="&#xE716;" Foreground="#7B5BD6"
                         ToolTip="Friends" Click="Friends_Click"/>
                 <Button x:Name="NewsBtn" Style="{StaticResource RoundButton}" Content="&#xE789;" Foreground="#E0662E"
@@ -362,7 +376,7 @@
 
                     <!-- What's playing, with play / pause; shown only while something is -->
                     <Button x:Name="MusicButton" Style="{StaticResource PanelButton}" FontSize="15" Focusable="False"
-                            Margin="20,0,0,0" Visibility="Collapsed" Click="MusicToggle_Click">
+                            Margin="20,0,0,0" Visibility="Collapsed" Click="MusicOpen_Click">
                         <StackPanel Orientation="Horizontal">
                             <!-- The song's cover art, when the player shares it (the play/pause symbol otherwise) -->
                             <Border x:Name="MusicArt" Width="30" Height="30" CornerRadius="6" Margin="-8,0,10,0"
@@ -409,7 +423,8 @@
             <!-- Screen saver, shown after the home screen has been idle -->
             <Grid x:Name="SaverLayer" Grid.RowSpan="7" Visibility="Collapsed" IsHitTestVisible="False"/>
 
-            <Grid x:Name="ToastLayer" Grid.RowSpan="7" IsHitTestVisible="False"/>
+            <!-- Hit-testable only where a notification is (the grid itself has no background), so it can be tapped -->
+            <Grid x:Name="ToastLayer" Grid.RowSpan="7"/>
 
             <!-- Startup animation, built and removed in code -->
             <Grid x:Name="IntroLayer" Grid.RowSpan="7" IsHitTestVisible="False"/>

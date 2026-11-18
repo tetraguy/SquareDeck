@@ -57,7 +57,7 @@ public sealed class SteamGridDbClient : IDisposable
 
     public static void ClearCache()
     {
-        foreach (var dir in new[] { CoverDir, InfoDir, HeroDir, LogoDir, AnimatedDir, IconDir, PortraitDir })
+        foreach (var dir in new[] { CoverDir, InfoDir, HeroDir, LogoDir, AnimatedDir, IconDir, PortraitDir, HeaderDir })
         {
             if (!Directory.Exists(dir)) continue;
             foreach (var f in Directory.EnumerateFiles(dir))
@@ -195,6 +195,19 @@ public sealed class SteamGridDbClient : IDisposable
         return hits[0].TryGetProperty("id", out var idProp) && idProp.TryGetInt32(out var id) ? id : null;
     }
 
+    /// <summary>What SteamGridDB knows about a title beyond its artwork: its proper name and release date.</summary>
+    public async Task<(string Name, DateTime? Released)?> GetGameInfoAsync(string name, CancellationToken ct)
+    {
+        using var search = await GetJsonAsync("search/autocomplete/" + Uri.EscapeDataString(name), ct).ConfigureAwait(false);
+        if (search == null || !search.RootElement.TryGetProperty("data", out var hits) ||
+            hits.ValueKind != JsonValueKind.Array || hits.GetArrayLength() == 0) return null;
+        var hit = hits[0];
+        string title = hit.TryGetProperty("name", out var n) ? n.GetString() ?? name : name;
+        DateTime? released = hit.TryGetProperty("release_date", out var r) && r.ValueKind == JsonValueKind.Number && r.TryGetInt64(out var unix) && unix > 0
+            ? DateTimeOffset.FromUnixTimeSeconds(unix).LocalDateTime : null;
+        return (title, released);
+    }
+
     /// <summary>Square cover for a non-Steam game, found by its title. Cached like Steam covers.</summary>
     public async Task<string?> GetCoverByNameAsync(string key, string name, CancellationToken ct)
     {
@@ -224,6 +237,32 @@ public sealed class SteamGridDbClient : IDisposable
     /// <summary>Tall 2:3 cover art (posters), for the poster-shaped UI styles. Null if none exists.</summary>
     public Task<string?> GetPortraitAsync(Game item, CancellationToken ct) =>
         GetArtAsync(item, "grids", PortraitDir, PortraitQuery, ct);
+
+    public static string HeaderDir { get; } = Path.Combine(Settings.DataDir, "headers");
+    private const string HeaderQuery = "?dimensions=460x215,920x430&types=static&mimes=image/png,image/jpeg&nsfw=false&humor=false";
+
+    /// <summary>
+    /// Wide "header capsule" art (460×215, like the banner on a Steam store page), for the library's Rectangle view.
+    /// Steam games use Steam's own header; others come from SteamGridDB's wide grids.
+    /// </summary>
+    public async Task<string?> GetHeaderAsync(Game item, CancellationToken ct)
+    {
+        Directory.CreateDirectory(HeaderDir);
+        var basePath = Path.Combine(HeaderDir, HashKey(item.Key));
+        foreach (var ext in ImageExtensions)
+            if (File.Exists(basePath + ext)) return basePath + ext;
+        if (item.IsSteam)
+        {
+            try
+            {
+                var steam = await DownloadAsync($"https://cdn.akamai.steamstatic.com/steam/apps/{item.AppId}/header.jpg", basePath, ct).ConfigureAwait(false);
+                if (steam != null) return steam;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception) { }
+        }
+        return await GetArtAsync(item, "grids", HeaderDir, HeaderQuery, ct, useChosen: false).ConfigureAwait(false);
+    }
 
     private const string PortraitQuery = "?dimensions=600x900,342x482,660x930&types=static&mimes=image/png,image/jpeg&nsfw=false&humor=false";
     private const string HeroQuery = "?types=static&mimes=image/png,image/jpeg&nsfw=false&humor=false";
@@ -302,10 +341,10 @@ public sealed class SteamGridDbClient : IDisposable
     public Task<string?> GetLogoAsync(Game item, CancellationToken ct) =>
         GetArtAsync(item, "logos", LogoDir, LogoQuery, ct);
 
-    private async Task<string?> GetArtAsync(Game item, string kind, string dir, string query, CancellationToken ct)
+    private async Task<string?> GetArtAsync(Game item, string kind, string dir, string query, CancellationToken ct, bool useChosen = true)
     {
         // The user's own pick always wins.
-        if (kind != "icons" && FindChosenArt(item, kind) is string chosen) return chosen;
+        if (useChosen && kind != "icons" && FindChosenArt(item, kind) is string chosen) return chosen;
         Directory.CreateDirectory(dir);
         var basePath = Path.Combine(dir, HashKey(item.Key));
         foreach (var ext in ImageExtensions)

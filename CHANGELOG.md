@@ -3,6 +3,422 @@
 All notable changes to SquareDeck, newest first. Each section can be pasted as the description of the
 matching GitHub release; the launcher's updater shows that description as the changelog before installing.
 
+## 5.20.2
+
+### Changed
+- **Cloud gaming tiles match the other store tiles:** they have the same rounded corners, following the tile-corner
+  style in Themes.
+- **Turn cloud gaming services on or off from the Stores page too.** "Add more stores" now starts with a Cloud
+  gaming section that has a switch for each service. These are the same switches as in Settings > Games, and the
+  Stores page updates when you go back.
+
+## 5.20.1
+
+### Added
+- **Cloud gaming logos:** Xbox Cloud Gaming, GeForce NOW, Amazon Luna and Antstream Arcade now show their own logo
+  tiles on the Stores page and while they load.
+
+### Fixed
+- **Menu music and moving backgrounds pause during cloud games.** They stay paused while a cloud gaming service is
+  open, even with a menu over it, and pick up again when you leave.
+- **The notification panel's close button (X) can be reached with the controller.** Press Up from the first
+  notification, or Right from anywhere in the list. It's also where the cursor starts when there are no notifications.
+- **The welcome message no longer runs into the page tabs and buttons** in UI styles that put them next to the
+  profile picture (Waves, for example). It now slides out in its own rounded bubble that sits over the top bar for
+  its three seconds, then slides back behind the picture.
+
+## 5.20.0
+
+### Added
+- **Cloud gaming** in Settings > Games: turn on Xbox Cloud Gaming, NVIDIA GeForce NOW, Amazon Luna and Antstream
+  Arcade one by one. Each one you turn on shows up on the Stores page with its own tile. Opening it plays the service
+  full screen in SquareDeck's built-in Edge (WebView2). SquareDeck stops reading the controller while you play, so
+  the game in the page gets every button. To leave:
+  - hold **View + Start** for a second and a half (a ring fills in the corner while you hold), or
+  - press **Ctrl+Shift+Q** on a keyboard, or
+  - tap the faint dot in a corner of the screen. It opens into Exit, Reload and Hide, and fades back after a few
+    seconds. You can choose which corner in Settings.
+  Sign-ins are kept between visits.
+- **Welcome message:** "Good morning", "Good afternoon" or "Good evening" with your first name. It slides out from
+  behind your profile picture at startup, stays three seconds, then slides back and fades away. Turn it off, or play
+  it again, in Settings > Appearance.
+- **Ten new startup animations** (16 in all): Glitch, Pixel assemble, Neon sign, Liquid fill, Orbit, Blinds,
+  Particle burst, Hologram scan, Card flip and Aurora.
+- **Five new Performance Boost animations** (10 in all), each with its own vibration pattern:
+  - **Vortex:** a spiral winds tighter and tighter, then lets go.
+  - **Power grid:** squares light up in waves under the cover.
+  - **Lightning:** bolts strike the cover, each with a jolt.
+  - **Equalizer:** bars bounce to a beat around the cover.
+  - **Hyperloop:** a rush down a tunnel of light rings.
+- **Performance overlay** in Settings > Power and performance. It shows FPS, frame time, CPU use and speed, GPU use,
+  memory, the TDP limit and the battery over your games. Clicks and taps go straight through it. You can choose:
+  - **Details:** Minimal, Standard, or Full (adds a frame-time graph, memory in GB, battery time left and the clock).
+  - **Layout:** Bar, Column or Tiles.
+  - **Style:** Dark panel, Frosted glass, Text only, Neon, Highlight color or Retro terminal.
+  - **Position, size and opacity**, and whether it shows only in full-screen games or all the time.
+  FPS comes from Intel's PresentMon 2.6.0 (MIT), bundled in `Tools\PresentMon`. It needs SquareDeck to run as
+  administrator, or your account in Windows' "Performance Log Users" group. Without it, everything else in the
+  overlay still works.
+
+## 5.19.0
+
+### Added
+- **Ten new UI styles** (65 in all):
+  - **Synthwave:** a hot-pink to violet sky over a neon grid, with cyan Play and the game huge in the middle.
+  - **Draftsman:** white ink on blueprint blue, a measuring grid, outlined buttons and typewriter type.
+  - **Comic Pop:** sunshine yellow, halftone dots, thick black lines, hard shadows and a bang-red highlight.
+  - **Riverlight:** lanterns on a night river (moving), smoked glass and lantern teal.
+  - **Geyser Basin:** steaming hot springs (moving), mineral orange and sulfur gold.
+  - **Chrome:** liquid silver waves (moving), glossy gunmetal buttons and steel blue.
+  - **Velvet:** soft-focus velvet in wine and rose, with the game's art glowing behind its logo.
+  - **Pit Lane:** carbon fibre, racing red, a yellow-flag Play button and condensed type.
+  - **Pocket Green:** a 1989 pocket console, with four shades of green, an LCD dot screen and pixel buttons.
+  - **Living Room:** couch gaming, with the game's art filling the screen in deep navy and bright blue.
+- **Pixel-art store logos** for the pixel-art UI styles (the pixel styles and Pocket Green), on the Stores page and in
+  the library's sidebar. Other styles keep the regular logos.
+- **The NPU** in Settings > Power and performance, when the device has one (Intel AI Boost, AMD Ryzen AI, Qualcomm
+  Hexagon…). It shows the name, maker and driver version, and its use where Windows reports it. Devices without one
+  don't show the card.
+- **Windows lock screen** in Settings > Appearance. Pick one of SquareDeck's wallpapers, your own SquareDeck
+  wallpaper, or "Pick my own" for any picture. If Windows won't allow the change directly, SquareDeck can set it
+  through the lock screen policy instead, which asks for administrator permission once.
+- **A crash log.** If something goes wrong, the details go to crash.log in SquareDeck's data folder
+  (%LOCALAPPDATA%\SquareDeck). Errors in a page or menu no longer close the whole launcher.
+
+### Fixed
+- **SquareDeck crashed when the in-game quick menu was summoned.** Possible causes, all fixed:
+  - The menu's live CPU / GPU readout could be read from two threads at once, or closed while being read. Either
+    crashes the app.
+  - The menu window was maximized, so it couldn't open without taking the focus.
+  - View (half of the summon combo) closed it straight away.
+  If it still won't open, SquareDeck now brings the launcher forward instead and writes the reason to crash.log.
+
+## 5.18.0
+
+### Added
+- **Apps, in Settings.** Installed apps lists every app on the device, like Windows' own list: desktop programs and
+  Microsoft Store apps, with publisher, version, size and install date (and each program's icon). Search, sort by
+  name, size or install date, and switch between all, desktop and Store apps. Choosing an app shows what can be done
+  with it:
+  - Uninstall: the program's own uninstaller, or removing the Store app.
+  - Modify: the program's setup.
+  - Repair: Windows Installer programs put back damaged files.
+  - Reset: Store apps go back to how they were installed.
+  - Open its folder.
+  Shortcuts to Windows' startup apps, default apps and optional features are there too.
+- **Performance Boost** (Settings > Power and performance). Just before a game starts it frees memory: other
+  programs' unused memory is handed back to Windows, and Windows' file cache is emptied when SquareDeck runs as
+  administrator. It shows how much came free. There are five animations, each with its own vibration pattern timed
+  to it (on or off):
+  - Pulse rings: a tap with each ring.
+  - Warp speed: the taps speed up with the stars, then a thump.
+  - Turbo gauge: ticks as it climbs.
+  - Orbit: a heartbeat.
+  - Shockwave: a rising buzz, then a jolt.
+  "Surprise me" picks one each time, and "Try it" plays it without freeing anything. B skips it.
+- **Six library layouts:** Sidebar, Compact (icons-only sidebar, small tiles), Large tiles (no sidebar; a Show button
+  picks the section), List (one row per game with store, play time, last played and size), Shelves (rows that scroll
+  sideways: recent, favorites, each store, collections) and Spotlight (the highlighted game large across the top).
+  Choose with the Layout button in the library's toolbar, or in Settings > Games and library, next to the
+  Square / Grid / Rectangle view.
+- **Your own moving backgrounds.** "Add your own…" in Settings > Appearance > Moving background copies a video into
+  SquareDeck's folder and uses it. Y removes one.
+- **Storage and network** in Settings > Power and performance, next to the processor, memory and graphics:
+  - The system drive's name, free space and how busy it is, with read and write speeds.
+  - The network: Wi-Fi network name and signal, or Ethernet, the link speed, address, and download / upload right
+    now.
+- **Full screen in the capture viewer:** Start or the new toolbar button shows the picture alone across the whole
+  screen. B or Start comes back.
+- **The game's picture next to album names** in Captures (on by default; a switch in Settings > Games and library).
+- **Vibration options:** a buzz when a notification pops up, and a light tick moving from row to row in Settings.
+  Both are on by default and use your vibration strength.
+- **A secret.** Press "This version" (or "SquareDeck version" on the About page) five times. From the second press, a
+  small message counts down the presses left.
+
+### Changed
+- **The update download shows its progress:** a bar, the percentage, how much has arrived, the speed and the time
+  left. B cancels.
+- **An icon of SquareDeck's own for custom games** in the library's sidebar, replacing the one from the logo pack.
+
+### Fixed
+- **The capture viewer's toolbar no longer covers the picture.** The space for the header and toolbar is measured from
+  them, so the picture stays clear at any screen size and scale. The hint bar there also showed its button names in
+  braces; it now shows the button pictures.
+- **The Streaming page's hint bar** shows the same button pictures as every other page (it showed plain text).
+- **The buttons on the "update before playing" card** were a little too big, so the highlighted one was cut off.
+  They're smaller and grow less.
+
+## 5.17.0
+
+### Added
+- **Ten new UI styles** (55 in all), built around the new backgrounds, wallpapers and music:
+  - **Aero:** Frutiger Aero, with glossy bubble buttons, milky glass and aqua highlights over a glowing aurora, and
+    its own soundtrack. Glossy buttons are new: a shine across the top half of the round buttons.
+  - **Rolling Hills:** green hills under a blue sky, with glossy pill tabs on bright glass.
+  - **Daydream:** clouds over a grassy field, small tiles under the tabs, white glass and sky blue.
+  - **Terra:** a ringed planet over a far-off beach, with a sidebar on bright glass.
+  - **Jewels:** a sun rising over frozen dunes, the game large in the middle, smoked glass and pale gold. It has its
+    own soundtrack.
+  - **Contour:** dithered contour lines in pure black and white, with thin outlines and typewriter type.
+  - **Sacred Grove, Treehouse, Stargazer and Campfire:** four pixel-art scenes (a forest waterfall, a hideout in the
+    woods, a starry night by a car, a campfire at sunset), each in a different layout.
+- **Eight moving backgrounds** (Aero, Heaven, Pasture, Plague, Ocarina, Pokee, Stars and Me, Witcher), **two picture
+  wallpapers** (Jewels, Terra) and **two music tracks** (Aero, Jewels). The videos were converted to H.264, so they
+  play on any Windows PC.
+- **Library views.** The Game library page can show games as **Square** (the cover as it is), **Grid** (tall poster art
+  from SteamGridDB) or **Rectangle** (the wide header from the store page: Steam's own for Steam games, SteamGridDB's
+  for the rest). Pick it with the new "View" button in the toolbar.
+- **Store logos** for Steam, Epic Games, Xbox, Battle.net, EA, Ubisoft and imported games, on the Stores page and next
+  to each store in the library's sidebar.
+- **This device**, in Settings > Power and performance. Three live cards:
+  - Processor: name, cores and threads, speed now and at most, and use.
+  - Memory: capacity, type (DDR5, LPDDR5…), speed in MT/s and how much is in use.
+  - Graphics: the chip, its own memory, and use.
+  Each has a graph of the last minute. They're read straight from Windows (performance counters, the memory modules'
+  firmware tables and the graphics driver), with nothing extra to install.
+
+### Changed
+- **A new in-game quick menu.** It's a floating sheet with the game, the time and battery, live CPU / GPU / RAM use and
+  TDP, and six quick tiles (Screenshot, Record, Keyboard, Sound on/off, Night light, Microphone). Below them are
+  volume, brightness and TDP sliders, then Resume, SquareDeck and Exit game. The controller moves around it in two
+  directions.
+  - **It opens over any full-screen game,** not just the ones SquareDeck started. That includes games started from
+    the Xbox app in Xbox mode, from Steam, or from a shortcut. Exit game asks such a game to close, and ends it if it
+    hasn't closed after a few seconds.
+  - **It no longer takes the focus from the game.** Windows often refused that under the Xbox full screen
+    experience, so the menu never appeared, and some full-screen games minimized when it did. It now stays on top
+    without being activated.
+  - It works with "Summon buttons bring the launcher forward" turned off, as long as the quick menu is on.
+- **A modern News page.** The sections sit on one rounded bar, with the open one filled in. The newest story is
+  featured large across the top, with its picture, the game, the kind of post and how long ago. The rest are cards,
+  three to a row, each with a picture on top: the post's own, or the game's wide store header.
+
+### Fixed
+- **The menu music carries on where it stopped** when a game closes, instead of starting the track again (shuffle
+  too).
+- **Tall grid art fits its tile.** In poster styles (pixel art, Crimson, Stage and others), the picture area wasn't
+  2:3, so the sides of the art were cut off. Poster tiles are now sized so the art fits exactly, whatever the style's
+  gap and ring.
+- **The home screen's power button** works with the controller (fixed in 5.16.1 by making the power menu's buttons
+  selectable).
+
+## 5.16.1
+
+### Fixed
+- **The controller works in quick settings and the power menu again.** Since their redesign, the tiles and the round
+  power buttons couldn't take the highlight, so the d-pad, stick and A did nothing there (and the Power button at the
+  bottom of quick settings couldn't be reached). They take it again: quick settings opens on Wi-Fi, the power menu on
+  Sleep.
+
+## 5.16.0
+
+### Changed
+- **A new capture viewer.** Screenshots and clips open on a blurred, dimmed copy of themselves, so the picture's own
+  colors fill the screen. The picture has rounded corners and a soft shadow, and slides in from the side you moved to.
+  - A floating toolbar of round buttons: previous, play / pause, zoom, share, delete, close and next. The name of the
+    highlighted button shows under it.
+  - A filmstrip of the captures around this one, with the current one larger and ringed in your highlight color. Tap
+    or click any of them to jump there.
+  - The header shows the game, the date and time and the file size, with "3 / 12" in a pill on the right.
+  - **Zoom:** LT / RT (or the mouse wheel, or the zoom button) zoom a screenshot up to 4×, and the right stick moves
+    around it. B zooms back out before it closes the viewer.
+  - Clips show a progress bar with the time played and the length.
+  - The header, toolbar and filmstrip fade away after a few seconds and come back with any button, the mouse or a
+    touch. They stay up while a clip is paused.
+
+### Fixed
+- **The d-pad and left stick move between the streaming services** on the Multimedia page's Streaming tab, and the
+  right stick scrolls the tab.
+
+## 5.15.1
+
+### Changed
+- **The power menu shows your name** instead of the Windows user name. It's the name Windows has
+  for your account (your work or school account's display name, or your Microsoft or local account's full name),
+  falling back to the user name if there isn't one. The profile page uses it too when Steam isn't signed in.
+
+## 5.15.0
+
+### Added
+- **Disney+, Paramount+ and Tubi** on the Multimedia page's Streaming tab, with their logos. Like the others, each opens
+  full screen with controller controls and stays on its own site.
+- **The launch countdown vibrates.** A small controller pulse on each second, and a longer one as the game starts
+  (when vibration is on in Settings).
+
+### Changed
+- **The Streaming button just opens the Streaming tab.** No more dropdown: the tab already shows every service, and
+  Resume / Close for the one that's open.
+
+## 5.14.0
+
+### Added
+- **Eight new UI styles, one for each wallpaper.** Each brings its own wallpaper, colors, sounds and menu music:
+  - **Lookout**: smoky purple glass, lilac highlights and a floating shelf of buttons.
+  - **Moonlit**: true black (OLED), small tiles under the tabs and one cool blue glow.
+  - **Night Café**: warm neon yellow on deep blue glass with cozy lo-fi music.
+  - **Crimson**: hero layout, with the game's logo and Play big at the top and a scarlet glow.
+  - **Gold Dust**: stage layout, with the highlighted game large in the middle and amber light.
+  - **Lavender Fields**: a light style with milky glass, indigo type and violet highlights.
+  - **Rooftops**: sidebar layout on dusky blue glass with pink and violet light.
+  - **Nostalgia**: an '80s bedroom, with chunky square buttons, orange neon and CRT scan lines.
+- **Surprise me.** A new row at the top of Settings > Appearance > UI style switches to a random style you're not
+  using now.
+
+## 5.13.0
+
+### Changed
+- **The now-playing pill shows the song.** With Spotify playing inside SquareDeck, the pill at the bottom shows the
+  song's cover, title and artist instead of "SquareDeck player". Windows' media controls (and the volume pop-up) show
+  the song and its cover too, and their play / pause / next / previous buttons work.
+- **The now-playing pill opens the player.** Clicking or tapping it (or A when the controller is on it) opens the
+  Multimedia page, on the Spotify tab for SquareDeck's own player. X on it plays / pauses.
+- **Notifications can be tapped.** Tap or click a notification while it's showing to open what it's about: the game's
+  page for achievements, downloads and play sessions, the Friends page for friends, quick settings for the battery,
+  the notification center for Windows notifications, or else the whole message.
+
+### Fixed
+- **Play, favorite and More can be reached with the controller** in the styles that show them under the game (Pixel
+  Dawn, Stage and the others with words or icon buttons). Down from the games highlights Play; Left / Right move
+  between the buttons, A presses, and Up or B goes back to the games.
+
+## 5.12.0
+
+### Added
+- **Spotify plays inside SquareDeck.** SquareDeck is now a Spotify device of its own, called "SquareDeck", using Spotify's
+  Web Playback SDK, so music comes out of the launcher itself with no Spotify app installed or open.
+  - Choosing a song, album, playlist or artist on the Multimedia page's Spotify tab plays it here (moving playback from
+    another device if one was playing). With nothing playing anywhere, play / pause starts it here too.
+  - "Play on" lists SquareDeck (play here) next to your phone, speakers and the Spotify app.
+  - It keeps playing on other pages and while a game runs. The launcher's background music makes way for it.
+  - Settings > Sound > Multimedia page: Play Spotify inside SquareDeck (on by default) and Stop the built-in Spotify
+    player.
+  - Spotify only allows this for **Premium** accounts. Without Premium, SquareDeck says so, and songs still open in
+    the Spotify app as before.
+  - It needs one more Spotify permission ("streaming"), so you'll be asked to **sign in to Spotify once more**.
+- **Spotify works without setting up an app.** SquareDeck now has its own Spotify app built in, so the Spotify tab
+  goes straight to signing in; there's no Client ID to create or paste. A Client ID you entered before is still used
+  (it takes priority); clear it in Settings > Sound > Multimedia page to switch to SquareDeck's.
+
+## 5.11.0
+
+### Added
+- **Game details for every game,** not only Steam ones: games added by hand and games from Epic, GOG, Xbox, Battle.net,
+  Ubisoft Connect and the EA app now open the details page too (X on the home row, Game details in the options, the
+  library).
+  - When the same game is sold on Steam, its Steam store page fills in the description, developer, publisher, release
+    date, genres, Metacritic score, screenshots, trailer, reviews and news (the page says where it came from). Matches
+    are by name and remembered, so each game is looked up once.
+  - Otherwise the description comes from the game's Wikipedia article, with a button to read all of it.
+  - The banner artwork, logo and release date come from SteamGridDB.
+  - From this PC: where it's installed (with a Files button that opens the folder), the program it starts, its size on
+    disk, play time and when you last played.
+
+### Changed
+- **Quick settings, redesigned.** It's now a panel that slides in from the right, with the time, date and battery at
+  the top; tiles that light up in the highlight color when on (Wi-Fi, Bluetooth, airplane mode, night light, mute,
+  settings); rounder sliders for volume, brightness and TDP; and a Power button. Y on the Wi-Fi or Bluetooth tile opens
+  its full page. It follows the UI style's colors and corners.
+- **Power menu, redesigned.** Big round buttons for lock, sleep, hibernate, restart, shut down and exit,
+  under your name and battery level, with a line saying what the highlighted one does. Restart and shut down ask on
+  the button itself (press once and it turns red, press again to do it); a running game is named as a warning.
+
+## 5.10.0
+
+### Added
+- **Update first, or play anyway?** Starting a Steam game that has an update waiting now asks first, on a card in the
+  game's colors that follows the UI style (square corners in the pixel, blueprint and newsprint styles, the style's
+  font). **Update** opens Steam's Downloads page, where the waiting update starts with one press, and the card follows
+  the download with a progress bar; when it's done, **Play** is ready. **Play anyway** starts the version you have.
+  A download already running shows its progress straight away. Turn it off in Settings > Games > Ask about updates
+  before playing.
+- **Streaming on the Multimedia page.** A **Streaming** button next to Spotify drops down Netflix, YouTube, Hulu, Prime
+  Video and Crunchyroll, with their logos; there's also a Streaming tab with big tiles.
+  - Each opens full screen inside SquareDeck and **stays on its own site**: links to anywhere else are blocked (a note
+    says so) instead of opening. Sign-in pages a service needs (Google for YouTube, Amazon for Prime Video) are allowed.
+    Sign-ins are kept between visits, in their own folder apart from Edge and the built-in browser.
+  - Controller: d-pad moves between titles and buttons, A chooses, X plays / pauses, LB / RB skip 10 seconds,
+    LT / RT scroll, Start goes full screen, the right stick moves a pointer (press it to click), Y opens a menu (home,
+    reload, full screen, another service, close).
+  - B goes back a page, out of full screen, then back to the launcher with the service **kept open and paused**. The
+    Streaming tab and the dropdown show which service is open, with Resume and Close; opening another one asks before
+    closing it. A service is closed when a game starts, to give the game its memory.
+  - YouTube can use its **TV layout**, made for a controller (Y > Use YouTube's TV layout).
+- **Open Terminal** (Settings > System > Tools): Command Prompt or PowerShell inside the launcher. Type with a keyboard
+  or press A for the touch keyboard; Y has handy commands (network addresses, ping, disk space, running programs,
+  battery report). Up / Down go through earlier commands, Start (or Ctrl+C) stops a command, View clears. Programs that
+  draw their own full-screen display don't work in it, and nothing runs as administrator.
+- **Storage speed test** (Settings > System > Maintenance): sequential and random 4 KB read and write speeds for the
+  internal drive, a memory card or a USB drive, with live bars and a plain-words verdict. It uses a temporary file
+  (256 MB, 512 MB or 1 GB) that's deleted afterwards, and reads past Windows' cache so the numbers are the drive's.
+- **Background music makes way for your music.** With Settings > Sound > Pause it while your music plays on (the
+  default), the launcher's background music pauses whenever something else is playing (the Multimedia page, Spotify,
+  any media player) and comes back when it stops.
+
+### Changed
+- **The Music page is now Multimedia.**
+- **SquareDeck rests while another app is in front:** the background music, moving background and animated cover pause,
+  and the highlight stops pulsing, then carry on when you come back. Before, the music kept playing behind other apps.
+- The pop-ups about a game (countdown, "Stop game?", "Closing software") follow the UI style's corners too.
+
+## 5.9.0
+
+### Added
+- **10 more color themes:** Nord, Dracula, Solarized, Catppuccin, Evergreen, Ember, Abyss, Blossom, Synthwave and
+  Royal, each in light and dark. The color theme page shows a small preview of each one.
+- **My themes.** Save the look you've set up (UI style, light / dark, colors, highlight, wallpaper, moving background
+  and blur, tile corners, sounds, menu music, button art and hero backgrounds) under a name, and switch between saved
+  themes later. Each one can be used, updated with the current look, renamed or deleted. Settings > Appearance > My
+  themes, looks and wallpaper.
+- **8 new picture wallpapers:** Alone, Blue Moon, Cafe, Crimson, Gold Dust, Lavender, Next Door and Nostalgia. The
+  wallpaper page shows bigger previews.
+- **Headphone battery.** With Bluetooth headphones connected, their battery level shows beside the Bluetooth icon
+  (orange at 15% or less). It's checked about once a minute and never while a game runs. Turn it off in Settings >
+  Appearance > Top bar > Headphone battery. Only headphones that report their battery to Windows show a level.
+- **IGN news.** The News page has IGN PC and IGN Games sections, from IGN's PC articles and all-games feeds. They're
+  only downloaded and kept in memory while the News page is open; X refreshes the one you're on. The tabs wrap onto a
+  second line if they don't fit, and "Patches and updates" is now just "Patches".
+- **Disk cleanup** (Settings > System > Maintenance): measures and clears temporary files, the Recycle Bin, crash
+  reports, shader caches, thumbnails, the browser's cache, cached cover art and Steam's download caches. Choose which
+  ones; each shows its size first.
+- **Network troubleshooting** (Settings > Network > Troubleshooting): a diagnosis (gateway, internet and name lookup
+  checks), connection details, speed test, flush DNS, release and renew the IP address, re-register DNS, Winsock reset,
+  TCP/IP reset and Windows' network reset. The ones that need administrator rights ask for them.
+- **Ryzen Z1 / Z2 power settings** (Settings > Power and performance):
+  - **Boost window:** short bursts above the limit (slow limit 1.1×, fast 1.25×, within what the chip allows).
+  - **Power profile:** RyzenAdj's power-saving or maximum-performance mode.
+  - **Energy preference (EPP)** and **CPU cores in use**, through Windows' power settings.
+  - The power profile needs the updated TDP helper: an "Update the TDP helper" row appears when it's needed, and
+    keeps your current limit.
+- **48 more profile pictures** (56 in all), in groups: Classics, Creatures, Characters, Games, Hobbies and Nature.
+
+### Changed
+- **Friends, redesigned.** Friends in a game get big cards over that game's art, with an "Installed" badge when you
+  have it here. "Popular with your friends" shows games several friends are in. Online friends are round pictures with
+  a ring in their status color (in game, online, away, busy); offline friends show when they were last on.
+  - Pin friends to the top with Y; filter with X (everyone, in a game, online, pinned).
+  - A friend's options: play or install their game, join their game, message, pin, profile.
+  - Friend pop-ups can be set to everyone, pinned friends only, or off. Buttons for Add friend and Steam chat.
+- **Apps page, redesigned and sharper.** Microsoft Store apps now use their own logo files at the largest size they
+  ship (usually 256 px, without the colored plate), instead of a small icon scaled up. Program icons that only exist
+  small (32–64 px) are drawn smaller instead of blurry, on the home row too. The page shows the apps you used last
+  first, then all of them A–Z under letter headings; LB / RB jump between letters and X finds an app by name.
+- **Settings reorganized.** Sections are grouped more sensibly and nothing appears twice:
+  - Appearance: Style, Colors, Your looks, Artwork, Top bar, Display.
+  - Home screen: home row and buttons first, then animations, screen saver, startup and closing.
+  - Sound: Interface sounds (with the game start chime), Background music, Music page, Sound output.
+  - Controller: Buttons, Vibration and testing, Typing, Summon and quick menu, then the ROG Ally buttons.
+  - Games: Launching, While playing, Library and stores, Achievements, play time and captures, Service keys.
+  - Network: Connections, Troubleshooting, Web browser.
+  - System: This PC, Notifications (moved from Updates and backup), Maintenance, Tools, Starting with Windows (now
+    including Xbox mode home app).
+- **Windows' touch keyboard is now the default for typing,** and the choice sticks: before, the launcher went back to
+  its own keyboard after a restart. Existing setups switch to the Windows keyboard once; pick the SquareDeck keyboard
+  again in Settings > Controller > Typing if you prefer it.
+
+### Fixed
+- **Pixel Dawn:** the game's details no longer run into the buttons at the bottom of the screen. They're placed above
+  them and shrink to fit when there isn't room.
+
 ## 5.8.0
 
 ### Added

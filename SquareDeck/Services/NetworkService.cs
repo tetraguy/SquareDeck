@@ -174,6 +174,38 @@ public static class NetworkService
 
     // ------------------------------------------------------------ Bluetooth
 
+    // Windows' battery level for a Bluetooth device (DEVPKEY_Bluetooth_Battery), reported by headsets over hands-free.
+    private const string BatteryProperty = "{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2";
+    private const string BluetoothClass = "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}";
+
+    /// <summary>
+    /// The battery of connected Bluetooth headphones or a headset, as Windows reports it (Settings > Bluetooth shows the
+    /// same number), or null when none is connected or it doesn't report one. With several, the lowest.
+    /// </summary>
+    public static async Task<(string Name, int Percent)?> GetHeadphoneBatteryAsync()
+    {
+        try
+        {
+            var connected = (await ListBluetoothAsync(paired: true)).Where(d => d.Connected).Select(d => d.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (connected.Count == 0) return null;
+            var nodes = await DeviceInformation.FindAllAsync($"System.Devices.ClassGuid:=\"{BluetoothClass}\"",
+                new[] { BatteryProperty }, DeviceInformationKind.Device);
+            (string, int)? lowest = null;
+            foreach (var node in nodes)
+            {
+                if (!node.Properties.TryGetValue(BatteryProperty, out var value) || value == null) continue;
+                int percent = Convert.ToInt32(value);
+                if (percent < 0 || percent > 100) continue;
+                // The device node is named after the headphones, as in the list of paired devices.
+                string? name = connected.FirstOrDefault(n => node.Name.StartsWith(n, StringComparison.OrdinalIgnoreCase) || n.StartsWith(node.Name, StringComparison.OrdinalIgnoreCase));
+                if (name == null) continue;
+                if (lowest == null || percent < lowest.Value.Item2) lowest = (name, percent);
+            }
+            return lowest;
+        }
+        catch (Exception) { return null; }
+    }
+
     /// <summary>Paired devices, or (paired: false) nearby devices ready to pair. The latter takes several seconds.</summary>
     public static async Task<List<BluetoothItem>> ListBluetoothAsync(bool paired)
     {

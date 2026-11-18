@@ -78,7 +78,7 @@ public partial class MainWindow
     /// </summary>
     private void UpdateHomeRing()
     {
-        bool onGames = _buttonIndex < 0 && _topIndex < 0 && _footerIndex < 0;
+        bool onGames = _buttonIndex < 0 && _topIndex < 0 && _footerIndex < 0 && _actionIndex < 0;
         Resources["RingActiveBrush"] = onGames ? (TryFindResource("AccentBrush") as Brush ?? Brushes.White) : Brushes.Transparent;
     }
 
@@ -102,6 +102,7 @@ public partial class MainWindow
         {
             SetTopIndex(-1);
             SetFooterIndex(-1);
+            if (_actionIndex >= 0) SetActionIndex(-1);
             SetButtonIndex(round);
             return;
         }
@@ -825,13 +826,12 @@ public partial class MainWindow
             await AskAsync(running.Name + " is running", "The launcher restarts to update. The game keeps running, but finish or save first to be safe.",
                 "Update anyway", "Cancel") != 0) return;
 
-        string? file = null;
-        string? problem = null;
-        await RunBusyAsync("Downloading SquareDeck " + release.Tag, async () =>
-        {
-            try { file = await Task.Run(() => Updater.DownloadAsync(release, null, CancellationToken.None)); }
-            catch (Exception ex) { problem = ex.Message; }
-        });
+        // A progress card with the bar, speed and time left; B cancels.
+        var download = new UpdateDownloadScreen(release);
+        Push(download);
+        string? file = await download.Result;
+        string? problem = download.Problem;
+        if (file == null && problem == null) return; // cancelled
 
         if (file != null)
         {
@@ -965,7 +965,26 @@ public partial class MainWindow
 
     private MediaPlayer? _menuMusic;
     private string _menuMusicFile = "", _menuMusicChoice = "";
+
+    // Where the menu music was when a game started (the player is closed to save memory), so it carries on from there.
+    private string _resumeFile = "", _resumeChoice = "";
+    private TimeSpan _resumeAt;
+
+    /// <summary>Notes the track and the spot, then closes the player.</summary>
+    private void SuspendMenuMusic()
+    {
+        if (_menuMusic != null && _menuMusicFile.Length > 0)
+        {
+            _resumeFile = _menuMusicFile;
+            _resumeChoice = _menuMusicChoice;
+            try { _resumeAt = _menuMusic.Position; } catch (Exception) { _resumeAt = TimeSpan.Zero; }
+        }
+        StopMenuMusic();
+    }
     private bool _menuMusicPlaying;
+
+    /// <summary>Something is playing through Windows' media controls (Spotify, the Music page, a browser…).</summary>
+    private bool _mediaPlaying;
 
     /// <summary>
     /// Background music: plays quietly while the launcher is in front and nothing else needs the speakers
@@ -985,14 +1004,19 @@ public partial class MainWindow
         {
             if (_menuMusic == null || choice != _menuMusicChoice)
             {
-                var file = BackgroundMusic.Resolve(choice);
+                // Back from a game: the same track, from where it stopped (shuffle too).
+                bool resuming = _resumeFile.Length > 0 && choice == _resumeChoice && File.Exists(_resumeFile);
+                var file = resuming ? _resumeFile : BackgroundMusic.Resolve(choice);
+                var at = resuming ? _resumeAt : TimeSpan.Zero;
+                _resumeFile = _resumeChoice = "";
                 if (file == null) { StopMenuMusic(); return; }
-                OpenMenuMusic(file);
+                OpenMenuMusic(file, at);
                 _menuMusicChoice = choice;
             }
             _menuMusic!.Volume = Math.Clamp(Settings.MenuMusicVolume, 0, 100) / 100.0;
 
-            bool busy = (_screens.Count > 0 && _screens[^1] is ViewerScreen or BrowserScreen or MediaScreen or MusicSearchScreen) || LocalMusic.IsPlaying;
+            bool busy = (_screens.Count > 0 && _screens[^1] is ViewerScreen or BrowserScreen or MediaScreen or MusicSearchScreen or StreamingScreen) || CloudOpen || LocalMusic.IsPlaying
+                        || (Settings.MenuMusicPausesForMedia && (_mediaPlaying || SpotifyPlayer.IsPlaying));
             bool play = IsActive && !busy && _bootVideo == null && !AllGames.Any(g => g.IsRunning);
             if (play == _menuMusicPlaying) return;
             _menuMusicPlaying = play;
@@ -1004,10 +1028,21 @@ public partial class MainWindow
         }
     }
 
-    private void OpenMenuMusic(string file)
+    private void OpenMenuMusic(string file, TimeSpan startAt = default)
     {
         _menuMusic?.Close();
         var player = new MediaPlayer();
+        if (startAt > TimeSpan.Zero)
+        {
+            // The position can only be set once the file is open.
+            void Seek(object? sender, EventArgs e)
+            {
+                player.MediaOpened -= Seek;
+                try { if (!player.NaturalDuration.HasTimeSpan || startAt < player.NaturalDuration.TimeSpan) player.Position = startAt; }
+                catch (Exception) { }
+            }
+            player.MediaOpened += Seek;
+        }
         player.MediaEnded += (_, _) =>
         {
             if (Settings.MenuMusic == "shuffle" && BackgroundMusic.Resolve("shuffle", _menuMusicFile) is string next && next != _menuMusicFile)
@@ -1040,6 +1075,7 @@ public partial class MainWindow
     /// <summary>Plays the chosen track from the start, so a new choice can be heard straight away.</summary>
     public void RestartMenuMusic()
     {
+        _resumeFile = _resumeChoice = "";
         StopMenuMusic();
         UpdateMenuMusic();
     }
