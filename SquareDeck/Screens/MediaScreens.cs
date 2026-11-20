@@ -1,4 +1,5 @@
 using System.IO;
+using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -78,7 +79,7 @@ public sealed class CapturesScreen : GridScreen
     public static bool IsImage(string path) =>
         ImageTypes.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
-    public CapturesScreen() : base("Captures", "{Select}  Open        {Details}  Delete        {Back}  Back")
+    public CapturesScreen() : base("Captures", "{Select}  Open        {Details}  Delete / album options        {Back}  Back")
     {
         _note = Ui.Text("", 16, "SubtleBrush");
         _note.TextWrapping = TextWrapping.Wrap;
@@ -263,7 +264,7 @@ public sealed class CapturesScreen : GridScreen
                 _album = name;
                 _focusPath = null;
                 Reload();
-            }, null, panel);
+            }, "album:" + name, panel);
             tile.GotKeyboardFocus += (_, _) => _focusPath = "album:" + name;
             if (_focusPath == "album:" + name) focus = tile;
             if (Host.Settings.CaptureAlbumIcons) AddAlbumIcon(tile, name);
@@ -341,6 +342,109 @@ public sealed class CapturesScreen : GridScreen
         var open = new Button { Style = Ui.StyleOf("PillButton"), Content = IconText("\uE8B7", "Open folder", 16, null), Margin = new Thickness(10, 0, 0, 0) };
         open.Click += (_, _) => ProcessUtil.Open(Directory.Exists(Folder) ? Folder : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos));
         _filters.Children.Add(open);
+
+        // Inside an album: export it or delete it.
+        if (_album is string album)
+        {
+            var zip = new Button { Style = Ui.StyleOf("PillButton"), Content = IconText("\uE7B8", "Export as ZIP", 16, null), Margin = new Thickness(10, 0, 0, 0) };
+            zip.Click += (_, _) => _ = ExportAlbumAsync(album);
+            _filters.Children.Add(zip);
+            var delete = new Button { Style = Ui.StyleOf("PillButton"), Content = IconText("\uE74D", "Delete album", 16, null), Margin = new Thickness(10, 0, 0, 0) };
+            delete.Click += (_, _) => _ = DeleteAlbumAsync(album);
+            _filters.Children.Add(delete);
+        }
+    }
+
+    /// <summary>Every capture in an album: all of them, not only the newest few hundred the page shows.</summary>
+    private static List<FileInfo> AlbumFiles(string album)
+    {
+        try
+        {
+            if (!Directory.Exists(Folder)) return new();
+            return new DirectoryInfo(Folder).EnumerateFiles()
+                .Where(f => (ImageTypes.Contains(f.Extension, StringComparer.OrdinalIgnoreCase) || IsVideo(f.Name)) &&
+                            string.Equals(GameOf(f.Name), album, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(f => f.LastWriteTime).ToList();
+        }
+        catch (Exception) { return new(); }
+    }
+
+    /// <summary>X on an album: export it as a ZIP, or delete it.</summary>
+    private async Task AlbumMenuAsync(string album)
+    {
+        int count = AlbumFiles(album).Count;
+        int choice = await Host.AskAsync(album, $"{count} {(count == 1 ? "capture" : "captures")}", "Export as ZIP", "Delete album", "Cancel");
+        if (choice == 0) await ExportAlbumAsync(album);
+        else if (choice == 1) await DeleteAlbumAsync(album);
+    }
+
+    /// <summary>
+    /// Puts every capture of an album in one ZIP in the Downloads folder ("Album name 2026-11-20.zip"). Pictures and
+    /// videos are already compressed, so they're stored as they are: quick, and the ZIP is the size of the files.
+    /// </summary>
+    private async Task ExportAlbumAsync(string album)
+    {
+        var files = AlbumFiles(album);
+        if (files.Count == 0) { await Host.AskAsync("Nothing to export", "This album has no captures left.", "OK"); return; }
+        string downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        string safe = string.Concat(album.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim();
+        string target = Path.Combine(downloads, $"{(safe.Length > 0 ? safe : "Album")} {DateTime.Now:yyyy-MM-dd}.zip");
+        for (int n = 2; File.Exists(target); n++)
+            target = Path.Combine(downloads, $"{(safe.Length > 0 ? safe : "Album")} {DateTime.Now:yyyy-MM-dd} ({n}).zip");
+        long total = files.Sum(f => f.Length);
+        Host.ShowToast("Captures", "Exporting " + album, $"{files.Count} captures, {SystemStats.Bytes(total)}", "", "info", remember: false);
+        try
+        {
+            await Task.Run(() =>
+            {
+                Directory.CreateDirectory(downloads);
+                string temp = target + ".part";
+                using (var zip = System.IO.Compression.ZipFile.Open(temp, System.IO.Compression.ZipArchiveMode.Create))
+                {
+                    var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var f in files)
+                    {
+                        string name = f.Name;
+                        for (int n = 2; !used.Add(name); n++) name = Path.GetFileNameWithoutExtension(f.Name) + $" ({n})" + f.Extension;
+                        var entry = zip.CreateEntryFromFile(f.FullName, name, System.IO.Compression.CompressionLevel.NoCompression);
+                        entry.LastWriteTime = f.LastWriteTime;
+                    }
+                }
+                File.Move(temp, target);
+            });
+        }
+        catch (Exception ex)
+        {
+            try { if (File.Exists(target + ".part")) File.Delete(target + ".part"); } catch (Exception) { }
+            await Host.AskAsync("Couldn't export the album", ex.Message, "OK");
+            return;
+        }
+        int choice = await Host.AskAsync("Album exported", $"{Path.GetFileName(target)}\nSaved in Downloads ({SystemStats.Bytes(new FileInfo(target).Length)}).", "Show it", "OK");
+        if (choice == 0) Host.Push(new ExplorerScreen(downloads));
+    }
+
+    /// <summary>Moves every capture of an album to the Recycle Bin (after asking).</summary>
+    private async Task DeleteAlbumAsync(string album)
+    {
+        var files = AlbumFiles(album);
+        if (files.Count == 0) return;
+        int choice = await Host.AskAsync($"Delete the {album} album?",
+            $"All {files.Count} {(files.Count == 1 ? "capture" : "captures")} in it will be moved to the Recycle Bin.", "Delete album", "Cancel");
+        if (choice != 0) return;
+        int failed = await Task.Run(() =>
+        {
+            int errors = 0;
+            foreach (var f in files)
+            {
+                try { FileSystem.DeleteFile(f.FullName, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin); }
+                catch (Exception) { errors++; }
+            }
+            return errors;
+        });
+        if (failed > 0) _ = Host.AskAsync("Some captures weren't deleted", $"{failed} of {files.Count} couldn't be moved to the Recycle Bin (in use, or no permission).", "OK");
+        _album = null;
+        _focusPath = null;
+        Reload();
     }
 
     private CaptureViewerScreen? _viewer;
@@ -375,7 +479,8 @@ public sealed class CapturesScreen : GridScreen
             return true;
         }
         if (action != NavAction.X) return false;
-        if (Keyboard.FocusedElement is Button { Tag: string path }) _ = DeleteAsync(path);
+        if (Keyboard.FocusedElement is Button { Tag: string album } && album.StartsWith("album:")) _ = AlbumMenuAsync(album[6..]);
+        else if (Keyboard.FocusedElement is Button { Tag: string path }) _ = DeleteAsync(path);
         return true;
     }
 

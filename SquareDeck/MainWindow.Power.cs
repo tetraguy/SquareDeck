@@ -27,6 +27,7 @@ public partial class MainWindow
         TdpControl.Init(Settings);
         AllyControl.Init(Settings);
         _ = HandheldVendors.ApplyAllAsync(Settings); // Legion Go / MSI Claw: mode, fan boost, charge limit
+        Brightness.Prefetch(); // so the quick settings show the brightness slider the moment they open
         if (Settings.ExperimentAdrenalineHook && Settings.AdrenalineAutoHook)
         {
             // Adrenaline Hook: new Xbox games go into AMD Software's list, a minute after starting (it scans the Store apps).

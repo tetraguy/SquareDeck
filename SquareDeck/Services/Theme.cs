@@ -263,6 +263,9 @@ public static class Theme
     /// <summary>The highlighted game's artwork, for pages in styles that show it behind them.</summary>
     public static ImageSource? CurrentHero { get; set; }
 
+    /// <summary>The same artwork already blurred for behind pages (null in Performance mode or before it's ready).</summary>
+    public static ImageSource? CurrentHeroSoft { get; set; }
+
     public static void Apply(Settings settings)
     {
         UiStyles.Select(settings.UiStyle);

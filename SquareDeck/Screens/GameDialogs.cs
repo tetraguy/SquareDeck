@@ -394,6 +394,7 @@ public sealed class GameUpdateScreen : Screen
     private readonly GameCard.Palette _p;
     private readonly TextBlock _eyebrow, _title, _body, _percent;
     private readonly Border _bar, _fill;
+    private readonly ProgressFill _barFill;
     private readonly Grid _progress;
     private readonly StackPanel _buttons;
     private Button _first = null!;
@@ -449,6 +450,7 @@ public sealed class GameUpdateScreen : Screen
             Effect = Perf.Active ? null : new DropShadowEffect { Color = _p.Accent, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.8 }
         };
         _bar.Child = _fill;
+        _barFill = new ProgressFill(_bar, _fill);
         _progress.Children.Add(_bar);
         _percent = GameCard.Text("", 16, bold: true);
         _percent.Margin = new Thickness(14, 0, 0, 0);
@@ -517,10 +519,7 @@ public sealed class GameUpdateScreen : Screen
     {
         percent = Math.Clamp(percent, 0, 100);
         _percent.Text = percent + "%";
-        _bar.UpdateLayout();
-        double to = Math.Max(0, (_bar.ActualWidth > 0 ? _bar.ActualWidth : 480) * percent / 100.0);
-        if (Theme.ReduceMotion) _fill.Width = to;
-        else _fill.BeginAnimation(WidthProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(400)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        _barFill.Set(percent / 100.0, 400);
     }
 
     private void SetButtons(params (string Label, string Glyph, bool Primary, Action Click)[] buttons)

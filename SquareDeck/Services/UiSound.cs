@@ -1,3 +1,4 @@
+using System.Threading;
 using System.IO;
 using System.Media;
 
@@ -233,8 +234,33 @@ public static class UiSound
     private static void Play(Clip clip, bool force = false)
     {
         if (!Enabled && !force) return;
-        // One at a time: Windows' simple sound call isn't safe to enter from two places at once.
-        lock (Gate) clip.Play();
+        // Starting a sound can hold the caller for a moment (Windows stops the last one first), which was felt on
+        // every move of the highlight. Sounds start on a thread of their own; a newer one replaces any still waiting.
+        lock (Gate)
+        {
+            _pending = clip;
+            if (_player == null)
+            {
+                _player = new Thread(PlayLoop) { IsBackground = true, Name = "SquareDeck sounds", Priority = ThreadPriority.AboveNormal };
+                _player.Start();
+            }
+        }
+        Wake.Set();
+    }
+
+    private static Clip? _pending;
+    private static Thread? _player;
+    private static readonly AutoResetEvent Wake = new(false);
+
+    private static void PlayLoop()
+    {
+        while (true)
+        {
+            Wake.WaitOne();
+            Clip? next;
+            lock (Gate) { next = _pending; _pending = null; }
+            try { next?.Play(); } catch (Exception) { }
+        }
     }
 
     /// <summary>Builds a 16-bit mono WAV: notes played one after another, each gliding in pitch and fading out.</summary>

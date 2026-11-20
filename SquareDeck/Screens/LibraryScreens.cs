@@ -518,6 +518,8 @@ public sealed class DetailsScreen : Screen
     private readonly TextBlock _actionLabel = Ui.Text("", 14, "SubtleBrush");
     private readonly WrapPanel _stats = new() { Margin = new Thickness(0, 26, 0, 0) };
     private readonly StackPanel _notes = new();
+    private readonly StackPanel _hltb = new();
+    private HltbTimes? _hltbTimes;
     private readonly TextBlock _description = Ui.Text("Loading details…", 18, "FgBrush");
     private readonly StackPanel _facts = new();
     private readonly StackPanel _sections = new();
@@ -576,6 +578,7 @@ public sealed class DetailsScreen : Screen
         _page.Children.Add(_actions);
         _page.Children.Add(_actionLabel);
         _page.Children.Add(_stats);
+        _page.Children.Add(_hltb);
         _page.Children.Add(_notes);
         AddScreenshots();
 
@@ -762,6 +765,7 @@ public sealed class DetailsScreen : Screen
         BuildStats();
         BuildNotes();
         BuildFacts();
+        _ = LoadHltbAsync();
         _ = TintFromCoverAsync();
         _ = LoadHeroAsync();
         _ = LoadAsync();
@@ -773,6 +777,7 @@ public sealed class DetailsScreen : Screen
         BuildBadges();
         BuildStats();
         BuildNotes(); // rating, status or notes may have just changed
+        BuildHltb();  // play time may have grown
     }
 
     public override void OnClosed() => _cts.Cancel();
@@ -853,7 +858,7 @@ public sealed class DetailsScreen : Screen
         if (!_game.IsSteam && InstallFolder() is string dir)
             Pill("\uE838", "Files", "Open the install folder", () => Host.Push(new ExplorerScreen(dir)));
         Pill("", "Time to beat", "How long to beat", () =>
-            ProcessUtil.Open("https://howlongtobeat.com/?q=" + Uri.EscapeDataString(_game.OriginalName)));
+            ProcessUtil.Open(_hltbTimes?.PageUrl ?? "https://howlongtobeat.com/?q=" + Uri.EscapeDataString(_game.OriginalName.Length > 0 ? _game.OriginalName : _game.Name)));
         if (_game.IsGame && !_game.OnWishlist) Pill("", "More", "More options", () => _ = Host.OpenOptionsAsync(_game));
 
         var target = _actions.Children.OfType<Button>().FirstOrDefault(b => _focusId != null && b.DataContext as string == _focusId)
@@ -964,6 +969,90 @@ public sealed class DetailsScreen : Screen
         if (size > 0) Stat("\uEDA2", (_folderSize < 0 ? "≥ " : "") + (size >= 1L << 30 ? $"{size / 1024d / 1024d / 1024d:0.0} GB" : $"{size / 1024d / 1024d:0} MB"), "Size on disk");
         if (_game.HasUpdate) Stat("", "Update", _game.UpdateText);
         _stats.Visibility = _stats.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// HowLongToBeat's times, shown at once from what's kept and looked up (then kept) when there's nothing recent.
+    /// Nothing is shown when the game isn't on the site or the setting is off.
+    /// </summary>
+    private async Task LoadHltbAsync()
+    {
+        if (!Host.Settings.ShowHowLongToBeat || !_game.IsGame) return;
+        var (kept, known, _) = HowLongToBeat.Cached(_game);
+        _hltbTimes = kept;
+        BuildHltb(loading: !known);
+        if (!HowLongToBeat.IsStale(_game)) return;
+        try
+        {
+            var ct = _cts.Token;
+            var times = await Task.Run(() => HowLongToBeat.GetAsync(_game, ct), ct);
+            if (ct.IsCancellationRequested) return;
+            _hltbTimes = times;
+        }
+        catch (Exception) { } // offline or the site changed: keep what was there (if anything)
+        BuildHltb();
+        if (Host.IsTop(this)) BuildActions();
+    }
+
+    private void BuildHltb(bool loading = false)
+    {
+        _hltb.Children.Clear();
+        if (!Host.Settings.ShowHowLongToBeat || !_game.IsGame) return;
+        if (_hltbTimes is not { } t)
+        {
+            if (!loading) return;
+            _hltb.Children.Add(SectionTitle("How long to beat"));
+            _hltb.Children.Add(Line("Looking it up on HowLongToBeat…", 15));
+            return;
+        }
+
+        var stack = new StackPanel();
+        var row = new UniformGrid { Rows = 1 };
+        double longest = new[] { t.Main, t.Extra, t.Complete }.Max();
+        void Time(string label, double hours, string glyph)
+        {
+            if (hours <= 0) return;
+            var cell = new StackPanel { Margin = new Thickness(0, 0, 18, 0) };
+            var head = GlyphLabel(glyph, label.ToUpperInvariant(), 13);
+            head.Opacity = 0.85;
+            cell.Children.Add(head);
+            var value = Line(HowLongToBeat.Format(hours), 26, "FgBrush", bold: true);
+            value.Margin = new Thickness(0, 6, 0, 8);
+            cell.Children.Add(value);
+            cell.Children.Add(Bar(longest > 0 ? hours / longest : 0, 5));
+            row.Children.Add(cell);
+        }
+        Time("Main story", t.Main, "\uE768");
+        Time("Main + extras", t.Extra, "\uE710");
+        Time("Completionist", t.Complete, "\uE734");
+        if (row.Children.Count == 0) Time("All styles", t.AllStyles, "\uE916");
+        stack.Children.Add(row);
+
+        // Your own time beside it.
+        double minutes = _game.IsSteam ? SteamLibrary.GetPlaytimeMinutes(_game.AppId) ?? 0 : Host.Playtime.TotalSeconds(_game.Key) / 60;
+        double target = t.Main > 0 ? t.Main : t.AllStyles;
+        if (minutes >= 1 && target > 0)
+        {
+            double played = minutes / 60;
+            double share = played / target;
+            string mine = played < 1 ? $"{minutes:0} min" : $"{played:0.#} h";
+            string text = share >= 1
+                ? $"You've played {mine}: longer than the main story takes most people" + (t.Complete > 0 && played < t.Complete ? $", {100 * played / t.Complete:0}% of the way to completionist." : ".")
+                : $"You've played {mine}: about {100 * share:0}% of the main story.";
+            var you = Line(text, 15, "FgBrush", wrap: true);
+            you.Margin = new Thickness(0, 18, 0, 8);
+            stack.Children.Add(you);
+            stack.Children.Add(Bar(Math.Min(1, share), 8));
+        }
+        var (_, _, checkedAt) = HowLongToBeat.Cached(_game);
+        var from = Line("From HowLongToBeat.com" + (t.Name != _game.Name ? "  ·  " + t.Name : "") +
+                        (checkedAt.Year > 2000 ? "  ·  checked " + Ui.Ago(checkedAt.ToLocalTime()) : "") + "  ·  press to open its page", 13);
+        from.Margin = new Thickness(0, 14, 0, 0);
+        stack.Children.Add(from);
+
+        _hltb.Children.Add(SectionTitle("How long to beat"));
+        var card = Card(stack, new Thickness(22, 18, 22, 18));
+        _hltb.Children.Add(CardButton(card, "hltb", () => ProcessUtil.Open(t.PageUrl)));
     }
 
     private void BuildNotes()
@@ -2729,13 +2818,14 @@ public sealed class LibraryScreen : Screen
             {
                 _lastFocus = g.Key; title.Active = true; ShowSpotlight(g);
                 Panel.SetZIndex(tile, 1);
-                if (Motion.HighlightGrow > 1 || Motion.SelectGrow > 1.001) Motion.GrowTile(box, true);
+                // The whole tile moves, so the highlight ring around it grows with the cover (it stayed put before).
+                if (Motion.HighlightGrow > 1 || Motion.SelectGrow > 1.001) Motion.GrowTile(tile, true);
             };
             tile.LostKeyboardFocus += (_, _) =>
             {
                 title.Active = false;
                 Panel.SetZIndex(tile, 0);
-                if (Motion.HighlightGrow > 1 || Motion.SelectGrow > 1.001) Motion.GrowTile(box, false);
+                if (Motion.HighlightGrow > 1 || Motion.SelectGrow > 1.001) Motion.GrowTile(tile, false);
             };
             tile.MouseEnter += (_, _) => title.Active = true;
             tile.MouseLeave += (_, _) => title.Active = tile.IsKeyboardFocused;

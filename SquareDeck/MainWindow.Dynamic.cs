@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using SquareDeck.Services;
@@ -78,13 +79,8 @@ public partial class MainWindow
                 Stretch = Stretch.UniformToFill, IsHitTestVisible = false
             };
             RenderOptions.SetBitmapScalingMode(_dynamicVideo, BitmapScalingMode.LowQuality);
-            // Loop: back to the start when it ends.
-            _dynamicVideo.MediaEnded += (_, _) =>
-            {
-                if (_dynamicVideo == null) return;
-                _dynamicVideo.Position = TimeSpan.Zero;
-                if (!_dynamicPaused) _dynamicVideo.Play();
-            };
+            // Looping is done by a media clock that repeats forever (see below). Jumping back to the start by hand when
+            // the video ended left the picture black for a moment on some PCs, every time it came round.
             _dynamicVideo.MediaFailed += (_, _) =>
             {
                 StopDynamicBackground();
@@ -105,9 +101,11 @@ public partial class MainWindow
         if (!string.Equals(_dynamicPath, path, StringComparison.OrdinalIgnoreCase))
         {
             _dynamicPath = path;
-            _dynamicVideo.Source = new Uri(path);
+            _dynamicClock?.Controller?.Stop();
+            var timeline = new MediaTimeline(new Uri(path)) { RepeatBehavior = RepeatBehavior.Forever };
+            _dynamicClock = timeline.CreateClock();
+            _dynamicVideo.Clock = _dynamicClock; // starts playing
             _dynamicPaused = false;
-            _dynamicVideo.Play();
             CheckDynamicStartedSoon();
         }
 
@@ -135,8 +133,18 @@ public partial class MainWindow
         }
         DynamicLayer.Visibility = Visibility.Visible;
 
-        // Pages see the same moving picture through a brush that copies this layer as it plays.
-        var brush = new VisualBrush(DynamicLayer) { Stretch = Stretch.UniformToFill };
+        // Pages see the same moving picture through a brush that copies this layer as it plays. The brush is fixed to
+        // the layer's own area: left to measure what's inside, it re-measured whenever the video had no picture for a
+        // moment (opening, looping, a frame dropped) and the pages' copy flashed black or jumped.
+        var brush = new VisualBrush(DynamicLayer)
+        {
+            Stretch = Stretch.Fill, ViewboxUnits = BrushMappingMode.Absolute, AlignmentX = AlignmentX.Center, AlignmentY = AlignmentY.Center
+        };
+        void FitBrush() => brush.Viewbox = new Rect(0, 0, Math.Max(1, DynamicLayer.ActualWidth), Math.Max(1, DynamicLayer.ActualHeight));
+        FitBrush();
+        if (_dynamicBrushFit != null) DynamicLayer.SizeChanged -= _dynamicBrushFit;
+        _dynamicBrushFit = (_, _) => FitBrush();
+        DynamicLayer.SizeChanged += _dynamicBrushFit;
         Theme.CurrentWallpaper = brush;
         WallpaperLayer.Visibility = Visibility.Collapsed;
         WallpaperScrim.Visibility = Visibility.Visible;
@@ -144,6 +152,8 @@ public partial class MainWindow
         UpdateDynamicPlayback();
     }
 
+    private MediaClock? _dynamicClock;
+    private SizeChangedEventHandler? _dynamicBrushFit;
     private int _dynamicRetries;
     private bool _dynamicRestorePending;
     private DispatcherTimer? _dynamicRetryTimer;
@@ -201,7 +211,9 @@ public partial class MainWindow
     {
         if (_dynamicVideo != null)
         {
-            _dynamicVideo.Stop();
+            _dynamicClock?.Controller?.Stop();
+            _dynamicVideo.Clock = null;
+            _dynamicClock = null;
             _dynamicVideo.Close();
             DynamicLayer.Children.Remove(_dynamicVideo);
             _dynamicVideo = null;
@@ -227,8 +239,9 @@ public partial class MainWindow
         bool pause = !IsActive || WindowState == WindowState.Minimized || AllGames.Any(g => g.IsRunning) || CloudOpen;
         if (pause == _dynamicPaused) return;
         _dynamicPaused = pause;
-        if (pause) _dynamicVideo.Pause();
-        else _dynamicVideo.Play();
+        // The clock plays the video, so it's the clock that's paused and resumed.
+        if (pause) _dynamicClock?.Controller?.Pause();
+        else _dynamicClock?.Controller?.Resume();
     }
 
     private void InitDynamicBackground()

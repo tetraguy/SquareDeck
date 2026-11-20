@@ -50,7 +50,7 @@ public static class DeviceHelper
         }
     }
 
-    private static void Forget() => _stateAt = DateTime.MinValue;
+    private static void Forget() { _stateAt = DateTime.MinValue; TdpControl.RecheckMethods(); }
 
     /// <summary>The helper is set up (and is this version).</summary>
     public static bool Installed => State.Installed;

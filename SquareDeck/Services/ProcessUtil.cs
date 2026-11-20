@@ -211,8 +211,18 @@ public static class ProcessUtil
         return output;
     }
 
-    /// <summary>Opens a URL, protocol link or file with its default handler.</summary>
+    /// <summary>
+    /// Opens a URL, protocol link or file with its default handler. Web links go to SquareDeck's own browser when
+    /// Settings allows (see <see cref="WebLinks"/>).
+    /// </summary>
     public static bool Open(string target, string? arguments = null)
+    {
+        if (arguments == null && WebLinks.TryInside(target)) return true;
+        return OpenOutside(target, arguments);
+    }
+
+    /// <summary>Opens with Windows' default handler, whatever the browser setting (Windows' own browser for links).</summary>
+    public static bool OpenOutside(string target, string? arguments = null)
     {
         try
         {

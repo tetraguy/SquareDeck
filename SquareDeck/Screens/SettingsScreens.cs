@@ -33,24 +33,17 @@ public sealed class SettingsScreen : ListScreen
     };
 
     /// <summary>
-    /// The sections shown: on a recognized handheld, "&lt;model&gt; Specific Settings" sits after Power and performance.
+    /// The sections shown. On a recognized handheld, Experimental also holds "&lt;model&gt; Specific Settings".
     /// </summary>
     private static (string Id, string Name, string Glyph, string About)[] VisibleCategories
     {
         get
         {
             if (!Handheld.IsHandheld) return Categories;
-            var list = Categories.ToList();
-            int at = list.FindIndex(c => c.Id == "power") + 1;
-            list.Insert(at, ("handheld", Handheld.DisplayName + " Specific Settings", Ui.HandheldGlyph,
-                "Settings only this device has: " + (Handheld.Vendor switch
-                {
-                    HandheldVendor.Asus => "lights, ASUS modes, fans, battery care, buttons",
-                    HandheldVendor.Lenovo => "Legion modes, fan boost, charge limit, power",
-                    HandheldVendor.Msi => "user scenarios, fan boost, charge limit, power",
-                    _ => "its power range and TDP"
-                }) + ", and the supported handhelds"));
-            return list.ToArray();
+            // The handheld's own settings live in Experimental for now.
+            return Categories.Select(c => c.Id == "experimental"
+                ? (c.Id, c.Name, c.Glyph, Handheld.DisplayName + " Specific Settings, Adrenaline Hook and other features still being tried out")
+                : c).ToArray();
         }
     }
 
@@ -82,7 +75,9 @@ public sealed class SettingsScreen : ListScreen
     private string _category;
     private readonly StackPanel _nav = new();
     private Border _navPanel = null!;
-    private readonly System.Windows.Threading.DispatcherTimer _switchSoon = new() { Interval = TimeSpan.FromMilliseconds(160) };
+    // How long the highlight rests on a category before its settings are shown (short, but moving through several
+    // categories quickly doesn't build each one on the way).
+    private readonly System.Windows.Threading.DispatcherTimer _switchSoon = new() { Interval = TimeSpan.FromMilliseconds(110) };
     private string? _pendingCategory;
 
     /// <summary>Every settings page and row, for Search: its name, subtitle, page, and how to open it there.</summary>
@@ -307,6 +302,7 @@ public sealed class SettingsScreen : ListScreen
     protected override void Build()
     {
         var s = Host.Settings;
+        if (_category == "handheld") _category = "experimental"; // the handheld's settings are in Experimental now
         var cat = VisibleCategories.FirstOrDefault(c => c.Id == _category);
         if (cat.Id == null) { _category = "overview"; cat = Categories[0]; }
 
@@ -755,6 +751,8 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Selected game", TileStyles.FirstOrDefault(t => t.Id == s.TileHighlight).Name ?? "Pulsing ring", "\uE7FC",
             click: () => _ = ChooseAsync(TileStyles, "Selected game", "How the highlighted game or app on the home row stands out. Move along the row to see it.", v => s.TileHighlight = v),
             subtitle: "Ten highlight animations: pulse, grow, bounce, lift, wobble, breathe, tilt, glow, shake…");
+        AddRow("Punch-in when opening", OnOff(s.PunchIn), "\uE8E1", click: () => Toggle(() => s.PunchIn = !s.PunchIn),
+            subtitle: "A game or app is pressed in and punches forward as you open it");
         AddNote("Startup and closing animations are further down. Reduce motion (Accessibility) turns all of these off.");
 
         AddHeader("Screen saver");
@@ -932,8 +930,8 @@ public sealed class SettingsScreen : ListScreen
         if (Handheld.IsHandheld)
         {
             AddHeader("Handheld buttons");
-            AddRow(Handheld.DisplayName + " Specific Settings", null, Ui.HandheldGlyph, click: () => Show("handheld", focusContent: true),
-                subtitle: "The device's own buttons, lights and controls moved here");
+            AddRow(Handheld.DisplayName + " Specific Settings", null, Ui.HandheldGlyph, click: () => Show("experimental", focusContent: true),
+                subtitle: "The device's own buttons, lights and controls, in Settings > Experimental");
         }
     }
 
@@ -1250,7 +1248,7 @@ public sealed class SettingsScreen : ListScreen
         var device = Handheld.Current;
         string name = Handheld.DisplayName;
 
-        AddHeader("Your " + name);
+        AddHeader(name + " Specific Settings");
         var facts = new List<string>();
         if (Handheld.Brand.Length > 0) facts.Add(Handheld.Brand);
         if (TdpControl.CpuName.Length > 0) facts.Add(TdpControl.CpuName);
@@ -1462,6 +1460,12 @@ public sealed class SettingsScreen : ListScreen
             subtitle: "When a Steam game has an update waiting: update it first, or play anyway");
         AddRow("Splash screen while a game starts", OnOff(s.LaunchSplash), "\uE7F4", click: () => Toggle(() => s.LaunchSplash = !s.LaunchSplash),
             subtitle: "The game's cover fills the screen until the game is running");
+        if (s.LaunchSplash)
+        {
+            string launchName = s.LaunchAnimation == "random" ? "Surprise me" : LaunchSplashScreen.Styles.FirstOrDefault(x => x.Id == s.LaunchAnimation).Name ?? "Classic";
+            AddRow("Splash animation", launchName, "\uE768", click: ChooseLaunchAnimation,
+                subtitle: "Six to choose from: classic, spotlight, flip, ripples, loading ring and cinematic");
+        }
         AddRow("Start Steam games directly", OnOff(s.SteamDirectLaunch), "\uE756", click: () => Toggle(() => s.SteamDirectLaunch = !s.SteamDirectLaunch),
             subtitle: "From the game's own program instead of a Steam link, so Steam's launch pop-up stays away");
         AddNote("With this on, SquareDeck starts the game's .exe itself and tells it which Steam game it is. Steam must already be " +
@@ -1531,6 +1535,15 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Release-day alerts", OnOff(s.ReleaseAlerts), "\uE787", click: () => Toggle(() => s.ReleaseAlerts = !s.ReleaseAlerts),
             subtitle: "A notification the day a wishlist game comes out");
         AddRow("Open the wishlist and release calendar", glyph: "\uE8A7", click: () => Host.Push(new WishlistScreen()));
+        AddRow("How long to beat on game pages", OnOff(s.ShowHowLongToBeat), "\uE916",
+            click: () => Toggle(() => s.ShowHowLongToBeat = !s.ShowHowLongToBeat),
+            subtitle: "Main story, main + extras and completionist times from HowLongToBeat.com, next to your own play time. Each game is looked up once and kept");
+        if (s.ShowHowLongToBeat)
+            AddRow("Forget the kept HowLongToBeat times", glyph: "\uE74D", click: () =>
+            {
+                HowLongToBeat.Clear();
+                Host.ShowToast("HowLongToBeat", "Times forgotten", "Each game is looked up again when its page opens.", "", "info");
+            });
         AddRow("Player stats on game pages", OnOff(s.ShowPlayerStats), "\uE9D9",
             click: () => Toggle(() => s.ShowPlayerStats = !s.ShowPlayerStats),
             subtitle: "Players now and peaks, owner estimate, store data, monthly players and review history, with SteamDB's full page a press away");
@@ -1601,6 +1614,10 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Open the browser", glyph: "", click: () => Host.Push(BrowserScreen.Open(Host)));
         AddRow("Show its button on the home screen", OnOff(s.ShowBrowserButton), "", click: () =>
             Toggle(() => s.ShowBrowserButton = !s.ShowBrowserButton));
+        AddRow("Open web links in SquareDeck", OnOff(s.OpenLinksInSquareDeck), "\uE71B", click: () =>
+            Toggle(() => s.OpenLinksInSquareDeck = !s.OpenLinksInSquareDeck),
+            subtitle: s.OpenLinksInSquareDeck ? "Links from news, game pages, updates and settings open here, not in Windows' browser"
+                : "Links open in Windows' default browser");
         AddRow("Keep the browser open when you leave it", OnOff(s.BrowserKeepOpen), "\uE8A7", click: () =>
         {
             Toggle(() => s.BrowserKeepOpen = !s.BrowserKeepOpen);
@@ -1744,6 +1761,9 @@ public sealed class SettingsScreen : ListScreen
         if (amd && s.ExperimentAdrenalineHook)
             AddRow("Open Adrenaline Hook", null, "\uE768", click: () => Host.Push(new AdrenalineHookScreen()),
                 subtitle: "Hook games, AMD per-game settings, the Radeon overlays, backups");
+
+        // The handheld's own settings (moved here from their own section), with the supported devices at the bottom.
+        if (Handheld.IsHandheld) BuildHandheld(s);
     }
 
     private void BuildData(Settings s)
@@ -1860,6 +1880,18 @@ public sealed class SettingsScreen : ListScreen
     }
 
     /// <summary>Pick one of the boost animations (or a different one each time); each plays as it's chosen.</summary>
+    private async void ChooseLaunchAnimation()
+    {
+        var s = Host.Settings;
+        var names = LaunchSplashScreen.Styles.Select(x => x.Name + "  —  " + x.About).Append("Surprise me  —  a different one each time").ToArray();
+        int choice = await Host.AskAsync("Splash animation", "What plays while a game starts. Pick one to see it.", names);
+        if (choice < 0) return;
+        s.LaunchAnimation = choice < LaunchSplashScreen.Styles.Length ? LaunchSplashScreen.Styles[choice].Id : "random";
+        s.Save();
+        Rebuild();
+        Host.Push(LaunchSplashScreen.Preview(s.LaunchAnimation));
+    }
+
     private async void ChooseBoostAnimation()
     {
         var s = Host.Settings;
@@ -2616,6 +2648,15 @@ public sealed class QuickSettingsScreen : Screen
         _brightnessRow = Slim(Ui.SliderRow("Brightness", "", out _brightness, out _brightnessText));
         _brightnessRow.Visibility = Visibility.Collapsed; // shown once we know the screen supports it
         sliders.Children.Add(_brightnessRow);
+        // The last known level shows at once; LoadAsync corrects it once the current level is read.
+        if (Brightness.Last is int lastLevel && Brightness.Supported != false)
+        {
+            _syncing = true;
+            _brightness.Value = lastLevel;
+            _syncing = false;
+            _brightnessRow.Visibility = Visibility.Visible;
+            _brightnessReady = true;
+        }
 
         // TDP, when TDP control is set up and on: for now only (until the game closes, or the launcher restarts).
         if (TdpControl.Ready && TdpControl.Chip is { } chip)
@@ -2757,7 +2798,7 @@ public sealed class QuickSettingsScreen : Screen
 
     private async Task LoadAsync()
     {
-        await ShowRadiosAsync();
+        // Brightness first: the slider is what you see; the radios take longer to read.
         var brightness = await Brightness.GetAsync();
         if (brightness != null)
         {
@@ -2767,6 +2808,12 @@ public sealed class QuickSettingsScreen : Screen
             _brightnessRow.Visibility = Visibility.Visible;
             _brightnessReady = true;
         }
+        else
+        {
+            _brightnessRow.Visibility = Visibility.Collapsed;
+            _brightnessReady = false;
+        }
+        await ShowRadiosAsync();
     }
 
     private async Task ShowRadiosAsync()

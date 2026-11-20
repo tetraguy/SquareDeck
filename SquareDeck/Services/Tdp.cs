@@ -72,6 +72,25 @@ public static class TdpControl
     {
         get
         {
+            // Asked many times a second by the stats and the quick menu: worked out at most every few seconds
+            // (it reads the registry and looks for files).
+            var now = DateTime.UtcNow;
+            if (_methods != null && now - _methodsAt < TimeSpan.FromSeconds(4)) return _methods;
+            _methods = FindMethods();
+            _methodsAt = now;
+            return _methods;
+        }
+    }
+
+    private static List<string>? _methods;
+    private static DateTime _methodsAt;
+
+    /// <summary>Looks again for the ways to set the limit straight away (after setting one up or removing it).</summary>
+    public static void RecheckMethods() => _methods = null;
+
+    private static List<string> FindMethods()
+    {
+        {
             var list = new List<string>();
             var vendor = Handheld.Vendor;
             if (vendor == HandheldVendor.Asus && AllyControl.IsAlly && AsusAcpi.Available) list.Add("asus");
@@ -122,13 +141,17 @@ public static class TdpControl
     private static ChipInfo? _chip;
     private static bool _chipChecked;
 
+    private static string? _cpuName;
+
+    /// <summary>The processor's name (read once: it doesn't change while SquareDeck runs).</summary>
     public static string CpuName
     {
         get
         {
+            if (_cpuName != null) return _cpuName;
             try
             {
-                return (Registry.GetValue(@"HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0",
+                return _cpuName = (Registry.GetValue(@"HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0",
                     "ProcessorNameString", "") as string ?? "").Trim();
             }
             catch (Exception) { return ""; }
@@ -544,6 +567,7 @@ public static class TdpControl
             """, new UTF8Encoding(true));
 
         int code = await RunElevatedAsync(install);
+        RecheckMethods();
         if (code == -1) return "Windows' permission prompt was declined, so nothing was installed.";
         if (code != 0 || !Installed) return "Setup didn't finish (code " + code + ").";
 
@@ -563,6 +587,7 @@ public static class TdpControl
             """, new UTF8Encoding(true));
         int code = await RunElevatedAsync(work);
         try { File.Delete(work); } catch (Exception) { }
+        RecheckMethods();
         UpdateReapplyTimer();
         Changed?.Invoke();
         return code == -1 ? "Windows' permission prompt was declined." : Installed ? "Some files couldn't be removed." : null;

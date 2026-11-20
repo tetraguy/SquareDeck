@@ -231,6 +231,7 @@ public partial class MainWindow
         Motion.ButtonStyle = Settings.ButtonAnimationStyle;
         Motion.PageStyle = Settings.PageTransition;
         Motion.TileStyle = Settings.TileHighlight;
+        Motion.PunchIn = Settings.PunchIn;
         // Mouse and touch: home buttons squash while held and spring back when let go.
         foreach (var button in _buttons.Concat(AllTopButtons).Append(MusicButton).Append(StopButton))
         {
@@ -430,7 +431,12 @@ public partial class MainWindow
         bool running = RunningPanel.Visibility == Visibility.Visible;
         string template = (running ? "{Back}  Back to game      " : "") +
                           "{Details}  Details      {Options}  Options      {Select}  Start";
-        if (HomeHints.Content is HintBar bar) bar.Template = template;
+        // Checked every second or two with the running game: only redone (and the footer refitted) when it changed.
+        if (HomeHints.Content is HintBar bar)
+        {
+            if (bar.Template == template) return;
+            bar.Template = template;
+        }
         else HomeHints.Content = new HintBar(template);
         QueueFitFooter();
     }

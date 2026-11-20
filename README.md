@@ -27,7 +27,7 @@ Windows on a handheld means a desktop built for a mouse, and a different launche
 one home screen in front of all of it: pick it up, press A, play.
 
 - **One library.** Steam, Epic, GOG, Xbox / Game Pass, Battle.net, Ubisoft Connect and the EA app, plus your own
-  programs and apps. Covers, hero art and logos come from SteamGridDB.
+  programs and apps. Steam games use Steam's own artwork; covers and everything else come from SteamGridDB.
 - **Built for a controller.** Every page, setting and pop-up works with a gamepad, touch, keyboard or mouse.
 - **Made for handhelds.** Power limits (TDP) per game, a quick menu over your game, and it gets out of the game's way
   while you play.
@@ -50,7 +50,8 @@ one home screen in front of all of it: pick it up, press A, play.
 - **Wishlist and sales:** your Steam wishlist and games you watch, with prices, discounts and the lowest price seen, a
   notification when one goes on sale, and a month-view **release calendar**
 - Install stores from SquareDeck, including RecompLauncher (PC recomps) straight from its GitHub releases
-- Launch splash that covers store pop-ups until the game is on screen, with an optional countdown
+- Launch splash that covers store pop-ups until the game is on screen, with six animations and an optional countdown
+- How long to beat (from HowLongToBeat.com) on every game's page, next to your own play time
 - Start Steam games straight from their .exe to skip Steam's launch pop-up
 - Asks before starting a Steam game with an update waiting: update first (with live progress) or play anyway
 - Stop a game from the launcher, with a console-style "Closing software" screen
@@ -61,16 +62,17 @@ one home screen in front of all of it: pick it up, press A, play.
 ### Handheld
 - **TDP control** for AMD and Intel handhelds (RyzenAdj, the device's own firmware on ROG Ally, Legion Go and MSI Claw,
   or KX.exe from HandheldCompanion for Intel), with per-game limits for battery and plugged in
-- **<Your model> Specific Settings:** a settings section named after the handheld SquareDeck recognizes (about 75
+- **<Your model> Specific Settings** (in Settings > Experimental): settings for the handheld SquareDeck recognizes (about 75
   models from ASUS, Lenovo, MSI, Valve, AYANEO, GPD, OneXPlayer, AOKZOE, AYN, ZOTAC and more), with its own power
   range, its controls, and the list of supported handhelds
-- **My Device:** temperatures, fans, battery health and power draw, battery pace, processor and graphics load, the
-  power limit, storage and display, live with small graphs (a home screen button, off by default)
+- **My Device:** a live dashboard with a battery ring, gauges for processor, graphics, temperature and fan, and cards
+  for power draw, battery health and pace, the power limit, controller battery, memory, every drive, display, network
+  and sound (a home screen button, off by default)
 - **Legion Go and MSI Claw:** Legion modes / MSI user scenarios, fan boost, charge limit and TDP through their firmware
 - **Adrenaline Hook** (experimental, AMD graphics): adds Xbox, Store and other games to AMD Software so its per-game
   settings work for them, with Adrenalin switches per game, repair after updates, backups and the Radeon overlay shortcuts
 - Live processor, memory, graphics, storage and network readouts in Settings > Power and performance
-- **Performance Boost:** frees memory before a game starts, with ten animations and matching vibration
+- **Performance Boost:** frees memory before a game starts, with fifteen animations and matching vibration
 - **Performance overlay:** FPS, frame time, CPU / GPU use, CPU speed, RAM, TDP and battery over your games, in three
   layouts, three detail levels and six styles (FPS through the bundled [PresentMon](https://github.com/GameTechDev/PresentMon))
 - **Game profiles:** resolution, refresh rate, HDR, power plan and audio device, applied on launch and put back after
@@ -98,12 +100,13 @@ one home screen in front of all of it: pick it up, press A, play.
 - 16 startup animations, and a "Good morning" greeting by your profile picture
 
 ### Built in
-- Web browser with tabs, favorites and controller navigation
+- Web browser with tabs, favorites and controller navigation; web links from anywhere in SquareDeck can open in it
 - Multimedia page: music player for your own files, Spotify playing inside the launcher (Premium), now-playing from any app, and Netflix, YouTube, Hulu,
   Prime Video, Crunchyroll, Disney+, Paramount+ and Tubi full screen with controller controls (each locked to its own site),
   opening with a movie-night animation (curtains, film countdown, clapperboard, marquee lights or popcorn); full
   screen, with the controller read by the page itself, and a now-playing pill on the home screen while one is open
-- Captures gallery for Game Bar screenshots and clips, grouped by game, with a built-in share sheet and 3 to 6 captures per row
+- Captures gallery for Game Bar screenshots and clips, grouped by game into albums you can export as a ZIP or delete,
+  with a built-in share sheet and 3 to 6 captures per row
 - File explorer, task manager, Wi-Fi, Bluetooth, display and sound settings
 - Terminal (Command Prompt or PowerShell) inside the launcher, and a storage speed test for drives and memory cards
 - Steam friends, game news, search across everything

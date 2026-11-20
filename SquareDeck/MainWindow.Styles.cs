@@ -71,7 +71,7 @@ public partial class MainWindow
         // Artwork behind the home screen.
         HeroBlur.Radius = s.HeroBlur;
         // Performance mode: no live blur; the artwork is loaded tiny and stretched, which softens it for free.
-        HeroImage.Effect = s.HeroBlur > 0 && !Perf.Active ? HeroBlur : null;
+        HeroImage.Effect = s.HeroBlur > 0 && !Perf.Active && !_heroPreBlurred ? HeroBlur : null;
         HeroImage.Margin = new Thickness(s.HeroBlur > 0 ? -40 : 0);
         HeroScrim.Fill = HeroScrimBrush(s);
         HeroScrim.Visibility = HeroScrim.Fill == null ? Visibility.Collapsed : Visibility.Visible;

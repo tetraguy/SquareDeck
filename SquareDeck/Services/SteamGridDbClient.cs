@@ -122,7 +122,7 @@ public sealed class SteamGridDbClient : IDisposable
         var path = Path.Combine(CoverDir, appId + extension);
         var temp = path + ".part";
 
-        using (var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false))
+        using (var resp = await ImageHttp.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false))
         {
             if (!resp.IsSuccessStatusCode) return null;
             await using var fs = File.Create(temp);
@@ -253,16 +253,6 @@ public sealed class SteamGridDbClient : IDisposable
         var basePath = Path.Combine(HeaderDir, HashKey(item.Key));
         foreach (var ext in ImageExtensions)
             if (File.Exists(basePath + ext)) return basePath + ext;
-        if (item.IsSteam)
-        {
-            try
-            {
-                var steam = await DownloadAsync($"https://cdn.akamai.steamstatic.com/steam/apps/{item.AppId}/header.jpg", basePath, ct).ConfigureAwait(false);
-                if (steam != null) return steam;
-            }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception) { }
-        }
         return await GetArtAsync(item, "grids", HeaderDir, HeaderQuery, ct, useChosen: false).ConfigureAwait(false);
     }
 
@@ -353,6 +343,8 @@ public sealed class SteamGridDbClient : IDisposable
         var basePath = Path.Combine(dir, HashKey(item.Key));
         foreach (var ext in ImageExtensions)
             if (File.Exists(basePath + ext)) return basePath + ext;
+        // Steam games: Steam's own artwork first; SteamGridDB only when Steam has none of this kind.
+        if (await GetSteamArtAsync(item, kind, dir, basePath, ct).ConfigureAwait(false) is string fromSteam) return fromSteam;
         // "Nothing found" is remembered for a week, then asked again (SteamGridDB keeps gaining art).
         var none = basePath + ".none";
         if (File.Exists(none) && DateTime.Now - File.GetLastWriteTime(none) < TimeSpan.FromDays(7)) return null;
@@ -543,8 +535,10 @@ public sealed class SteamGridDbClient : IDisposable
     {
         var extension = url.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
         var path = pathWithoutExtension + extension;
-        using var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        using var resp = await ImageHttp.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode) return null;
+        // Steam answers a missing picture with a small page or placeholder now and then: only real images are kept.
+        if (resp.Content.Headers.ContentType?.MediaType is string type && !type.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) return null;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         // Written under a temporary name first, so a download that is cut off never leaves a half image behind.
         var temp = path + ".part";
@@ -569,6 +563,83 @@ public sealed class SteamGridDbClient : IDisposable
         }
         File.Move(temp, path, overwrite: true);
         return path;
+    }
+
+    /// <summary>
+    /// Downloads pictures (from SteamGridDB's image server, Steam's and others). Separate from the API client so the
+    /// SteamGridDB key, which only its API needs, isn't sent to every image host.
+    /// </summary>
+    private static readonly HttpClient ImageHttp = MakeImageClient();
+
+    private static HttpClient MakeImageClient()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("SquareDeck/6");
+        return http;
+    }
+
+    // ---- Steam's own artwork, used first for Steam games (SteamGridDB when Steam has none).
+
+    /// <summary>
+    /// The addresses of Steam's own picture of this kind for an app, best first: the library hero banner, the logo,
+    /// the tall library cover (twice the size first). Steam's image servers keep each under two addresses.
+    /// Null for kinds Steam doesn't make (square covers, icons).
+    /// </summary>
+    public static string[]? SteamArtUrls(int appId, string kind, string dir)
+    {
+        string[] files = kind switch
+        {
+            "heroes" => new[] { "library_hero.jpg" },
+            "logos" => new[] { "logo.png" },
+            "grids" when dir == PortraitDir => new[] { "library_600x900_2x.jpg", "library_600x900.jpg" },
+            "grids" when dir == HeaderDir => new[] { "header.jpg" },
+            _ => Array.Empty<string>()
+        };
+        if (files.Length == 0) return null;
+        return files.SelectMany(f => new[]
+        {
+            $"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{appId}/{f}",
+            $"https://cdn.akamai.steamstatic.com/steam/apps/{appId}/{f}"
+        }).ToArray();
+    }
+
+    /// <summary>
+    /// Lets go of the downloaded banners, logos, tall covers and headers of these games (not pictures the user picked,
+    /// not square covers), so they're fetched again: from Steam first, now.
+    /// </summary>
+    public static void ForgetDownloadedArt(IEnumerable<Game> games)
+    {
+        foreach (var game in games)
+        {
+            string id = HashKey(game.Key);
+            foreach (var dir in new[] { HeroDir, LogoDir, PortraitDir, HeaderDir })
+                foreach (var ext in ImageExtensions.Append(".none").Append(".nosteam"))
+                {
+                    try { File.Delete(Path.Combine(dir, id + ext)); } catch (Exception) { }
+                }
+        }
+    }
+
+    /// <summary>Steam's own picture of this kind for a Steam game, downloaded; null when Steam has none.</summary>
+    private async Task<string?> GetSteamArtAsync(Game item, string kind, string dir, string basePath, CancellationToken ct)
+    {
+        if (!item.IsSteam || item.AppId <= 0 || SteamArtUrls(item.AppId, kind, dir) is not { } urls) return null;
+        // Remembered for a few days when Steam has none, so SteamGridDB is asked straight away meanwhile.
+        var none = basePath + ".nosteam";
+        if (File.Exists(none) && DateTime.Now - File.GetLastWriteTime(none) < TimeSpan.FromDays(5)) return null;
+        foreach (var url in urls)
+        {
+            try
+            {
+                var path = await DownloadAsync(url, basePath, ct).ConfigureAwait(false);
+                if (path != null && new FileInfo(path).Length > 1024) return path;
+                if (path != null) File.Delete(path);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception) { }
+        }
+        TryWrite(none, "");
+        return null;
     }
 
     private static void TryWrite(string path, string text)

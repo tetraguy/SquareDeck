@@ -171,14 +171,16 @@ public abstract class Screen : UserControl
         var style = UiStyles.Current;
         if (style.PageHero && Theme.CurrentHero != null && !Perf.Active)
         {
+            // The artwork comes already blurred when it can (blurring it live made every page open with a stall).
+            var soft = Theme.CurrentHeroSoft;
             var hero = new Image
             {
-                Source = Theme.CurrentHero, Stretch = System.Windows.Media.Stretch.UniformToFill, IsHitTestVisible = false,
+                Source = soft ?? Theme.CurrentHero, Stretch = System.Windows.Media.Stretch.UniformToFill, IsHitTestVisible = false,
                 Margin = new Thickness(-60), Opacity = style.Glass ? 1 : 0.9,
-                Effect = new System.Windows.Media.Effects.BlurEffect { Radius = style.Glass ? 50 : 36, RenderingBias = System.Windows.Media.Effects.RenderingBias.Performance }
+                Effect = soft != null ? null : new System.Windows.Media.Effects.BlurEffect { Radius = style.Glass ? 50 : 36, RenderingBias = System.Windows.Media.Effects.RenderingBias.Performance }
             };
-            // Kept as a ready-made picture so the blur isn't redone whenever something on the page moves.
-            var heroHost = new Grid { IsHitTestVisible = false, ClipToBounds = true, CacheMode = new System.Windows.Media.BitmapCache(0.5), Children = { hero } };
+            // A live blur is kept as a ready-made picture so it isn't redone whenever something on the page moves.
+            var heroHost = new Grid { IsHitTestVisible = false, ClipToBounds = true, CacheMode = soft != null ? null : new System.Windows.Media.BitmapCache(0.5), Children = { hero } };
             Grid.SetRowSpan(heroHost, 3);
             Put(heroHost);
             var heroScrim = new System.Windows.Shapes.Rectangle { Opacity = style.PageScrim, IsHitTestVisible = false };
@@ -190,7 +192,10 @@ public abstract class Screen : UserControl
         {
             _wallpaperLayer = new System.Windows.Shapes.Rectangle { Fill = Theme.CurrentWallpaper, IsHitTestVisible = false };
             UIElement wallpaper = _wallpaperLayer;
-            if (style.Glass && !Perf.Active)
+            // A moving background that's already blurred isn't blurred again behind each page: blurring the copy too,
+            // every frame and for every open page, was enough work to make some graphics drivers drop frames (black).
+            bool alreadySoft = Theme.CurrentWallpaper is System.Windows.Media.VisualBrush && (Application.Current.MainWindow as MainWindow)?.Settings.DynamicBlur >= 20;
+            if (style.Glass && !Perf.Active && !alreadySoft)
             {
                 _wallpaperLayer.Effect = new System.Windows.Media.Effects.BlurEffect { Radius = 40 };
                 _wallpaperLayer.Margin = new Thickness(-60);

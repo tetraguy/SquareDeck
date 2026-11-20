@@ -34,6 +34,8 @@ public sealed class Settings
     public List<string> ExplorerPins { get; set; } = new();
     public string ExplorerView { get; set; } = "grid";
     public bool WelcomeMessage { get; set; } = true;
+    public bool SteamArtworkFirst { get; set; }              // set once SteamGridDB copies of Steam's own art were let go (6.3)
+    public bool ShowHowLongToBeat { get; set; } = true;       // game pages: HowLongToBeat times (kept in hltb.json)
     public bool ShowPlayerStats { get; set; }                 // game pages: players now, peaks, owners, monthly players, review history
     public bool ShowClock { get; set; } = true;
     public int WallpaperBlur { get; set; }                  // still wallpaper blur radius (same levels as the moving background)
@@ -291,6 +293,9 @@ public sealed class Settings
     /// <summary>Keep the browser (and its tabs) running when you leave it, so it comes back exactly where you were.</summary>
     public bool BrowserKeepOpen { get; set; } = true;
 
+    /// <summary>Web links anywhere in SquareDeck open in its own browser rather than Windows' default one.</summary>
+    public bool OpenLinksInSquareDeck { get; set; } = true;
+
     /// <summary>The right stick moves a mouse pointer in the browser (otherwise it scrolls).</summary>
     public bool BrowserStickMouse { get; set; } = true;
 
@@ -438,6 +443,8 @@ public sealed class Settings
 
     /// <summary>Home screen buttons grow when highlighted and spring when pressed.</summary>
     public bool ButtonAnimations { get; set; } = true;
+    public bool PunchIn { get; set; } = true;               // a game or app punches in as it's opened
+    public string LaunchAnimation { get; set; } = "classic"; // the splash while a game starts: classic, spotlight, flip, ripples, ring, cinema or random
 
     /// <summary>How home buttons react to the highlight: "grow", "lift", "bounce", "pulse" or "wiggle".</summary>
     public string ButtonAnimationStyle { get; set; } = "grow";

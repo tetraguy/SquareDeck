@@ -57,8 +57,17 @@ public sealed class Gamepad
     private const ushort Guide = 0x0400, A = 0x1000, B = 0x2000, X = 0x4000, Y = 0x8000;
     private const short StickThreshold = 16000;
 
-    private static readonly TimeSpan FirstRepeat = TimeSpan.FromMilliseconds(400);
-    private static readonly TimeSpan NextRepeat = TimeSpan.FromMilliseconds(110);
+    // Holding a direction: a short pause, then steady steps that speed up the longer it's held (long lists and rows).
+    private static readonly TimeSpan FirstRepeat = TimeSpan.FromMilliseconds(320);
+    private static readonly TimeSpan NextRepeat = TimeSpan.FromMilliseconds(85);
+    private static readonly TimeSpan FastRepeat = TimeSpan.FromMilliseconds(55);
+    private const int RepeatsBeforeFast = 8;
+    private int _repeats;
+
+    // Asking an empty controller slot is slow in XInput (it looks for the device each time), and it was done for all
+    // four slots sixty times a second on the interface's thread. Empty slots are looked at again once a second.
+    private readonly DateTime[] _emptyUntil = new DateTime[4];
+    private static readonly TimeSpan EmptyRecheck = TimeSpan.FromSeconds(1);
 
     private bool _available = true;
     private uint _index;
@@ -104,12 +113,20 @@ public sealed class Gamepad
 
     private uint GetState(uint index, out XInputState state)
     {
+        const uint NotConnected = 1167;
+        var now = DateTime.UtcNow;
+        if (index < 4 && now < _emptyUntil[index]) { state = default; return NotConnected; }
+        uint result = NotConnected;
+        bool done = false;
         if (_extended)
         {
-            try { return XInputGetStateEx(index, out state); }
-            catch (EntryPointNotFoundException) { _extended = false; }
+            try { result = XInputGetStateEx(index, out state); done = true; }
+            catch (EntryPointNotFoundException) { _extended = false; state = default; }
         }
-        return XInputGetState(index, out state);
+        else state = default;
+        if (!done) result = XInputGetState(index, out state);
+        if (index < 4) _emptyUntil[index] = result == NotConnected ? now + EmptyRecheck : DateTime.MinValue;
+        return result;
     }
 
     private static ushort Mask(char button) => button switch { 'A' => A, 'B' => B, 'X' => X, _ => Y };
@@ -192,12 +209,14 @@ public sealed class Gamepad
         else if (direction != _heldDirection)
         {
             _heldDirection = direction;
+            _repeats = 0;
             _nextRepeatAt = now + FirstRepeat;
             actions.Add(direction.Value);
         }
         else if (now >= _nextRepeatAt)
         {
-            _nextRepeatAt = now + NextRepeat;
+            _repeats++;
+            _nextRepeatAt = now + (_repeats >= RepeatsBeforeFast ? FastRepeat : NextRepeat);
             actions.Add(direction.Value);
         }
 

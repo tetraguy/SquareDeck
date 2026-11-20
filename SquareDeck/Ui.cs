@@ -444,6 +444,35 @@ public static class Motion
     /// <summary>Set from Settings: the selected game tile ("pulse", "steady" or "grow").</summary>
     public static string TileStyle { get; set; } = "pulse";
 
+    /// <summary>Settings > Home screen > Animations > "Punch-in when opening": a game or app punches in as it's opened.</summary>
+    public static bool PunchIn { get; set; } = true;
+
+    /// <summary>
+    /// The "punch-in" played on a game or app as it's opened: it's pressed in, then punches forward past its size and
+    /// settles back, about a third of a second. The task finishes at the forward peak, so whatever opens next (the
+    /// game's page, the splash, the app) comes in right on the punch. Works on top of any highlight growth.
+    /// </summary>
+    public static Task PunchAsync(UIElement? element)
+    {
+        if (element == null || !PunchIn || Theme.ReduceMotion) return Task.CompletedTask;
+        var parts = PartsOf(element);
+        double size = Math.Max(0.5, parts.Scale.ScaleX); // a grown tile punches from its grown size
+        var punch = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(340) };
+        punch.KeyFrames.Add(new EasingDoubleKeyFrame(size * 0.88, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(85)), new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+        punch.KeyFrames.Add(new EasingDoubleKeyFrame(size * 1.13, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(200)), new BackEase { Amplitude = 0.6, EasingMode = EasingMode.EaseOut }));
+        punch.KeyFrames.Add(new EasingDoubleKeyFrame(size, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(340)), new SineEase { EasingMode = EasingMode.EaseInOut }));
+        parts.Scale.BeginAnimation(ScaleTransform.ScaleXProperty, punch);
+        parts.Scale.BeginAnimation(ScaleTransform.ScaleYProperty, punch);
+        // A quick brightening flash as it lands, for a bit of impact.
+        var flash = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(340) };
+        flash.KeyFrames.Add(new LinearDoubleKeyFrame(element.Opacity, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(120))));
+        flash.KeyFrames.Add(new LinearDoubleKeyFrame(Math.Max(0.75, element.Opacity * 0.82), KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(170))));
+        flash.KeyFrames.Add(new LinearDoubleKeyFrame(element.Opacity, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(340))));
+        flash.FillBehavior = FillBehavior.Stop;
+        element.BeginAnimation(UIElement.OpacityProperty, flash);
+        return Task.Delay(190);
+    }
+
     private sealed class Parts
     {
         public readonly ScaleTransform Scale = new(1, 1);
@@ -584,22 +613,36 @@ public static class Motion
         glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, fade);
     }
 
+    /// <summary>Page animations run at three quarters of their first length: they felt slow on a handheld.</summary>
+    private static TimeSpan Paced(double ms) => TimeSpan.FromMilliseconds(ms * 0.75);
+
     /// <summary>A page or pop-up opening, in the style chosen in Settings.</summary>
     public static void OpenPage(FrameworkElement page, bool dialog)
     {
         if (Theme.ReduceMotion || PageStyle == "none") return;
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        page.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(dialog ? 160 : 220)));
+        var appear = new DoubleAnimation(0, 1, Paced(dialog ? 160 : 220));
+        // While it moves in, the page is drawn once and the picture is moved, instead of redrawing every part of
+        // it (text, cards, shadows) each frame. It goes back to normal drawing as soon as it has arrived.
+        if (page.CacheMode == null)
+        {
+            double scale = 1;
+            try { scale = Math.Max(1, VisualTreeHelper.GetDpi(page).DpiScaleX); } catch (Exception) { }
+            var cache = new BitmapCache(scale) { SnapsToDevicePixels = true };
+            page.CacheMode = cache;
+            appear.Completed += (_, _) => { if (ReferenceEquals(page.CacheMode, cache)) page.CacheMode = null; };
+        }
+        page.BeginAnimation(UIElement.OpacityProperty, appear);
         if (PageStyle == "fade") return;
         var parts = PartsOf(page);
         void Scale(double from, int ms, IEasingFunction e, bool x = true, bool y = true)
         {
-            var a = new DoubleAnimation(from, 1, TimeSpan.FromMilliseconds(ms)) { EasingFunction = e };
+            var a = new DoubleAnimation(from, 1, Paced(ms)) { EasingFunction = e };
             if (x) parts.Scale.BeginAnimation(ScaleTransform.ScaleXProperty, a);
             if (y) parts.Scale.BeginAnimation(ScaleTransform.ScaleYProperty, a);
         }
         void Move(DependencyProperty axis, double from, int ms, IEasingFunction e) =>
-            parts.Move.BeginAnimation(axis, new DoubleAnimation(from, 0, TimeSpan.FromMilliseconds(ms)) { EasingFunction = e });
+            parts.Move.BeginAnimation(axis, new DoubleAnimation(from, 0, Paced(ms)) { EasingFunction = e });
 
         if (dialog && PageStyle is not ("pop" or "drop" or "swing"))
         {
@@ -618,7 +661,7 @@ public static class Motion
             case "flip": Scale(0.05, 320, ease, x: true, y: false); break;                    // turns like a card
             case "swing":
                 parts.Rotate.BeginAnimation(RotateTransform.AngleProperty,
-                    new DoubleAnimation(-5, 0, TimeSpan.FromMilliseconds(420)) { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } });
+                    new DoubleAnimation(-5, 0, Paced(420)) { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } });
                 Scale(0.96, 420, ease);
                 break;
             case "focus":
@@ -627,7 +670,7 @@ public static class Motion
                 {
                     var blur = new System.Windows.Media.Effects.BlurEffect { Radius = 18, RenderingBias = System.Windows.Media.Effects.RenderingBias.Performance };
                     page.Effect = blur;
-                    var sharpen = new DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(300)) { EasingFunction = ease };
+                    var sharpen = new DoubleAnimation(18, 0, Paced(300)) { EasingFunction = ease };
                     sharpen.Completed += (_, _) => { if (ReferenceEquals(page.Effect, blur)) page.Effect = null; };
                     blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty, sharpen);
                 }
@@ -987,5 +1030,51 @@ public sealed class MarqueeText : FrameworkElement
     {
         _shift.BeginAnimation(TranslateTransform.XProperty, null);
         _shift.X = 0;
+    }
+}
+
+/// <summary>
+/// A progress bar's fill that always matches its percentage: it's sized from the track's width at the moment it
+/// changes, and again whenever the track itself changes size (text beside it growing, the dialog resizing), which a
+/// width worked out once would miss.
+/// </summary>
+public sealed class ProgressFill
+{
+    private readonly FrameworkElement _track;
+    private readonly FrameworkElement _fill;
+    private double _fraction;
+    private bool _set; // until the first Set, the fill is left alone (a "still starting" sweep may be using it)
+
+    public ProgressFill(FrameworkElement track, FrameworkElement fill)
+    {
+        _track = track;
+        _fill = fill;
+        track.SizeChanged += (_, _) => { if (_set) Snap(); };
+    }
+
+    public double Fraction => _fraction;
+
+    /// <summary>The track's inner width (inside its border and padding).</summary>
+    private double Full => _track is Border b
+        ? Math.Max(0, b.ActualWidth - b.BorderThickness.Left - b.BorderThickness.Right - b.Padding.Left - b.Padding.Right)
+        : Math.Max(0, _track.ActualWidth);
+
+    /// <summary>Moves the fill to a fraction (0–1), sliding there over <paramref name="ms"/> milliseconds.</summary>
+    public void Set(double fraction, int ms = 180)
+    {
+        _fraction = Math.Clamp(double.IsNaN(fraction) ? 0 : fraction, 0, 1);
+        _set = true;
+        if (Full <= 0) return; // sized when the track is laid out
+        if (ms <= 0 || Theme.ReduceMotion) { Snap(); return; }
+        _fill.BeginAnimation(FrameworkElement.WidthProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(Full * _fraction, TimeSpan.FromMilliseconds(ms))
+            { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+    }
+
+    /// <summary>Straight to the right width, ending any slide.</summary>
+    public void Snap()
+    {
+        _fill.BeginAnimation(FrameworkElement.WidthProperty, null);
+        _fill.Width = Full * _fraction;
     }
 }

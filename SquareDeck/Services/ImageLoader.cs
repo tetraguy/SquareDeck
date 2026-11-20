@@ -86,6 +86,69 @@ public static class ImageLoader
     }
 
     /// <summary>
+    /// A blurred copy of a picture, made once, for showing stretched behind the interface. A live blur over the whole
+    /// screen is redone by the graphics card whenever anything in front of it moves; this costs nothing after it's
+    /// made. The picture is shrunk (it's blurry anyway, so the detail isn't missed) and softened with three box blurs,
+    /// which together look like the smooth blur Windows draws. <paramref name="radius"/> is in screen pixels at
+    /// <paramref name="shownWidth"/> wide.
+    /// </summary>
+    public static BitmapSource? Blurred(ImageSource? image, double radius, double shownWidth = 1400)
+    {
+        if (image is not BitmapSource source || radius <= 0 || source.PixelWidth < 2 || source.PixelHeight < 2) return null;
+        try
+        {
+            const int Box = 2; // three passes of a 5-pixel box: about a 2.45-pixel Gaussian in the small copy
+            double scale = Math.Max(1, radius / 3.0 / 2.45);
+            int width = Math.Clamp((int)Math.Round(shownWidth / scale), 16, source.PixelWidth);
+            double f = (double)width / source.PixelWidth;
+            BitmapSource small = Math.Abs(f - 1) < 0.001 ? source : new TransformedBitmap(source, new ScaleTransform(f, f));
+            var pbgra = new FormatConvertedBitmap(small, PixelFormats.Pbgra32, null, 0);
+            int w = pbgra.PixelWidth, h = pbgra.PixelHeight;
+            if (w < 2 || h < 2) return null;
+            var a = new byte[w * h * 4];
+            pbgra.CopyPixels(a, w * 4, 0);
+            var b = new byte[a.Length];
+            for (int pass = 0; pass < 3; pass++)
+            {
+                BoxBlur(a, b, w, h, Box, horizontal: true);
+                BoxBlur(b, a, w, h, Box, horizontal: false);
+            }
+            var result = BitmapSource.Create(w, h, 96, 96, PixelFormats.Pbgra32, null, a, w * 4);
+            result.Freeze();
+            return result;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>One pass of a box blur along rows or columns, with the edge pixels repeated past the edge.</summary>
+    private static void BoxBlur(byte[] from, byte[] to, int w, int h, int r, bool horizontal)
+    {
+        int lines = horizontal ? h : w, length = horizontal ? w : h;
+        int span = r * 2 + 1;
+        for (int line = 0; line < lines; line++)
+        {
+            int Index(int i) => horizontal ? (line * w + Math.Clamp(i, 0, length - 1)) * 4 : (Math.Clamp(i, 0, length - 1) * w + line) * 4;
+            int s0 = 0, s1 = 0, s2 = 0, s3 = 0;
+            for (int i = -r; i <= r; i++)
+            {
+                int k = Index(i);
+                s0 += from[k]; s1 += from[k + 1]; s2 += from[k + 2]; s3 += from[k + 3];
+            }
+            for (int i = 0; i < length; i++)
+            {
+                int o = Index(i);
+                to[o] = (byte)(s0 / span); to[o + 1] = (byte)(s1 / span); to[o + 2] = (byte)(s2 / span); to[o + 3] = (byte)(s3 / span);
+                int add = Index(i + r + 1), drop = Index(i - r);
+                s0 += from[add] - from[drop]; s1 += from[add + 1] - from[drop + 1];
+                s2 += from[add + 2] - from[drop + 2]; s3 += from[add + 3] - from[drop + 3];
+            }
+        }
+    }
+
+    /// <summary>
     /// The most characteristic color of an image: an average that lets colorful pixels count for more
     /// than grays. Null when the image has no real color. Safe on a background thread.
     /// </summary>

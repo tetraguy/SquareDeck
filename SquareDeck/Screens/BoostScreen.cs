@@ -83,8 +83,8 @@ public static class Booster
 }
 
 /// <summary>
-/// The Performance Boost animation, shown while the boost runs, just before a game starts. Five looks, each with its
-/// own vibration pattern timed to it:
+/// The Performance Boost animation, shown while the boost runs, just before a game starts. Fifteen looks (see
+/// <see cref="BoostScreen.Styles"/>), each with its own vibration pattern timed to it. The first five:
 ///  - rings: rings pulse out from the game's cover; a tap on the controller with each ring;
 ///  - warp: stars streak past faster and faster; the vibration speeds up with them, ending in a thump;
 ///  - gauge: a turbo gauge sweeps to 100%; a tick for every few marks, harder near the top;
@@ -105,6 +105,11 @@ public sealed class BoostScreen : Screen
         ("lightning", "Lightning", "Bolts strike the cover, each with a sharp jolt"),
         ("equalizer", "Equalizer", "Bars bounce to a beat around the cover, louder each bar"),
         ("hyperloop", "Hyperloop", "Rush down a tunnel of light rings to the finish"),
+        ("nova", "Supernova", "Light collapses into the cover, then bursts out in a blaze"),
+        ("radar", "Radar", "A sweep circles the cover, pinging on every find"),
+        ("helix", "Helix", "Two strands of light twist round the cover, faster and faster"),
+        ("rain", "Data rain", "Columns of code pour down and speed up, then clear"),
+        ("battery", "Battery charge", "A battery fills bar by bar, a click with each one"),
     };
 
     private const double Duration = 2.8; // seconds of animation (the boost itself runs alongside)
@@ -141,6 +146,10 @@ public sealed class BoostScreen : Screen
     private readonly List<Shape> _pieces = new();
     private readonly List<double> _seeds = new();
     private double _lastBolt = -1;
+    private readonly List<TextBlock> _glyphs = new();
+    private Path? _sweep;
+    private RotateTransform? _sweepTurn;
+    private readonly List<double> _blipAt = new();
 
     public override bool IsDialog => false;
     public Task<bool> Result => _done.Task;
@@ -159,7 +168,7 @@ public sealed class BoostScreen : Screen
         _root.Children.Add(_flash);
 
         // The game's cover in the middle (or SquareDeck's mark for a preview).
-        double size = _style == "gauge" ? 150 : 190;
+        double size = _style is "gauge" or "battery" ? 150 : 190;
         _cover = new Border
         {
             Width = size, Height = size, CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner + 4, 6)), RenderTransformOrigin = new Point(0.5, 0.5),
@@ -327,6 +336,78 @@ public sealed class BoostScreen : Screen
                 for (int t = 0, gap = 260; t < 2300; t += gap, gap = Math.Max(60, gap - 25)) _pattern.Add((t, 35, 0.2 + 0.5 * t / 2300.0));
                 _pattern.Add((2420, 280, 1.0));
                 break;
+            case "nova":
+                for (int i = 0; i < count(120); i++)
+                {
+                    _pieces.Add(Add(new Ellipse { Width = 6, Height = 6, Fill = new SolidColorBrush(i % 3 == 0 ? Colors.White : _accent) }));
+                    _seeds.Add(_random.NextDouble());
+                }
+                _rings.Add(Add(new Ellipse { StrokeThickness = 10, Stroke = new SolidColorBrush(_accent), Opacity = 0 }));
+                _rings.Add(Add(new Ellipse { StrokeThickness = 4, Stroke = Brushes.White, Opacity = 0 }));
+                for (int t = 0, gap = 240; t < 2200; t += gap, gap = Math.Max(60, gap - 20)) _pattern.Add((t, 40, 0.2 + 0.5 * t / 2200.0));
+                _pattern.Add((2300, 120, 0.9));
+                _pattern.Add((2450, 320, 1.0));
+                break;
+            case "radar":
+            {
+                for (int r = 1; r <= 4; r++)
+                    _rings.Add(Add(new Ellipse { StrokeThickness = 2, Stroke = new SolidColorBrush(A(0x45)) }));
+                var wedge = new StreamGeometry();
+                using (var g = wedge.Open())
+                {
+                    g.BeginFigure(new Point(0, 0), true, true);
+                    g.LineTo(new Point(420, 0), false, false);
+                    g.ArcTo(new Point(420 * Math.Cos(-0.75), 420 * Math.Sin(-0.75)), new Size(420, 420), 0, false, SweepDirection.Counterclockwise, false, false);
+                }
+                wedge.Freeze();
+                var sweepFill = new LinearGradientBrush(A(0x00), A(0x90), new Point(0.3, 0), new Point(1, 1));
+                _sweepTurn = new RotateTransform();
+                _sweep = Add(new Path { Data = wedge, Fill = sweepFill, RenderTransform = _sweepTurn });
+                // Blips found by the sweep, each with a ping.
+                for (int i = 0; i < 9; i++)
+                {
+                    _pieces.Add(Add(new Ellipse { Width = 14, Height = 14, Fill = new SolidColorBrush(i % 3 == 0 ? Colors.White : _accent), Opacity = 0 }));
+                    _seeds.Add(_random.NextDouble());
+                    _blipAt.Add(0.2 + i * 0.24);
+                }
+                foreach (var at in _blipAt) _pattern.Add(((int)(at * 1000), 45, 0.45));
+                _pattern.Add((2420, 240, 1.0));
+                break;
+            }
+            case "helix":
+                for (int i = 0; i < count(48); i++)
+                {
+                    _pieces.Add(Add(new Ellipse { Width = 12, Height = 12, Fill = new SolidColorBrush(i % 2 == 0 ? _accent : Colors.White) }));
+                    _seeds.Add(i / (double)count(48));
+                }
+                for (int t = 0, gap = 280; t < 2300; t += gap, gap = Math.Max(80, gap - 25)) _pattern.Add((t, 35, 0.25 + 0.45 * t / 2300.0));
+                _pattern.Add((2420, 260, 1.0));
+                break;
+            case "rain":
+            {
+                string chars = "01アイウエオカキクケコ<>{}#$%&*+=";
+                int columns = Perf.Active ? 22 : 40;
+                for (int i = 0; i < columns; i++)
+                {
+                    var column = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 20, LineHeight = 22, TextAlignment = TextAlignment.Center };
+                    column.Text = string.Join("\n", Enumerable.Range(0, 18).Select(_ => chars[_random.Next(chars.Length)].ToString()));
+                    column.Foreground = new LinearGradientBrush(A(0x00), i % 5 == 0 ? Colors.White : _accent, 90);
+                    _glyphs.Add(Add(column));
+                    _seeds.Add(_random.NextDouble());
+                }
+                for (int t = 0, gap = 220; t < 2300; t += gap, gap = Math.Max(70, gap - 15)) _pattern.Add((t, 30, 0.2 + 0.4 * t / 2300.0));
+                _pattern.Add((2420, 220, 1.0));
+                break;
+            }
+            case "battery":
+                // The case (outline and the little cap), ten bars and the percentage.
+                _pieces.Add(Add(new Rectangle { StrokeThickness = 6, Stroke = new SolidColorBrush(Color.FromArgb(0xDD, 0xFF, 0xFF, 0xFF)), RadiusX = 18, RadiusY = 18 }));
+                _pieces.Add(Add(new Rectangle { Fill = new SolidColorBrush(Color.FromArgb(0xDD, 0xFF, 0xFF, 0xFF)), RadiusX = 6, RadiusY = 6 }));
+                for (int i = 0; i < 10; i++) _pieces.Add(Add(new Rectangle { RadiusX = 6, RadiusY = 6, Fill = new SolidColorBrush(_accent), Opacity = 0.12 }));
+                _gaugeNumber = Add(Ui.Text("0%", 30, "FgBrush", bold: true));
+                for (int i = 1; i <= 10; i++) _pattern.Add(((int)(2300 * i / 10.0), 40, 0.3 + 0.06 * i));
+                _pattern.Add((2420, 240, 1.0));
+                break;
             default: // shockwave
                 for (int i = 0; i < count(40); i++)
                 {
@@ -369,6 +450,11 @@ public sealed class BoostScreen : Screen
             case "lightning": Lightning(t, c); break;
             case "equalizer": Equalizer(t, c); break;
             case "hyperloop": Hyperloop(t, c); break;
+            case "nova": Nova(t, c); break;
+            case "radar": Radar(t, c); break;
+            case "helix": Helix(t, c); break;
+            case "rain": DataRain(t, c); break;
+            case "battery": Battery(t, c); break;
             default: Shockwave(t, c); break;
         }
 
@@ -382,7 +468,8 @@ public sealed class BoostScreen : Screen
         CompositionTarget.Rendering -= OnFrame;
         _status.Text = _preview ? "Boosted" : _freed is ulong f && f >= 1 << 20 ? $"Freed {Size(f)}  ·  ready to play" : "Ready to play";
         _coverScale.ScaleX = _coverScale.ScaleY = 1;
-        _coverShake.X = _coverShake.Y = 0;
+        _coverShake.X = 0;
+        if (_style != "battery") _coverShake.Y = 0; // the battery's cover stays lifted above it
         await Task.Delay(_preview ? 900 : 650);
         // Handing over to the launch splash: the launcher fades the splash in over this screen and then removes it,
         // so there's no flash of the home screen in between.
@@ -687,5 +774,193 @@ public sealed class BoostScreen : Screen
             _coverScale.ScaleX = _coverScale.ScaleY = 0.9 + 0.1 * Math.Min(t / 2.4, 1);
         }
         Landing(t, swell: 0.22, flash: 0.7);
+    }
+
+    private void Nova(double t, Point c)
+    {
+        // Specks of light are pulled in from all around, faster as it builds, the cover shrinks and shakes, then it
+        // bursts: two rings blow out and the specks fly off.
+        const double burst = 2.3;
+        double reach = Math.Max(W, H) * 0.6;
+        for (int i = 0; i < _pieces.Count; i++)
+        {
+            double seed = _seeds[i], angle = seed * Math.PI * 2 * 7.3;
+            var p = _pieces[i];
+            double r;
+            if (t < burst)
+            {
+                double life = (seed + t * (0.4 + 0.8 * t / burst)) % 1.0;
+                r = 90 + reach * (1 - life);
+                p.Opacity = 0.25 + 0.75 * life;
+                p.Width = p.Height = 3 + 6 * life;
+            }
+            else
+            {
+                double a = t - burst;
+                r = 90 + a * (900 + 900 * seed);
+                p.Opacity = Math.Max(0, 1 - a * 1.6);
+                p.Width = p.Height = 8;
+            }
+            Canvas.SetLeft(p, c.X + Math.Cos(angle) * r - p.Width / 2);
+            Canvas.SetTop(p, c.Y + Math.Sin(angle) * r - p.Height / 2);
+        }
+        if (t < burst)
+        {
+            double f = t / burst;
+            _coverScale.ScaleX = _coverScale.ScaleY = 1 - 0.18 * f * f;
+            _coverShake.X = (_random.NextDouble() - 0.5) * 8 * f * f;
+            _coverShake.Y = (_random.NextDouble() - 0.5) * 8 * f * f;
+            _glow.Width = _glow.Height = 900 - 500 * f;
+        }
+        else
+        {
+            double a = t - burst;
+            _coverShake.X = _coverShake.Y = 0;
+            _coverScale.ScaleX = _coverScale.ScaleY = 1 + 0.25 * Math.Max(0, 1 - a * 3);
+            _glow.Width = _glow.Height = 400 + a * 2400;
+            _flash.Opacity = Math.Max(0, 0.9 - a * 2.6);
+            for (int k = 0; k < _rings.Count; k++)
+            {
+                double age = a - k * 0.08;
+                var ring = _rings[k];
+                if (age < 0) { ring.Opacity = 0; continue; }
+                double r = 110 + 1500 * Ease(age / 0.9);
+                ring.Width = ring.Height = r * 2;
+                ring.Opacity = Math.Max(0, 1 - age / 0.9);
+                Canvas.SetLeft(ring, c.X - r);
+                Canvas.SetTop(ring, c.Y - r);
+            }
+        }
+    }
+
+    private void Radar(double t, Point c)
+    {
+        // Range rings, a sweep going round, and blips that light up as the sweep passes and fade.
+        for (int k = 0; k < 4 && k < _rings.Count; k++)
+        {
+            double r = 130 + k * 85;
+            var ring = _rings[k];
+            ring.Width = ring.Height = r * 2;
+            Canvas.SetLeft(ring, c.X - r);
+            Canvas.SetTop(ring, c.Y - r);
+        }
+        if (_sweep != null && _sweepTurn != null)
+        {
+            Canvas.SetLeft(_sweep, c.X);
+            Canvas.SetTop(_sweep, c.Y);
+            _sweepTurn.Angle = t * (200 + 120 * Math.Min(t / 2.4, 1));
+            _sweep.Opacity = t < 2.4 ? 1 : Math.Max(0, 1 - (t - 2.4) * 3);
+        }
+        for (int i = 0; i < _pieces.Count; i++)
+        {
+            var blip = _pieces[i];
+            double found = _blipAt[i], age = t - found;
+            double angle = _seeds[i] * Math.PI * 2, r = 150 + (i % 4) * 75 + _seeds[i] * 40;
+            double size = age < 0 ? 0 : 14 + 22 * Math.Max(0, 1 - age * 4);
+            blip.Width = blip.Height = Math.Max(1, size);
+            Canvas.SetLeft(blip, c.X + Math.Cos(angle) * r - size / 2);
+            Canvas.SetTop(blip, c.Y + Math.Sin(angle) * r - size / 2);
+            blip.Opacity = age < 0 ? 0 : t < 2.4 ? Math.Max(0.35, 1 - age * 0.8) : Math.Max(0, 1 - (t - 2.4) * 3);
+        }
+        double latest = _blipAt.LastOrDefault(b => b <= t, -1);
+        if (t < 2.4) _coverScale.ScaleX = _coverScale.ScaleY = latest < 0 ? 1 : 1 + 0.06 * Math.Max(0, 1 - (t - latest) * 6);
+        Landing(t, swell: 0.18);
+    }
+
+    private void Helix(double t, Point c)
+    {
+        // Two strands, half a turn apart, wound round a line through the cover; the dots in front are larger and
+        // brighter than the ones behind. It turns faster as it builds and unwinds outward at the end.
+        double f = Math.Min(t / 2.4, 1);
+        double turn = t * (2 + 10 * f * f);
+        double span = Math.Min(W, 1400) * 0.9;
+        for (int i = 0; i < _pieces.Count; i++)
+        {
+            double along = _seeds[i];
+            bool second = i % 2 == 1;
+            double phase = along * Math.PI * 4 + turn + (second ? Math.PI : 0);
+            double depth = Math.Cos(phase);
+            double radius = t < 2.4 ? 120 : 120 + (t - 2.4) * 900;
+            double x = c.X - span / 2 + along * span;
+            double y = c.Y + Math.Sin(phase) * radius;
+            var p = _pieces[i];
+            double size = 7 + 7 * (depth + 1) / 2;
+            p.Width = p.Height = size;
+            Canvas.SetLeft(p, x - size / 2);
+            Canvas.SetTop(p, y - size / 2);
+            p.Opacity = (t < 2.4 ? 1 : Math.Max(0, 1 - (t - 2.4) * 2.5)) * (0.35 + 0.65 * (depth + 1) / 2);
+            Panel.SetZIndex(p, depth > 0 ? 2 : 0);
+        }
+        Panel.SetZIndex(_cover, 1);
+        if (t < 2.4) _coverScale.ScaleX = _coverScale.ScaleY = 1 + 0.04 * Math.Sin(turn * 2) * f;
+        Landing(t, swell: 0.2);
+    }
+
+    private void DataRain(double t, Point c)
+    {
+        // Columns of characters falling, faster as it builds; at the end they fall away and the screen clears.
+        double speed = 180 + 900 * Math.Pow(Math.Min(t / 2.4, 1), 2);
+        int n = _glyphs.Count;
+        for (int i = 0; i < n; i++)
+        {
+            var column = _glyphs[i];
+            double x = (i + 0.5) * W / n - 12;
+            double height = 18 * 22;
+            double y = ((_seeds[i] * (H + height)) + t * speed * (0.7 + _seeds[i] * 0.6)) % (H + height) - height;
+            Canvas.SetLeft(column, x);
+            Canvas.SetTop(column, t < 2.4 ? y : y + (t - 2.4) * 1800);
+            column.Opacity = t < 2.4 ? 0.55 + 0.45 * _seeds[i] : Math.Max(0, 1 - (t - 2.4) * 2.5);
+        }
+        if (t < 2.4)
+        {
+            _coverScale.ScaleX = _coverScale.ScaleY = 1;
+            _coverShake.X = _random.NextDouble() < 0.06 ? (_random.NextDouble() - 0.5) * 12 : 0; // a glitch now and then
+        }
+        Landing(t, swell: 0.16, flash: 0.6);
+    }
+
+    private void Battery(double t, Point c)
+    {
+        // A battery under the cover filling bar by bar to 100%, each bar landing with a click.
+        double bw = 360, bh = 120, x = c.X - bw / 2, y = c.Y + 140;
+        var shell = _pieces[0];
+        shell.Width = bw; shell.Height = bh;
+        Canvas.SetLeft(shell, x); Canvas.SetTop(shell, y);
+        var cap = _pieces[1];
+        cap.Width = 16; cap.Height = 46;
+        Canvas.SetLeft(cap, x + bw + 4); Canvas.SetTop(cap, y + (bh - 46) / 2);
+        double level = Math.Min(1, t / 2.3);
+        int lit = (int)Math.Floor(level * 10 + 0.0001);
+        for (int i = 0; i < 10; i++)
+        {
+            var bar = _pieces[2 + i];
+            double gap = 8, inner = bw - 28, w = (inner - gap * 9) / 10;
+            bar.Width = w; bar.Height = bh - 28;
+            Canvas.SetLeft(bar, x + 14 + i * (w + gap)); Canvas.SetTop(bar, y + 14);
+            bool on = i < lit;
+            ((SolidColorBrush)bar.Fill).Color = on && i >= 8 ? Colors.White : _accent;
+            bar.Opacity = t >= 2.4 ? 1 : on ? 1 : 0.12;
+        }
+        if (_gaugeNumber != null)
+        {
+            _gaugeNumber.Text = $"{level * 100:0}%";
+            _gaugeNumber.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Canvas.SetLeft(_gaugeNumber, c.X - _gaugeNumber.DesiredSize.Width / 2);
+            Canvas.SetTop(_gaugeNumber, y + bh + 16);
+        }
+        // The cover sits above the battery, lifting with each bar.
+        double since = level * 10 - lit;
+        if (t < 2.4)
+        {
+            _coverShake.Y = -30 - 6 * Math.Max(0, 1 - since * 5);
+            _coverScale.ScaleX = _coverScale.ScaleY = 1;
+        }
+        else _coverShake.Y = -30;
+        if (t >= 2.4)
+        {
+            double a = t - 2.4;
+            _coverScale.ScaleX = _coverScale.ScaleY = 1 + 0.14 * Math.Max(0, 1 - a * 4);
+            _flash.Opacity = Math.Max(0, 0.5 - a * 1.8);
+        }
     }
 }

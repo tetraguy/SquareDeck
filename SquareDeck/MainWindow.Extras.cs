@@ -1721,6 +1721,16 @@ public sealed class QuickOverlay : Window
         _brightnessRow = Slim(Ui.SliderRow("Brightness", "", out _brightness, out var brightnessText));
         _brightnessRow.Visibility = Visibility.Collapsed;
         sliders.Children.Add(_brightnessRow);
+        // Shown straight away at the last known level (read when SquareDeck started or last opened), and corrected
+        // once the current level has been read, instead of appearing a moment after the panel.
+        if (Brightness.Last is int lastLevel && Brightness.Supported != false)
+        {
+            _syncing = true;
+            _brightness.Value = lastLevel;
+            _syncing = false;
+            _brightnessRow.Visibility = Visibility.Visible;
+            _rows.Add(new List<Item> { new() { Ring = _brightnessRow, Slider = _brightness } });
+        }
         if (showTdp && TdpControl.Ready && TdpControl.Chip is { } chip)
         {
             // TDP: four presets across the chip's range, then the slider for anything in between.
@@ -1887,10 +1897,24 @@ public sealed class QuickOverlay : Window
             Paint();
             int? level;
             try { level = await Brightness.GetAsync(); } catch (Exception) { level = null; }
-            if (level == null || _closing) return;
+            if (_closing) return;
+            bool shown = _rows.Any(row => row.Count == 1 && ReferenceEquals(row[0].Slider, _brightness));
+            if (level == null)
+            {
+                if (!shown) return;
+                // It was shown from the last known level, but the screen no longer allows it (another display).
+                int index = _rows.FindIndex(row => row.Count == 1 && ReferenceEquals(row[0].Slider, _brightness));
+                _rows.RemoveAt(index);
+                if (_row > index) _row--;
+                _row = Math.Clamp(_row, 0, _rows.Count - 1);
+                _brightnessRow.Visibility = Visibility.Collapsed;
+                Paint();
+                return;
+            }
             _syncing = true;
             _brightness.Value = level.Value;
             _syncing = false;
+            if (shown) return;
             _brightnessRow.Visibility = Visibility.Visible;
             // Right after the volume row.
             int at = _rows.FindIndex(row => row.Count == 1 && ReferenceEquals(row[0].Slider, _volume)) + 1;

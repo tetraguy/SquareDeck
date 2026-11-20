@@ -3,6 +3,100 @@
 All notable changes to SquareDeck, newest first. Each section can be pasted as the description of the
 matching GitHub release; the launcher's updater shows that description as the changelog before installing.
 
+## 6.3.0
+
+### New
+- **How long to beat on game pages.** Each game's page shows how long it takes to finish (main story, main + extras,
+  completionist) from HowLongToBeat.com, with your own play time beside it ("about 65% of the main story"). Press the
+  card to open the game's HowLongToBeat page. Each game is looked up once and kept on this PC (hltb.json), so the
+  page shows it straight away next time; it's checked again after a month, or after a few days when the game wasn't
+  found. Turn it off, or forget the kept times, in Settings > Library and stores.
+- **Web links open in SquareDeck's browser.** Links from news, game pages, the update page, settings and everywhere
+  else now open in the built-in browser instead of Windows' default browser, bringing SquareDeck to the front. Turn it
+  off in Settings > Network and browser > "Open web links in SquareDeck". The browser's own menu can still send a page
+  to Windows' browser.
+- **Five new splash animations** while a game starts: Spotlight (light rays turn behind the cover as it zooms in),
+  Flip (the cover turns like a card, then shines), Ripples, Loading ring and Cinematic (letterbox bars and a gliding
+  cover). The original is still there as Classic, and Surprise me picks one each time. Settings > Gaming > Splash
+  animation shows each one as you pick it.
+- **Five new Performance Boost animations,** each with its own vibration: Supernova, Radar, Helix, Data rain and
+  Battery charge. That's fifteen in all.
+- **Punch-in when opening a game or app.** The tile is pressed in, punches forward and settles as it opens (home
+  screen, library, apps and game pages). Switch it off in Settings > Home screen > Animations.
+- **My Device, redesigned.** A dashboard: the device and what's inside it as chips beside a battery ring at the top,
+  round live gauges for processor, graphics, temperature and fan, then Power cards (power draw with a graph, battery
+  health, battery pace, power limit, controller battery, brightness) and System cards (memory, every drive with how full
+  it is, display with refresh rate and scale, network with name, signal, address and speed, sound, Windows version and
+  build, time on). Every card can be pressed to open the settings it belongs to.
+- **Captures: delete or export albums.** On the Albums view, press {Details} on an album for Export as ZIP or Delete
+  album; inside an album the same two buttons sit beside the filters. Exports go to your Downloads folder as one ZIP of
+  every capture in the album; deleting moves them all to the Recycle Bin.
+
+### Changed
+- **The update page shows the changelog.** What's new now comes from
+  [CHANGELOG.md](https://github.com/tetraguy/SquareDeck/blob/master/CHANGELOG.md), with every version since the one you
+  have, instead of the release's description. There's also a button to open the changelog.
+- **Steam games' artwork comes from Steam.** Banners behind the home screen, logos, tall covers and headers for Steam
+  games are now Steam's own; SteamGridDB is used when Steam has none, and for square covers and icons (which Steam
+  doesn't make). The first time 6.3.0 starts, the copies downloaded from SteamGridDB before are let go so Steam's are
+  fetched instead; pictures you picked yourself stay.
+- **New custom games icon** in the library (a game cartridge on green), with a matching pixel-art version.
+
+### Fixed
+- **The library highlight grows with the cover.** With a growing highlight animation, only the cover grew and the ring
+  around it stayed the same size. The whole tile grows now, ring included.
+- **The brightness slider is there as soon as the quick settings open.** It used to appear a moment later, because the
+  level was read by starting PowerShell each time. It's now read straight from Windows (in a few milliseconds),
+  read once when SquareDeck starts, and the last level is shown at once and corrected after. Setting it is faster too.
+- **Black flashes with a moving background.** Two causes: the video was looped by jumping back to the start by hand,
+  which showed a black frame on some PCs each time it came round (it now loops with a repeating media clock), and the
+  copy of the video behind pages re-measured itself whenever the video had no picture for a moment, flashing black
+  or jumping (it's now fixed to the background's own size). A moving background that's already blurred also isn't
+  blurred a second time behind each page in glass styles.
+- **The SteamGridDB key is no longer sent to image servers.** Picture downloads went out with the SteamGridDB API key
+  attached, including to Steam's and SteamGridDB's image servers, which don't need it. Pictures are now downloaded
+  without it; only SteamGridDB's API gets the key.
+
+## 6.1.3
+
+### Changed
+- **A quicker, smoother interface.** Several things were slowing it down, most of them on handhelds:
+  - **Controller polling.** SquareDeck asked all four controller slots for their state sixty times a second, and
+    asking an empty slot is slow in Windows. Empty slots are now looked at once a second, and a controller plugged in
+    is still found within a second.
+  - **Holding a direction** repeats sooner (after 0.32 s instead of 0.4 s), steps faster, and speeds up again after
+    a few steps, so long rows and lists are quicker to get through.
+  - **Navigation sounds** start on a thread of their own. Starting a sound could hold up the interface for a moment
+    on every move of the highlight.
+  - **Blurred game artwork behind the home screen and pages** is blurred once when it loads. Before, the graphics card
+    redid a full-screen blur whenever anything in front of it moved, and every page opened with that blur being worked
+    out. Styles with only a slight blur keep the live one.
+  - **Scrolling the game row** is timed by the clock rather than by frames, so it's just as quick with Performance
+    mode's 30 frames a second, and settles in about a sixth of a second.
+  - **Pages open faster.** Their opening animations are a quarter shorter, and while one moves in the page is drawn
+    once and moved as a picture, rather than every part of it being redrawn each frame.
+  - **Settings** shows a category's settings sooner when the highlight rests on it.
+  - **Less repeated work while a game runs.** The running-game banner, its icon and the home screen's button hints are
+    only redone when something changed, not every second. Checks for how the power limit is set (asked several times
+    a second) are worked out every few seconds instead of each time.
+
+## 6.1.2
+
+### Changed
+- **Handheld Specific Settings moved to Settings > Experimental.** The separate section is gone; everything that was in
+  it (the device's own controls, power, My Device, the ROG Ally, Legion Go and MSI Claw settings, and the supported
+  handhelds list at the bottom) is now on the Experimental page, below Adrenaline Hook. Links to it (from Controller
+  and My Device) open Experimental.
+
+## 6.1.1
+
+### Fixed
+- **Download progress bars match their percentage.** The bars' fill was sized in pixels from the bar's width at that
+  moment, so when the bar changed width afterwards (in the Steam update dialog it widens and narrows as the text beside
+  and above it changes) the fill no longer matched the number. The fill is now sized from the bar's current width,
+  and resized whenever the bar is. This covers the Steam update dialog, SquareDeck's own update download, and artwork
+  downloads.
+
 ## 6.1.0
 
 ### Added

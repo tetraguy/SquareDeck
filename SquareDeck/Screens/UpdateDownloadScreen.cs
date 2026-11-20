@@ -17,6 +17,7 @@ public sealed class UpdateDownloadScreen : Screen
     private readonly CancellationTokenSource _cts = new();
     private readonly TaskCompletionSource<string?> _done = new();
     private readonly Border _fill = new() { HorizontalAlignment = HorizontalAlignment.Left, Width = 0, Height = 12 };
+    private ProgressFill? _barFill;
     private readonly Border _track = new() { Height = 12 };
     private readonly TextBlock _percent = Ui.Text("0%", 40, "FgBrush", bold: true);
     private readonly TextBlock _amount = Ui.Text("Connecting…", 15, "SubtleBrush");
@@ -63,7 +64,7 @@ public sealed class UpdateDownloadScreen : Screen
         var bar = new Grid();
         bar.Children.Add(_track);
         bar.Children.Add(_fill);
-        bar.SizeChanged += (_, _) => _fill.Width = Math.Min(_fill.Width, bar.ActualWidth);
+        _barFill = new ProgressFill(bar, _fill);
         panel.Children.Add(bar);
         _amount.Margin = new Thickness(0, 10, 0, 0);
         panel.Children.Add(_amount);
@@ -122,12 +123,7 @@ public sealed class UpdateDownloadScreen : Screen
     {
         fraction = Math.Clamp(fraction, 0, 1);
         _percent.Text = $"{fraction * 100:0}%";
-        if (_fill.Parent is Grid bar && bar.ActualWidth > 0)
-        {
-            double to = bar.ActualWidth * fraction;
-            if (Theme.ReduceMotion) _fill.Width = to;
-            else _fill.BeginAnimation(WidthProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(160)));
-        }
+        _barFill?.Set(fraction, 160);
         if (total <= 0) { _amount.Text = "Downloading…"; return; }
         long bytes = (long)(total * fraction);
         var now = DateTime.UtcNow;

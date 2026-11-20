@@ -49,6 +49,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _heroTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
     private CancellationTokenSource? _heroCts;
     private string? _heroKey;
+    private bool _heroPreBlurred; // the artwork showing was blurred when it loaded
     private bool _anyGameWasRunning;
     private int _topIndex = -1;             // >= 0: a top-bar icon has focus (index into TopButtons)
 
@@ -63,7 +64,12 @@ public partial class MainWindow : Window
     private bool _pollingRunning;
     private CancellationTokenSource? _loadCts;
 
-    public Settings Settings { get; } = Settings.Load();
+    public Settings Settings { get; } = Remember(Services.Settings.Load());
+
+    /// <summary>The running launcher's settings, for code that has no window at hand (another thread).</summary>
+    public static Settings? CurrentSettings { get; private set; }
+
+    private static Settings Remember(Settings settings) => CurrentSettings = settings;
     public LibraryStore Library { get; } = LibraryStore.Load();
 
     /// <summary>Play time measured by the launcher itself.</summary>
@@ -252,6 +258,16 @@ public partial class MainWindow : Window
             var o = Library.Find(g.Key);
             if (!string.IsNullOrWhiteSpace(o?.Title)) g.Name = o.Title;
             g.IsFavorite = o?.Favorite == true;
+        }
+
+        // 6.3: Steam games' banners, logos and tall covers now come from Steam itself. Once, the ones downloaded from
+        // SteamGridDB before are let go, so Steam's are fetched in their place (pictures you picked stay).
+        if (!Settings.SteamArtworkFirst)
+        {
+            var steamGames = found.Where(g => g.IsSteam).ToList();
+            await Task.Run(() => SteamGridDbClient.ForgetDownloadedArt(steamGames));
+            Settings.SteamArtworkFirst = true;
+            Settings.Save();
         }
 
         _steam.Clear();
@@ -761,6 +777,15 @@ public partial class MainWindow : Window
     /// <summary>What "A" does on a tile: start the game or app (or open the add-app page).</summary>
     public async Task ActivateAsync(Game item)
     {
+        // The game or app punches in as it opens (Settings > Home screen > Animations).
+        if (item.Actual is { } real && (real.IsGame || real.IsApp) && Motion.PunchIn && !Theme.ReduceMotion)
+        {
+            // The home row's tile, or (on another page: library, apps, a game's page) the button that was pressed.
+            UIElement? target = _screens.Count == 0 ? GameList.ItemContainerGenerator.ContainerFromItem(item) as UIElement : null;
+            if (target is not { IsVisible: true } && Keyboard.FocusedElement is UIElement focused && (focused is ButtonBase || focused is ListBoxItem))
+                target = focused;
+            if (target is { IsVisible: true }) await Motion.PunchAsync(target);
+        }
         item = item.Actual; // "Continue playing" stands in for a real game
         if (item.IsAddTile)
         {
@@ -1324,7 +1349,8 @@ public partial class MainWindow : Window
         if (running != null)
         {
             EnsureRunningMarquee();
-            RunningText.Text = running.Name + " is running";
+            string label = running.Name + " is running";
+            if (RunningText.Text != label) RunningText.Text = label;
             ShowRunningIcon(running);
         }
         else
@@ -1336,6 +1362,8 @@ public partial class MainWindow : Window
     }
 
     private MarqueeText? _runningMarquee;
+    private Game? _runningIconFor;
+    private ImageSource? _runningIconCover;
 
     /// <summary>The game's name scrolls when it's longer than the space for it.</summary>
     private void EnsureRunningMarquee()
@@ -1351,6 +1379,10 @@ public partial class MainWindow : Window
     /// <summary>The running game's own icon (or cover) instead of a green dot; the dot stays if it has no picture.</summary>
     private void ShowRunningIcon(Game game)
     {
+        // Called every second while a game runs: the picture is only made again when the game (or its art) changed.
+        if (ReferenceEquals(_runningIconFor, game) && ReferenceEquals(_runningIconCover, game.Cover)) return;
+        _runningIconFor = game;
+        _runningIconCover = game.Cover;
         if (game.Cover == null)
         {
             RunningIcon.Visibility = Visibility.Collapsed;
@@ -2281,24 +2313,37 @@ public partial class MainWindow : Window
         if (!_scrollAnimating)
         {
             _scrollAnimating = true;
+            _scrollLastFrame = TimeSpan.Zero;
             CompositionTarget.Rendering += AnimateScroll;
         }
     }
 
+    private TimeSpan _scrollLastFrame;
+
+    /// <summary>
+    /// Glides the row to the selection. Timed by the clock rather than by frames, so it's just as quick when frames
+    /// are capped at 30 a second (Performance mode) or some are dropped; it settles in about a sixth of a second.
+    /// </summary>
     private void AnimateScroll(object? sender, EventArgs e)
     {
         if (_scroll == null) return;
+        var frameTime = e is RenderingEventArgs r ? r.RenderingTime : TimeSpan.Zero;
+        if (frameTime == _scrollLastFrame && frameTime != TimeSpan.Zero) return; // the same frame reported twice
+        double ms = _scrollLastFrame == TimeSpan.Zero ? 16.7 : Math.Clamp((frameTime - _scrollLastFrame).TotalMilliseconds, 1, 100);
+        _scrollLastFrame = frameTime;
+
         double current = _scroll.HorizontalOffset;
         double target = Math.Min(_scrollTarget, _scroll.ScrollableWidth);
         double diff = target - current;
-        if (Math.Abs(diff) < 0.5)
+        if (Math.Abs(diff) < 0.75)
         {
             _scroll.ScrollToHorizontalOffset(target);
             _scrollAnimating = false;
             CompositionTarget.Rendering -= AnimateScroll;
             return;
         }
-        _scroll.ScrollToHorizontalOffset(current + diff * 0.22);
+        double step = 1 - Math.Exp(-ms / 38.0);
+        _scroll.ScrollToHorizontalOffset(current + diff * step);
     }
 
     // ================================================================ round buttons
@@ -2436,6 +2481,7 @@ public partial class MainWindow : Window
         Motion.ButtonStyle = Settings.ButtonAnimationStyle;
         Motion.PageStyle = Settings.PageTransition;
         Motion.TileStyle = Settings.TileHighlight;
+        Motion.PunchIn = Settings.PunchIn;
         TouchKeyboard.UseWindows = Settings.TouchKeyboard == "windows";
         ApplySummonKey();
         Hints.SetStyle(Settings.GlyphStyle);
@@ -2784,6 +2830,7 @@ public partial class MainWindow : Window
         _heroCts?.Cancel();
         _heroKey = null;
         Theme.CurrentHero = null;
+        Theme.CurrentHeroSoft = null;
         HeroImage.BeginAnimation(OpacityProperty,
             new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(250)));
     }
@@ -2804,16 +2851,23 @@ public partial class MainWindow : Window
         _heroKey = game.Key;
 
         ImageSource? image = null;
+        ImageSource? soft = null, pageSoft = null;
         try
         {
-            image = await Task.Run(async () =>
+            var style = UiStyles.Current;
+            (image, soft, pageSoft) = await Task.Run(async () =>
             {
                 using var client = new SteamGridDbClient(Settings.SteamGridDbApiKey);
                 var path = await client.GetHeroAsync(game, ct);
                 // Blurred styles only need a small decode; styles that show it sharp need the full width.
-                // Performance mode loads blurred styles' artwork tiny instead of blurring it live.
-                int width = UiStyles.Current.HeroBlur < 10 ? 1600 : Perf.Active ? 64 : 480;
-                return path == null ? null : ImageLoader.FromFile(path, width);
+                // Performance mode loads blurred styles' artwork tiny instead of blurring it.
+                int width = style.HeroBlur < 10 ? 1600 : Perf.Active ? 64 : 480;
+                var picture = path == null ? null : ImageLoader.FromFile(path, width);
+                if (picture == null || Perf.Active) return (picture, (ImageSource?)null, (ImageSource?)null);
+                // Blurred here, once, rather than live by the graphics card on every frame (see ImageLoader.Blurred).
+                ImageSource? home = style.HeroBlur >= 10 ? ImageLoader.Blurred(picture, style.HeroBlur) : null;
+                ImageSource? page = style.PageHero ? ImageLoader.Blurred(picture, style.Glass ? 50 : 36) : null;
+                return (picture, home, page);
             }, ct);
         }
         catch (Exception)
@@ -2828,8 +2882,13 @@ public partial class MainWindow : Window
                 new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(250)));
             return;
         }
-        HeroImage.Source = image;
+        HeroImage.Source = soft ?? image;
+        _heroPreBlurred = soft != null;
+        // Already blurred: no live blur on top (styles with only a slight blur keep the live one).
+        HeroImage.Effect = soft != null ? null : UiStyles.Current.HeroBlur > 0 && !Perf.Active ? HeroBlur : null;
+        UpdateLayerCaches();
         Theme.CurrentHero = image;
+        Theme.CurrentHeroSoft = pageSoft;
         HeroImage.BeginAnimation(OpacityProperty,
             new System.Windows.Media.Animation.DoubleAnimation(0, UiStyles.Current.HeroOpacity, TimeSpan.FromMilliseconds(450)));
     }

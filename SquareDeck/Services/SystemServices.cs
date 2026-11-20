@@ -504,34 +504,101 @@ public static class Audio
     }
 }
 
-/// <summary>Brightness of a built-in screen (laptops and handhelds). Not available on desktop monitors.</summary>
+/// <summary>
+/// Brightness of a built-in screen (laptops and handhelds). Not available on desktop monitors.
+/// Read and set through Windows' management service (WMI) directly, which takes a few milliseconds, instead of
+/// starting PowerShell each time (most of a second). The last level is kept, so the quick settings can show the
+/// slider the moment they open and correct it after.
+/// </summary>
 public static class Brightness
 {
+    private static readonly SemaphoreSlim Gate = new(1, 1);
+    private static bool _directFailed;
+
+    /// <summary>The last level read or set (0–100), or null before the first read.</summary>
+    public static int? Last { get; private set; }
+
+    /// <summary>False once a read found the screen's brightness can't be controlled; null when not known yet.</summary>
+    public static bool? Supported { get; private set; }
+
+    /// <summary>Reads the level in the background (at start), so it's ready when the quick settings open.</summary>
+    public static void Prefetch() => _ = Task.Run(GetAsync);
+
     /// <summary>0–100, or null when the display's brightness can't be controlled.</summary>
     public static async Task<int?> GetAsync()
     {
+        await Gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            var output = await ProcessUtil.RunPowerShellAsync(
-                "(Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightness -ErrorAction Stop | " +
-                "Select-Object -First 1).CurrentBrightness");
-            return int.TryParse(output.Trim(), out var value) ? Math.Clamp(value, 0, 100) : null;
+            int? level = null;
+            if (!_directFailed)
+            {
+                try { level = await Task.Run(ReadDirect).ConfigureAwait(false); }
+                catch (Exception) { _directFailed = true; }
+            }
+            if (_directFailed)
+            {
+                var output = await ProcessUtil.RunPowerShellAsync(
+                    "(Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightness -ErrorAction Stop | " +
+                    "Select-Object -First 1).CurrentBrightness").ConfigureAwait(false);
+                level = int.TryParse(output.Trim(), out var value) ? Math.Clamp(value, 0, 100) : null;
+            }
+            Supported = level != null;
+            if (level != null) Last = level;
+            return level;
         }
         catch (Exception)
         {
             return null;
         }
+        finally { Gate.Release(); }
     }
 
     public static async Task SetAsync(int percent)
     {
+        percent = Math.Clamp(percent, 0, 100);
+        Last = percent;
+        await Gate.WaitAsync().ConfigureAwait(false);
         try
         {
+            if (!_directFailed)
+            {
+                try { await Task.Run(() => WriteDirect(percent)).ConfigureAwait(false); return; }
+                catch (Exception) { _directFailed = true; }
+            }
             await ProcessUtil.RunPowerShellAsync(
                 "Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightnessMethods | " +
-                $"Invoke-CimMethod -MethodName WmiSetBrightness -Arguments @{{Timeout=1; Brightness={Math.Clamp(percent, 0, 100)}}} | Out-Null");
+                $"Invoke-CimMethod -MethodName WmiSetBrightness -Arguments @{{Timeout=1; Brightness={percent}}} | Out-Null").ConfigureAwait(false);
         }
         catch (Exception) { }
+        finally { Gate.Release(); }
+    }
+
+    /// <summary>The WMI namespace with the screen's brightness, through Windows' own scripting object.</summary>
+    private static dynamic Wmi()
+    {
+        var type = Type.GetTypeFromProgID("WbemScripting.SWbemLocator") ?? throw new NotSupportedException();
+        dynamic locator = Activator.CreateInstance(type)!;
+        return locator.ConnectServer(".", "root\\WMI");
+    }
+
+    /// <summary>Null when there's no built-in screen whose brightness Windows controls. Throws if WMI can't be used.</summary>
+    private static int? ReadDirect()
+    {
+        dynamic service = Wmi();
+        foreach (dynamic monitor in service.ExecQuery("SELECT CurrentBrightness FROM WmiMonitorBrightness"))
+            return Math.Clamp(Convert.ToInt32(monitor.CurrentBrightness), 0, 100);
+        return null;
+    }
+
+    private static void WriteDirect(int percent)
+    {
+        dynamic service = Wmi();
+        foreach (dynamic methods in service.ExecQuery("SELECT * FROM WmiMonitorBrightnessMethods"))
+        {
+            methods.WmiSetBrightness(1, (byte)percent);
+            return;
+        }
     }
 }
 

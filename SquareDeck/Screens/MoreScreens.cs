@@ -800,7 +800,7 @@ public sealed class BrowserScreen : Screen
                     try { await web.CoreWebView2.Profile.ClearBrowsingDataAsync(); } catch (Exception) { }
                 }
                 break;
-            case 11: if (web?.Source != null) ProcessUtil.Open(web.Source.ToString()); break;
+            case 11: if (web?.Source != null) ProcessUtil.OpenOutside(web.Source.ToString()); break; // Windows' own browser, always
             case 12:
                 DisposeAll(); // closing from the menu really closes it, even when it would otherwise stay open
                 if (ReferenceEquals(_kept, this)) _kept = null;
@@ -1031,12 +1031,13 @@ public sealed class UpdateScreen : ListScreen
                 "", click: () => _ = Host.InstallUpdateAsync(_release));
         else
             AddNote("This release has no installer or ZIP attached, so it can't be installed from here. Open its page to get it.");
-        AddRow("Open the release page", glyph: "", click: () => ProcessUtil.Open(_release.PageUrl));
+        AddRow("Open the changelog", "On GitHub", glyph: "", click: () => WebLinks.Open(Updater.ChangelogPage, Host));
+        AddRow("Open the release page", glyph: "", click: () => WebLinks.Open(_release.PageUrl, Host));
         AddRow("Not now", glyph: "", click: () => Host.Pop(this));
 
         AddHeader("What's new");
         var notes = Updater.PlainNotes(_release.Notes);
-        if (notes.Length == 0) AddNote("The release has no description.");
+        if (notes.Length == 0) AddNote("No changes are listed for this version yet. Open the changelog to see the latest.");
         foreach (var paragraph in notes.Split('\n'))
         {
             if (paragraph.Trim().Length == 0) continue;
@@ -1473,6 +1474,24 @@ public sealed class LaunchSplashScreen : Screen
 {
     private static readonly TimeSpan GiveUpAfter = TimeSpan.FromSeconds(90);
 
+    /// <summary>The animations to choose from (Settings > Gaming > Splash animation).</summary>
+    public static readonly (string Id, string Name, string About)[] Styles =
+    {
+        ("classic", "Classic", "The cover pops in and breathes"),
+        ("spotlight", "Spotlight", "Light rays turn behind the cover as it zooms in"),
+        ("flip", "Flip", "The cover flips round like a card, then shines"),
+        ("ripples", "Ripples", "Rings of light ripple out from the cover"),
+        ("ring", "Loading ring", "A ring of light chases round the cover"),
+        ("cinema", "Cinematic", "Letterbox bars close in as the cover glides into place"),
+    };
+
+    /// <summary>A few seconds of the animation with a stand-in game, from Settings.</summary>
+    public static LaunchSplashScreen Preview(string style) =>
+        new(new Game { Name = "Your game" }, style, preview: true);
+
+    private readonly string _style;
+    private readonly bool _preview;
+
     private readonly Game _game;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private readonly DateTime _opened = DateTime.UtcNow;
@@ -1482,9 +1501,12 @@ public sealed class LaunchSplashScreen : Screen
     private int _dots;
     private bool _closing;
 
-    public LaunchSplashScreen(Game game)
+    public LaunchSplashScreen(Game game, string? style = null, bool preview = false)
     {
         _game = game;
+        _preview = preview;
+        style ??= (Application.Current.MainWindow as MainWindow)?.Settings.LaunchAnimation ?? "classic";
+        _style = style == "random" || Styles.All(x => x.Id != style) ? Styles[Random.Shared.Next(Styles.Length)].Id : style;
         var root = new Grid { ClipToBounds = true };
         root.SetResourceReference(Panel.BackgroundProperty, "BgBrush");
 
@@ -1523,7 +1545,12 @@ public sealed class LaunchSplashScreen : Screen
             cover.Child = new TextBlock { Text = "", FontFamily = Ui.IconFont, FontSize = 90, HorizontalAlignment = HorizontalAlignment.Center,
                                           VerticalAlignment = VerticalAlignment.Center, Opacity = 0.6 };
         }
-        center.Children.Add(cover);
+        // The cover sits on a stage with room around it for the style's light (rays, rings, the loading ring).
+        var stage = new Grid { Width = 300, Height = 300, HorizontalAlignment = HorizontalAlignment.Center };
+        var fx = new Grid { Width = 300, Height = 300, IsHitTestVisible = false };
+        stage.Children.Add(fx);
+        stage.Children.Add(cover);
+        center.Children.Add(stage);
 
         var name = Ui.Text(game.Name, 36, "FgBrush", bold: true);
         name.HorizontalAlignment = HorizontalAlignment.Center;
@@ -1542,24 +1569,183 @@ public sealed class LaunchSplashScreen : Screen
         root.Children.Add(hint);
         Content = root;
 
-        if (!Theme.ReduceMotion)
-        {
-            // The cover pops in, then breathes gently while the game loads.
-            var pop = new DoubleAnimation(0.85, 1, TimeSpan.FromMilliseconds(420)) { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } };
-            pop.Completed += (_, _) =>
-            {
-                var slow = new DoubleAnimation(1, 1.035, TimeSpan.FromSeconds(1.6))
-                {
-                    AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
-                };
-                breathe.BeginAnimation(ScaleTransform.ScaleXProperty, slow);
-                breathe.BeginAnimation(ScaleTransform.ScaleYProperty, slow);
-            };
-            breathe.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
-            breathe.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
-        }
+        if (!Theme.ReduceMotion) Animate(root, fx, cover, breathe, name);
 
         _timer.Tick += (_, _) => Tick();
+    }
+
+    // ---------------------------------------------------------------- the animations
+
+    private static Color Accent => (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.DeepSkyBlue;
+
+    private static Duration Ms(double ms) => new(TimeSpan.FromMilliseconds(ms));
+
+    private static void Both(ScaleTransform scale, AnimationTimeline animation)
+    {
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
+    }
+
+    /// <summary>The gentle breathing the cover does while the game loads, after it has arrived.</summary>
+    private static void Breathe(ScaleTransform scale, double from = 1, double to = 1.035, double seconds = 1.6) =>
+        Both(scale, new DoubleAnimation(from, to, TimeSpan.FromSeconds(seconds))
+        {
+            AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+        });
+
+    private void Animate(Grid root, Grid fx, Border cover, ScaleTransform scale, TextBlock name)
+    {
+        var accent = Accent;
+        switch (_style)
+        {
+            case "spotlight":
+            {
+                // Twelve soft rays of the highlight color turning slowly behind the cover, which zooms in from far away.
+                var rays = new System.Windows.Shapes.Path { Width = 1000, Height = 1000, Stretch = Stretch.None, Opacity = 0, IsHitTestVisible = false };
+                var geometry = new StreamGeometry();
+                using (var g = geometry.Open())
+                    for (int i = 0; i < 12; i++)
+                    {
+                        double a1 = i * Math.PI / 6, a2 = a1 + Math.PI / 18;
+                        g.BeginFigure(new Point(500, 500), true, true);
+                        g.LineTo(new Point(500 + 500 * Math.Cos(a1), 500 + 500 * Math.Sin(a1)), false, false);
+                        g.LineTo(new Point(500 + 500 * Math.Cos(a2), 500 + 500 * Math.Sin(a2)), false, false);
+                    }
+                geometry.Freeze();
+                rays.Data = geometry;
+                var fill = new RadialGradientBrush(Color.FromArgb(0xAA, accent.R, accent.G, accent.B), Color.FromArgb(0, accent.R, accent.G, accent.B));
+                rays.Fill = fill;
+                var spin = new RotateTransform(0, 500, 500);
+                rays.RenderTransform = spin;
+                rays.Margin = new Thickness(-350);
+                fx.Children.Add(rays);
+                spin.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromSeconds(14)) { RepeatBehavior = RepeatBehavior.Forever });
+                rays.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(700)) { BeginTime = TimeSpan.FromMilliseconds(250) });
+                var zoom = new DoubleAnimation(0.15, 1, Ms(650)) { EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut } };
+                zoom.Completed += (_, _) => Breathe(scale);
+                Both(scale, zoom);
+                cover.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(300)));
+                break;
+            }
+            case "flip":
+            {
+                // Turns round like a card (edge-on first), then a band of light sweeps across it now and then.
+                var flip = new DoubleAnimationUsingKeyFrames { Duration = Ms(700) };
+                flip.KeyFrames.Add(new EasingDoubleKeyFrame(0.02, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+                flip.KeyFrames.Add(new EasingDoubleKeyFrame(0.9, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(260)), new SineEase { EasingMode = EasingMode.EaseOut }));
+                flip.KeyFrames.Add(new EasingDoubleKeyFrame(0.02, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(420)), new SineEase { EasingMode = EasingMode.EaseIn }));
+                flip.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(700)), new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut }));
+                flip.Completed += (_, _) => Breathe(scale);
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, flip);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.92, 1, Ms(700)));
+                var band = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
+                band.GradientStops.Add(new GradientStop(Color.FromArgb(0, 255, 255, 255), 0.35));
+                band.GradientStops.Add(new GradientStop(Color.FromArgb(0x70, 255, 255, 255), 0.5));
+                band.GradientStops.Add(new GradientStop(Color.FromArgb(0, 255, 255, 255), 0.65));
+                var move = new TranslateTransform();
+                band.RelativeTransform = move;
+                var shine = new Border { CornerRadius = cover.CornerRadius, Background = band, IsHitTestVisible = false };
+                var coverGrid = new Grid();
+                if (cover.Child is UIElement inside) { cover.Child = null; coverGrid.Children.Add(inside); }
+                coverGrid.Children.Add(shine);
+                cover.Child = coverGrid;
+                move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-1.2, 1.2, TimeSpan.FromSeconds(2.4))
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(700), RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                });
+                break;
+            }
+            case "ripples":
+            {
+                // Four rings of the highlight color ripple out from behind the cover, one after another, forever.
+                for (int i = 0; i < 4; i++)
+                {
+                    var ring = new System.Windows.Shapes.Ellipse
+                    {
+                        Width = 300, Height = 300, StrokeThickness = 5, Stroke = new SolidColorBrush(accent), Opacity = 0,
+                        RenderTransformOrigin = new Point(0.5, 0.5), IsHitTestVisible = false
+                    };
+                    var grow = new ScaleTransform(1, 1);
+                    ring.RenderTransform = grow;
+                    fx.Children.Add(ring);
+                    var begin = TimeSpan.FromMilliseconds(300 + i * 650);
+                    var spread = new DoubleAnimation(1, 2.8, TimeSpan.FromSeconds(2.6)) { BeginTime = begin, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
+                    Both(grow, spread);
+                    ring.BeginAnimation(OpacityProperty, new DoubleAnimation(0.85, 0, TimeSpan.FromSeconds(2.6)) { BeginTime = begin, RepeatBehavior = RepeatBehavior.Forever });
+                }
+                var pop = new DoubleAnimation(0.8, 1, Ms(480)) { EasingFunction = new ElasticEase { Oscillations = 1, Springiness = 4, EasingMode = EasingMode.EaseOut } };
+                pop.Completed += (_, _) => Breathe(scale, 1, 1.025, 1.3);
+                Both(scale, pop);
+                break;
+            }
+            case "ring":
+            {
+                // A faint track around the cover and a bright arc chasing round it, like a loading ring.
+                double size = 372, thickness = 6;
+                var track = new System.Windows.Shapes.Ellipse { Width = size, Height = size, StrokeThickness = thickness, Stroke = new SolidColorBrush(Color.FromArgb(0x30, accent.R, accent.G, accent.B)), Margin = new Thickness(-36), IsHitTestVisible = false };
+                double circle = Math.PI * (size - thickness) / thickness; // in stroke widths, how dashes are measured
+                var arc = new System.Windows.Shapes.Ellipse
+                {
+                    Width = size, Height = size, StrokeThickness = thickness, Stroke = new SolidColorBrush(accent), Margin = new Thickness(-36),
+                    StrokeDashArray = new DoubleCollection { circle * 0.22, circle * 0.78 }, StrokeDashCap = PenLineCap.Round,
+                    RenderTransformOrigin = new Point(0.5, 0.5), IsHitTestVisible = false,
+                    Effect = Perf.Active ? null : new DropShadowEffect { Color = accent, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.9 }
+                };
+                var turn = new RotateTransform();
+                arc.RenderTransform = turn;
+                fx.Children.Add(track);
+                fx.Children.Add(arc);
+                turn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromSeconds(1.2)) { RepeatBehavior = RepeatBehavior.Forever });
+                // The arc stretches and shrinks as it goes round.
+                arc.BeginAnimation(System.Windows.Shapes.Shape.StrokeDashOffsetProperty, new DoubleAnimation(0, -circle, TimeSpan.FromSeconds(3.6)) { RepeatBehavior = RepeatBehavior.Forever });
+                track.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(400)));
+                var pop = new DoubleAnimation(0.85, 1, Ms(420)) { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } };
+                pop.Completed += (_, _) => Breathe(scale, 1, 1.02, 1.8);
+                Both(scale, pop);
+                break;
+            }
+            case "cinema":
+            {
+                // Letterbox bars close in from the top and bottom, a streak of light crosses the screen, and the cover
+                // glides in from the left; then it pushes in slowly, like a film's opening shot.
+                var top = new Border { Background = Brushes.Black, Height = 0, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
+                var bottom = new Border { Background = Brushes.Black, Height = 0, VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false };
+                root.Children.Add(top);
+                root.Children.Add(bottom);
+                var bars = new DoubleAnimation(0, 92, Ms(700)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+                top.BeginAnimation(HeightProperty, bars);
+                bottom.BeginAnimation(HeightProperty, bars);
+                var streakBrush = new LinearGradientBrush { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
+                streakBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, accent.R, accent.G, accent.B), 0));
+                streakBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xCC, 255, 255, 255), 0.5));
+                streakBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, accent.R, accent.G, accent.B), 1));
+                var streakMove = new TranslateTransform(-1400, 0);
+                var streak = new Border { Height = 3, Width = 900, Background = streakBrush, IsHitTestVisible = false, RenderTransform = streakMove };
+                root.Children.Add(streak);
+                streakMove.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-1400, 1400, Ms(900)) { BeginTime = TimeSpan.FromMilliseconds(300), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } });
+                var slide = new TranslateTransform(-420, 0);
+                var group = new TransformGroup();
+                group.Children.Add(scale);
+                group.Children.Add(slide);
+                cover.RenderTransform = group;
+                slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-420, 0, Ms(800)) { EasingFunction = new QuinticEase { EasingMode = EasingMode.EaseOut } });
+                cover.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(500)));
+                var nameMove = new TranslateTransform(0, 24);
+                name.RenderTransform = nameMove;
+                nameMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(24, 0, Ms(700)) { BeginTime = TimeSpan.FromMilliseconds(350), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                name.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(600)) { BeginTime = TimeSpan.FromMilliseconds(350) });
+                Both(scale, new DoubleAnimation(1, 1.08, TimeSpan.FromSeconds(9)) { EasingFunction = new SineEase { EasingMode = EasingMode.EaseOut } });
+                break;
+            }
+            default:
+            {
+                // Classic: the cover pops in, then breathes gently while the game loads.
+                var pop = new DoubleAnimation(0.85, 1, Ms(420)) { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } };
+                pop.Completed += (_, _) => Breathe(scale);
+                Both(scale, pop);
+                break;
+            }
+        }
     }
 
     private bool _held;
@@ -1567,6 +1753,7 @@ public sealed class LaunchSplashScreen : Screen
     public override void OnShown()
     {
         _timer.Start();
+        if (_preview) return; // just the animation: nothing to load, nothing to keep in front
         _ = LoadArtworkAsync();
         if (!_held) { _held = true; Host.HoldVisible(true); } // stays in front until the game is running
     }
@@ -1611,6 +1798,7 @@ public sealed class LaunchSplashScreen : Screen
         _dots = (_dots + 1) % 4;
         _status.Text = "Starting" + new string('.', _dots);
         if (_closing) return;
+        if (_preview) { if (DateTime.UtcNow - _opened > TimeSpan.FromSeconds(4.5)) Close(); return; }
         if (DateTime.UtcNow - _opened > GiveUpAfter) { Close(); return; } // it never showed up
 
         // Stays in front of everything, store windows included (Steam, EA app, Ubisoft Connect, Epic…), until the game's

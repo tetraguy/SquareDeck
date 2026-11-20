@@ -179,7 +179,46 @@ public static class Updater
         using var resp = await http.GetAsync("https://api.github.com/repos/" + Repo + "/releases/latest", ct).ConfigureAwait(false);
         if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null; // no releases published yet
         resp.EnsureSuccessStatusCode();
-        return Parse(await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+        var release = Parse(await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+        if (release == null) return null;
+
+        // What's new comes from the project's CHANGELOG.md (every version since the one installed), not the release
+        // page. The release's own description is kept if the changelog can't be read or has nothing for it.
+        try
+        {
+            var log = await http.GetStringAsync(ChangelogRaw, ct).ConfigureAwait(false);
+            var notes = ChangelogSince(log, Current, release.Version);
+            if (notes.Length > 0) release = release with { Notes = notes };
+        }
+        catch (Exception) when (!ct.IsCancellationRequested) { }
+        return release;
+    }
+
+    /// <summary>The changelog people read (shown on the update page).</summary>
+    public const string ChangelogPage = "https://github.com/" + Repo + "/blob/master/CHANGELOG.md";
+    private const string ChangelogRaw = "https://raw.githubusercontent.com/" + Repo + "/master/CHANGELOG.md";
+
+    /// <summary>
+    /// The sections of CHANGELOG.md for versions newer than <paramref name="installed"/>, up to
+    /// <paramref name="latest"/> (or all newer ones when it's unknown), newest first. Each section starts at a
+    /// "## 6.3.0" heading; the version heading is kept so several updates read clearly.
+    /// </summary>
+    public static string ChangelogSince(string markdown, Version installed, Version? latest)
+    {
+        var picked = new System.Text.StringBuilder();
+        bool taking = false;
+        foreach (var raw in markdown.Replace("\r\n", "\n").Split('\n'))
+        {
+            string line = raw.TrimEnd();
+            if (line.StartsWith("## "))
+            {
+                var v = ParseVersion(line[3..]);
+                taking = v != null && v > installed && (latest == null || v <= latest);
+            }
+            else if (line.StartsWith("# ")) taking = false;
+            if (taking) picked.Append(line).Append('\n');
+        }
+        return picked.ToString().Trim();
     }
 
     public static ReleaseInfo? Parse(string json)

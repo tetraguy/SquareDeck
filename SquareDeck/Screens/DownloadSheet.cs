@@ -17,6 +17,7 @@ public sealed class DownloadSheet : Grid
 {
     private readonly TextBlock _title, _detail;
     private readonly Border _fill, _track;
+    private readonly ProgressFill _barFill;
     private readonly Grid _badge;
     private readonly Path _tick;
     private readonly Border _card;
@@ -75,6 +76,7 @@ public sealed class DownloadSheet : Grid
         _fill = new Border { CornerRadius = new CornerRadius(5), HorizontalAlignment = HorizontalAlignment.Left, Width = 0 };
         _fill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
         _track.Child = _fill;
+        _barFill = new ProgressFill(_track, _fill);
         stack.Children.Add(_track);
 
         _card.Child = stack;
@@ -110,7 +112,7 @@ public sealed class DownloadSheet : Grid
         part = Math.Clamp(part, 0, 1);
         if (part < _shown) part = _shown;
         _shown = part;
-        _fill.BeginAnimation(WidthProperty, new DoubleAnimation(BarWidth * part, TimeSpan.FromMilliseconds(180)));
+        _barFill.Set(part, 180);
         _detail.Text = total is > 0 ? $"{Size(done)} of {Size(total.Value)}  ·  {part:P0}" : Size(done);
     }
 
@@ -120,7 +122,7 @@ public sealed class DownloadSheet : Grid
     public async Task DoneAsync(string title, string detail)
     {
         if (_fill.RenderTransform is TranslateTransform t) { t.BeginAnimation(TranslateTransform.XProperty, null); _fill.RenderTransform = null; }
-        _fill.BeginAnimation(WidthProperty, new DoubleAnimation(BarWidth, TimeSpan.FromMilliseconds(200)));
+        _barFill.Set(1, 200);
         _fill.Background = new SolidColorBrush(Color.FromRgb(0x2E, 0xB8, 0x72));
         _title.Text = title;
         _detail.Text = detail;
@@ -136,7 +138,7 @@ public sealed class DownloadSheet : Grid
     public async Task FailedAsync(string detail)
     {
         if (_fill.RenderTransform is TranslateTransform t) { t.BeginAnimation(TranslateTransform.XProperty, null); _fill.RenderTransform = null; }
-        _fill.Width = BarWidth;
+        _barFill.Set(1, 0);
         _fill.Background = new SolidColorBrush(Color.FromRgb(0xE0, 0x4A, 0x3C));
         _title.Text = "Couldn't download that image";
         _detail.Text = detail;
