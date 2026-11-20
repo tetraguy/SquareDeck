@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Threading;
 using SquareDeck.Services;
 
 namespace SquareDeck;
@@ -20,7 +21,8 @@ public partial class MainWindow
         ("Blades", new[] { "Black Blades", "Green Blades", "Mint Blades", "Blurry Blades", "Fuzzy Blades" }),
         ("Pixel art", new[] { "Lofi City", "City Dawn", "Cyberpunk Rain", "Night River", "Mushroom Forest", "Yellowstone", "Chill Mario",
                               "Ocarina", "Pokee", "Stars and Me", "Witcher" }),
-        ("Scenery", new[] { "Aero", "Heaven", "Pasture", "Plague" })
+        ("Scenery", new[] { "Aero", "Heaven", "Pasture", "Plague" }),
+        ("Vaporwave", new[] { "La Fuente", "Analog" })
     };
 
     public static readonly (int Radius, string Name)[] DynamicBlurLevels =
@@ -85,9 +87,19 @@ public partial class MainWindow
             };
             _dynamicVideo.MediaFailed += (_, _) =>
             {
-                StatusText.Text = "That moving background couldn't be played";
                 StopDynamicBackground();
+                // Right after a game the video decoder can still be busy: try again a couple of times first.
+                if (_dynamicRetries < 3)
+                {
+                    _dynamicRetries++;
+                    RetryDynamicSoon(TimeSpan.FromSeconds(2 * _dynamicRetries));
+                    return;
+                }
+                _dynamicRetries = 0;
+                StatusText.Text = "That moving background couldn't be played";
+                ApplyWallpaper();
             };
+            _dynamicVideo.MediaOpened += (_, _) => _dynamicRetries = 0;
             DynamicLayer.Children.Add(_dynamicVideo);
         }
         if (!string.Equals(_dynamicPath, path, StringComparison.OrdinalIgnoreCase))
@@ -96,6 +108,7 @@ public partial class MainWindow
             _dynamicVideo.Source = new Uri(path);
             _dynamicPaused = false;
             _dynamicVideo.Play();
+            CheckDynamicStartedSoon();
         }
 
         // Blur, with the edges pushed off screen so they don't go soft. The video is blurred at half size and then
@@ -129,6 +142,59 @@ public partial class MainWindow
         WallpaperScrim.Visibility = Visibility.Visible;
         WallpaperScrim.Opacity = UiStyles.Current.Glass ? 0.1 : 0.3;
         UpdateDynamicPlayback();
+    }
+
+    private int _dynamicRetries;
+    private bool _dynamicRestorePending;
+    private DispatcherTimer? _dynamicRetryTimer;
+
+    /// <summary>
+    /// After a game: the moving background comes back once SquareDeck is in front and not minimized. Loading the video
+    /// while SquareDeck was still behind the game (or minimized) sometimes left it blank for good.
+    /// </summary>
+    private void RestoreDynamicBackground()
+    {
+        if (DynamicPathFor(Settings.DynamicBackground) == null) { ApplyDynamicBackground(); return; }
+        if (IsActive && WindowState != WindowState.Minimized && IsVisible)
+        {
+            _dynamicRestorePending = false;
+            _dynamicRetries = 0;
+            ApplyDynamicBackground();
+            return;
+        }
+        _dynamicRestorePending = true;
+        ApplyWallpaper(); // the still wallpaper meanwhile
+    }
+
+    private void RetryDynamicSoon(TimeSpan after)
+    {
+        _dynamicRetryTimer?.Stop();
+        _dynamicRetryTimer = new DispatcherTimer { Interval = after };
+        _dynamicRetryTimer.Tick += (_, _) =>
+        {
+            _dynamicRetryTimer?.Stop();
+            if (AllGames.Any(g => g.IsRunning)) return; // it comes back after this game instead
+            RestoreDynamicBackground();
+        };
+        _dynamicRetryTimer.Start();
+    }
+
+    /// <summary>A few seconds after starting the video: if it never opened (no picture), start it again.</summary>
+    private void CheckDynamicStartedSoon()
+    {
+        var video = _dynamicVideo;
+        var check = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        check.Tick += (_, _) =>
+        {
+            check.Stop();
+            if (video == null || !ReferenceEquals(video, _dynamicVideo) || _dynamicPaused) return;
+            if (video.NaturalVideoWidth > 0) return; // playing
+            if (_dynamicRetries >= 3) return;
+            _dynamicRetries++;
+            StopDynamicBackground();
+            RestoreDynamicBackground();
+        };
+        check.Start();
     }
 
     private void StopDynamicBackground()
@@ -167,9 +233,9 @@ public partial class MainWindow
 
     private void InitDynamicBackground()
     {
-        Activated += (_, _) => UpdateDynamicPlayback();
+        Activated += (_, _) => { if (_dynamicRestorePending) RestoreDynamicBackground(); UpdateDynamicPlayback(); };
         Deactivated += (_, _) => UpdateDynamicPlayback();
-        StateChanged += (_, _) => UpdateDynamicPlayback();
+        StateChanged += (_, _) => { if (_dynamicRestorePending) RestoreDynamicBackground(); UpdateDynamicPlayback(); };
         ApplyDynamicBackground();
     }
 }

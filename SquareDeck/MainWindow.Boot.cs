@@ -50,7 +50,23 @@ public partial class MainWindow
             VerticalAlignment = VerticalAlignment.Center
         };
         text.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
-        var wave = new TextBlock { Text = " 👋", FontSize = 19, VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Segoe UI Emoji") };
+        // WPF draws emoji in one colour, so the hand is white (it was the default black, hard to see on dark bubbles),
+        // with a soft shadow so it still reads on light styles. It gives a little wave when the bubble appears.
+        var wave = new TextBlock
+        {
+            Text = "👋", FontSize = 19, VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Segoe UI Emoji"),
+            Foreground = Brushes.White, Margin = new Thickness(8, 0, 0, 0), RenderTransformOrigin = new Point(0.7, 0.85),
+            Effect = Perf.Active ? null : new DropShadowEffect { BlurRadius = 4, ShadowDepth = 0, Opacity = 0.6, Color = Colors.Black }
+        };
+        if (!Theme.ReduceMotion)
+        {
+            var spin = new RotateTransform();
+            wave.RenderTransform = spin;
+            var swing = new System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames { BeginTime = TimeSpan.FromMilliseconds(450) };
+            foreach (var (t, a) in new[] { (0, 0.0), (150, 18.0), (300, -8.0), (450, 18.0), (600, -4.0), (750, 0.0) })
+                swing.KeyFrames.Add(new System.Windows.Media.Animation.EasingDoubleKeyFrame(a, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(t))));
+            spin.BeginAnimation(RotateTransform.AngleProperty, swing);
+        }
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(text);
         row.Children.Add(wave);

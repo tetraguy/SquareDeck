@@ -442,6 +442,22 @@ public sealed class AllyButtonsScreen : ListScreen
 {
     public AllyButtonsScreen() : base("ROG Ally buttons") { }
 
+    public override void OnShown()
+    {
+        AllyButtons.Heard -= OnHeard;
+        AllyButtons.Heard += OnHeard;
+        base.OnShown();
+    }
+
+    public override void OnClosed()
+    {
+        AllyButtons.Heard -= OnHeard;
+        base.OnClosed();
+    }
+
+    // The button test row shows each press as it comes in.
+    private void OnHeard(byte code) => Dispatcher.BeginInvoke(new Action(Rebuild));
+
     protected override void Build()
     {
         var s = Host.Settings;
@@ -454,17 +470,42 @@ public sealed class AllyButtonsScreen : ListScreen
             Rebuild();
         }, subtitle: (AllyButtons.Model.Length > 0 ? AllyButtons.Model : "ROG Ally") + (supported ? "" : " (button device not found)"));
 
+        AllyButtons.ModelOverride = s.AllyModel;
+        AddRow("Which Ally is this?", s.AllyModel.Length > 0 ? s.AllyModel : (AllyButtons.DetectedModel.Length > 0 ? AllyButtons.DetectedModel + " (found)" : "Not found"), "\uE7F8",
+            click: async () =>
+            {
+                int pick = await Host.AskAsync("Which Ally is this?", "The Xbox Allys have the Xbox Library button, and their buttons send different codes, so this decides which button is which.",
+                    AllyButtons.Models.Select(m => m.Name).Append("Cancel").ToArray());
+                if (pick < 0 || pick >= AllyButtons.Models.Length) return;
+                s.AllyModel = AllyButtons.Models[pick].Id;
+                AllyButtons.ModelOverride = s.AllyModel;
+                s.Save();
+                Rebuild();
+            }, subtitle: "Choose it if the Xbox Library button or Armoury Crate button is mixed up");
+
+        if (s.AllyRemap || s.ExperimentAllyQuickMenu.Length > 0)
+        {
+            var code = AllyButtons.LastCode;
+            bool heard = AllyButtons.LastCodeAt != default;
+            AddRow("Button test", heard ? $"{AllyButtons.NameOf(code)} (code {code})" : "Press an Ally button", "\uE7FC",
+                subtitle: heard ? "The last button SquareDeck heard, at " + AllyButtons.LastCodeAt.ToString("T") : "Shows what SquareDeck hears when you press one");
+        }
+
         if (s.AllyRemap)
         {
             AddHeader("Buttons");
             foreach (var (id, name) in AllyButtons.Buttons)
             {
-                if (id.EndsWith("library") && !AllyButtons.IsXboxAlly) continue; // only the Xbox Allys have it
+                // The Xbox Allys have the Xbox Library button in place of Command Center. It's always listed, so it can be set
+                // up even when the model isn't recognized (choose it above).
                 if (id.EndsWith("cc") && AllyButtons.IsXboxAlly) continue;
+                // M1 / M2 only send something once they're turned on in ROG Ally controls.
+                if (id is "m1" or "m2" && !s.AllyBackKeys) continue;
                 string button = id;
                 s.AllyBindings.TryGetValue(id, out var action);
-                AddRow(name, AllyButtons.Actions.FirstOrDefault(a => a.Id == (action ?? "")).Name ?? "Nothing", "\uE7FC",
-                    click: () => _ = ChooseAsync(button, name));
+                AddRow(name, AllyButtons.Actions.FirstOrDefault(a => a.Id == (action ?? "")).Name ?? "Nothing", id.EndsWith("library") ? "\uE8F1" : "\uE7FC",
+                    click: () => _ = ChooseAsync(button, name),
+                    subtitle: id.EndsWith("library") && !AllyButtons.IsXboxAlly ? "On the ROG Xbox Ally, Xbox Ally X and Xbox Ally X20" : null);
             }
             AddRow("The Ally's other keys", s.AllyExtraKeys ? "On" : "Off", "\uE765", click: () =>
             {
@@ -472,6 +513,9 @@ public sealed class AllyButtonsScreen : ListScreen
                 s.Save();
                 Rebuild();
             }, subtitle: "Microphone, screenshot, keyboard and record keys");
+            if (!s.AllyBackKeys)
+                AddRow("M1 and M2 back buttons", "Off", "\uE7FC", click: () => Host.Push(new AllyControlScreen()),
+                    subtitle: "Turn them on in ROG Ally controls to give them actions here");
             AddRow("Back to the defaults", glyph: "\uE777", click: () =>
             {
                 s.AllyBindings = AllyButtons.DefaultBindings();
@@ -479,6 +523,22 @@ public sealed class AllyButtonsScreen : ListScreen
                 Rebuild();
             });
         }
+
+        AddHeader("In-game quick menu");
+        string quick = s.ExperimentAllyQuickMenu;
+        AddRow("Open the in-game quick menu with", quick.Length == 0 ? "Off" : AllyButtons.Buttons.FirstOrDefault(b => b.Id == quick).Name ?? quick, "\uE7FC",
+            click: async () =>
+            {
+                var options = AllyButtons.Buttons.Where(b => b.Id is not ("m1" or "m2") || s.AllyBackKeys).Prepend(("", "Off")).ToArray();
+                int pick = await Host.AskAsync("Open the in-game quick menu with", null, options.Select(o => o.Item2).ToArray());
+                if (pick < 0) return;
+                s.ExperimentAllyQuickMenu = options[pick].Item1;
+                s.Save();
+                Host.ApplyAllyButtons();
+                Rebuild();
+            },
+            subtitle: "While a game is in front, this button opens the in-game quick menu and closes it again. " +
+                      "Holding the Armoury Crate button works well. With no game in front, the button keeps its usual job");
 
         AddHeader("Armoury Crate SE");
         AddNote("Armoury Crate SE and ASUS Optimization react to these buttons too, so both may respond to a press. Set the buttons to " +
@@ -494,6 +554,7 @@ public sealed class AllyButtonsScreen : ListScreen
         if (choice < 0) return;
         Host.Settings.AllyBindings[button] = AllyButtons.Actions[choice].Id;
         Host.Settings.Save();
+        Host.ApplyAllyButtons(); // M1 / M2 are only taken from other apps while they have an action
         Rebuild();
     }
 }

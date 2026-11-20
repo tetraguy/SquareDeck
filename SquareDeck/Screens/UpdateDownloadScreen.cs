@@ -100,7 +100,7 @@ public sealed class UpdateDownloadScreen : Screen
         {
             var file = await Task.Run(() => Updater.DownloadAsync(_release, progress, _cts.Token));
             Show(1, total);
-            _amount.Text = "Download complete. Starting the installer…";
+            _amount.Text = "Download complete. Installing…";
             await Task.Delay(400);
             Host.Pop(this);
             _done.TrySetResult(file);

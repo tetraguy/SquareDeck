@@ -127,22 +127,25 @@ public sealed class Gamepad
         RightStickPressed = false;
         try
         {
+            // Every connected controller counts, not just the first: while a game runs, Steam (or another tool) can
+            // add a virtual controller in front of the real one, and the first slot may then never move.
+            bool found = false;
             for (uint i = 0; i < 4; i++)
             {
                 if (GetState(i, out var state) != 0) continue;
                 var pad = state.Gamepad;
-                buttons = pad.Buttons;
-                leftTrigger = pad.LeftTrigger > 120;
-                rightTrigger = pad.RightTrigger > 120;
-                if (Math.Abs((int)pad.ThumbRY) > 9000) RightStickY = pad.ThumbRY / 32767.0;
-                if (Math.Abs((int)pad.ThumbRX) > 9000) RightStickX = pad.ThumbRX / 32767.0;
-                RightStickPressed = (pad.Buttons & 0x0080) != 0;
+                buttons |= pad.Buttons;
+                leftTrigger |= pad.LeftTrigger > 120;
+                rightTrigger |= pad.RightTrigger > 120;
+                if (RightStickY == 0 && Math.Abs((int)pad.ThumbRY) > 9000) RightStickY = pad.ThumbRY / 32767.0;
+                if (RightStickX == 0 && Math.Abs((int)pad.ThumbRX) > 9000) RightStickX = pad.ThumbRX / 32767.0;
+                RightStickPressed |= (pad.Buttons & 0x0080) != 0;
                 if (pad.ThumbLX < -StickThreshold) buttons |= DpadLeft;
                 if (pad.ThumbLX > StickThreshold) buttons |= DpadRight;
                 if (pad.ThumbLY > StickThreshold) buttons |= DpadUp;
                 if (pad.ThumbLY < -StickThreshold) buttons |= DpadDown;
-                _index = i;
-                break;
+                if (!found || pad.Buttons != 0) _index = i; // the one being used (for rumble and the battery)
+                found = true;
             }
         }
         catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException)
@@ -241,13 +244,19 @@ public sealed class Gamepad
         bool held = false, guideTap = false;
         try
         {
+            ushort b = 0;
+            bool trigger = false, any = false;
             for (uint i = 0; i < 4; i++)
             {
                 if (GetState(i, out var state) != 0) continue;
-                ushort b = state.Gamepad.Buttons;
+                b |= state.Gamepad.Buttons;
+                trigger |= state.Gamepad.LeftTrigger > 120 || state.Gamepad.RightTrigger > 120;
+                any = true;
+            }
+            if (any)
+            {
                 held = SummonHeld(b);
-                guideTap = GuideTapped(b, state.Gamepad.LeftTrigger > 120 || state.Gamepad.RightTrigger > 120);
-                break;
+                guideTap = GuideTapped(b, trigger);
             }
         }
         catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException)

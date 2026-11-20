@@ -26,7 +26,9 @@ public static class Theme
     {
         ("Leonida", "Leonida.jpg"), ("Alone", "Alone.jpg"), ("Blue Moon", "Blue Moon.jpg"), ("Cafe", "Cafe.jpg"),
         ("Crimson", "Crimson.jpg"), ("Gold Dust", "Gold Dust.jpg"), ("Lavender", "Lavender.jpg"), ("Next Door", "Next Door.jpg"),
-        ("Nostalgia", "Nostalgia.jpg"), ("Jewels", "Jewels.jpg"), ("Terra", "Terra.jpg")
+        ("Nostalgia", "Nostalgia.jpg"), ("Jewels", "Jewels.jpg"), ("Terra", "Terra.jpg"),
+        ("Me o Tu", "Me o Tu.jpg"), ("The View", "The View.jpg"), ("Tu Reflexion", "Tu Reflexion.jpg"), ("Cloud Pool", "Cloud Pool.jpg"),
+        ("Viborl", "Viborl.jpg"), ("Dorado Obscur", "Dorado Obscur.jpg"), ("Windows 95", "Windows 95.jpg")
     };
 
     public const string LeonidaWallpaper = "image:Leonida.jpg";
@@ -80,7 +82,48 @@ public static class Theme
         // Royal: aubergine and gold.
         ["royal"] = ("Royal",
             new[] { "#151019", "#FFF8E7", "#C9BDA2", "#231B2B", "#2B2134", "#E8B84A" },
-            new[] { "#FBF7EE", "#231A2E", "#6F6280", "#FFFFFF", "#ECE3D2", "#A87B1E" })
+            new[] { "#FBF7EE", "#231A2E", "#6F6280", "#FFFFFF", "#ECE3D2", "#A87B1E" }),
+        // Order per palette: background, text, subtle text, tile, circle/panel, highlight.
+        // Fresh mint on deep sea-glass.
+        ["mint"] = ("Mint Chip",
+            new[] { "#0F1F1C", "#EAFBF5", "#9FC7BB", "#183029", "#1C382F", "#5EEAD4" },
+            new[] { "#F0FBF7", "#10302A", "#4E7A6E", "#FFFFFF", "#D4EFE6", "#0D9488" }),
+        // Desert dusk: terracotta, sand and sage.
+        ["mesa"] = ("Mesa",
+            new[] { "#22160F", "#FBEFE3", "#D3B29A", "#33231A", "#3A281D", "#E07A3F" },
+            new[] { "#FBF1E6", "#3A2214", "#8A6248", "#FFFFFF", "#F0DCC8", "#C2552A" }),
+        // Lavender fields at twilight.
+        ["lavender"] = ("Lavender",
+            new[] { "#1B1726", "#F3EEFF", "#B9AED6", "#272138", "#2D2640", "#B794F6" },
+            new[] { "#F6F2FF", "#2A2140", "#6C5F8C", "#FFFFFF", "#E6DEFA", "#7C3AED" }),
+        // Retro handheld greens (four-shade LCD).
+        ["gameboy"] = ("Pocket LCD",
+            new[] { "#0F380F", "#E0F8D0", "#9BBC0F", "#1E4D1E", "#306230", "#8BAC0F" },
+            new[] { "#E0F8D0", "#0F380F", "#306230", "#F2FFE8", "#C4DCA8", "#306230" }),
+        // Volcanic black and lava red.
+        ["magma"] = ("Magma",
+            new[] { "#140C0C", "#FFECE8", "#C99A92", "#241414", "#2C1818", "#FF3B30" },
+            new[] { "#FFF1EE", "#2A1010", "#7E4A44", "#FFFFFF", "#F6D4CE", "#D7261E" }),
+        // Arctic aurora: midnight blue with green-cyan light.
+        ["aurora"] = ("Aurora",
+            new[] { "#0A1424", "#E8FFF8", "#9CC2C0", "#12223A", "#162A46", "#34D399" },
+            new[] { "#EEF8F6", "#0B2030", "#4A6A72", "#FFFFFF", "#D2ECE8", "#059669" }),
+        // Coffee house: espresso, crema and caramel.
+        ["espresso"] = ("Espresso",
+            new[] { "#1A130F", "#F7EDE4", "#C4AE9C", "#2A1F18", "#30241C", "#D4A373" },
+            new[] { "#F8F0E8", "#2B1D14", "#7D6352", "#FFFFFF", "#EADBCB", "#9C6B3C" }),
+        // Citrus pop: charcoal with zesty lime and lemon.
+        ["citrus"] = ("Citrus",
+            new[] { "#15170F", "#F8FBE6", "#BDC79A", "#22261A", "#282D1E", "#C6F432" },
+            new[] { "#FAFDEB", "#1F2410", "#636E40", "#FFFFFF", "#E8F0C6", "#65A30D" }),
+        // Ocean coral: deep navy with living coral.
+        ["coral"] = ("Coral Reef",
+            new[] { "#0E1A26", "#FFF0EC", "#A9BCCB", "#16283A", "#1B3044", "#FF7F6E" },
+            new[] { "#FFF4F1", "#13283A", "#5D7486", "#FFFFFF", "#F7DDD6", "#E85D4A" }),
+        // Monochrome steel with an ice-blue edge.
+        ["steel"] = ("Steel",
+            new[] { "#16181C", "#EEF1F5", "#A4ABB6", "#22262C", "#2A2E35", "#7DD3FC" },
+            new[] { "#F1F3F6", "#1C2026", "#5C6470", "#FFFFFF", "#DDE2E8", "#0EA5E9" })
     };
 
     public static readonly (string Name, int Radius)[] CornerStyles = { ("Square", 0), ("Rounded", 10), ("Round", 22) };
@@ -223,6 +266,7 @@ public static class Theme
     public static void Apply(Settings settings)
     {
         UiStyles.Select(settings.UiStyle);
+        UiStyles.ApplyOverrides(settings);
         var style = UiStyles.Current;
         bool dark = ShouldBeDark(settings);
         // Styles with only a dark palette are dark whatever the theme is set to.
@@ -343,5 +387,6 @@ public static class Theme
         var brush = new SolidColorBrush(color);
         brush.Freeze();
         Application.Current.Resources[key] = brush;
+        if (key == "AccentBrush") AllyControl.AccentChanged(); // the Ally's lights, when they follow the accent
     }
 }

@@ -55,7 +55,19 @@ public sealed class GameProfile
 
     public bool HasPower => TdpWatts > 0 || TdpPluggedWatts > 0 || CpuBoost != null || MaxCpu > 0 || PowerMode != null;
 
-    public bool IsEmpty => Width == 0 && RefreshRate == 0 && Hdr == null && PowerPlanId == null && AudioDeviceId == null && !HasPower;
+    // The ROG Ally's lights while this game runs (with game lights on in Settings > ROG Ally controls).
+    // Null = the game's own color (from its cover); "everyday" = the same as outside games; else an effect id
+    // from AllyControl.LightModes. The colors are for one color, breathing and a color per stick (null = the
+    // colors from Settings).
+    public string? Lights { get; set; }
+    public string? LightColor { get; set; }
+    public string? LightColor2 { get; set; }
+
+    /// <summary>Adrenaline Hook: AMD Software's performance metrics overlay shows while this game runs.</summary>
+    public bool AmdMetricsOverlay { get; set; }
+
+    public bool IsEmpty => Width == 0 && RefreshRate == 0 && Hdr == null && PowerPlanId == null && AudioDeviceId == null && !HasPower
+                           && Lights == null && LightColor == null && LightColor2 == null && !AmdMetricsOverlay;
 }
 
 /// <summary>A game the user added by hand: any program on the PC.</summary>
@@ -64,6 +76,9 @@ public sealed class CustomGame
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Path { get; set; } = "";
+    /// <summary>Launch options passed to the program (Edit information).</summary>
+    public string? Arguments { get; set; }
+    public int? ReleaseYear { get; set; }
     public DateTime AddedAt { get; set; }
 }
 

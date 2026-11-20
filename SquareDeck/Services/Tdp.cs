@@ -57,8 +57,65 @@ public static class TdpControl
     public static bool Installed =>
         File.Exists(Path.Combine(InstallDir, "ryzenadj.exe")) && File.Exists(Path.Combine(InstallDir, "apply-tdp.ps1"));
 
+    /// <summary>
+    /// The limits go through the ROG Ally's firmware (ASUS's ATKACPI driver, as HandheldCompanion and G-Helper do)
+    /// rather than RyzenAdj: chosen in Settings, or by itself when RyzenAdj isn't set up and the firmware is there.
+    /// </summary>
+    public static bool UsesAsus => Method == "asus";
+
+    /// <summary>
+    /// The ways this PC can set the power limit, best first: the handheld's own firmware (ROG Ally: ASUS's driver;
+    /// Legion Go and MSI Claw: their WMI methods, through the device helper), then KX.exe for Intel processors
+    /// (through the device helper), then RyzenAdj for AMD processors.
+    /// </summary>
+    public static List<string> AvailableMethods
+    {
+        get
+        {
+            var list = new List<string>();
+            var vendor = Handheld.Vendor;
+            if (vendor == HandheldVendor.Asus && AllyControl.IsAlly && AsusAcpi.Available) list.Add("asus");
+            if (vendor == HandheldVendor.Lenovo && DeviceHelper.Installed) list.Add("lenovo");
+            if (vendor == HandheldVendor.Msi && DeviceHelper.Installed) list.Add("msi");
+            if (IsIntel && DeviceHelper.Installed && DeviceHelper.HasKx) list.Add("kx");
+            if (!IsIntel && Installed) list.Add("ryzenadj");
+            return list;
+        }
+    }
+
+    /// <summary>How the limit is set right now: "asus", "lenovo", "msi", "kx", "ryzenadj", or "" (not set up).</summary>
+    public static string Method
+    {
+        get
+        {
+            if (_settings == null) return "";
+            var options = AvailableMethods;
+            if (options.Count == 0) return "";
+            if (options.Contains(_settings.TdpMethod)) return _settings.TdpMethod;
+            // No choice saved: RyzenAdj when it's set up (as before), else the first that works.
+            if (_settings.TdpMethod.Length == 0 && options.Contains("ryzenadj")) return "ryzenadj";
+            return options[0];
+        }
+    }
+
+    public static string MethodName(string method) => method switch
+    {
+        "asus" => "ASUS firmware",
+        "lenovo" => "Lenovo firmware",
+        "msi" => "MSI firmware",
+        "kx" => "Intel (KX)",
+        "ryzenadj" => "RyzenAdj",
+        _ => "Not set up"
+    };
+
+    /// <summary>An Intel processor (its limits are PL1 / PL2).</summary>
+    public static bool IsIntel => CpuName.Contains("Intel", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>There's a way to apply limits: the handheld's firmware, KX.exe (Intel) or RyzenAdj (AMD).</summary>
+    public static bool CanApply => Method.Length > 0;
+
     /// <summary>Set up, switched on, and on a supported chip.</summary>
-    public static bool Ready => _settings is { TdpEnabled: true } && Installed && Chip != null;
+    public static bool Ready => _settings is { TdpEnabled: true } && CanApply && Chip != null;
 
     // ================================================================ the chip
 
@@ -87,6 +144,17 @@ public static class TdpControl
             _chipChecked = true;
             string name = CpuName;
             bool amd = name.Contains("AMD", StringComparison.OrdinalIgnoreCase) || name.Contains("Ryzen", StringComparison.OrdinalIgnoreCase);
+            var device = Handheld.Current;
+            if (IsIntel)
+            {
+                // Intel: the handheld's range when it's known, else a cautious one.
+                _chip = device != null
+                    ? new ChipInfo(name, device.TdpMin, device.TdpMax, device.TdpDefault,
+                        $"The {device.Name} runs at {device.TdpMin}–{device.TdpMax} W (from HandheldCompanion's device list).", true)
+                    : new ChipInfo(name.Length > 0 ? name : "Intel processor", 8, 28, 15,
+                        "This processor isn't one SquareDeck knows; the range is a cautious guess. Check your device's limits.", false);
+                return _chip;
+            }
             if (!amd) return _chip = null;
             bool Has(string part) => name.Contains(part, StringComparison.OrdinalIgnoreCase);
             _chip =
@@ -99,6 +167,15 @@ public static class TdpControl
                 Has("Z1") ? new ChipInfo("AMD Ryzen Z1", 5, 30, 15, "AMD rates the Z1 at 9–30 W.", true) :
                 new ChipInfo(name.Length > 0 ? name : "AMD processor", 5, 30, 15,
                     "This processor isn't one SquareDeck knows; the range is a cautious guess. Check your device's limits.", false);
+            // A recognized handheld knows its own range (from HandheldCompanion's device list): use it where the chip is
+            // unknown, and never go above what the device is built for.
+            if (device != null)
+            {
+                _chip = _chip.Known
+                    ? _chip with { Max = Math.Min(_chip.Max, Math.Max(device.TdpMax, _chip.Min + 1)), Default = device.TdpDefault }
+                    : new ChipInfo(_chip.Name, device.TdpMin, device.TdpMax, device.TdpDefault,
+                        $"The {device.Name} runs at {device.TdpMin}–{device.TdpMax} W (from HandheldCompanion's device list).", true);
+            }
             return _chip;
         }
     }
@@ -125,7 +202,7 @@ public static class TdpControl
 
     public static void UpdateReapplyTimer()
     {
-        if (_settings is { TdpEnabled: true, TdpReapply: true } && Installed) Reapply.Start();
+        if (_settings is { TdpEnabled: true, TdpReapply: true } && CanApply) Reapply.Start();
         else Reapply.Stop();
     }
 
@@ -186,6 +263,44 @@ public static class TdpControl
             var s = _settings;
             int watts = s.TdpEnabled ? EffectiveWatts : 0;
             ApplyPowerMode(EffectivePowerMode);
+
+            string method = Method;
+            if (method is "asus" or "lenovo" or "msi" or "kx")
+            {
+                await SetCpuWithoutHelperAsync(EffectiveBoost, EffectiveMaxCpu);
+                await ApplyCpuExtrasAsync(s);
+                if (!s.TdpEnabled || watts <= 0) { LastResult = ""; return true; }
+                int slowW = watts, fastW = watts;
+                if (s.TdpBoostWindow == "short" && Chip is { } c)
+                {
+                    slowW = Math.Min(c.Max, (int)Math.Round(watts * 1.1));
+                    fastW = Math.Min(c.Max, (int)Math.Round(watts * 1.25));
+                }
+                bool done;
+                string why;
+                switch (method)
+                {
+                    case "asus":
+                        done = await Task.Run(() => AsusAcpi.SetPowerLimits(watts, slowW, fastW));
+                        why = "Couldn't reach the ASUS firmware";
+                        break;
+                    case "lenovo":
+                        done = (await DeviceHelper.RunAsync($"legion-tdp {watts} {fastW}")).Ok;
+                        why = DeviceHelper.LastResult;
+                        break;
+                    case "msi":
+                        done = (await DeviceHelper.RunAsync(IsIntel ? $"claw-tdp {watts} {fastW}" : $"claw-tdp {watts} {slowW} {fastW}")).Ok;
+                        why = DeviceHelper.LastResult;
+                        break;
+                    default:
+                        done = (await DeviceHelper.RunAsync($"intel-tdp {watts} {fastW}")).Ok;
+                        why = DeviceHelper.LastResult;
+                        break;
+                }
+                if (done) AppliedWatts = watts;
+                LastResult = done ? $"Applied {watts} W ({MethodName(method)})" : "Couldn't apply: " + why;
+                return done;
+            }
 
             if (!Installed)
             {

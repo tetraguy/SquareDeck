@@ -62,12 +62,68 @@ public sealed record CloudService(string Id, string Name, string Url, Color Bran
 /// <summary>
 /// A cloud gaming service, full screen. The controller goes straight to the page (the services read it like any
 /// browser game), so SquareDeck stops acting on it while this is open. To leave:
-///  - hold View + Start (the two small buttons in the middle) for about a second and a half;
-///  - or press Ctrl + Shift + Q on a keyboard;
+///  - hold the leave buttons (View + Menu unless changed in Settings) for about a second and a half;
+///  - or press the leave shortcut (Ctrl + Shift + Q unless changed) on a keyboard;
 ///  - or use the small, nearly invisible button in a corner of the screen (tap or click it, then Exit).
 /// </summary>
 public sealed class CloudGameScreen : Screen
 {
+    /// <summary>Controller combinations that can leave a cloud game (Settings > Cloud gaming > Leave with).</summary>
+    public static readonly (string Id, string Name, string About)[] LeaveButtons =
+    {
+        ("view+start", "View + Menu", "The two small buttons in the middle"),
+        ("l3+r3", "Both sticks pressed in", "Click in the left and right sticks together"),
+        ("lb+rb", "LB + RB", "Both shoulder buttons"),
+        ("lb+rb+view", "LB + RB + View", "Hardest to press by accident"),
+        ("lt+rt+view", "LT + RT + View", "Both triggers pulled, plus View"),
+        ("view+b", "View + B", "View and the B button"),
+        ("guide", "Guide (Xbox) button", "Only if Windows doesn't keep it for the Game Bar"),
+    };
+
+    public static readonly (string Id, string Name, string About)[] LeaveHolds =
+    {
+        ("0.5", "Half a second", ""), ("1", "1 second", ""), ("1.5", "1.5 seconds", ""), ("2", "2 seconds", ""), ("3", "3 seconds", ""),
+    };
+
+    /// <summary>Keyboard shortcuts that can leave a cloud game.</summary>
+    public static readonly (string Id, string Name, string About)[] LeaveKeys =
+    {
+        ("ctrl+shift+q", "Ctrl + Shift + Q", ""), ("ctrl+alt+q", "Ctrl + Alt + Q", ""), ("ctrl+shift+x", "Ctrl + Shift + X", ""),
+        ("ctrl+shift+end", "Ctrl + Shift + End", ""), ("alt+f12", "Alt + F12", ""), ("none", "None", ""),
+    };
+
+    public static string LeaveButtonsName(string id) => LeaveButtons.FirstOrDefault(b => b.Id == id).Name ?? LeaveButtons[0].Name;
+    public static string LeaveKeyName(string id) => LeaveKeys.FirstOrDefault(k => k.Id == id).Name ?? LeaveKeys[0].Name;
+
+    /// <summary>Whether the chosen leave combination is held in this controller reading.</summary>
+    private static bool LeaveHeld(Gamepad.RawState raw, string id)
+    {
+        const ushort Start = 0x0010, View = 0x0020, L3 = 0x0040, R3 = 0x0080, LB = 0x0100, RB = 0x0200, Guide = 0x0400, B = 0x2000;
+        bool Has(ushort mask) => (raw.Buttons & mask) == mask;
+        return id switch
+        {
+            "l3+r3" => Has(L3 | R3),
+            "lb+rb" => Has(LB | RB),
+            "lb+rb+view" => Has(LB | RB | View),
+            "lt+rt+view" => raw.LeftTrigger > 160 && raw.RightTrigger > 160 && Has(View),
+            "view+b" => Has(View | B),
+            "guide" => Has(Guide),
+            _ => Has(View | Start),
+        };
+    }
+
+    private static bool LeaveKeyPressed(Key key, ModifierKeys mods, string id) => id switch
+    {
+        "none" => false,
+        "ctrl+alt+q" => key == Key.Q && mods == (ModifierKeys.Control | ModifierKeys.Alt),
+        "ctrl+shift+x" => key == Key.X && mods == (ModifierKeys.Control | ModifierKeys.Shift),
+        "ctrl+shift+end" => key == Key.End && mods == (ModifierKeys.Control | ModifierKeys.Shift),
+        "alt+f12" => key == Key.F12 && mods == ModifierKeys.Alt,
+        _ => key == Key.Q && mods == (ModifierKeys.Control | ModifierKeys.Shift),
+    };
+
+    private double HoldSeconds => Math.Clamp(Host?.Settings.CloudLeaveHold ?? 1.5, 0.3, 5);
+
     private static Task<CoreWebView2Environment>? _environment;
 
     /// <summary>The service that's open, if any (the launcher hands it the controller while it's in front).</summary>
@@ -75,6 +131,9 @@ public sealed class CloudGameScreen : Screen
 
     private readonly WebView2 _web = new() { Visibility = Visibility.Hidden };
     private readonly TextBlock _status = Ui.Text("", 22, "SubtleBrush");
+    private readonly Grid _introHost = new();
+    private DateTime _openedAt = DateTime.UtcNow;
+    private bool _revealed;
     private CloudCorner? _corner;
     private DateTime? _comboSince;
     private bool _closing, _started;
@@ -85,10 +144,9 @@ public sealed class CloudGameScreen : Screen
     {
         Service = service;
         var root = new Grid { Background = Brushes.Black };
-        var waiting = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        var face = service.Face(220, 124, 20);
-        face.HorizontalAlignment = HorizontalAlignment.Center;
-        waiting.Children.Add(face);
+        // The launch animation goes here when the screen opens (it needs the settings).
+        root.Children.Add(_introHost);
+        var waiting = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 60) };
         _status.Text = "Opening " + service.Name + "…";
         _status.Margin = new Thickness(0, 22, 0, 0);
         _status.HorizontalAlignment = HorizontalAlignment.Center;
@@ -96,7 +154,8 @@ public sealed class CloudGameScreen : Screen
         _status.TextWrapping = TextWrapping.Wrap;
         _status.MaxWidth = 760;
         waiting.Children.Add(_status);
-        var how = Ui.Text("To leave: hold View + Start, press Ctrl + Shift + Q, or use the small button in the corner.", 16, "SubtleBrush");
+        var how = Ui.Text("", 16, "SubtleBrush");
+        Loaded += (_, _) => how.Text = "To leave: " + HowToLeave + ", or use the small button in the corner.";
         how.Margin = new Thickness(0, 12, 0, 0);
         how.HorizontalAlignment = HorizontalAlignment.Center;
         waiting.Children.Add(how);
@@ -111,7 +170,7 @@ public sealed class CloudGameScreen : Screen
     private void CheckKeys(KeyEventArgs e)
     {
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        if (key == Key.Q && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        if (LeaveKeyPressed(key, Keyboard.Modifiers, Host?.Settings.CloudLeaveKey ?? "ctrl+shift+q"))
         {
             e.Handled = true;
             Exit();
@@ -126,6 +185,8 @@ public sealed class CloudGameScreen : Screen
         if (!_started)
         {
             _started = true;
+            _openedAt = DateTime.UtcNow;
+            _introHost.Children.Add(CloudIntro.Build(Host.Settings.CloudIntro, Service, Service.Face(180, 180, 20)));
             _ = StartAsync();
         }
         else if (_web.CoreWebView2 != null) _web.Visibility = Visibility.Visible;
@@ -160,6 +221,23 @@ public sealed class CloudGameScreen : Screen
         Dispatcher.BeginInvoke(() => Host.RefreshBackgroundPlayback(), DispatcherPriority.Background); // and pick up again
     }
 
+    /// <summary>Shows the page, once the launch animation has had its two and a half seconds.</summary>
+    private async void Reveal()
+    {
+        if (_revealed || _closing || _web.CoreWebView2 == null) return;
+        _revealed = true;
+        var left = TimeSpan.FromMilliseconds(CloudIntro.Length) - (DateTime.UtcNow - _openedAt);
+        if (left > TimeSpan.Zero) await Task.Delay(left);
+        if (_closing) return;
+        _status.Text = "";
+        // The page is its own window and can't fade, so the animation fades out over it first.
+        _introHost.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(250)));
+        await Task.Delay(250);
+        if (_closing || !Host.IsTop(this)) return;
+        _web.Visibility = Visibility.Visible;
+        _web.Focus();
+    }
+
     private async Task StartAsync()
     {
         try
@@ -180,15 +258,13 @@ public sealed class CloudGameScreen : Screen
                 e.Handled = true;
                 core.Navigate(e.Uri);
             };
-            _web.NavigationCompleted += (_, _) =>
-            {
-                if (_web.Visibility != Visibility.Visible && Host.IsTop(this))
-                {
-                    _web.Visibility = Visibility.Visible;
-                    _web.Focus();
-                }
-            };
+            // The page takes over as soon as it has something to show (its first content), not when every last
+            // script and picture has loaded, which on these sites can take twenty seconds.
+            core.DOMContentLoaded += (_, _) => Reveal();
+            _web.NavigationCompleted += (_, _) => Reveal();
             _web.Source = new Uri(Service.Url);
+            // And whatever happens, no more than six seconds behind the animation.
+            _ = Task.Delay(6000).ContinueWith(_ => Dispatcher.BeginInvoke(Reveal));
         }
         catch (Exception ex)
         {
@@ -204,13 +280,12 @@ public sealed class CloudGameScreen : Screen
     public void PollController(Gamepad pad)
     {
         var raw = pad.GetRaw();
-        const ushort Start = 0x0010, View = 0x0020;
-        bool combo = raw.Connected && (raw.Buttons & Start) != 0 && (raw.Buttons & View) != 0;
+        bool combo = raw.Connected && LeaveHeld(raw, Host.Settings.CloudLeaveButtons);
         if (!combo) { _comboSince = null; _corner?.Progress(0); return; }
         _comboSince ??= DateTime.UtcNow;
         double held = (DateTime.UtcNow - _comboSince.Value).TotalSeconds;
-        _corner?.Progress(Math.Min(1, held / 1.5));
-        if (held >= 1.5) { _comboSince = null; Exit(); }
+        _corner?.Progress(Math.Min(1, held / HoldSeconds));
+        if (held >= HoldSeconds) { _comboSince = null; Exit(); }
     }
 
     // Nothing reaches here while the page has the controller, but keep keyboard B / Esc in the page too.
@@ -229,13 +304,21 @@ public sealed class CloudGameScreen : Screen
     }
 
     /// <summary>Back to SquareDeck's home without closing the game? Not offered: the stream would time out anyway.</summary>
-    public string HowToLeave => "Hold View + Start, or Ctrl + Shift + Q";
+    public string HowToLeave
+    {
+        get
+        {
+            var buttons = "hold " + LeaveButtonsName(Host?.Settings.CloudLeaveButtons ?? "view+start");
+            var key = Host?.Settings.CloudLeaveKey ?? "ctrl+shift+q";
+            return key == "none" ? buttons : buttons + ", or press " + LeaveKeyName(key);
+        }
+    }
 }
 
 /// <summary>
 /// The "stealthy" button for leaving a cloud game: a tiny, nearly see-through dot in a corner that never takes the
 /// focus from the game. Tap or click it (or move the mouse onto it) and it opens into Exit, Reload and Hide; it also
-/// fills up while View + Start is held. It's a window of its own, since nothing can be drawn over the page itself.
+/// fills up while the leave buttons are held. It's a window of its own, since nothing can be drawn over the page itself.
 /// </summary>
 public sealed class CloudCorner : Window
 {
@@ -331,7 +414,7 @@ public sealed class CloudCorner : Window
         _dot.Visibility = Visibility.Visible;
     }
 
-    /// <summary>0 to 1 while View + Start is held: the dot shows itself and fills up.</summary>
+    /// <summary>0 to 1 while the leave buttons are held: the dot shows itself and fills up.</summary>
     public void Progress(double part)
     {
         _ringScale.ScaleX = _ringScale.ScaleY = part;

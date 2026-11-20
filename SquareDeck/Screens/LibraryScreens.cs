@@ -23,17 +23,18 @@ public sealed class ArtPickerScreen : GridScreen
     private readonly double _w, _h;
     private bool _busy;
 
-    private string KindName => _kind switch { "heroes" => "hero image", "logos" => "logo", _ => "tall grid" };
+    private string KindName => _kind switch { "heroes" => "hero image", "logos" => "logo", "headers" => "header capsule", _ => "tall grid" };
 
     public ArtPickerScreen(Game item, string kind)
-        : base((kind switch { "heroes" => "Choose hero", "logos" => "Choose logo", _ => "Choose tall grid" }) + " – " + item.Name)
+        : base("Artwork – " + item.Name, ArtTabs.Hints)
     {
         _item = item;
         _kind = kind;
-        (_w, _h) = kind switch { "heroes" => (372.0, 120.0), "logos" => (276.0, 138.0), _ => (148.0, 222.0) };
+        (_w, _h) = kind switch { "heroes" => (372.0, 120.0), "logos" => (276.0, 138.0), "headers" => (322.0, 151.0), _ => (148.0, 222.0) };
         _note = Ui.Text("Loading images from SteamGridDB…", 17, "SubtleBrush");
-        _note.Margin = new Thickness(4, 8, 0, 0);
-        Body.Children.Add(_note);
+        _note.Margin = new Thickness(4, 0, 0, 10);
+        Body.Children.Insert(0, _note); // above the images, where it's seen
+        Body.Children.Insert(0, ArtTabs.Bar(item, kind, tab => ArtTabs.Switch(Host, this, item, tab)));
 
         bool hasPick = SteamGridDbClient.FindChosenArt(item, kind) != null;
         AddTile(GlyphBox(_w, _h, ""), "Choose a file…", _w, Browse);
@@ -43,6 +44,8 @@ public sealed class ArtPickerScreen : GridScreen
     public override void OnShown() => _ = LoadAsync();
 
     public override void OnClosed() => _cts.Cancel();
+
+    public override bool OnAction(NavAction action) => ArtTabs.Step(action, Host, this, _item, _kind);
 
     private async Task LoadAsync()
     {
@@ -66,8 +69,8 @@ public sealed class ArtPickerScreen : GridScreen
                     view.Margin = new Thickness(14);
                     box.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1D, 0x24));
                 }
-                AddTile(box, null, _w, () => Pick(img.Url, img.Thumb));
-                loads.Add(LoadThumbAsync(view, img.Thumb, _kind == "heroes" ? 480 : 300, gate, ct));
+                AddTile(box, null, _w, () => Pick(img.Url, img.Thumb, view.Source));
+                loads.Add(LoadThumbAsync(view, img.Thumb, _kind is "heroes" or "headers" ? 480 : 300, gate, ct));
             }
             await Task.WhenAll(loads);
         }
@@ -98,11 +101,14 @@ public sealed class ArtPickerScreen : GridScreen
         catch (ObjectDisposedException) { }
     }
 
-    private async void Pick(string url, string thumb)
+    private async void Pick(string url, string thumb, ImageSource? preview)
     {
         if (_busy) return;
         _busy = true;
-        _note.Text = "Downloading…";
+        var sheet = new DownloadSheet(preview, _w, _h, $"Downloading {KindName}…");
+        ShowOver(sheet);
+        var progress = new Progress<(long Done, long? Total)>(p => sheet.Report(p.Total is > 0 ? (double)p.Done / p.Total.Value : 0, p.Done, p.Total));
+        var retrying = new Progress<int>(n => sheet.Status($"The connection dropped. Trying again ({n} of 3)…"));
         string? path = null;
         try
         {
@@ -115,7 +121,7 @@ public sealed class ArtPickerScreen : GridScreen
                 foreach (var address in new[] { url, thumb }.Distinct())
                 {
                     if (string.IsNullOrEmpty(address)) continue;
-                    var file = await client.DownloadWithRetryAsync(address, null, dest, CancellationToken.None);
+                    var file = await client.DownloadWithRetryAsync(address, null, dest, CancellationToken.None, progress, retrying);
                     if (file == null) continue;
                     if (ImageLoader.FromFile(file, 64) != null) return file;
                     try { File.Delete(file); } catch (IOException) { } catch (UnauthorizedAccessException) { }
@@ -128,9 +134,22 @@ public sealed class ArtPickerScreen : GridScreen
             // Reported below.
         }
 
-        if (path != null && Save(path)) { Finish(path); return; }
+        if (path != null)
+        {
+            sheet.Status("Applying…");
+            await Task.Delay(60);
+            if (Save(path))
+            {
+                Host.RefreshArt(_item, _kind);
+                await sheet.DoneAsync("Applied", $"The new {KindName} is now used for {_item.Name}.");
+                Host.Pop(this);
+                return;
+            }
+        }
+        await sheet.FailedAsync("Check the internet connection, or pick another image.");
+        await sheet.HideAsync();
         _busy = false;
-        _note.Text = "That image couldn't be downloaded after several tries. Check the internet connection, or pick another one.";
+        FocusDefault();
     }
 
     /// <summary>Puts a downloaded or chosen file in place as this game's pick (replacing an earlier one).</summary>
@@ -181,30 +200,33 @@ public sealed class CoverPickerScreen : GridScreen
     private readonly CancellationTokenSource _cts = new();
     private readonly TextBlock _note;
     private readonly Action<string?>? _picked;
+    private readonly string? _tab; // "covers" or "icons" when shown as a tab of the artwork page
     private bool _busy;
 
     /// <param name="picked">If given, receives the chosen file instead of it being saved for the tile.</param>
-    public CoverPickerScreen(Game item, Action<string?>? picked = null) : base("Choose image – " + item.Name)
+    /// <param name="tab">For games: which tab of the artwork page this is ("covers" or "icons").</param>
+    public CoverPickerScreen(Game item, Action<string?>? picked = null, string tab = "covers")
+        : base((picked == null && item.IsGame ? "Artwork – " : "Choose image – ") + item.Name, picked == null && item.IsGame ? ArtTabs.Hints : DefaultHints)
     {
         _item = item;
         _picked = picked;
+        _tab = picked == null && item.IsGame ? tab : null;
         _note = Ui.Text("Loading images from SteamGridDB…", 17, "SubtleBrush");
-        _note.Margin = new Thickness(4, 8, 0, 0);
-        Body.Children.Add(_note);
+        _note.Margin = new Thickness(4, 0, 0, 10);
+        Body.Children.Insert(0, _note); // above the images, where it's seen
+        if (_tab != null) Body.Children.Insert(0, ArtTabs.Bar(item, _tab, t => ArtTabs.Switch(Host, this, item, t)));
 
         AddTile(GlyphBox(TileSize, TileSize, ""), "Choose a file…", TileSize, Browse);
         AddTile(GlyphBox(TileSize, TileSize, ""), "Use the default", TileSize, () => Finish(null));
-
-        // The other kinds of SteamGridDB art for a game: tall grids (poster styles), heroes (backgrounds) and logos.
-        if (picked == null && item.IsGame)
-        {
-            AddTile(GlyphBox(TileSize, TileSize, "\uE8A9"), "Tall grids", TileSize, () => Host.Push(new ArtPickerScreen(item, "grids")));
-            AddTile(GlyphBox(TileSize, TileSize, "\uEB9F"), "Hero images", TileSize, () => Host.Push(new ArtPickerScreen(item, "heroes")));
-            AddTile(GlyphBox(TileSize, TileSize, "\uE8D2"), "Logos", TileSize, () => Host.Push(new ArtPickerScreen(item, "logos")));
-        }
     }
 
-    public override void OnShown() => _ = LoadAsync();
+    public override bool OnAction(NavAction action) => _tab != null && ArtTabs.Step(action, Host, this, _item, _tab);
+
+    public override void OnShown()
+    {
+        if (_tab == "icons") { _note.Text = "Loading icons from SteamGridDB…"; _ = LoadIconsAsync(); }
+        else _ = LoadAsync();
+    }
 
     public override void OnClosed() => _cts.Cancel();
 
@@ -217,16 +239,16 @@ public sealed class CoverPickerScreen : GridScreen
             var images = await Task.Run(() => client.ListSquareAsync(_item, ct), ct);
             if (ct.IsCancellationRequested) return;
 
-            _note.Text = images.Count == 0 ? "SteamGridDB has no square images for this title, so here are its icons instead." : "";
-            if (images.Count == 0) { await LoadIconsAsync(); return; }
-            AddTile(GlyphBox(TileSize, TileSize, "\uE8B9"), "Search icons instead", TileSize, () => _ = LoadIconsAsync());
+            _note.Text = images.Count == 0 ? (_tab != null ? "SteamGridDB has no square images for this title. Try the Icons tab, or choose a file." : "SteamGridDB has no square images for this title, so here are its icons instead.") : "";
+            if (images.Count == 0) { if (_tab == null) await LoadIconsAsync(); return; }
+            if (_tab == null) AddTile(GlyphBox(TileSize, TileSize, "\uE8B9"), "Search icons instead", TileSize, () => _ = LoadIconsAsync());
             using var gate = new SemaphoreSlim(6);
             var loads = new List<Task>();
             foreach (var image in images.Take(60))
             {
                 var img = image;
                 var box = ImageBox(TileSize, TileSize, out var view);
-                AddTile(box, null, TileSize, () => PickRemote(img.Url, img.Thumb));
+                AddTile(box, null, TileSize, () => PickRemote(img.Url, img.Thumb, view.Source));
                 loads.Add(LoadThumbAsync(view, img.Thumb, gate, ct));
             }
             await Task.WhenAll(loads);
@@ -260,11 +282,12 @@ public sealed class CoverPickerScreen : GridScreen
                 _note.Text = "SteamGridDB has no square images or icons for this title. Choose a file instead.";
                 return;
             }
+            _note.Text = "";
             var header = Ui.Text("Icons", 20, "FgBrush", bold: true);
             header.Margin = new Thickness(4, 18, 0, 8);
-            var panel = new WrapPanel();
-            Body.Children.Add(header);
-            Body.Children.Add(panel);
+            // As its own tab, the icons sit in the main grid, after Choose a file and Use the default.
+            Panel panel = _tab == "icons" ? Tiles : new WrapPanel();
+            if (_tab != "icons") { Body.Children.Add(header); Body.Children.Add(panel); }
             using var gate = new SemaphoreSlim(6);
             var loads = new List<Task>();
             Button? first = null;
@@ -274,7 +297,7 @@ public sealed class CoverPickerScreen : GridScreen
                 var box = ImageBox(TileSize, TileSize, out var view);
                 view.Stretch = Stretch.Uniform;
                 view.Margin = new Thickness(TileSize * 0.2);
-                var tile = AddTile(box, null, TileSize, () => PickRemote(ic.Url, ic.Thumb, asIcon: true), null, panel);
+                var tile = AddTile(box, null, TileSize, () => PickRemote(ic.Url, ic.Thumb, view.Source, asIcon: true), null, panel);
                 first ??= tile;
                 loads.Add(LoadThumbAsync(view, ic.Thumb, gate, ct));
             }
@@ -310,11 +333,15 @@ public sealed class CoverPickerScreen : GridScreen
     private static string SafeKey(Game item) =>
         string.Concat(item.Key.Select(c => char.IsLetterOrDigit(c) ? c : '_')) + "_" + DateTime.Now.Ticks;
 
-    private async void PickRemote(string url, string thumb, bool asIcon = false)
+    private async void PickRemote(string url, string thumb, ImageSource? preview, bool asIcon = false)
     {
         if (_busy) return;
         _busy = true;
-        _note.Text = "Downloading\u2026";
+        var what = asIcon ? "icon" : "cover";
+        var sheet = new DownloadSheet(preview, TileSize, TileSize, $"Downloading {what}\u2026");
+        ShowOver(sheet);
+        var progress = new Progress<(long Done, long? Total)>(p => sheet.Report(p.Total is > 0 ? (double)p.Done / p.Total.Value : 0, p.Done, p.Total));
+        var retrying = new Progress<int>(n => sheet.Status($"The connection dropped. Trying again ({n} of 3)\u2026"));
         string? path = null;
         try
         {
@@ -328,7 +355,7 @@ public sealed class CoverPickerScreen : GridScreen
                 foreach (var address in new[] { url, thumb }.Distinct())
                 {
                     if (string.IsNullOrEmpty(address)) continue;
-                    var file = await client.DownloadWithRetryAsync(address, null, dest, CancellationToken.None);
+                    var file = await client.DownloadWithRetryAsync(address, null, dest, CancellationToken.None, progress, retrying);
                     if (file == null) continue;
                     if (ImageLoader.FromFile(file, 64) != null) return file;
                     try { File.Delete(file); } catch (IOException) { } catch (UnauthorizedAccessException) { }
@@ -341,9 +368,20 @@ public sealed class CoverPickerScreen : GridScreen
             // Reported below.
         }
 
-        if (path != null) { Finish(path); return; }
+        if (path != null)
+        {
+            sheet.Status("Applying\u2026");
+            await Task.Delay(60);
+            if (_picked != null) _picked(path);
+            else Host.SetCustomCover(_item, path);
+            await sheet.DoneAsync("Applied", $"The new {what} is now used for {_item.Name}.");
+            Host.Pop(this);
+            return;
+        }
+        await sheet.FailedAsync("Check the internet connection, or pick another image.");
+        await sheet.HideAsync();
         _busy = false;
-        _note.Text = "That image couldn't be downloaded after several tries. Check the internet connection, or pick another one.";
+        FocusDefault();
     }
 
     private async void Browse()
@@ -370,6 +408,83 @@ public sealed class CoverPickerScreen : GridScreen
         Host.Pop(this);
     }
 }
+
+/// <summary>
+/// The artwork page's tabs: one per kind of image a game can have. LB / RB (or the tabs themselves) switch between them;
+/// each tab is its own picker page, swapped in place.
+/// </summary>
+public static class ArtTabs
+{
+    public const string Hints = "{Select}  Use        {LB}{RB}  Switch tabs        {Back}  Back";
+
+    public static readonly (string Id, string Name, string Glyph)[] Tabs =
+    {
+        ("covers", "Square covers", ""), ("icons", "Icons", ""), ("grids", "Tall grids", ""),
+        ("headers", "Header capsules", ""), ("heroes", "Hero images", ""), ("logos", "Logos", ""),
+    };
+
+    public static Screen Create(Game item, string tab) => tab switch
+    {
+        "covers" or "icons" => new CoverPickerScreen(item, null, tab),
+        _ => new ArtPickerScreen(item, tab)
+    };
+
+    /// <summary>A row of tabs with the current one filled in, and a line saying where that kind of image is used.</summary>
+    public static FrameworkElement Bar(Game item, string active, Action<string> go)
+    {
+        var outer = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
+        var bar = new Border { CornerRadius = new CornerRadius(30), Padding = new Thickness(6), HorizontalAlignment = HorizontalAlignment.Left };
+        bar.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        var row = new WrapPanel();
+        foreach (var (id, name, glyph) in Tabs)
+        {
+            bool on = id == active;
+            var line = new StackPanel { Orientation = Orientation.Horizontal };
+            line.Children.Add(new TextBlock { Text = glyph, FontFamily = Ui.IconFont, FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 8, 0) });
+            line.Children.Add(new TextBlock { Text = name, FontSize = 15, VerticalAlignment = VerticalAlignment.Center, FontWeight = on ? FontWeights.SemiBold : FontWeights.Normal });
+            var tab = new Button { Style = Ui.StyleOf("PillButton"), Content = line, Padding = new Thickness(16, 8, 16, 8), Margin = new Thickness(0, 0, 4, 0), Tag = "tab:" + id };
+            if (on) { tab.SetResourceReference(Control.BackgroundProperty, "AccentBrush"); tab.SetResourceReference(Control.ForegroundProperty, "BgBrush"); }
+            else tab.Background = Brushes.Transparent;
+            string target = id;
+            tab.Click += (_, _) => { if (target != active) go(target); };
+            row.Children.Add(tab);
+        }
+        bar.Child = row;
+        outer.Children.Add(bar);
+        var what = Ui.Text(active switch
+        {
+            "covers" => "The square picture on the home row, Favorites and Apps.",
+            "icons" => "A game icon shown centered on a color wash, used instead of a square cover.",
+            "grids" => "Tall 2:3 poster art, for tall tiles and poster layouts.",
+            "headers" => "Wide 460×215 banners, for rectangle tiles and Showcase.",
+            "heroes" => "The big background picture behind a game's page and the home screen.",
+            _ => "The game's name as artwork, shown over hero images."
+        }, 14, "SubtleBrush");
+        what.Margin = new Thickness(8, 10, 0, 0);
+        outer.Children.Add(what);
+        return outer;
+    }
+
+    /// <summary>Swaps the current tab's page for another's.</summary>
+    public static void Switch(MainWindow host, Screen current, Game item, string tab)
+    {
+        var next = Create(item, tab);
+        host.Push(next);
+        host.RemoveBelow(current);
+    }
+
+    /// <summary>LB / RB: the tab to the left or right.</summary>
+    public static bool Step(NavAction action, MainWindow host, Screen current, Game item, string active)
+    {
+        if (action is not (NavAction.LB or NavAction.RB)) return false;
+        int index = Array.FindIndex(Tabs, t => t.Id == active);
+        int next = (index + (action == NavAction.RB ? 1 : -1) + Tabs.Length) % Tabs.Length;
+        UiSound.Select();
+        Switch(host, current, item, Tabs[next].Id);
+        return true;
+    }
+}
+
 
 /// <summary>
 /// Everything about one game: store info, screenshots, trailer, play time, achievements. Games from other stores and
@@ -422,6 +537,7 @@ public sealed class DetailsScreen : Screen
     public DetailsScreen(Game game)
     {
         _game = game;
+        RumbleOnMove(); // a light tick as the highlight moves from item to item (Vibrate while moving through menus)
 
         // ---- banner: cover, title or logo, facts, actions
         _coverBox = new Border
@@ -716,7 +832,7 @@ public sealed class DetailsScreen : Screen
         _actions.Children.Add(main);
 
         if (_game.IsRunning)
-            Pill("", "Stop", "Stop game", async () =>
+            Pill("", "Stop", "Stop game", async () =>
             {
                 await Host.StopGameAsync(_game, confirm: true);
                 BuildActions();
@@ -731,7 +847,7 @@ public sealed class DetailsScreen : Screen
         Pill("", inCollections == 0 ? "Collections" : $"Collections ({inCollections})",
             inCollections == 0 ? "Add to a collection" : $"In {inCollections} {(inCollections == 1 ? "collection" : "collections")}", () => _ = CollectionsAsync());
         if (_details is { Trailers.Count: > 0 }) Pill("", "Trailer", "Watch the trailer", WatchTrailer);
-        Pill("", "Rate", "Rating, status and notes", () => Host.Push(new GameNotesScreen(_game)));
+        Pill("", "Notebook", "Notebook, rating and status", () => Host.Push(new GameNotesScreen(_game)));
         if (_storeId > 0) Pill("\uE719", "Store", _game.IsSteam ? "Open the Steam store page" : "Open its page on the Steam store", () => ProcessUtil.Open("steam://store/" + _storeId));
         if (_wiki?.Url is { Length: > 0 } wikiUrl) Pill("\uE774", "Wikipedia", "Read the full article", () => Host.Push(BrowserScreen.Open(Host, wikiUrl)));
         if (!_game.IsSteam && InstallFolder() is string dir)
@@ -853,13 +969,16 @@ public sealed class DetailsScreen : Screen
     private void BuildNotes()
     {
         _notes.Children.Clear();
+        if (GameNotebook.Migrate(_game, Host.Library)) Host.Library.Save();
         var mine = Host.Library.Find(_game.Key);
-        bool any = mine is { Rating: > 0 } || !string.IsNullOrWhiteSpace(mine?.Status) || !string.IsNullOrWhiteSpace(mine?.Notes);
+        var notebook = GameNotebook.Ordered(GameNotebook.Load(_game)).ToList();
+        bool any = mine is { Rating: > 0 } || !string.IsNullOrWhiteSpace(mine?.Status) || notebook.Count > 0;
         if (!any) return;
 
         var stack = new StackPanel();
         var top = new WrapPanel();
-        if (mine!.Rating > 0)
+        mine ??= new ItemOverride();
+        if (mine.Rating > 0)
         {
             var stars = Ui.Text(Ui.Stars(mine.Rating), 22, "AccentBrush");
             stars.Margin = new Thickness(0, 0, 16, 0);
@@ -867,12 +986,19 @@ public sealed class DetailsScreen : Screen
         }
         if (!string.IsNullOrWhiteSpace(mine.Status)) top.Children.Add(Pill(mine.Status, "CircleBrush"));
         stack.Children.Add(top);
-        if (!string.IsNullOrWhiteSpace(mine.Notes))
+        // The latest (or pinned) notes, with how many there are.
+        foreach (var note in notebook.Take(2))
         {
-            var notes = Line(mine.Notes, 16, "FgBrush", wrap: true);
-            notes.Margin = new Thickness(0, 8, 0, 0);
-            notes.MaxHeight = 96;
-            stack.Children.Add(notes);
+            var line = Line(note.Title + (note.Preview.Length > 0 ? "  —  " + note.Preview : ""), 16, "FgBrush", wrap: true);
+            line.Margin = new Thickness(0, 8, 0, 0);
+            line.MaxHeight = 48;
+            stack.Children.Add(line);
+        }
+        if (notebook.Count > 0)
+        {
+            var more = Line(notebook.Count == 1 ? "1 note in your notebook" : $"{notebook.Count} notes in your notebook", 13, "SubtleBrush");
+            more.Margin = new Thickness(0, 8, 0, 0);
+            stack.Children.Add(more);
         }
         _notes.Children.Add(SectionTitle("Your notes"));
         var card = Card(stack, new Thickness(20, 16, 20, 16));
@@ -924,6 +1050,7 @@ public sealed class DetailsScreen : Screen
             if (!await LoadStoreAsync(ct)) _description.Text = "Store details aren't available for this title right now.";
             await LoadLogoAsync(ct);
             _ = LoadReviewsAsync(ct);
+            if (Host.Settings.ShowPlayerStats) await LoadPlayerStatsAsync(ct);
             await LoadNewsAsync(ct);
             await LoadDlcAsync(ct);
             await LoadAchievementsAsync(ct);
@@ -1072,7 +1199,7 @@ public sealed class DetailsScreen : Screen
             strip.Children.Add(CardButton(box, "shot:" + i, () => Host.Push(new ViewerScreen(fullSize, position))));
             _ = LoadImageAsync(view, shots[i].Thumb, 480, null, _cts.Token);
         }
-        _sections.Children.Add(SectionTitle("Screenshots"));
+        _sections.Children.Add(SectionTitle("Developer's Screenshots"));
         _sections.Children.Add(Strip(strip));
     }
 
@@ -1112,6 +1239,179 @@ public sealed class DetailsScreen : Screen
         _sections.Children.Add(SectionTitle("News and updates"));
         _sections.Children.Add(Strip(strip));
     }
+
+    /// <summary>
+    /// Player stats (Settings > Games > Player stats on game pages): players now and peaks, owner estimate, store
+    /// facts, monthly players for the last year and the history of user reviews, plus SteamDB's own page (with Twitch
+    /// stats) in the built-in browser.
+    /// </summary>
+    private async Task LoadPlayerStatsAsync(CancellationToken ct)
+    {
+        var placeholder = Line("Loading player stats…", 15);
+        var title = SectionTitle("Player stats");
+        _sections.Children.Add(title);
+        _sections.Children.Add(placeholder);
+        GameStatsData stats;
+        try { stats = await Task.Run(() => GameStats.GetAsync(_storeId, ct), ct); }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception) { stats = new GameStatsData(); }
+        if (ct.IsCancellationRequested) return;
+        int at = _sections.Children.IndexOf(placeholder);
+        _sections.Children.Remove(placeholder);
+        var block = new StackPanel();
+        _sections.Children.Insert(Math.Max(0, at), block);
+
+        // ---- headline numbers
+        var chips = new WrapPanel();
+        void Chip(string glyph, string value, string label, string id)
+        {
+            var s = new StackPanel { Width = 196 };
+            var icon = Ui.Glyph(glyph, 20, "AccentBrush");
+            icon.HorizontalAlignment = HorizontalAlignment.Left;
+            s.Children.Add(icon);
+            var v = Line(value, 26, "FgBrush", bold: true);
+            v.Margin = new Thickness(0, 6, 0, 0);
+            s.Children.Add(v);
+            s.Children.Add(Line(label, 13));
+            chips.Children.Add(CardButton(Card(s, new Thickness(18, 14, 18, 14)), "stat:" + id, () => OpenSteamDb()));
+        }
+        if (stats.PlayingNow is int now) Chip("\uE716", now.ToString("N0"), "playing right now", "now");
+        if (stats.Peak24h is int day) Chip("\uE9D9", day.ToString("N0"), "24-hour peak", "24h");
+        if (stats.PeakAllTime is int all) Chip("\uE734", all.ToString("N0"), "all-time peak", "all");
+        if (stats.Owners != null) Chip("\uE77B", stats.Owners.Split(' ')[0] + "+", "estimated owners", "owners");
+        if (stats.Positive is int pos && stats.Negative is int neg && pos + neg > 0)
+            Chip("\uE8E1", $"{100.0 * pos / (pos + neg):0}%", $"positive of {GameStats.Short(pos + neg)} reviews", "reviews");
+        if (stats.AverageForeverMinutes is int avg && avg > 0) Chip("\uE823", $"{avg / 60.0:0.#}h", "average play time", "avgtime");
+        if (chips.Children.Count > 0) block.Children.Add(chips);
+
+        // ---- store data
+        if (_details != null)
+        {
+            var facts = new WrapPanel { Margin = new Thickness(0, 4, 0, 4) };
+            void Fact(string label, string value)
+            {
+                if (string.IsNullOrWhiteSpace(value)) return;
+                var f = new StackPanel { Margin = new Thickness(0, 0, 34, 10) };
+                f.Children.Add(Line(label.ToUpperInvariant(), 11, "AccentBrush", bold: true));
+                f.Children.Add(Line(value, 15, "FgBrush"));
+                facts.Children.Add(f);
+            }
+            Fact("Released", _details.ReleaseDate);
+            Fact("Developer", _details.Developers);
+            Fact("Publisher", _details.Publishers);
+            Fact("Price", _game.Price);
+            if (_details.Metacritic is int mc) Fact("Metacritic", mc.ToString());
+            Fact("Achievements", _details.AchievementTotal > 0 ? _details.AchievementTotal.ToString() : "");
+            if (stats.MedianForeverMinutes is int med && med > 0) Fact("Median play time", $"{med / 60.0:0.#} hours");
+            if (stats.PeakYesterday is int y && y > 0) Fact("Peak yesterday", y.ToString("N0"));
+            block.Children.Add(Card(facts, new Thickness(20, 16, 20, 6)));
+            if (stats.Tags.Count > 0)
+            {
+                var tags = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+                foreach (var t in stats.Tags) tags.Children.Add(Pill(t, "CircleBrush"));
+                block.Children.Add(tags);
+            }
+        }
+
+        // ---- monthly players: average bars with the peak marked above each
+        var months = stats.Months.Where(m => !m.Month.StartsWith("Last", StringComparison.OrdinalIgnoreCase)).Take(12).Reverse().ToList();
+        if (months.Count > 1)
+        {
+            var panel = new StackPanel();
+            var head = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+            var legend = Line("\u25A0 average   \u25CF peak", 12);
+            DockPanel.SetDock(legend, Dock.Right);
+            head.Children.Add(legend);
+            head.Children.Add(Line("MONTHLY PLAYERS", 12, "AccentBrush", bold: true));
+            panel.Children.Add(head);
+            double top = Math.Max(1, months.Max(m => m.Peak));
+            var chart = new Grid { Height = 170 };
+            for (int i = 0; i < months.Count; i++)
+            {
+                var m = months[i];
+                chart.ColumnDefinitions.Add(new ColumnDefinition());
+                var col = new Grid { Margin = new Thickness(5, 0, 5, 0) };
+                col.RowDefinitions.Add(new RowDefinition());
+                col.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                var area = new Grid();
+                var avgBar = new Border { CornerRadius = new CornerRadius(5, 5, 2, 2), VerticalAlignment = VerticalAlignment.Bottom, Height = Math.Max(3, 130 * m.Average / top) };
+                avgBar.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+                area.Children.Add(avgBar);
+                var peak = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 130 * m.Peak / top - 4), Fill = Brushes.White };
+                area.Children.Add(peak);
+                area.ToolTip = $"{m.Month}: average {m.Average:N0}, peak {m.Peak:N0}";
+                col.Children.Add(area);
+                var name = Line(m.Month.Length >= 3 ? m.Month[..3] + (m.Month.Contains(' ') ? " '" + m.Month[^2..] : "") : m.Month, 11);
+                name.HorizontalAlignment = HorizontalAlignment.Center;
+                name.Margin = new Thickness(0, 6, 0, 0);
+                Grid.SetRow(name, 1);
+                col.Children.Add(name);
+                Grid.SetColumn(col, i);
+                chart.Children.Add(col);
+            }
+            panel.Children.Add(chart);
+            var last = stats.Months[0];
+            panel.Children.Add(Line($"{last.Month}: average {last.Average:N0} players, peak {last.Peak:N0}", 13));
+            var card = Card(panel, new Thickness(20, 16, 20, 16));
+            card.Margin = new Thickness(0, 10, 0, 0);
+            block.Children.Add(CardButton(card, "stat:months", OpenSteamDb));
+        }
+
+        // ---- review history: thumbs up above the line, thumbs down below, month by month
+        var reviews = stats.Reviews.TakeLast(24).ToList();
+        if (reviews.Count > 1)
+        {
+            var panel = new StackPanel();
+            int ups = reviews.Sum(r => r.Up), downs = reviews.Sum(r => r.Down);
+            var head = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+            var summary = Line($"{ups:N0} \u25B2   {downs:N0} \u25BC   ({100.0 * ups / Math.Max(1, ups + downs):0}% positive)", 12);
+            DockPanel.SetDock(summary, Dock.Right);
+            head.Children.Add(summary);
+            head.Children.Add(Line("USER REVIEW HISTORY", 12, "AccentBrush", bold: true));
+            panel.Children.Add(head);
+            double top = Math.Max(1, reviews.Max(r => Math.Max(r.Up, r.Down)));
+            var chart = new Grid { Height = 160 };
+            chart.RowDefinitions.Add(new RowDefinition());
+            chart.RowDefinitions.Add(new RowDefinition { Height = new GridLength(2) });
+            chart.RowDefinitions.Add(new RowDefinition());
+            var axis = new Border { Opacity = 0.4 };
+            axis.SetResourceReference(Border.BackgroundProperty, "SubtleBrush");
+            Grid.SetRow(axis, 1);
+            Grid.SetColumnSpan(axis, reviews.Count);
+            chart.Children.Add(axis);
+            for (int i = 0; i < reviews.Count; i++)
+            {
+                var r = reviews[i];
+                chart.ColumnDefinitions.Add(new ColumnDefinition());
+                var up = new Border { Background = new SolidColorBrush(Color.FromRgb(0x5C, 0xC8, 0x6E)), CornerRadius = new CornerRadius(3, 3, 0, 0), VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(2, 0, 2, 0), Height = Math.Max(r.Up > 0 ? 2 : 0, 76 * r.Up / top) };
+                var down = new Border { Background = new SolidColorBrush(Color.FromRgb(0xE0, 0x5A, 0x4E)), CornerRadius = new CornerRadius(0, 0, 3, 3), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(2, 0, 2, 0), Height = Math.Max(r.Down > 0 ? 2 : 0, 76 * r.Down / top) };
+                up.ToolTip = down.ToolTip = $"{r.Month:MMMM yyyy}: {r.Up:N0} positive, {r.Down:N0} negative";
+                Grid.SetColumn(up, i); Grid.SetColumn(down, i); Grid.SetRow(down, 2);
+                chart.Children.Add(up); chart.Children.Add(down);
+            }
+            panel.Children.Add(chart);
+            panel.Children.Add(Line($"{reviews[0].Month:MMM yyyy} – {reviews[^1].Month:MMM yyyy}", 12));
+            var card = Card(panel, new Thickness(20, 16, 20, 16));
+            card.Margin = new Thickness(0, 10, 0, 0);
+            block.Children.Add(CardButton(card, "stat:reviews", OpenSteamDb));
+        }
+
+        // ---- the full picture on SteamDB (Twitch stats, owners history, price history...)
+        var more = new StackPanel { Orientation = Orientation.Horizontal };
+        var go = Ui.Glyph("\uE774", 20, "AccentBrush");
+        go.Margin = new Thickness(0, 0, 12, 0);
+        more.Children.Add(go);
+        var text = new StackPanel();
+        text.Children.Add(Line("Open on SteamDB", 16, "FgBrush", bold: true));
+        text.Children.Add(Line("Full charts, Twitch viewers, price history and more, in the built-in browser", 13));
+        more.Children.Add(text);
+        var moreCard = Card(more, new Thickness(18, 14, 18, 14));
+        moreCard.Margin = new Thickness(0, 10, 0, 0);
+        block.Children.Add(CardButton(moreCard, "stat:steamdb", OpenSteamDb));
+        block.Children.Add(Line("Players and reviews from Steam, owner estimates from SteamSpy, monthly players from SteamCharts.", 12));
+    }
+
+    private void OpenSteamDb() => Host.Push(BrowserScreen.Open(Host, GameStats.SteamDbUrl(_storeId)));
 
     /// <summary>DLC the store lists (and which of it is installed), and installed Steam Workshop mods.</summary>
     private async Task LoadDlcAsync(CancellationToken ct)
@@ -1465,7 +1765,22 @@ public sealed class StoreSearchScreen : ListScreen
 public sealed class LibraryScreen : Screen
 {
     // With the sidebar shrunk to a blade, tiles are a little smaller so every row holds exactly six.
-    private double TileSize => Layout switch { "compact" => 124, "large" => 226, _ => Collapsed ? 148 : 164 };
+    private double TileSize => Layout switch { "compact" => 124, "large" => 226, "posters" => 176, "showcase" => 286, "mini" => 92, _ => Collapsed ? 148 : 164 };
+    private bool ListLayout => Layout is "list" or "focus";
+    private double _showcaseWidth;
+
+    /// <summary>
+    /// Showcase: wide banners, exactly four to a row. Each tile takes its picture's width plus 16 for the highlight
+    /// ring's padding and 4 of spacing, so the picture width is a quarter of the row less that.
+    /// </summary>
+    private double ShowcaseWidth()
+    {
+        double row = _groups.ActualWidth > 200 ? _groups.ActualWidth : 1180;
+        _showcaseWidth = row;
+        return Math.Floor((row - 2) / 4 - 20);
+    }
+    private bool ShelfLayout => Layout is "shelves" or "timeline";
+    private bool SpotlightLayout => Layout is "spotlight" or "focus";
 
     /// <summary>
     /// The page's layout (Settings > Games and library, or the toolbar):
@@ -1484,10 +1799,15 @@ public sealed class LibraryScreen : Screen
         ("list", "List", "One row per game, with its store, play time and when you last played"),
         ("shelves", "Shelves", "Rows that scroll sideways: recent, favorites, each store, collections"),
         ("spotlight", "Spotlight", "The highlighted game large across the top, tiles below"),
+        ("posters", "Poster wall", "No sidebar, tall movie-poster art in big rows"),
+        ("showcase", "Showcase", "No sidebar, wide rectangle banners four to a row"),
+        ("mini", "Mini grid", "Icons-only sidebar and tiny tiles, to see your whole library at once"),
+        ("focus", "Focus list", "The highlighted game large across the top, a list below"),
+        ("timeline", "Timeline", "Rows by when you last played: today, this week, this month, earlier, never"),
     };
 
     private string Layout => Layouts.Any(l => l.Id == Host.Settings.LibraryLayout) ? Host.Settings.LibraryLayout : "sidebar";
-    private bool SidebarHidden => Layout is "large" or "shelves";
+    private bool SidebarHidden => Layout is "large" or "shelves" or "posters" or "showcase" or "timeline";
     private readonly Border _spotlight = new() { Margin = new Thickness(0, 0, 4, 14), Height = 250, Visibility = Visibility.Collapsed };
     private const string Uncategorized = "Uncategorized";
     private const int MaxNotInstalledShown = 400;
@@ -1504,7 +1824,12 @@ public sealed class LibraryScreen : Screen
     private string _filter = "all";     // all | favorites | installed | notinstalled | rated | src:<store> | cat:<name> | status:<s>
     private string _sort = "recent";    // recent | name | playtime | size | rating
     private string _search = "";
-    private bool _grouped;
+    /// <summary>"" (no groups), "category", "genre" (main genre) or "played" (played / never played).</summary>
+    private string _groupBy = "";
+    private static readonly (string Id, string Name)[] Groupings =
+    {
+        ("", "No groups"), ("category", "Category"), ("genre", "Main genre"), ("played", "Played or never played"),
+    };
     private string? _lastFocus;         // game key, "tool:<index>" or "side:<filter>"
 
     public LibraryScreen()
@@ -1522,6 +1847,11 @@ public sealed class LibraryScreen : Screen
         right.Children.Add(_spotlight);
         right.Children.Add(_toolbar);
         right.Children.Add(_groups);
+        // Showcase fits four banners to the row, so a change of width (the window, the sidebar) lays it out again.
+        _groups.SizeChanged += (_, e) =>
+        {
+            if (Layout == "showcase" && e.WidthChanged && Math.Abs(e.NewSize.Width - _showcaseWidth) > 8) Dispatcher.BeginInvoke(new Action(Rebuild));
+        };
 
         // Sidebar on a slightly raised panel so the two halves read as separate areas. It can shrink to just icons.
         var sidePanel = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 4, 4, 8), Child = Scroller(_sidebar), ClipToBounds = true };
@@ -1637,13 +1967,13 @@ public sealed class LibraryScreen : Screen
 
     // ---------------------------------------------------------------- sidebar size
 
-    private bool Collapsed => Layout is "compact" or "spotlight" || Host.Settings.LibrarySidebarCollapsed;
+    private bool Collapsed => Layout is "compact" or "spotlight" or "mini" or "focus" || Host.Settings.LibrarySidebarCollapsed;
 
     /// <summary>Shrinks the sidebar to a blade of icons, or opens it back up.</summary>
     private void ToggleSidebar()
     {
         // The compact and spotlight layouts always use the icons-only sidebar; opening it goes back to the usual one.
-        if (Layout is "compact" or "spotlight") { Host.Settings.LibraryLayout = "sidebar"; Host.Settings.LibrarySidebarCollapsed = true; }
+        if (Layout is "compact" or "spotlight" or "mini" or "focus") { Host.Settings.LibraryLayout = "sidebar"; Host.Settings.LibrarySidebarCollapsed = true; }
         Host.Settings.LibrarySidebarCollapsed = !Collapsed;
         Host.Settings.Save();
         _lastFocus = "side:toggle";
@@ -1656,7 +1986,7 @@ public sealed class LibraryScreen : Screen
         _sidePanel.Visibility = SidebarHidden ? Visibility.Collapsed : Visibility.Visible;
         if (_sidePanel.Parent is Grid layout && layout.Children.Count > 1 && layout.Children[1] is FrameworkElement rightSide)
             rightSide.Margin = SidebarHidden ? new Thickness(-22, 0, 0, 0) : new Thickness(0);
-        _spotlight.Visibility = Layout == "spotlight" ? Visibility.Visible : Visibility.Collapsed;
+        _spotlight.Visibility = SpotlightLayout ? Visibility.Visible : Visibility.Collapsed;
         double target = Collapsed ? 92 : 264;
         _sidebar.Width = Collapsed ? 72 : 236;
         _sidePanel.Padding = Collapsed ? new Thickness(6, 4, 6, 8) : new Thickness(10, 4, 4, 8);
@@ -1677,6 +2007,8 @@ public sealed class LibraryScreen : Screen
     public override void OnShown()
     {
         SizeSidebar(animate: false);
+        _groupBy = Groupings.Any(x => x.Id == Host.Settings.LibraryGroupBy) ? Host.Settings.LibraryGroupBy : "";
+        GenreCache.Updated += OnGenres;
         Host.LibraryChanged += OnLibraryChanged;
         Host.ApplyCachedLists(); // saved lists and counts show at once; they refresh when their section is picked
         Rebuild();
@@ -1688,8 +2020,11 @@ public sealed class LibraryScreen : Screen
     public override void OnClosed()
     {
         Host.LibraryChanged -= OnLibraryChanged;
+        GenreCache.Updated -= OnGenres;
         _artCts?.Cancel();
     }
+
+    private void OnGenres() => Dispatcher.BeginInvoke(() => { if (_groupBy == "genre" && Host.IsTop(this)) Rebuild(); });
 
     private void OnLibraryChanged()
     {
@@ -1798,7 +2133,11 @@ public sealed class LibraryScreen : Screen
         {
             AddShelves(list);
         }
-        else if (_grouped)
+        else if (Layout == "timeline" && _filter == "all" && _search.Length == 0)
+        {
+            AddTimeline(list);
+        }
+        else if (_groupBy == "category")
         {
             var byCategory = list.GroupBy(g => Host.CategoryOf(g) ?? Uncategorized)
                 .OrderBy(g => g.Key == Uncategorized)          // uncategorized last
@@ -1808,6 +2147,29 @@ public sealed class LibraryScreen : Screen
                 _groups.Children.Add(Ui.Header($"{group.Key}  ({group.Count()})"));
                 AddGames(group);
             }
+        }
+        else if (_groupBy == "genre")
+        {
+            // The first genre on each game's store page; looked up in the background, filled in as found.
+            const string unknown = "Genre not known yet", none = "No genre";
+            var byGenre = list.GroupBy(g => GenreCache.Of(g) is { } genre ? (genre.Length > 0 ? genre : none) : g.IsGame ? unknown : "Apps and programs")
+                .OrderBy(g => g.Key is unknown or none or "Apps and programs")
+                .ThenByDescending(g => g.Count())
+                .ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase);
+            foreach (var group in byGenre)
+            {
+                _groups.Children.Add(Ui.Header($"{group.Key}  ({group.Count()})"));
+                AddGames(group);
+            }
+            if (list.Any(g => g.IsGame && GenreCache.Of(g) == null)) _ = Task.Run(() => GenreCache.EnsureAsync(list.ToList()));
+        }
+        else if (_groupBy == "played")
+        {
+            bool Played(Game g) => Host.Playtime.TotalSeconds(g.Key) > 0 || g.LastPlayed is not null;
+            var played = list.Where(Played).ToList();
+            var never = list.Where(g => !Played(g)).ToList();
+            if (played.Count > 0) { _groups.Children.Add(Ui.Header($"Played  ({played.Count})")); AddGames(played); }
+            if (never.Count > 0) { _groups.Children.Add(Ui.Header($"Never played  ({never.Count})")); AddGames(never); }
         }
         else
         {
@@ -1839,6 +2201,27 @@ public sealed class LibraryScreen : Screen
         foreach (var c in Host.Library.Collections)
             Shelf(c.Name, installed.Where(g => Matches(g, "col:" + c.Id)));
         Shelf("Not installed", all.Where(g => !g.IsInstalled && !g.OnWishlist).OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase));
+    }
+
+    /// <summary>Timeline: rows by when each game was last played, newest first, then the ones never played.</summary>
+    private void AddTimeline(List<Game> all)
+    {
+        var now = DateTime.Now;
+        var played = all.Where(g => g.RecentAt > DateTime.MinValue.AddYears(1) && g.RecentAt <= now.AddDays(1)).OrderByDescending(g => g.RecentAt).ToList();
+        void Shelf(string heading, IEnumerable<Game> games)
+        {
+            var list = games.Take(40).ToList();
+            if (list.Count == 0) return;
+            _groups.Children.Add(Ui.Header($"{heading}  ({list.Count})"));
+            AddGames(list, shelf: true);
+        }
+        Shelf("Today", played.Where(g => g.RecentAt.Date == now.Date));
+        Shelf("This week", played.Where(g => g.RecentAt.Date < now.Date && g.RecentAt > now.AddDays(-7)));
+        Shelf("This month", played.Where(g => g.RecentAt <= now.AddDays(-7) && g.RecentAt > now.AddDays(-31)));
+        Shelf("This year", played.Where(g => g.RecentAt <= now.AddDays(-31) && g.RecentAt > now.AddDays(-365)));
+        Shelf("Longer ago", played.Where(g => g.RecentAt <= now.AddDays(-365)));
+        Shelf("Never played", all.Where(g => g.IsInstalled && !played.Contains(g)).OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase));
+        Shelf("Not installed", all.Where(g => !g.IsInstalled && !g.OnWishlist && !played.Contains(g)).OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase));
     }
 
     private void AddNote(string text)
@@ -2191,14 +2574,24 @@ public sealed class LibraryScreen : Screen
         AddTool("Sort: " + SortLabel, ChooseSort);
         AddTool("View: " + ViewLabel, ChooseView);
         AddTool("Layout: " + Layouts.First(l => l.Id == Layout).Name, ChooseLayout);
-        if (SidebarHidden && Layout != "shelves") AddTool("Show: " + FilterName(_filter), ChooseSection);
-        AddTool("Group by category: " + (_grouped ? "On" : "Off"), () => { _grouped = !_grouped; Rebuild(); });
+        if (SidebarHidden && !ShelfLayout) AddTool("Show: " + FilterName(_filter), ChooseSection);
+        AddTool("Group by: " + Groupings.First(x => x.Id == _groupBy).Name, ChooseGrouping);
         AddTool("+  Add custom game", () => Host.Push(new AddCustomGameScreen()));
         AddTool("Play time", () => Host.Push(new PlaytimeScreen()));
         AddTool("Achievements", () => Host.Push(new UnlocksScreen()));
         if (Host.InstallQueue.Count > 0) AddTool($"Install queue ({Host.InstallQueue.Count})", ShowQueue);
         _count.Margin = new Thickness(6, 0, 0, 6);
         _toolbar.Children.Add(_count);
+    }
+
+    private async void ChooseGrouping()
+    {
+        int choice = await Host.AskAsync("Group by", null, Groupings.Select(x => x.Name).ToArray());
+        if (choice < 0) return;
+        _groupBy = Groupings[choice].Id;
+        Host.Settings.LibraryGroupBy = _groupBy;
+        Host.Settings.Save();
+        Rebuild();
     }
 
     private void AddTool(string label, Action click)
@@ -2218,8 +2611,8 @@ public sealed class LibraryScreen : Screen
     private void AddGames(IEnumerable<Game> games, bool shelf = false)
     {
         // Shelves: one row that scrolls sideways. List: one game per row. Otherwise tiles that wrap.
-        Panel panel = shelf ? new StackPanel { Orientation = Orientation.Horizontal } : Layout == "list" ? new StackPanel() : new WrapPanel();
-        if (Layout == "list" && !shelf)
+        Panel panel = shelf ? new StackPanel { Orientation = Orientation.Horizontal } : ListLayout ? new StackPanel() : new WrapPanel();
+        if (ListLayout && !shelf)
         {
             foreach (var game in games)
             {
@@ -2227,7 +2620,7 @@ public sealed class LibraryScreen : Screen
                 var row = ListRow(g, out var rowTitle);
                 row.Tag = g;
                 row.Click += (_, _) => _ = Host.ActivateAsync(g);
-                row.GotKeyboardFocus += (_, _) => { _lastFocus = g.Key; rowTitle.Active = true; };
+                row.GotKeyboardFocus += (_, _) => { _lastFocus = g.Key; rowTitle.Active = true; ShowSpotlight(g); };
                 row.LostKeyboardFocus += (_, _) => rowTitle.Active = false;
                 panel.Children.Add(row);
             }
@@ -2235,8 +2628,9 @@ public sealed class LibraryScreen : Screen
             return;
         }
         // Square: the cover as it is. Grid: tall 2:3 poster art. Rectangle: the wide 460×215 header, three to a row.
-        string view = Host.Settings.LibraryView;
-        double tileWidth = view == "header" ? TileSize * 2 + 4 : TileSize;
+        // Poster wall and Showcase always use their own art shape; Mini grid keeps it square.
+        string view = Layout switch { "posters" => "grid", "showcase" => "header", "mini" => "square", _ => Host.Settings.LibraryView };
+        double tileWidth = Layout == "showcase" && !shelf ? ShowcaseWidth() : view == "header" ? TileSize * 2 + 4 : TileSize;
         double tileHeight = view == "grid" ? Math.Round(TileSize * 1.5) : view == "header" ? Math.Round(tileWidth * 215 / 460) : TileSize;
         foreach (var game in games)
         {
@@ -2329,8 +2723,20 @@ public sealed class LibraryScreen : Screen
             tile.Tag = g;
             tile.Margin = new Thickness(0, 0, 4, 6);
             tile.Click += (_, _) => _ = Host.ActivateAsync(g);
-            tile.GotKeyboardFocus += (_, _) => { _lastFocus = g.Key; title.Active = true; ShowSpotlight(g); };
-            tile.LostKeyboardFocus += (_, _) => title.Active = false;
+            // The same highlight animation as the home screen (Settings > Home screen > Selected game): the ring pulse
+            // or glow comes with every tile; grow, bounce, lift, wobble, tilt, shake and breathe move the cover here.
+            tile.GotKeyboardFocus += (_, _) =>
+            {
+                _lastFocus = g.Key; title.Active = true; ShowSpotlight(g);
+                Panel.SetZIndex(tile, 1);
+                if (Motion.HighlightGrow > 1 || Motion.SelectGrow > 1.001) Motion.GrowTile(box, true);
+            };
+            tile.LostKeyboardFocus += (_, _) =>
+            {
+                title.Active = false;
+                Panel.SetZIndex(tile, 0);
+                if (Motion.HighlightGrow > 1 || Motion.SelectGrow > 1.001) Motion.GrowTile(box, false);
+            };
             tile.MouseEnter += (_, _) => title.Active = true;
             tile.MouseLeave += (_, _) => title.Active = tile.IsKeyboardFocused;
             panel.Children.Add(tile);
@@ -2470,11 +2876,12 @@ public sealed class LibraryScreen : Screen
     /// <summary>Pick one of the six layouts (also in Settings > Games and library).</summary>
     private async void ChooseLayout()
     {
-        int choice = await Host.AskAsync("Library layout", string.Join("\n", Layouts.Select(l => $"{l.Name}: {l.About}")), Layouts.Select(l => l.Name).ToArray());
+        int choice = await Host.AskAsync("Library layout", null, Layouts.Select(l => l.Name).ToArray());
         if (choice < 0 || Layouts[choice].Id == Layout) return;
         Host.Settings.LibraryLayout = Layouts[choice].Id;
+        if (Layout == "showcase") Host.Settings.LibraryView = "header"; // Showcase is rectangles
         Host.Settings.Save();
-        if (Layout == "shelves") _filter = "all";
+        if (ShelfLayout) _filter = "all";
         SizeSidebar(animate: false);
         Rebuild();
     }
@@ -2498,7 +2905,7 @@ public sealed class LibraryScreen : Screen
     /// <summary>Spotlight: the highlighted game large across the top: its cover over a blur of itself, name and facts.</summary>
     private void ShowSpotlight(Game g)
     {
-        if (Layout != "spotlight") return;
+        if (!SpotlightLayout) return;
         var grid = new Grid { ClipToBounds = true };
         double corner = Math.Max(Theme.TileCorner + 6, 8);
         grid.SizeChanged += (_, _) => grid.Clip = new RectangleGeometry(new Rect(grid.RenderSize), corner, corner);
@@ -2579,7 +2986,7 @@ public sealed class LibraryScreen : Screen
         return button;
     }
 
-    private string ViewLabel => Host.Settings.LibraryView switch { "grid" => "Grid", "header" => "Rectangle", _ => "Square" };
+    private string ViewLabel => (Layout switch { "posters" => "grid", "showcase" => "header", "mini" => "square", _ => Host.Settings.LibraryView }) switch { "grid" => "Grid", "header" => "Rectangle", _ => "Square" };
 
     /// <summary>How the games look: square covers, tall grid art, or wide header capsules.</summary>
     private async void ChooseView()
@@ -2612,7 +3019,7 @@ public sealed class LibraryScreen : Screen
         var cts = _artCts ??= new CancellationTokenSource();
         var jobs = _artQueue.ToList();
         _artQueue.Clear();
-        bool header = Host.Settings.LibraryView == "header";
+        bool header = (Layout switch { "posters" => "grid", "showcase" => "header", "mini" => "square", _ => Host.Settings.LibraryView }) == "header";
         using var client = new SteamGridDbClient(Host.Settings.SteamGridDbApiKey);
         using var gate = new SemaphoreSlim(3);
         var work = jobs.Select(async job =>
@@ -2789,5 +3196,88 @@ public sealed class AddCustomGameScreen : ListScreen
     {
         // Backed out without adding: don't leave the picked image behind.
         if (!_added) DeleteCover();
+    }
+}
+
+/// <summary>
+/// Edit information, for games added by hand: the title, the program it starts, launch options, the release year,
+/// and its artwork, all in one place.
+/// </summary>
+public sealed class EditCustomGameScreen : ListScreen
+{
+    private readonly Game _game;
+
+    public EditCustomGameScreen(Game game) : base("Edit information – " + game.Name) => _game = game;
+
+    private CustomGame? Entry => Host.Library.CustomGames.FirstOrDefault(c => c.Id == _game.LaunchId);
+
+    protected override void Build()
+    {
+        var entry = Entry;
+        if (entry == null) { AddNote("This game isn't in your library any more."); return; }
+        var mine = Host.Library.Find(_game.Key);
+        string title = string.IsNullOrWhiteSpace(mine?.Title) ? entry.Name : mine!.Title!;
+
+        AddHeader("Game");
+        AddRow("Title", title, "", click: EditTitle, subtitle: "The name on its tile and pages");
+        AddRow("Game program", Path.GetFileName(entry.Path), "", click: ChooseProgram, subtitle: entry.Path);
+        AddRow("Launch options", string.IsNullOrWhiteSpace(entry.Arguments) ? "None" : entry.Arguments, "", click: EditArguments,
+            subtitle: "Passed to the program when it starts, such as -windowed or -skipintro");
+        AddRow("Release year", entry.ReleaseYear?.ToString() ?? "Not set", "", click: EditYear);
+
+        AddHeader("Artwork");
+        AddRow("Change artwork", glyph: "", click: () => Host.Push(new CoverPickerScreen(_game)), subtitle: "Square cover, icon, tall grid, header capsule, hero and logo");
+
+        AddHeader("Folder");
+        AddRow("Show the program in its folder", glyph: "", click: () =>
+        {
+            if (File.Exists(entry.Path)) ProcessUtil.Open("explorer.exe", "/select,\"" + entry.Path + "\"");
+        });
+        if (!File.Exists(entry.Path)) AddNote("The program isn't at that place any more. Choose it again above.");
+    }
+
+    private void Save(Action<CustomGame> change)
+    {
+        if (Entry is not { } entry) return;
+        change(entry);
+        Host.UpdateCustomGame(entry);
+        Rebuild();
+    }
+
+    private async void EditTitle()
+    {
+        if (Entry is not { } entry) return;
+        var text = await Host.PromptAsync("Game title", null, _game.Name, "OK");
+        if (string.IsNullOrWhiteSpace(text)) return;
+        Save(e =>
+        {
+            e.Name = text.Trim();
+            // A title set from Options before wins over the saved name, so it goes too.
+            if (Host.Library.Find(_game.Key) is { } o) o.Title = null;
+        });
+        _game.Name = text.Trim();
+    }
+
+    private async void ChooseProgram()
+    {
+        var picked = await Host.PickFileAsync("Choose the game's program", new[] { ".exe", ".lnk", ".bat", ".cmd", ".url" });
+        if (picked != null) Save(e => e.Path = picked);
+    }
+
+    private async void EditArguments()
+    {
+        if (Entry is not { } entry) return;
+        var text = await Host.PromptAsync("Launch options", "Leave it empty for none.", entry.Arguments ?? "", "OK");
+        if (text != null) Save(e => e.Arguments = text.Trim().Length == 0 ? null : text.Trim());
+    }
+
+    private async void EditYear()
+    {
+        if (Entry is not { } entry) return;
+        var text = await Host.PromptAsync("Release year", "Four digits, like 2024. Leave it empty to clear it.", entry.ReleaseYear?.ToString() ?? "", "OK");
+        if (text == null) return;
+        if (text.Trim().Length == 0) { Save(e => e.ReleaseYear = null); return; }
+        if (int.TryParse(text.Trim(), out int year) && year is > 1950 and < 2200) Save(e => e.ReleaseYear = year);
+        else await Host.AskAsync("That isn't a year", "Use four digits, like 2024.", "OK");
     }
 }

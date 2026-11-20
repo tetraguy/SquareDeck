@@ -3,6 +3,607 @@
 All notable changes to SquareDeck, newest first. Each section can be pasted as the description of the
 matching GitHub release; the launcher's updater shows that description as the changelog before installing.
 
+## 6.1.0
+
+### Added
+- **Game icons in "Games in AMD Software"** (Adrenaline Hook): each game shows its icon (its Store logo, or its
+  program's icon), with how long AMD Software says you've played it and whether AMD Software added it from Steam.
+- **AMD Adrenalin in game profiles** (with Adrenaline Hook on and AMD graphics). Each game's profile finds its entry in
+  AMD Software: by Steam app id first (AMD Software adds Steam games by itself), then by its program or folder, then
+  by name.
+  - **Radeon Super Resolution** and its sharpness, **Fluid Motion Frames** and its mode, and **Force FreeSync**, for
+    that game.
+  - **What AMD Software recorded** about the game: time played, average FPS and the 95th-percentile frame time.
+  - **Performance metrics while playing**: AMD Software's FPS and temperature overlay shows by itself when the game
+    starts and goes when it closes.
+  - **Add to AMD Software** when it isn't there yet: SquareDeck finds the game's program, or asks you to choose it.
+  - **More in Adrenaline Hook** for favorite, hidden, its folder and removing it.
+
+## 6.0.0
+
+### Added
+- **Handheld Specific Settings.** On a recognized handheld, Settings has a new section named after it ("ROG Xbox Ally
+  X20 Specific Settings", "Legion Go Specific Settings"…), with a handheld console icon. It's hidden on other PCs.
+  - **About 75 handhelds recognized**, using HandheldCompanion's device list: the ROG Ally family, Legion Go / Go 2 / Go S,
+    MSI Claw, Steam Deck, AYANEO, GPD, OneXPlayer, AOKZOE, AYN Loki, ZOTAC Zone, Minisforum V3 and SuiPlay0X1. Each one's
+    own power range is used for TDP.
+  - **All the ROG Ally settings moved here**: lights, performance and fans, battery care, controller and buttons.
+  - **Legion Go**: Legion mode (Quiet / Balanced / Performance / Custom), fan boost, the 80% charge limit, TDP through
+    Lenovo's firmware, and its temperatures and fan speeds.
+  - **MSI Claw**: user scenario (Super Battery / Silent / Balanced / Extreme Performance), fan boost, charge limit
+    (60–100%) and TDP through MSI's firmware.
+  - **Supported Windows Handheld Devices** at the bottom: every handheld by maker, with its power range and what
+    SquareDeck can change on it.
+- **TDP for Intel handhelds.** Intel's power limits (PL1 / PL2) are set with KX.exe from a HandheldCompanion install,
+  or through the MSI Claw's firmware. "How the limit is set" chooses between the ways available on the device.
+- **The device helper**: one Windows permission prompt sets up a background task, "SquareDeck\DeviceHelper", that makes
+  the Legion Go, MSI Claw and Intel changes needing administrator rights. It only runs the commands on its list, with
+  their numbers checked.
+- **My Device**: a live page for the handheld, with temperatures (from the firmware where the device has it, else
+  Windows' thermal zone), fans, battery and power draw, battery health against its design capacity, how fast the
+  battery is going down and how long a full charge lasts at that pace, processor and graphics load, memory, the power
+  limit, storage, the display, and how long it's been on. The cards have small graphs of the last two minutes. There's
+  a **My Device** button for the home screen, off by default (Settings > Home screen, or the handheld section).
+- **Adrenaline Hook** (Settings > Experimental, only with AMD graphics), rebuilt inside SquareDeck and controller
+  friendly:
+  - Add Xbox / Game Pass and Microsoft Store games, games from your SquareDeck library, installed programs, or any
+    program to AMD Software's game list, so its per-game settings work for them. Games already there are marked.
+  - Per-game Adrenalin switches: Radeon Super Resolution and its sharpness, Fluid Motion Frames and its mode, force
+    FreeSync, favorite and hidden.
+  - **Repair moved games**: after an update an Xbox game moves to a new folder; this finds it again.
+  - **Add new Xbox games by themselves** when SquareDeck starts.
+  - Dated backups before every change (15 kept), restore, and start over.
+  - The Radeon overlay and performance metrics shortcuts, also as actions for the handheld buttons.
+
+### Changed
+- The ROG Ally rows in Controller and Power now point to the handheld section.
+- The ROG Ally's fan speed is shown in RPM.
+
+### Fixed
+- **Apps on the home screen**: moving through them now updates the name shown; it kept the previous app's name,
+  because the big title only changed when the line under it did, and every app has the same line.
+- **The Game library tile opens from a tap** on a touch screen: taps are handled on their own, a tap on the Game library,
+  More apps or Add app tile opens it straight away, and a tap on the selected tile opens it.
+- **The moving wallpaper comes back after a game.** It was loaded the moment the game closed, often while SquareDeck was
+  still behind the game or minimized, and stayed blank if that failed. It now waits until SquareDeck is in front,
+  tries again if the video doesn't open, and checks that it's actually playing.
+
+## 5.33.0
+
+### Added
+- **Game lights.** While a game runs, the Ally's lights take its color, the main color of its cover, and go back to
+  your everyday effect when it closes. Turn it on or off with **Game lights while playing** in Settings > ROG Ally
+  controls (on by default). When it's on, it wins over "Off while playing".
+- **A light effect per game.** Each game profile has a **Lights (ROG Ally)** section: Game color (the default), Same
+  as outside games, or any effect (off, one color, breathing, rainbow, color wheel, a color per stick, accent color,
+  battery level), with its own colors. Changes show straight away if the game is running.
+
+### Changed
+- **Choosing a light color works like the highlight color**: a grid of swatches (the LED palette, plus your current
+  highlight color) with a check on the one in use, and **Custom…** for any color with the color picker. Used in
+  ROG Ally controls and in game profiles.
+
+## 5.32.3
+
+### Added
+- **5% brightness for the Ally's lights**, below 10%, for a faint glow in the dark. Colors keep their hue at low
+  levels. Rainbow and color wheel use the Ally's lowest step at 5%, as at 10% and 30%.
+
+## 5.32.2
+
+### Changed
+- **The Ally quick-menu button is no longer experimental.** "Open the in-game quick menu with" moved from
+  Settings > Experimental to Settings > Controller > ROG Ally buttons. Your choice carries over. Experimental is
+  empty for now.
+
+## 5.32.1
+
+### Fixed
+- **"A color per stick" lights both sticks.** Only one stick changed color: each stick's color was sent without
+  telling the lights to apply it, so they kept only the last one. Each part of the ring is now applied as it's sent,
+  and the whole ring gets the left color first, so both sticks always light.
+
+## 5.32.0
+
+### Added
+- **Five vibration styles for the update screen** (Settings > Updates > Update screen vibration), each with its own
+  tap for every install step, pulse at 25 / 50 / 75% and finish:
+  - **Heartbeat:** a soft lub-dub while it works, a happy double beat at the end.
+  - **Engine:** a hum that rises as the bar fills, a gear change at each step, revs up and cuts out when done.
+  - **Clock ticks:** a tick every second, three quick ticks at each quarter, tick-tick-tick-ding at the end.
+  - **Waves:** swells from one side of the controller to the other; left, right, both at the end.
+  - **Fanfare:** quiet while it works, bursts at each quarter, ta-ta-ta-daaa at the end.
+- **Five moving backgrounds for the update screen** (Update screen animation): Rising sparks, Warp speed (stars
+  rushing out, faster as it goes), Pulse rings, Building blocks (a wall of tiles that lights up with the progress) and
+  Aurora (three soft lights in the accent's colors drifting). Both settings can be "A different one each time" (the
+  default).
+- **More animation on the update screen:** everything rises into place when it opens, the step text fades between
+  steps, a glowing dot leads the progress bar, the badge bounces with a flash at each quarter, confetti bursts from it
+  when the update worked, and it shakes if the update failed.
+- **Try the update screen** (Settings > Updates) plays it with the chosen animation and vibration without installing
+  anything. Any button, key or tap closes it.
+
+## 5.31.1
+
+### Changed
+- **Four brightness levels for the Ally's lights: 10%, 30%, 60% and 100%.** The Ally's own brightness has only three
+  steps, so SquareDeck dims the color itself with the rings at full. Rainbow and color wheel, which the Ally colors
+  by itself, use its nearest step.
+
+### Fixed
+- **"SquareDeck's accent color" lights up as soon as you choose it.** Choosing an effect now applies it straight
+  away and says so ("Lights match SquareDeck's accent color"), or says the lights couldn't be reached. If the light
+  device was missed, SquareDeck looks for it again and retries, then keeps trying in the background.
+- **The lights follow the accent color whenever it changes**: in Settings > Theme, with Windows' accent, or with the
+  selected game's color when that's on.
+
+## 5.31.0
+
+### Fixed
+- **The Xbox Library button on the ROG Xbox Ally X20 can be remapped.** SquareDeck read only one of the Ally's HID
+  collections and swapped the Armoury Crate and Library codes on every Xbox Ally. It now listens to all of the Ally's
+  ASUS collections and takes the button reports by their report id (0x5A), as HandheldCompanion does, and on the X20
+  the Library button (code 147) and Armoury Crate button (code 56) are read as they are. The X20 is recognized by its
+  board id, RC74XA.
+- **Button test** in Settings > ROG Ally buttons shows the last button SquareDeck heard and its code, to check a
+  button is coming through.
+
+### Added
+- **ROG Ally controls** (Settings > Controller or Power, on an Ally), using the firmware and controller messages from
+  HandheldCompanion:
+  - **Lights:** off, one color, breathing between two colors, rainbow, color wheel, or a color per stick, with speed
+    and brightness. SquareDeck's own effects: follow the accent color, show the battery level (green to red, breathing
+    while charging), take the selected game's colors from its cover, pulse red at 15% battery, and go off while
+    playing.
+  - **ASUS mode:** Silent, Performance or Turbo, as in Armoury Crate. SquareDeck's TDP limit is re-applied on top.
+  - **Fans:** Quiet, Balanced (ASUS's curve), Cool or Full speed, and the fan speed now.
+  - **Battery care:** stop charging at 60–100%, and "Charge to 100% this once" for a trip.
+  - **TDP through ASUS's firmware:** on an Ally, TDP control works without installing RyzenAdj. Where RyzenAdj is
+    set up, "How the limit is set" switches between the two.
+  - **Controller:** M1 and M2 can send F18 / F17 and be given actions in ROG Ally buttons; mouse mode; switch off the
+    built-in controller when playing with another one. M1/M2 and the controller go back to normal when SquareDeck
+    closes.
+- **Quick menu buttons:** Ally lights, ASUS mode, Fans and Mouse mode. **Quick menu stat:** fan speed.
+- **Ally button actions:** lights on or off, next ASUS mode, next fan setting, controller or mouse mode.
+
+## 5.30.5
+
+### Added
+- **ROG Xbox Ally X20 support.** The X20 is now recognized (by its board name or "X20" in its model name) and
+  treated like the other Xbox Allys, so the Xbox Library button and the Xbox button codes apply. It's also in the
+  "Which Ally is this?" list under Settings > ROG Ally buttons, in case detection misses it.
+- **The button finder looks wider.** If the Ally buttons come through a USB ID SquareDeck hasn't seen before, it now
+  falls back to ASUS's button interface instead of giving up, so newer models should work without an update.
+
+## 5.30.4
+
+### Fixed
+- **The Stop game button now has a proper icon.** In the "Stop game?" pop-up (and the Stop button on a game's page)
+  it showed a plain square, the media "stop" symbol. It now shows the power symbol, the same as Exit game in the
+  in-game quick menu.
+
+## 5.30.3
+
+### Changed
+- **The Xbox Library button is always on the ROG Ally buttons page.** It used to be listed only when SquareDeck
+  recognized the Ally as an Xbox model, so on some Xbox Allys it never appeared. It's now always listed (with
+  Mode + Xbox Library), with a note on other Allys that only the Xbox models have it. Give it any action, like the
+  other buttons.
+
+### Added
+- **"Which Ally is this?"** on the ROG Ally buttons page. SquareDeck now also checks the product and family names
+  Windows records (not just the board name), and shows which model it found. If it's wrong, pick ROG Ally, Ally X,
+  Xbox Ally or Xbox Ally X. That matters because the Xbox models send different codes for the left buttons; if the
+  Xbox Library and Armoury Crate buttons seem swapped, this fixes it.
+
+## 5.30.2
+
+### Fixed
+- **The in-game quick menu takes the controller from the game.** Before, the menu floated over the game without
+  taking the focus, so the game kept reacting to every button pressed in the menu.
+  - Now the menu becomes the window in front while it's open, and games stop reacting to the controller while
+    they're in the background.
+  - When the menu closes, the game gets the focus back, unless you chose SquareDeck, Task Manager or Exit game.
+  - The buttons used to open the menu no longer count as presses in it.
+  - If a game minimizes or goes black when the menu opens (some older games running in exclusive full screen do),
+    turn off Settings > Controller > Quick menu takes the controller to get the old floating behavior back.
+
+## 5.30.1
+
+### Added
+- **Vibration on game pages.**
+  - A light tick each time the highlight moves to another item with the left stick or d-pad (screenshots, buttons,
+    achievements and the rest), and a firmer one when you press something.
+  - Soft ticks every so often while the right stick scrolls the page, like notches, and none once it reaches the top
+    or bottom.
+  - It follows "Vibrate while moving through menus" and your vibration strength.
+
+## 5.30.0
+
+### Added
+- **TDP in the in-game quick menu.** When TDP control is set up, the menu has four presets (Quiet, Balanced,
+  Performance and Max, spread over your chip's range) and a slider for anything in between. The preset in use is
+  filled in. Turn it off with Settings > Controller > TDP in the quick menu.
+- **Choose the quick menu's six buttons.** As well as Screenshot, Record, Keyboard, Sound, Night light and
+  Microphone, a button can now be:
+  - Performance overlay (on or off)
+  - Refresh rate (steps through the rates your screen offers, for example 60 → 120 Hz)
+  - Wi-Fi or Bluetooth (on or off)
+  - Do not disturb (Windows notifications off until you turn them back on or SquareDeck closes)
+  - Play / pause music
+  - HDR (on or off)
+  - Screen off (any button or touch turns it back on; handy during a long download)
+  - Game Bar
+  - Task Manager
+
+  Choose them in Settings > Controller > Quick menu buttons, or highlight a button in the menu and press Y to swap it
+  for the next one. A short line in the menu says what a button just did ("Wi-Fi off", "120 Hz").
+- **Choose the quick menu's stats.** The strip at the top is now a row of chips. Show any of: processor use,
+  processor speed, graphics use, memory, TDP, frames per second, battery, network speed, time played this session,
+  and free space on the system drive. Put them in any order in Settings > Controller > Quick menu stats.
+
+### Changed
+- **The in-game quick menu slides in from the left, full height.** It's wider (600 instead of 520) and runs from
+  the top of the screen to the bottom, flush with the left edge. It slides in with a slight settle. If you had it on
+  the right, it moves to the left once; you can still choose right or center in Settings.
+- **More controller buttons in the quick menu.** Y swaps the highlighted quick button, LB / RB jump to the top or
+  bottom, and Start goes back to the game. The menu scrolls to keep the highlight in view.
+
+### Fixed
+- **The controller drives the in-game quick menu more reliably.** SquareDeck now reads every connected controller,
+  not just the first. While a game runs, Steam (or another tool) can add a virtual controller in front of the real
+  one, and SquareDeck could end up listening to the one that never moves.
+
+## 5.29.1
+
+### Fixed
+- **The in-game quick menu no longer darkens the screen.** It used to put a dark layer over the whole screen. Now
+  the game stays fully visible and the menu floats on top of it, wherever you set it (left, right or center).
+  - The menu's window is now only as big as the menu, not the whole screen. A see-through window over the whole
+    screen made Windows take full-screen games out of their direct-to-screen mode, which could turn them dark or
+    black.
+  - Since nothing covers the rest of the screen, a tap or click outside the menu now goes to the game. Close the menu
+    with B or the button that opened it.
+
+## 5.29.0
+
+### Added
+- **Streaming services: a pill on the home screen.** While Netflix, Hulu or another service is open in the
+  background, a pill at the bottom left shows its logo and what's on (for example "Paused · Stranger Things"). Press it
+  to go back to the service; the small ✕ next to it closes the service. The controller reaches both, like the Stop
+  button for games.
+- **Edit information for games you added yourself.** In Options, "Edit title" is now "Edit information" for games
+  added by hand. It opens one page for the title, the program it starts, launch options (passed to the program), the
+  release year and the artwork. Other games still have "Edit title".
+- **Settings > Experimental.** A new section at the end of the list, after Updates and data, for features that are
+  still being tried out. The first experiment:
+  - **Open the in-game quick menu with a ROG Ally button.** Choose any of the Ally's extra buttons, such as holding
+    Armoury Crate. While a game is in front, that button opens the in-game quick menu, and closes it again. With no
+    game in front, the button keeps its usual job. It works whether or not "Remap the Ally buttons" is on. Armoury
+    Crate SE may still react to the same press; if it does, turn that button's action off in Armoury Crate SE.
+- **The controller vibrates while an update installs.** A tap at each step of the install, a soft heartbeat while it
+  works, a double pulse when it's done, or a long low buzz if it failed. It follows your vibration strength setting.
+- **Vibration in quick settings and the power menu.** A light tick as the highlight moves, a firmer one when you
+  press a button, and small ticks as a slider moves. The setting is now called "Vibrate while moving through menus"
+  and covers Settings, quick settings and the power menu.
+
+### Changed
+- **Streaming services are full screen**, like the cloud services: no bar at the top or bottom, just the service.
+  A short line of button hints shows when it opens, and messages (like a link that leaves the service) appear over
+  the page.
+- **Clicking a session summary opens Your play time** (from the pop-up or the notification center).
+
+### Fixed
+- **The controller works in Netflix, Hulu and the other streaming services.** The page now reads the controller
+  itself (the browser's Gamepad API, the same way cloud games get it), so it no longer depends on Windows telling
+  SquareDeck it's in front. It works like this:
+  - The d-pad or left stick moves a highlight between links, buttons and tiles, and turns a row's arrows when it
+    reaches the end of the row.
+  - A chooses, B goes back (and out to SquareDeck at the start page), X plays or pauses, LB / RB skip 10 seconds and
+    LT / RT scroll.
+  - While a video is playing in the player, the d-pad seeks and changes the volume.
+  - Start goes full screen, Y opens the menu and View opens quick settings.
+  - The right stick moves a pointer that A or R3 clicks.
+
+  If the page ever stops hearing the controller, SquareDeck's own controls take over again by themselves.
+- **Session summaries show up again after a game closes.** They used to play while SquareDeck was still hidden
+  behind the closing game; now they wait until SquareDeck is back on screen. For Steam games, the summary waits for
+  the achievement count, but it now comes after 25 seconds without the count if Steam doesn't answer. Sessions of 20
+  seconds or more get a summary (it was a minute).
+- **Library tiles follow the selected-game animation in every UI style.** Styles that grow the selected tile on the
+  home screen now grow it in the library too, along with your chosen animation.
+
+## 5.28.0
+
+### Added
+- **Library: group by main genre, or by played and never played.** "Group by category" is now **Group by**, with
+  No groups, Category, Main genre and Played or never played. The choice is remembered.
+  - **Main genre** is the first genre on each game's Steam store page. Games from other stores use the same game's
+    Steam page when it's sold there. Genres are looked up once in the background and fill in as they're found.
+  - **Played** means you have play time in SquareDeck, or Steam has a last-played date for the game.
+- **Library tiles use the home screen's highlight animation.** Grow, Bounce, Lift, Wobble, Tilt, Shake or Breathe,
+  whichever you chose in Settings > Home screen > Selected game. The pulsing and glowing rings already carried over.
+
+### Changed
+- **"Continue where you left off" shows the game's logo** (from SteamGridDB) instead of its name, and the tile is a
+  little narrower (540 wide instead of 640). Games without a logo still show their name.
+- **Wishlist: two games per row** instead of one.
+- **Settings home no longer has Quick picks.** Every section is still on the home page as a card.
+- **Pickers just list the names.** Choosing a library layout, Boost animation, streaming animation and the other
+  pickers in Settings no longer puts a line of description above the choices, so long lists fit on screen.
+
+## 5.27.0
+
+### Added
+- **A notebook for every game.** "Rating, status and notes" is now a notebook:
+  - Your rating (tap a star) and status (Playing, Finished, Dropped, Backlog) at the top, then your notes as cards.
+    Each card shows its color, title, first lines, first picture, checklist progress and when it was last changed.
+    Pinned notes come first.
+  - Each note opens in a rich-text editor with bold, italic, underline, strikethrough, two heading sizes, bulleted and
+    numbered lists, checklist items (A ticks them), quotes, highlight, text colors and a date stamp.
+  - Add screenshots of the game (from Game Bar and Steam) or any picture. Each one sits in the text with a caption.
+  - Start from a template: Where I left off, Boss strategy, Collectibles, Codes and secrets, or Build and loadout.
+  - X on a card pins it, changes its color or deletes it. Notes save by themselves.
+  - Typing works with a keyboard or the touch keyboard. With a controller, the keyboard button on the toolbar (or A on
+    the page) adds a line.
+  - Your old plain-text note becomes the first note in the notebook.
+- **Wishlist and sales.** New on the Stores page:
+  - Your Steam wishlist plus any game you choose to watch. Each shows today's price, the discount, the price before
+    the sale and the lowest price seen. Games on sale come first, then the ones coming soon.
+  - Prices are checked every 6 hours. You get a notification when a game goes on sale, and again if the discount gets
+    deeper. Choose to hear about any discount, or only 25%, 50% or 75% off and more.
+  - A notification on the day a wishlist game comes out.
+  - Settings for these are on the page and in Settings > Library and stores.
+- **Release calendar.** A month view of release days for your wishlist and watched games, with each game's art on its
+  day. Games with only a month or quarter are listed under the calendar, along with what's coming after this month.
+  LT / RT change month, and LB / RB switch between the wishlist and the calendar.
+- **5 more home-screen button styles:** Big circles, Soft squares, Wide tiles, Accent circles and Neon rings.
+- **5 more button shelves:** Smoked glass, Color fade, Raised (90s), Underline and Sticker.
+- **5 more footers:** Fade, Color bar, Outline pill, Floating bar and Neon line. All of them have picture previews.
+- **Streaming services open with a movie-night animation:** Curtain call, Film countdown, Clapperboard, Marquee
+  lights or Popcorn (or Surprise me, or None). Choose it in Settings > Sound and music > Multimedia page.
+
+### Changed
+- **Updates install by themselves.** When the update .msi has downloaded, SquareDeck closes and a full-screen
+  "Updating SquareDeck" screen takes over in your colors. It shows a spinning ring, the logo, rising sparks and a
+  progress bar that follows the installer. Windows Installer runs silently; Windows asks once for permission.
+  SquareDeck then opens again and tells you the update worked, or which error stopped it.
+- **New artwork page.** "Change artwork" now has a tab for each kind of image: Square covers, Icons, Tall grids,
+  Header capsules, Hero images and Logos. A line under the tabs says where that kind is used. LB / RB switch tabs.
+- **New first-time setup.** It's now full screen over a slowly drifting aurora, one step at a time:
+  - Hello, cycling through ten languages.
+  - Your profile picture and greeting.
+  - A carousel of every UI style that applies as you choose.
+  - A moving background.
+  - Which controller you have, drawn as its face buttons. Nintendo picks the right-button-selects layout for you.
+  - Your games, counting up as their covers pop in.
+  - Extras as switches: startup animation, open at sign-in, sale alerts, game art backgrounds, sounds and reduce
+    motion.
+  - A confetti finish.
+
+  Steps slide left and right, and the dots along the top show where you are.
+- Quick settings now slide in from the left side of the screen.
+- The waving hand in the welcome message is white, so it can be seen on dark styles, and it gives a little wave.
+- On game pages, "Screenshots" is now "Developer's Screenshots".
+
+### Fixed
+- **The controller works in Netflix, Hulu and the other streaming services again.** While the page had the keyboard
+  focus, Windows could report SquareDeck as not in front, so controller input was ignored. SquareDeck now also checks
+  which window is actually in front. This also helps the web browser and cloud gaming.
+
+## 5.26.0
+
+### Added
+- **Captures: choose how many fit per row.** A new "3 per row" button next to the filters steps through 3, 4, 5
+  and 6 captures across. More per row means smaller tiles, so more of your screenshots and clips fit on screen.
+  Albums use the same size. Your choice is remembered.
+- **Choose how to leave a cloud game.** Settings > Gaming > Cloud gaming now has three new options:
+  - **Leave with these buttons:** View + Menu (the default), both sticks pressed in, LB + RB, LB + RB + View,
+    LT + RT + View, View + B, or the Guide button. This helps when a game needs View + Menu for itself.
+  - **How long to hold them:** half a second to 3 seconds (1.5 by default).
+  - **Leave with this shortcut:** Ctrl + Shift + Q (the default), Ctrl + Alt + Q, Ctrl + Shift + X,
+    Ctrl + Shift + End, Alt + F12, or none.
+
+  The waiting screen and the corner exit button show whatever you picked.
+
+### Changed
+- **A clear progress card when you pick an image from SteamGridDB.** Before, the "Downloading…" line sat at the
+  bottom of the page, under every image, so it was easy to miss. Now a card opens in the middle of the screen
+  for covers, icons, tall grids, hero images, logos and header capsules. It shows:
+  - the image you picked;
+  - a progress bar that fills as the file downloads, with its size (for example "1.2 MB of 2.0 MB · 60%"). If
+    the server doesn't give a size, the bar sweeps back and forth instead;
+  - a note if the connection drops and it tries again;
+  - "Applying…", then a green tick and "Applied" once the image is in use. The picker then closes by itself.
+  
+  If the download fails, the card turns red and says so, then closes so you can pick another image.
+- The "Loading images from SteamGridDB…" line and its error messages now appear above the images, not below
+  them.
+
+## 5.25.2
+
+### Added
+- **Choose a game's header capsule from SteamGridDB.** The wide 460×215 banner art is now a fourth option in a
+  game's image picker, next to tall grids, hero images and logos: Choose image > Header capsules. You can also pick
+  one from a file, or go back to the default. Your pick is used for:
+  - Rectangle tiles on the home row, Favorites and Apps;
+  - the library's Rectangle view and its Showcase layout.
+
+  It replaces the art straight away.
+
+## 5.25.1
+
+### Fixed
+- **Choosing a UI style takes effect at once, and says so.** The page you're on picks up the new wallpaper or
+  artwork straight away, as well as its colors and font. A "… applied" pop-up confirms it, with a sound and a tap
+  of vibration. The same happens when you change the wallpaper, theme or blur with a page open. Quick
+  confirmations like this aren't kept in the notification center.
+
+## 5.25.0
+
+### Changed
+- **Settings rebuilt without the sidebar.** It's now one wide, centered page that opens on **Settings home**:
+  - your profile and device at a glance;
+  - Find a setting;
+  - a card for every section;
+  - quick picks for the settings people change most.
+
+  Choosing a section opens it full width with a way back at the top. Big sections show their groups as cards, and
+  choosing one shows just that group. B always steps back one level (group, section, Settings home, out), and the
+  highlight returns to the card you came from.
+
+### Added
+- **Blur for the still wallpaper:** the Wallpaper picker has the same blur levels as the moving background (None,
+  Light, Medium, Strong, Very strong). The soft edges are pushed off screen, and there's no blur in Performance
+  mode.
+
+## 5.24.0
+
+### Added
+- **Game art on the home row, Favorites and Apps:** choose Square, Tall grid or Rectangle (the wide header
+  capsule), in Settings > Home screen > Home row and buttons. Tall and rectangle art is fetched for the games near
+  the selection.
+- **Game art size:** Small, Medium or Large.
+- **Seven new highlight animations** for the selected game or app (ten in all): Bounce, Lift, Wobble, Breathe, Tilt,
+  Glow pulse and Shake, alongside Pulsing ring, Steady ring and Tile grows.
+- **Previews before you choose.** Button style, Button shelf, Footer, Game art, Game art size and Font open a page
+  of drawings of each option, with the one in use marked. Choosing one applies it straight away.
+- **Font for the whole app:** pick from ten fonts in Settings > Look and feel > Top bar, or keep each UI style's own.
+- **Hide the clock** in the top bar.
+- **RecompLauncher** in Add more stores, for finding, installing and playing PC recomps. SquareDeck downloads the
+  newest x64 setup from its GitHub releases (it's in beta, so pre-releases count), shows download progress, and
+  runs the installer. It shows on the Stores page with its own icon once installed, and can be uninstalled from
+  there too.
+
+### Fixed
+- **The Showcase and Poster wall library layouts always load the right art shape,** even when the View setting
+  says something else.
+
+## 5.23.2
+
+### Added
+- **Two new menu music tracks:** Fraxsu and Recuerdos. They can be picked like any other track in Settings > Sound
+  and music.
+
+### Changed
+- **The vaporwave styles each have their own track now:**
+  - Vaporwave Pool keeps Es Vapour.
+  - Marble Sunset plays Recuerdos.
+  - City Pop '84 plays Fraxsu.
+
+## 5.23.1
+
+### Changed
+- **Showcase library layout:** choosing it switches the view to Rectangle, and the wide banners now fit four to a
+  row, sized to the width of the page. They resize when the window or the sidebar changes.
+
+## 5.23.0
+
+### Added
+- **Four new UI styles** (84 in all):
+  - **Vaporwave Pool:** a marble fountain at dusk (the new La Fuente moving background), pastel pink and pool cyan,
+    smoked glass, a rolling VHS tracking band and a "PLAY" counter in the corner.
+  - **Marble Sunset:** a pink sun over a wireframe sea, plum, hot pink and gold, and a neon grid floor that scrolls
+    toward you.
+  - **City Pop '84:** cobalt sky and coral and mint stripes over a seaside lot, with white-edged square buttons.
+  - **Desktop 95:** a mid-90s desktop with teal and grey, raised 3D edges, a navy title bar, a grey taskbar footer,
+    and the Analog pixel-desktop moving background.
+- **Seven new wallpapers:** Me o Tu, The View, Tu Reflexion, Cloud Pool, Viborl, Dorado Obscur and Windows 95.
+- **Two new moving backgrounds** in a new Vaporwave group: La Fuente and Analog. Analog is converted to 1080p H.264
+  so it plays without the HEVC extension.
+- **A new menu music track:** Es Vapour.
+- **Five more library layouts** (11 in all):
+  - **Poster wall:** big rows of tall poster art, no sidebar.
+  - **Showcase:** wide banner art two to a row.
+  - **Mini grid:** tiny tiles with the icons-only sidebar.
+  - **Focus list:** the highlighted game large on top, a list below.
+  - **Timeline:** rows for today, this week, this month, this year, longer ago and never played.
+- **A "Taskbar" footer** among the footer choices.
+
+### Changed
+- **Settings reorganized.** It now opens on a **Home** page with:
+  - your profile and device at a glance (version, style, battery, TDP);
+  - quick picks for the settings people change most (UI style, themes and wallpaper, moving background, library
+    layout, startup animation, performance overlay, cloud gaming);
+  - a card for every section.
+
+  The sections are regrouped so settings sit where you'd look for them:
+  - **Gaming:** launching games, while playing, Performance Boost, the performance overlay and cloud gaming.
+  - **Library and stores:** its own section now.
+  - **Power and performance:** hardware readouts, TDP and Ryzen tuning only.
+  - **Look and feel:** includes the home screen buttons, shelf and footer.
+
+  Big sections still open as group cards. Find a setting still lands on the exact row.
+
+## 5.22.1
+
+### Fixed
+- **The game's name is no longer cut off** above the selected tile in Holographic Dreamscape. The same fix applies
+  to Y2K Techno, Cozy Collector, 90s Toy-Tech and Sticker Scrapbook. The selected tile now grows down and out from
+  just under the name, instead of from its middle, which pushed the name up out of the row.
+
+## 5.22.0
+
+### Added
+- **15 new UI styles** (80 in all). Several have a gently animated ambient layer behind the home screen. It stays
+  still with Reduce motion or Performance mode, and stops drawing while you play.
+  - **Retro Pixel Arcade:** pixel type and glyphs, a four-color palette, scan lines, blinking pixel stars.
+  - **Minimal OLED:** pure black, white text and one bright accent.
+  - **Y2K Techno:** glossy bubble buttons, frosted panels, chrome rims, twinkling sparkles.
+  - **Tactical Dashboard:** compact grid, condensed type, corner brackets, status lights and a scan line.
+  - **Cozy Collector:** cream and terracotta, round cards, drifting warm lights.
+  - **Hand-Drawn Adventure:** parchment, inked borders, handwritten type and a swaying compass rose.
+  - **Neon Cyberpunk:** pink and blue neon over the rainy city, with glitching slices.
+  - **90s Toy-Tech:** primary-color plastic, chunky glossy buttons and bobbing shapes.
+  - **Monochrome LCD:** four grey-greens, a visible pixel grid and pixel glyphs.
+  - **Arcade Cabinet:** marquee type, red and gold, and chasing marquee bulbs.
+  - **Nature Field Guide:** journal lines, specimen cards, a sidebar and falling leaves.
+  - **Spacecraft Cockpit:** instrument rings, orbital paths and a sweeping radar with blips.
+  - **Sticker Scrapbook:** kraft paper, handwriting, and wobbling stickers with washi tape.
+  - **Premium Boutique:** serif type, ivory and charcoal with a thin gold line, generous spacing.
+  - **Holographic Dreamscape:** iridescent wash and floating glass shapes.
+- **Home screen buttons, shelf and footer styles** in Settings > Appearance > Home screen buttons. These override the
+  UI style's own:
+  - **Buttons:** circles, squares, small, outline, glossy, cards or pills.
+  - **Shelf:** none, frosted, solid, outline or neon glow.
+  - **Footer:** line, solid bar, glass bar, floating pill or none.
+- **10 more color themes:** Mint Chip, Mesa, Lavender, Pocket LCD, Magma, Aurora, Espresso, Citrus, Coral Reef and
+  Steel.
+- **Player stats on game pages.** Turn it on in Settings > Games > Library and stores. It shows:
+  - players now, 24-hour and all-time peaks, and estimated owners;
+  - positive review share and average play time;
+  - store facts and tags;
+  - a 12-month chart of average and peak players;
+  - a two-year history of thumbs up and down.
+  "Open on SteamDB" shows SteamDB's full page (Twitch viewers, price history and more) in the built-in browser.
+  SteamDB has no API and doesn't allow scraping, so the numbers come from Steam itself, SteamSpy and SteamCharts.
+  They're cached for six hours.
+- **Three cloud gaming launch animations,** in Settings > Games > Cloud gaming > Launch animation:
+  - **Above the clouds:** fly up through the clouds into clear sky.
+  - **Thunder cloud:** a lightning strike reveals the logo.
+  - **Beam up:** game pieces stream up into a glowing cloud.
+  Or Surprise me, or None.
+
+### Changed
+- **Your play time is a dashboard now.** It has:
+  - headline numbers (total, this week against last week, games played, achievements);
+  - the week as a bar chart (LB / RB for other weeks) and a 12-week trend;
+  - a six-month activity heat map;
+  - most-played games with covers and a share ring, and play time by genre;
+  - when you play, by hour and by weekday;
+  - achievements by month with the latest unlocks;
+  - records, including your current streak.
+- **Settings is tidier.** Each section has a banner, and big sections open as a short list of group cards. Choosing
+  a card shows just that group; B goes back. Find a setting still lands right on the row you searched for.
+
+### Fixed
+- **Cloud gaming opens quickly.** The service now appears as soon as its page has content, instead of waiting up to
+  20 seconds for everything on the page to finish loading. It waits at most 6 seconds after the animation.
+- **Smooth hand-off from Performance Boost to the launch splash.** The splash now cross-fades in over the end of the
+  boost, instead of the boost closing to the home screen first.
+- **Changing the lock screen picture now confirms it.** A message says it worked and offers "Lock now to see it",
+  and the picture on the lock screen is marked in the list.
+
 ## 5.21.1
 
 ### Fixed

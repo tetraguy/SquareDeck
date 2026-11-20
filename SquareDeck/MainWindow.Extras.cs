@@ -61,6 +61,8 @@ public partial class MainWindow
     {
         _overlay?.Close();
         UnregisterSummonKey();
+        UnregisterBackKeys();
+        AllyControl.Shutdown(); // built-in controller on, game mode, M1/M2 as ASUS ships them
         if (_activeLaunch != null) _ = RestoreLaunchAsync(); // put display / sound / notifications back
         if (_skipSaveOnClose) return;
 
@@ -247,6 +249,11 @@ public partial class MainWindow
             handled = true;
             Summon();
         }
+        else if (message == WmHotkey && (wParam.ToInt32() == M1HotkeyId || wParam.ToInt32() == M2HotkeyId))
+        {
+            handled = true;
+            OnAllyButton(wParam.ToInt32() == M1HotkeyId ? "m1" : "m2");
+        }
         else if (message == AllyButtons.WmInput && _allyListening && AllyButtons.Read(lParam) is string press)
         {
             OnAllyButton(press);
@@ -261,16 +268,83 @@ public partial class MainWindow
     /// <summary>Starts or stops listening to the Ally's extra buttons, as Settings says.</summary>
     public void ApplyAllyButtons()
     {
+        AllyButtons.ModelOverride = Settings.AllyModel ?? "";
         var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (handle == IntPtr.Zero) return;
         if (_hotkeySource == null) ApplySummonKey(); // sets up the message hook
-        bool want = Settings.AllyRemap;
+        bool want = Settings.AllyRemap || Settings.ExperimentAllyQuickMenu.Length > 0;
+        ApplyBackKeys(handle);
         if (want == _allyListening) return;
         _allyListening = AllyButtons.Listen(handle, want) && want;
     }
 
+    // Adrenaline Hook: a game profile can show AMD Software's metrics overlay while that game runs. Its shortcut
+    // toggles it, so it's pressed once when the game has started and once after it closes.
+    private string? _amdMetricsFor;
+    private DateTime _amdMetricsSince;
+
+    private void UpdateAmdMetrics(Game? running)
+    {
+        if (!Settings.ExperimentAdrenalineHook) { _amdMetricsFor = null; return; }
+        if (running == null)
+        {
+            if (_amdMetricsFor != null && _amdMetricsFor != "pending") AdrenalineHook.Send("amdmetrics"); // hide it again
+            _amdMetricsFor = null;
+            return;
+        }
+        if (_amdMetricsFor == running.Key || Library.Find(running.Key)?.Profile is not { AmdMetricsOverlay: true }) return;
+        // Wait for the game's window (about ten seconds after it was first seen running), then show it.
+        if (_amdMetricsFor != "pending") { _amdMetricsFor = "pending"; _amdMetricsSince = DateTime.UtcNow; return; }
+        if (DateTime.UtcNow - _amdMetricsSince < TimeSpan.FromSeconds(10)) return;
+        AdrenalineHook.Send("amdmetrics");
+        _amdMetricsFor = running.Key;
+    }
+
+    // M1 / M2 send F18 / F17 once "M1 and M2 back buttons" is on (Settings > ROG Ally controls). They're only taken
+    // from other apps while one of them has an action, so games can still bind them otherwise.
+    private const int M1HotkeyId = 0x5145, M2HotkeyId = 0x5146;
+    private bool _backKeysRegistered;
+
+    private void ApplyBackKeys(IntPtr handle)
+    {
+        UnregisterBackKeys();
+        if (!Settings.AllyBackKeys) return;
+        bool wantM1 = Settings.AllyRemap && Settings.AllyBindings.TryGetValue("m1", out var m1) && !string.IsNullOrEmpty(m1)
+                      || Settings.ExperimentAllyQuickMenu == "m1";
+        bool wantM2 = Settings.AllyRemap && Settings.AllyBindings.TryGetValue("m2", out var m2) && !string.IsNullOrEmpty(m2)
+                      || Settings.ExperimentAllyQuickMenu == "m2";
+        const uint NoRepeat = 0x4000, F17 = 0x80, F18 = 0x81;
+        try
+        {
+            if (wantM1) _backKeysRegistered |= RegisterHotKey(handle, M1HotkeyId, NoRepeat, F18);
+            if (wantM2) _backKeysRegistered |= RegisterHotKey(handle, M2HotkeyId, NoRepeat, F17);
+        }
+        catch (Exception) { }
+    }
+
+    private void UnregisterBackKeys()
+    {
+        if (!_backKeysRegistered || _hotkeySource == null) return;
+        try
+        {
+            UnregisterHotKey(_hotkeySource.Handle, M1HotkeyId);
+            UnregisterHotKey(_hotkeySource.Handle, M2HotkeyId);
+        }
+        catch (Exception) { }
+        _backKeysRegistered = false;
+    }
+
     private void OnAllyButton(string press)
     {
+        // One Ally button opens (or closes) the in-game quick menu while a game is in front.
+        if (Settings.ExperimentAllyQuickMenu.Length > 0 && press == Settings.ExperimentAllyQuickMenu)
+        {
+            if (_overlay is { IsVisible: true } overlay) { overlay.Dismiss(); return; }
+            if (QuickMenuWanted()) { ToggleOverlay(); return; }
+            // No game in front: the button does what it's set to do (when the remapping is on).
+            if (!Settings.AllyRemap) return;
+        }
+        else if (!Settings.AllyRemap) return;
         string? action;
         if (press is "mic" or "screenshot" or "keyboard" or "record")
         {
@@ -309,9 +383,85 @@ public partial class MainWindow
                 Push(new TaskManagerScreen());
                 break;
             case "nightlight":
-                if (NightLight.IsOn is bool on) NightLight.Set(!on);
+                if (NightLight.IsOn is bool on) { NightLight.Set(!on); Note(on ? "Night light off" : "Night light on"); }
+                else Note("Night light isn't available here");
+                break;
+            // ---- the quick menu's extra buttons
+            case "perf":
+                Settings.OsdEnabled = !Settings.OsdEnabled;
+                Settings.Save();
+                PerfOverlay.Apply(Settings);
+                Note(Settings.OsdEnabled ? "Performance overlay on" : "Performance overlay off");
+                break;
+            case "refresh":
+                CycleRefreshRate();
+                break;
+            case "wifi":
+            case "bluetooth":
+                _ = ToggleRadioAsync(action == "wifi" ? Windows.Devices.Radios.RadioKind.WiFi : Windows.Devices.Radios.RadioKind.Bluetooth, action == "wifi" ? "Wi-Fi" : "Bluetooth");
+                break;
+            case "dnd":
+                // For now (not the setting): Windows' notifications off or on; put back when SquareDeck closes.
+                bool quiet = !Settings.ToastsSuppressed;
+                if (DoNotDisturb.Set(quiet)) { Settings.ToastsSuppressed = quiet; Settings.Save(); }
+                Note(quiet ? "Do not disturb on" : "Do not disturb off");
+                break;
+            case "playpause":
+                _ = MediaService.PlayPauseAsync();
+                Note("Play / pause");
+                break;
+            case "hdr":
+                if (Hdr.Get() is bool hdr) { Hdr.Set(!hdr); Note(hdr ? "HDR off" : "HDR on"); }
+                else Note("This screen has no HDR");
+                break;
+            case "screenoff":
+                // Any button or touch wakes it again. Handy for a long download.
+                _ = Task.Delay(600).ContinueWith(_ => ScreenPower.Off());
+                break;
+            // ---- ROG Ally (Settings > ROG Ally controls)
+            case "lights":
+                Note(AllyControl.ToggleLights() ? "Lights on" : "Lights off");
+                break;
+            case "asusmode":
+                Note(AsusAcpi.Available ? "ASUS mode: " + AllyControl.NextAsusMode() : "ASUS modes aren't available here");
+                break;
+            case "fan":
+                Note(AsusAcpi.Available ? "Fans: " + AllyControl.NextFan() : "Fan control isn't available here");
+                break;
+            case "amdoverlay":
+            case "amdmetrics":
+                AdrenalineHook.Send(action); // AMD Software's own shortcut, to the game in front
+                break;
+            case "padmouse":
+                Note(AllyControl.ToggleMouseMode() ? (AllyControl.MouseMode ? "Mouse mode" : "Controller mode") : "Couldn't change the controller mode");
                 break;
         }
+    }
+
+    /// <summary>A line in the quick menu (if it's open) saying what a button just did.</summary>
+    private void Note(string text) => _overlay?.ShowNote(text);
+
+    private async Task ToggleRadioAsync(Windows.Devices.Radios.RadioKind kind, string name)
+    {
+        var on = await NetworkService.GetRadioStateAsync(kind);
+        if (on == null) { Note(name + " isn't available"); return; }
+        bool ok = await NetworkService.SetRadioAsync(kind, !on.Value);
+        Note(ok ? $"{name} {(on.Value ? "off" : "on")}" : $"Couldn't change {name}");
+    }
+
+    /// <summary>The next refresh rate the screen offers at its current size (60 → 120 → 144 → 60…).</summary>
+    private void CycleRefreshRate()
+    {
+        try
+        {
+            if (DisplaySettings.Current() is not { } now) return;
+            var rates = DisplaySettings.All().Where(m => m.Width == now.Width && m.Height == now.Height).Select(m => m.RefreshRate).Distinct().OrderBy(r => r).ToList();
+            if (rates.Count < 2) { Note($"{now.RefreshRate} Hz (the only rate)"); return; }
+            int next = rates.FirstOrDefault(r => r > now.RefreshRate);
+            if (next == 0) next = rates[0];
+            Note(DisplaySettings.Apply(now with { RefreshRate = next }, keep: true) ? $"{next} Hz" : "Couldn't change the refresh rate");
+        }
+        catch (Exception) { Note("Couldn't change the refresh rate"); }
     }
 
     /// <summary>
@@ -417,8 +567,17 @@ public partial class MainWindow
         }
         viewer ??= FindScrollable(top);
         // Faster the further the stick is pushed.
-        viewer?.ScrollToVerticalOffset(viewer.VerticalOffset - y * Math.Abs(y) * 26);
+        if (viewer == null) return;
+        double before = viewer.VerticalOffset;
+        viewer.ScrollToVerticalOffset(before - y * Math.Abs(y) * 26);
+        // On a game's page, a soft tick every so often as the page scrolls past (like notches), and none at the ends.
+        if (top is DetailsScreen && Settings.RumbleInSettings && Math.Abs(viewer.VerticalOffset - before) > 0.5)
+        {
+            _scrollTravel += Math.Abs(y * y * 26);
+            if (_scrollTravel >= 160) { _scrollTravel = 0; Rumble(12); }
+        }
     }
+    private double _scrollTravel;
 
     private static ScrollViewer? FindScrollable(DependencyObject parent)
     {
@@ -502,6 +661,16 @@ public partial class MainWindow
     // ================================================================ per-game accent
 
     private async Task ApplyGameAccentAsync(Game? game)
+    {
+        AllyControl.ShowGame(game); // the Ally's lights, when they follow the selected game
+        try
+        {
+            await ApplyGameAccentCoreAsync(game);
+        }
+        finally { AllyControl.AccentChanged(); }
+    }
+
+    private async Task ApplyGameAccentCoreAsync(Game? game)
     {
         if (!Settings.GameAccent || game?.Cover is not BitmapSource cover)
         {
@@ -634,7 +803,7 @@ public partial class MainWindow
     private bool _stopFocused => _footerIndex >= 0;
 
     private List<Button> FooterButtons() =>
-        new[] { MusicButton, StopButton }
+        new[] { MusicButton, StreamButton, StreamCloseButton, StopButton }
             .Where(b => b == StopButton ? RunningPanel.Visibility == Visibility.Visible : b.Visibility == Visibility.Visible)
             .ToList();
 
@@ -645,7 +814,7 @@ public partial class MainWindow
         if (index >= 0 && index != _footerIndex) Rumble();
         _footerIndex = index;
 
-        MusicButton.Tag = StopButton.Tag = null;
+        MusicButton.Tag = StopButton.Tag = StreamButton.Tag = StreamCloseButton.Tag = null;
         UpdateHomeRing();
         if (index < 0) return;
         buttons[index].Tag = "selected";
@@ -654,6 +823,8 @@ public partial class MainWindow
             var running = AllGames.FirstOrDefault(g => g.IsRunning);
             ButtonLabel.Text = running == null ? "Stop" : "Stop " + running.Name;
         }
+        else if (buttons[index] == StreamButton) ButtonLabel.Text = "Back to " + (StreamingScreen.Current?.Service.Name ?? "the service");
+        else if (buttons[index] == StreamCloseButton) ButtonLabel.Text = "Close " + (StreamingScreen.Current?.Service.Name ?? "the service");
         else ButtonLabel.Text = Hints.Format("{Select}  Open player      {Details}  Play / pause");
     }
 
@@ -780,7 +951,13 @@ public partial class MainWindow
             if (_activeLaunch != null && _activeLaunch.Game.Key == key) _ = RestoreLaunchAsync();
 
             // Steam games wait a moment so the summary can include achievements; the rest report straight away.
-            if (game is { IsSteam: true } && Settings.AchievementToasts) _pendingSummary[game.AppId] = seconds;
+            if (game is { IsSteam: true } && Settings.AchievementToasts)
+            {
+                _pendingSummary[game.AppId] = seconds;
+                // If the achievement check never answers (offline, Steam slow), the summary still comes, without a count.
+                var g = game;
+                _ = Task.Delay(TimeSpan.FromSeconds(25)).ContinueWith(_ => FinishPendingSummary(g, null), TaskScheduler.FromCurrentSynchronizationContext());
+            }
             else ShowSessionSummary(name, seconds, null);
         }
 
@@ -798,7 +975,11 @@ public partial class MainWindow
 
     private async void ShowSessionSummary(string name, double seconds, int? achievements)
     {
-        if (!Settings.SessionSummary || seconds < 60) return;
+        if (!Settings.SessionSummary || seconds < 20) return;
+        // The game has only just closed: SquareDeck may still be hidden behind it (or coming back to the front).
+        // Wait until it's on screen, so the summary is seen instead of playing out unseen.
+        for (int i = 0; i < 240 && (_backgroundMode || !IsVisible || WindowState == WindowState.Minimized); i++) await Task.Delay(500);
+        await Task.Delay(700); // after the return animation
         string text = PlaytimeStore.Format(seconds) + " played";
         if (achievements is > 0) text += $"  \u00B7  {achievements} {(achievements == 1 ? "achievement" : "achievements")} earned";
 
@@ -1244,7 +1425,12 @@ public partial class MainWindow
         ImageSource? cover = running?.Cover;
         Color? tint = null;
         try { if (cover is BitmapSource art) tint = ImageLoader.DominantColor(art); } catch (Exception) { }
-        try { _overlay = new QuickOverlay(name, Battery.GetPercent(), Settings.Clock24Hour, Settings.OverlaySide, cover, tint); }
+        DateTime? session = running != null && _sessionStart.TryGetValue(running.Key, out var started) ? started : null;
+        try
+        {
+            _overlay = new QuickOverlay(name, Battery.GetPercent(), Settings.Clock24Hour, Settings.OverlaySide, cover, tint,
+                Settings.OverlayTiles, Settings.OverlayStats, Settings.OverlayTdp, session, Settings.OverlayTakesController);
+        }
         catch (Exception ex)
         {
             // If the menu can't be built, bring the launcher forward rather than going down.
@@ -1255,6 +1441,7 @@ public partial class MainWindow
         }
         _overlay.OpenLauncher += () => WindowActivator.BringToFront(this);
         _overlay.QuickAction += RunAllyAction;
+        _overlay.TilesChanged += tiles => { Settings.OverlayTiles = tiles; Settings.Save(); };
         _overlay.ExitGame += async () =>
         {
             if (running != null)
@@ -1270,10 +1457,21 @@ public partial class MainWindow
             if (_backgroundMode) _padTimer.Interval = TimeSpan.FromMilliseconds(50);
         };
         _padTimer.Interval = TimeSpan.FromMilliseconds(16); // the menu should feel as quick as the launcher
+        // The game's window, to give the controller back to when the menu closes.
+        var gameWindow = WindowActivator.Foreground();
+        var shown = _overlay;
+        shown.Closed += (_, _) =>
+        {
+            if (shown.TakesController && shown.ReturnToGame) WindowActivator.GiveFocusTo(gameWindow);
+        };
         try
         {
             _overlay.Show();
-            WindowActivator.KeepOnTop(_overlay); // over full-screen games and the Xbox full screen experience, without taking the focus
+            if (_overlay.TakesController)
+                WindowActivator.ShowOnTop(_overlay); // in front with the focus: the game stops reacting to the controller
+            else
+                WindowActivator.KeepOnTop(_overlay); // over full-screen games, without taking the focus
+            _gamepad.Reset(); // the buttons that opened the menu don't count as presses in it
         }
         catch (Exception ex)
         {
@@ -1329,7 +1527,57 @@ public sealed class QuickOverlay : Window
         public required Border Ring;
         public Action? Press;
         public Slider? Slider;
+        public string? TileId;   // a quick button: which action it is (Y swaps it)
+        public int Slot = -1;    // its place among the quick buttons
     }
+
+    /// <summary>
+    /// What the quick buttons can be (Settings > Controller > Quick menu buttons, or Y on a button in the menu).
+    /// </summary>
+    public static readonly (string Id, string Glyph, string Name)[] TileChoices =
+    {
+        ("screenshot", "\uE722", "Screenshot"), ("record", "\uE7C8", "Record"), ("keyboard", "\uE765", "Keyboard"),
+        ("sound", "\uE767", "Sound on"), ("nightlight", "\uE706", "Night light"), ("mic", "\uE720", "Microphone"),
+        ("perf", "\uEC4A", "Performance overlay"), ("refresh", "\uE7F4", "Refresh rate"), ("wifi", "\uE701", "Wi-Fi"),
+        ("bluetooth", "\uE702", "Bluetooth"), ("dnd", "\uE708", "Do not disturb"), ("playpause", "\uE768", "Play / pause music"),
+        ("hdr", "\uE793", "HDR"), ("screenoff", "\uE7E8", "Screen off"), ("gamebar", "\uE7FC", "Game Bar"),
+        ("taskmanager", "\uE9D9", "Task Manager"), ("lights", "\uE781", "Ally lights"), ("asusmode", "\uEC4A", "ASUS mode"),
+        ("fan", "\uE9CA", "Fans"), ("padmouse", "\uE962", "Mouse mode"),
+    };
+
+    public static readonly string[] DefaultTiles = { "screenshot", "record", "keyboard", "sound", "nightlight", "mic" };
+
+    /// <summary>What the stats strip can show (Settings > Controller > Quick menu stats).</summary>
+    public static readonly (string Id, string Name)[] StatChoices =
+    {
+        ("cpu", "Processor use"), ("clock", "Processor speed"), ("gpu", "Graphics use"), ("ram", "Memory"),
+        ("watts", "TDP (power limit)"), ("fps", "Frames per second"), ("battery", "Battery"), ("net", "Network speed"),
+        ("session", "Time played this session"), ("disk", "Free space on the system drive"), ("fan", "Fan speed (ROG Ally)"),
+    };
+
+    public static readonly string[] DefaultStats = { "cpu", "gpu", "ram", "watts" };
+
+    private readonly List<string> _tileIds;
+    private readonly List<string> _statIds;
+    private readonly DateTime? _sessionStart;
+    private NetworkMonitor? _net;
+    private readonly WrapPanel _statsPanel = new();
+    private readonly TextBlock _note = new();
+    private readonly DispatcherTimer _noteTimer = new() { Interval = TimeSpan.FromSeconds(2.2) };
+    private readonly List<Item> _tileItems = new();
+    private ScrollViewer? _scroll;
+
+    /// <summary>
+    /// The menu becomes the window in front while it's open, so the game stops reacting to the controller (games
+    /// ignore it while they're in the background); the game gets the focus back when the menu closes.
+    /// </summary>
+    public bool TakesController { get; }
+
+    /// <summary>False when closing to SquareDeck or exiting the game: then the focus shouldn't go back to the game.</summary>
+    public bool ReturnToGame { get; set; } = true;
+
+    /// <summary>The quick buttons changed (Y in the menu): the launcher saves them.</summary>
+    public event Action<List<string>>? TilesChanged;
 
     private readonly List<List<Item>> _rows = new();
     private int _row, _col;
@@ -1353,26 +1601,38 @@ public sealed class QuickOverlay : Window
     private readonly string _side;
     private readonly TranslateTransform _slide = new();
     private readonly ScaleTransform _pop = new(1, 1);
-    private const double PanelWidth = 520;
+    private const double PanelWidth = 600;
 
     /// <param name="side">"left" or "right" for a sheet that slides in from that edge; "center" for a pop-up in the middle.</param>
-    public QuickOverlay(string? gameName, int? battery, bool clock24, string side = "right", ImageSource? cover = null, Color? tint = null)
+    public QuickOverlay(string? gameName, int? battery, bool clock24, string side = "left", ImageSource? cover = null, Color? tint = null,
+        IReadOnlyList<string>? tiles = null, IReadOnlyList<string>? stats = null, bool showTdp = true, DateTime? sessionStart = null,
+        bool takeController = true)
     {
-        _side = side is "left" or "center" ? side : "right";
+        TakesController = takeController;
+        _side = side is "right" or "center" ? side : "left";
+        _tileIds = (tiles ?? DefaultTiles).Where(t => TileChoices.Any(c => c.Id == t)).Take(6).ToList();
+        foreach (var d in DefaultTiles) if (_tileIds.Count < 6 && !_tileIds.Contains(d)) _tileIds.Add(d);
+        _statIds = (stats ?? DefaultStats).Where(x => StatChoices.Any(c => c.Id == x)).ToList();
+        _sessionStart = sessionStart;
         _clock24 = clock24;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
-        Background = new SolidColorBrush(Color.FromArgb(_side == "center" ? (byte)0x90 : (byte)0x50, 0, 0, 0));
+        // No dimming: the game stays fully visible around the menu, which floats on top of it.
+        Background = Brushes.Transparent;
         Topmost = true;
         ShowInTaskbar = false;
-        ShowActivated = false; // never take the focus from the game
+        ShowActivated = false; // shown first, then given the focus on purpose (see TakesController)
         ResizeMode = ResizeMode.NoResize;
-        // Sized to the screen by hand: a maximized window can't be shown without taking the focus.
+        // Only as big as the menu (plus room for its shadow), never the whole screen. A window covering the whole
+        // screen makes Windows take full-screen games out of their direct-to-screen mode, which can turn them dark
+        // or black; a strip at the side leaves the game drawing as usual underneath.
         WindowStartupLocation = WindowStartupLocation.Manual;
-        Left = 0;
+        double screenW = SystemParameters.PrimaryScreenWidth, screenH = SystemParameters.PrimaryScreenHeight;
+        // A side sheet runs the full height of the screen, edge to edge; its shadow falls on the game side only.
+        Width = Math.Min(screenW, _side == "center" ? 700 : PanelWidth + 50);
+        Height = screenH;
         Top = 0;
-        Width = SystemParameters.PrimaryScreenWidth;
-        Height = SystemParameters.PrimaryScreenHeight;
+        Left = _side switch { "left" => 0, "center" => (screenW - Width) / 2, _ => screenW - Width };
         FontFamily = Application.Current.MainWindow?.FontFamily ?? new FontFamily("Segoe UI");
 
         var panel = new StackPanel();
@@ -1415,35 +1675,43 @@ public sealed class QuickOverlay : Window
         head.Children.Add(status);
         panel.Children.Add(head);
 
-        // ---- live use of the processor, graphics and memory
-        var statsPill = new Border { CornerRadius = new CornerRadius(Corner(12)), Padding = new Thickness(14, 8, 14, 9), Margin = new Thickness(0, 0, 0, 16) };
-        statsPill.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-        _stats.FontSize = 14;
-        _stats.SetResourceReference(TextBlock.ForegroundProperty, "SubtleBrush");
-        _stats.Text = "Reading…";
-        statsPill.Child = _stats;
-        panel.Children.Add(statsPill);
-
-        // ---- quick actions
-        var actions = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new Thickness(-4, 0, -4, 10) };
-        var tiles = new List<Item>();
-        void Action(string glyph, string label, Action press)
+        // ---- live stats: the ones chosen in Settings, each in its own little chip
+        if (_statIds.Count > 0)
         {
-            var item = Tile(glyph, label, press);
-            tiles.Add(item);
+            _statsPanel.Margin = new Thickness(-3, 0, -3, 12);
+            _stats.FontSize = 14;
+            _stats.SetResourceReference(TextBlock.ForegroundProperty, "SubtleBrush");
+            _stats.Text = "Reading…";
+            _stats.Margin = new Thickness(3, 4, 0, 4);
+            _statsPanel.Children.Add(_stats);
+            panel.Children.Add(_statsPanel);
+        }
+        // A short line for what a button just did ("Wi-Fi off", "120 Hz"…).
+        _note.FontSize = 14;
+        _note.FontWeight = FontWeights.SemiBold;
+        _note.Margin = new Thickness(2, 0, 0, 8);
+        _note.Visibility = Visibility.Collapsed;
+        _note.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+        _noteTimer.Tick += (_, _) => { _noteTimer.Stop(); _note.Visibility = Visibility.Collapsed; };
+        panel.Children.Add(_note);
+
+        // ---- quick buttons: six, chosen in Settings (or swapped right here with Y)
+        var actionsHead = Ui.Text("QUICK BUTTONS", 12, "SubtleBrush", bold: true);
+        actionsHead.Margin = new Thickness(2, 4, 0, 6);
+        panel.Children.Add(actionsHead);
+        var actions = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new Thickness(-4, 0, -4, 10) };
+        _muted = Audio.GetMute();
+        for (int i = 0; i < _tileIds.Count; i++)
+        {
+            var item = Tile("", "", () => { });
+            item.Slot = i;
+            SetTile(item, _tileIds[i]);
+            _tileItems.Add(item);
             actions.Children.Add(item.Ring);
         }
-        Action("", "Screenshot", () => RunAction("screenshot"));
-        Action("", "Record", () => RunAction("record"));
-        Action("", "Keyboard", () => RunAction("keyboard"));
-        _muted = Audio.GetMute();
-        Action(_muted ? "" : "", _muted ? "Sound off" : "Sound on", ToggleMute);
-        _muteItem = tiles[^1];
-        Action("", "Night light", () => QuickAction?.Invoke("nightlight"));
-        Action("", "Microphone", () => QuickAction?.Invoke("mic"));
         panel.Children.Add(actions);
-        _rows.Add(tiles.Take(3).ToList());
-        _rows.Add(tiles.Skip(3).ToList());
+        _rows.Add(_tileItems.Take(3).ToList());
+        if (_tileItems.Count > 3) _rows.Add(_tileItems.Skip(3).ToList());
 
         // ---- sliders
         var sliders = new StackPanel();
@@ -1453,9 +1721,13 @@ public sealed class QuickOverlay : Window
         _brightnessRow = Slim(Ui.SliderRow("Brightness", "", out _brightness, out var brightnessText));
         _brightnessRow.Visibility = Visibility.Collapsed;
         sliders.Children.Add(_brightnessRow);
-        if (TdpControl.Ready && TdpControl.Chip is { } chip)
+        if (showTdp && TdpControl.Ready && TdpControl.Chip is { } chip)
         {
-            var tdpRow = Slim(Ui.SliderRow("TDP", "", out var tdp, out var tdpText));
+            // TDP: four presets across the chip's range, then the slider for anything in between.
+            var tdpHead = Ui.Text("POWER (TDP)", 12, "SubtleBrush", bold: true);
+            tdpHead.Margin = new Thickness(2, 12, 0, 4);
+            sliders.Children.Add(tdpHead);
+            var tdpRow = Slim(Ui.SliderRow("TDP", "", out var tdp, out var tdpText));
             tdp.Minimum = chip.Min;
             tdp.Maximum = chip.Max;
             tdp.SmallChange = 1;
@@ -1464,13 +1736,34 @@ public sealed class QuickOverlay : Window
             tdp.TickFrequency = 1;
             tdp.Value = TdpControl.EffectiveWatts;
             tdpText.Text = TdpControl.EffectiveWatts + " W";
+            var presets = new System.Windows.Controls.Primitives.UniformGrid { Columns = 4, Margin = new Thickness(-4, 0, -4, 0) };
+            var presetItems = new List<Item>();
+            int At(double part) => (int)Math.Round(chip.Min + (chip.Max - chip.Min) * part);
+            foreach (var (label, watts) in new[] { ("Quiet", At(0.15)), ("Balanced", At(0.45)), ("Performance", At(0.75)), ("Max", chip.Max) })
+            {
+                int w = watts;
+                var preset = Chip(label, w + " W", () => tdp.Value = w);
+                presetItems.Add(preset);
+                presets.Children.Add(preset.Ring);
+            }
+            void MarkPreset(int w)
+            {
+                for (int i = 0; i < presetItems.Count; i++)
+                    if (presetItems[i].Ring.Child is Border face)
+                        face.SetResourceReference(Border.BackgroundProperty, presetItems[i].Ring.Tag is int pw && pw == w ? "AccentBrush" : "CircleBrush");
+            }
+            for (int i = 0; i < presetItems.Count; i++) presetItems[i].Ring.Tag = new[] { At(0.15), At(0.45), At(0.75), chip.Max }[i];
+            MarkPreset(TdpControl.EffectiveWatts);
             tdp.ValueChanged += (_, e) =>
             {
                 int w = (int)Math.Round(e.NewValue);
                 tdpText.Text = w + " W";
                 TdpControl.SetSessionWatts(w);
+                MarkPreset(w);
             };
+            sliders.Children.Add(presets);
             sliders.Children.Add(tdpRow);
+            _rows.Add(presetItems);
             _rows.Add(new List<Item> { new() { Ring = tdpRow, Slider = tdp } });
         }
         panel.Children.Add(sliders);
@@ -1479,7 +1772,7 @@ public sealed class QuickOverlay : Window
         var buttons = new System.Windows.Controls.Primitives.UniformGrid { Columns = gameName != null ? 3 : 2, Margin = new Thickness(-4, 14, -4, 0) };
         var bottom = new List<Item>();
         var resume = Big("", gameName != null ? "Resume" : "Close", Dismiss, accent: true);
-        var open = Big("", "SquareDeck", () => { Close(); OpenLauncher?.Invoke(); });
+        var open = Big("", "SquareDeck", () => { ReturnToGame = false; Close(); OpenLauncher?.Invoke(); });
         buttons.Children.Add(resume.Ring);
         buttons.Children.Add(open.Ring);
         bottom.Add(resume);
@@ -1495,6 +1788,7 @@ public sealed class QuickOverlay : Window
                     _exitLabel.Text = "Press again";
                     return;
                 }
+                ReturnToGame = false;
                 Close();
                 ExitGame?.Invoke();
             }, label: _exitLabel);
@@ -1506,7 +1800,7 @@ public sealed class QuickOverlay : Window
 
         var hint = new TextBlock
         {
-            Text = Hints.KeyLabel("Select") + "  Select      " + Hints.KeyLabel("Back") + "  Back to the game",
+            Text = Hints.KeyLabel("Select") + "  Select      " + Hints.KeyLabel("Options") + "  Change a quick button      " + Hints.KeyLabel("Back") + "  Back to the game",
             FontSize = 13, Margin = new Thickness(2, 16, 0, 0), TextWrapping = TextWrapping.Wrap
         };
         hint.SetResourceReference(TextBlock.ForegroundProperty, "SubtleBrush");
@@ -1525,14 +1819,21 @@ public sealed class QuickOverlay : Window
         }
         else
         {
+            // Full height, flush with the screen's edge, rounded on the game side only.
             bool left = _side == "left";
+            double r = Corner(28);
+            _scroll = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Focusable = false, PanningMode = PanningMode.VerticalOnly, Content = panel
+            };
             sheet = new Border
             {
-                Width = PanelWidth, Padding = new Thickness(26, 24, 26, 22), CornerRadius = new CornerRadius(Corner(26)),
-                Margin = new Thickness(18), HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center, Child = panel, RenderTransform = _slide
+                Width = PanelWidth, Padding = new Thickness(30, 30, 30, 24), CornerRadius = left ? new CornerRadius(0, r, r, 0) : new CornerRadius(r, 0, 0, r),
+                HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Stretch, Child = _scroll, RenderTransform = _slide
             };
-            _slide.X = left ? -PanelWidth - 40 : PanelWidth + 40;
+            _slide.X = left ? -PanelWidth - 60 : PanelWidth + 60;
         }
         sheet.Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 44, ShadowDepth = 0, Opacity = 0.55 };
         sheet.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
@@ -1576,6 +1877,7 @@ public sealed class QuickOverlay : Window
         Loaded += async (_, _) =>
         {
             try { _monitor = new HardwareMonitor(); } catch (Exception) { _monitor = null; }
+            if (_statIds.Contains("net")) { try { _net = new NetworkMonitor(); _net.Sample(); } catch (Exception) { _net = null; } }
             _tick.Start();
             _onTop.Start();
             Arrive();
@@ -1590,13 +1892,17 @@ public sealed class QuickOverlay : Window
             _brightness.Value = level.Value;
             _syncing = false;
             _brightnessRow.Visibility = Visibility.Visible;
-            _rows.Insert(3, new List<Item> { new() { Ring = _brightnessRow, Slider = _brightness } });
-            if (_row >= 3) _row++; // keep the highlight where it was
+            // Right after the volume row.
+            int at = _rows.FindIndex(row => row.Count == 1 && ReferenceEquals(row[0].Slider, _volume)) + 1;
+            if (at <= 0) at = _rows.Count - 1;
+            _rows.Insert(at, new List<Item> { new() { Ring = _brightnessRow, Slider = _brightness } });
+            if (_row >= at) _row++; // keep the highlight where it was
             Paint();
         };
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Dismiss(); };
         Closed += (_, _) =>
         {
+            _noteTimer.Stop();
             _brightnessApply.Stop();
             _tick.Stop();
             _onTop.Stop();
@@ -1669,8 +1975,9 @@ public sealed class QuickOverlay : Window
     private void RunAction(string id)
     {
         // Screenshots and recordings should show the game, not this menu: close first, then capture.
-        if (id is "screenshot" or "record")
+        if (id is "screenshot" or "record" or "screenoff" or "taskmanager" or "gamebar")
         {
+            if (id == "taskmanager") ReturnToGame = false;
             Dismiss();
             QuickAction?.Invoke(id);
             return;
@@ -1693,16 +2000,118 @@ public sealed class QuickOverlay : Window
 
     private async Task ShowStatsAsync()
     {
+        if (_statIds.Count == 0) return;
         var monitor = _monitor;
-        if (monitor == null) return;
-        var (cpu, mhz, gpu) = await Task.Run(monitor.Sample);
-        var memory = Hardware.MemoryStatus();
-        var parts = new List<string>();
-        if (cpu is double c) parts.Add($"CPU {c:0}%" + (mhz is int m ? $" · {m / 1000.0:0.0} GHz" : ""));
-        if (gpu is double g) parts.Add($"GPU {g:0}%");
-        if (memory is { } mem && mem.Total > 0) parts.Add($"RAM {(mem.Total - mem.Available) / 1073741824.0:0.0} / {mem.Total / 1073741824.0:0} GB");
-        if (TdpControl.Ready) parts.Add($"{TdpControl.EffectiveWatts} W");
-        if (parts.Count > 0) _stats.Text = string.Join("      ", parts);
+        (double? cpu, int? mhz, double? gpu) = (null, null, null);
+        if (monitor != null && _statIds.Any(x => x is "cpu" or "clock" or "gpu")) (cpu, mhz, gpu) = await Task.Run(monitor.Sample);
+        if (_closing) return;
+        var chips = new List<(string Label, string Value)>();
+        foreach (var id in _statIds)
+        {
+            switch (id)
+            {
+                case "cpu" when cpu is double c: chips.Add(("CPU", $"{c:0}%")); break;
+                case "clock" when mhz is int m: chips.Add(("CLOCK", $"{m / 1000.0:0.0} GHz")); break;
+                case "gpu" when gpu is double g: chips.Add(("GPU", $"{g:0}%")); break;
+                case "ram" when Hardware.MemoryStatus() is { Total: > 0 } mem:
+                    chips.Add(("RAM", $"{(mem.Total - mem.Available) / 1073741824.0:0.0} / {mem.Total / 1073741824.0:0} GB")); break;
+                case "watts" when TdpControl.Ready: chips.Add(("TDP", $"{TdpControl.EffectiveWatts} W")); break;
+                case "fps" when FrameCounter.Fps is double fps: chips.Add(("FPS", $"{fps:0}")); break;
+                case "fps": chips.Add(("FPS", "—")); break;
+                case "battery" when Battery.GetPercent() is int b: chips.Add(("BATTERY", $"{b}%")); break;
+                case "net" when _net?.Sample() is { Down: double down } speed:
+                    chips.Add(("NET", $"↓ {down / 1e6:0.0}  ↑ {(speed.Up ?? 0) / 1e6:0.0} Mb/s")); break;
+                case "session" when _sessionStart is DateTime start:
+                    var t = DateTime.Now - start;
+                    chips.Add(("PLAYING", t.TotalHours >= 1 ? $"{(int)t.TotalHours} h {t.Minutes} m" : $"{Math.Max(1, t.Minutes)} m")); break;
+                case "fan" when AsusAcpi.FanRpm(AsusAcpi.CpuFan) is int fan: chips.Add(("FAN", fan >= 1000 ? $"{fan / 1000.0:0.0}k" : $"{fan}")); break;
+                case "disk":
+                    try
+                    {
+                        var drive = new System.IO.DriveInfo(System.IO.Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\");
+                        chips.Add(("FREE", $"{drive.AvailableFreeSpace / 1073741824.0:0} GB"));
+                    }
+                    catch (Exception) { }
+                    break;
+            }
+        }
+        if (chips.Count == 0) return;
+        _statsPanel.Children.Clear();
+        foreach (var (label, value) in chips)
+        {
+            var chip = new Border { CornerRadius = new CornerRadius(Corner(12)), Padding = new Thickness(12, 6, 12, 7), Margin = new Thickness(3) };
+            chip.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+            var line = new StackPanel();
+            line.Children.Add(Ui.Text(label, 11, "SubtleBrush", bold: true));
+            line.Children.Add(Ui.Text(value, 16, "FgBrush", bold: true));
+            chip.Child = line;
+            _statsPanel.Children.Add(chip);
+        }
+    }
+
+    /// <summary>A short line under the stats saying what a button just did.</summary>
+    public void ShowNote(string text)
+    {
+        _note.Text = text;
+        _note.Visibility = Visibility.Visible;
+        _noteTimer.Stop();
+        _noteTimer.Start();
+    }
+
+    /// <summary>Makes a quick button the given action: its icon, its name and what it does.</summary>
+    private void SetTile(Item item, string id)
+    {
+        var choice = TileChoices.FirstOrDefault(c => c.Id == id);
+        if (choice.Id == null) choice = TileChoices[0];
+        item.TileId = choice.Id;
+        string glyph = choice.Glyph, name = choice.Name;
+        if (choice.Id == "sound") { glyph = _muted ? "\uE74F" : "\uE767"; name = _muted ? "Sound off" : "Sound on"; }
+        item.Press = choice.Id switch
+        {
+            "sound" => ToggleMute,
+            "screenshot" or "record" or "screenoff" or "taskmanager" or "gamebar" => () => RunAction(choice.Id),
+            _ => () => QuickAction?.Invoke(choice.Id)
+        };
+        if (choice.Id == "sound") _muteItem = item;
+        if (item.Ring.Child is Border { Child: StackPanel stack })
+        {
+            if (stack.Children[0] is TextBlock g) g.Text = glyph;
+            if (stack.Children[1] is TextBlock t) t.Text = name;
+        }
+    }
+
+    /// <summary>Y on a quick button: it becomes the next action not already on another button.</summary>
+    private void SwapTile(Item item)
+    {
+        int index = Array.FindIndex(TileChoices, c => c.Id == item.TileId);
+        for (int step = 1; step <= TileChoices.Length; step++)
+        {
+            var next = TileChoices[(index + step) % TileChoices.Length].Id;
+            if (_tileIds.Contains(next) && next != item.TileId) continue;
+            _tileIds[item.Slot] = next;
+            SetTile(item, next);
+            TilesChanged?.Invoke(_tileIds.ToList());
+            ShowNote(TileChoices.First(c => c.Id == next).Name + "  ·  " + Hints.KeyLabel("Options") + " again for the next one");
+            UiSound.Move();
+            return;
+        }
+    }
+
+    /// <summary>A small two-line button (a TDP preset): name over value.</summary>
+    private Item Chip(string label, string value, Action press)
+    {
+        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+        var t1 = Ui.Text(label, 13, "FgBrush", bold: true); t1.HorizontalAlignment = HorizontalAlignment.Center;
+        var t2 = Ui.Text(value, 12, "SubtleBrush"); t2.HorizontalAlignment = HorizontalAlignment.Center;
+        stack.Children.Add(t1);
+        stack.Children.Add(t2);
+        var face = new Border { Height = 56, CornerRadius = new CornerRadius(Corner(14)), Child = stack };
+        face.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        var ring = new Border { Margin = new Thickness(4), BorderThickness = new Thickness(3), CornerRadius = new CornerRadius(Corner(17)), BorderBrush = Brushes.Transparent, Child = face, Cursor = Cursors.Hand };
+        var item = new Item { Ring = ring, Press = press };
+        ring.MouseLeftButtonUp += (_, e) => { e.Handled = true; Select(item); press(); };
+        ring.TouchUp += (_, e) => { e.Handled = true; Select(item); press(); };
+        return item;
     }
 
     /// <summary>
@@ -1716,7 +2125,8 @@ public sealed class QuickOverlay : Window
             var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             const int ExStyle = -20, NoActivateFlag = 0x08000000, ToolWindow = 0x80;
             int style = GetWindowLong(handle, ExStyle);
-            SetWindowLong(handle, ExStyle, style | NoActivateFlag | ToolWindow);
+            // Taking the controller means becoming the active window, so then it may be activated.
+            SetWindowLong(handle, ExStyle, style | ToolWindow | (TakesController ? 0 : NoActivateFlag));
         }
         catch (Exception) { }
     }
@@ -1757,7 +2167,7 @@ public sealed class QuickOverlay : Window
             _pop.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.94, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
             BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160)));
         }
-        else _slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(240)) { EasingFunction = ease });
+        else _slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(260)) { EasingFunction = new BackEase { Amplitude = 0.18, EasingMode = EasingMode.EaseOut } });
     }
 
     /// <summary>Closes the menu, sliding the sheet back off its edge first.</summary>
@@ -1773,7 +2183,7 @@ public sealed class QuickOverlay : Window
             BeginAnimation(OpacityProperty, fade);
             return;
         }
-        var move = new DoubleAnimation(_side == "left" ? -PanelWidth - 40 : PanelWidth + 40, TimeSpan.FromMilliseconds(170)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+        var move = new DoubleAnimation(_side == "left" ? -PanelWidth - 60 : PanelWidth + 60, TimeSpan.FromMilliseconds(170)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
         move.Completed += (_, _) => Close();
         _slide.BeginAnimation(TranslateTransform.XProperty, move);
     }
@@ -1802,6 +2212,18 @@ public sealed class QuickOverlay : Window
                 break;
             case NavAction.Accept:
                 if (current.Press != null) { UiSound.Select(); current.Press(); }
+                break;
+            case NavAction.Y:
+                if (current.TileId != null) SwapTile(current);
+                break;
+            case NavAction.LB:
+                MoveRow(-_row);
+                break;
+            case NavAction.RB:
+                MoveRow(_rows.Count - 1 - _row);
+                break;
+            case NavAction.Start:
+                Dismiss();
                 break;
             case NavAction.Back:
                 // (Not View: it's half of the summon combo, and closed the menu the moment it opened.)
@@ -1839,7 +2261,11 @@ public sealed class QuickOverlay : Window
             for (int c = 0; c < _rows[r].Count; c++)
             {
                 var ring = _rows[r][c].Ring;
-                if (r == _row && c == Math.Min(_col, _rows[r].Count - 1)) ring.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+                if (r == _row && c == Math.Min(_col, _rows[r].Count - 1))
+                {
+                    ring.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+                    if (_scroll != null) ring.BringIntoView(new Rect(-10, -40, ring.ActualWidth + 20, ring.ActualHeight + 80));
+                }
                 else ring.BorderBrush = Brushes.Transparent;
             }
     }

@@ -489,6 +489,20 @@ public static class GameProfiles
 /// Hides Windows notification pop-ups. Windows has no public switch for its own "Do not disturb",
 /// so this turns off notification banners for the user, which has the same visible effect.
 /// </summary>
+/// <summary>Turns the screen off (any button, key or touch turns it back on).</summary>
+public static class ScreenPower
+{
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+
+    public static void Off()
+    {
+        const uint SysCommand = 0x0112;
+        const int MonitorPower = 0xF170, PowerOff = 2;
+        try { PostMessage(new IntPtr(0xFFFF), SysCommand, new IntPtr(MonitorPower), new IntPtr(PowerOff)); } catch (Exception) { }
+    }
+}
+
 public static class DoNotDisturb
 {
     private const string Key = @"Software\Microsoft\Windows\CurrentVersion\PushNotifications";
@@ -548,6 +562,7 @@ public static class Stores
             Path.Combine(pf, "Rockstar Games", "Launcher", "Launcher.exe"));
         string? itch = Existing(Path.Combine(local, "itch", "itch-setup.exe"));
         bool xbox = ShellThumb.ForApp(XboxAppId, 32) != null;
+        string? recomp = RecompLauncher.FindExe();
 
         return new List<StoreApp>
         {
@@ -560,7 +575,8 @@ public static class Stores
             new("Ubisoft Connect", ubisoft, null, "Ubisoft.Connect", "https://ubisoftconnect.com/"),
             new("Amazon Games", amazon, null, "Amazon.Games", "https://gaming.amazon.com/amazon-games-app"),
             new("Rockstar Games", rockstar, null, "RockstarGames.Launcher", "https://socialclub.rockstargames.com/rockstar-games-launcher"),
-            new("itch.io", itch, null, "ItchIo.Itch", "https://itch.io/app")
+            new("itch.io", itch, null, "ItchIo.Itch", "https://itch.io/app"),
+            new(RecompLauncher.Name, recomp, null, "", RecompLauncher.ReleasesPage)
         };
     }
 
@@ -595,6 +611,7 @@ public static class Stores
     /// <summary>Removes a store app with the Windows Package Manager. Its own uninstaller may ask to confirm.</summary>
     public static async Task<bool> UninstallAsync(StoreApp store)
     {
+        if (store.Name == RecompLauncher.Name) return await RecompLauncher.UninstallAsync();
         if (store.Name == "Xbox")
         {
             var (code, _) = await ProcessUtil.RunAsync("powershell",
@@ -610,12 +627,141 @@ public static class Stores
     }
 
     /// <summary>Installs a store app with the Windows Package Manager. Windows may ask for approval.</summary>
-    public static async Task<bool> InstallAsync(StoreApp store)
+    public static async Task<bool> InstallAsync(StoreApp store, IProgress<double>? progress = null)
     {
+        if (store.Name == RecompLauncher.Name) return await RecompLauncher.InstallAsync(progress);
         // The Xbox app comes from the Microsoft Store catalogue; the rest from winget's own.
         string source = store.Name == "Xbox" ? "msstore" : "winget";
         var (exit, _) = await ProcessUtil.RunAsync("winget",
             $"install --id \"{store.WingetId}\" --source {source} --accept-package-agreements --accept-source-agreements --disable-interactivity");
         return exit == 0;
+    }
+}
+
+
+/// <summary>
+/// RecompLauncher (github.com/elripalda/RecompLauncher): finds, installs, updates and plays PC recomps. It isn't in
+/// winget, so SquareDeck downloads the newest x64 setup from its GitHub releases (pre-releases included, as it's in
+/// beta) and runs it. Where it ends up is found from Windows' list of installed programs.
+/// </summary>
+public static class RecompLauncher
+{
+    public const string Name = "RecompLauncher";
+    public const string ReleasesPage = "https://github.com/elripalda/RecompLauncher/releases";
+    private const string Api = "https://api.github.com/repos/elripalda/RecompLauncher/releases";
+
+    /// <summary>The installed program, if any: from its uninstall entry, else the usual install folders.</summary>
+    public static string? FindExe()
+    {
+        if (UninstallEntry() is { } entry)
+        {
+            foreach (var candidate in new[] { entry.Icon, entry.Location is { } l ? Path.Combine(l, Name + ".exe") : null, entry.Location is { } l2 ? Path.Combine(l2, "recomp-launcher.exe") : null })
+            {
+                var path = candidate?.Split(',')[0].Trim('"');
+                if (!string.IsNullOrEmpty(path) && path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && File.Exists(path)) return path;
+            }
+            if (entry.Location is { } folder && Directory.Exists(folder))
+                if (Directory.EnumerateFiles(folder, "*.exe").FirstOrDefault(f => !Path.GetFileName(f).StartsWith("unins", StringComparison.OrdinalIgnoreCase)) is { } exe) return exe;
+        }
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        foreach (var dir in new[] { Path.Combine(local, Name), Path.Combine(local, "Programs", Name), Path.Combine(pf, Name) })
+        {
+            if (!Directory.Exists(dir)) continue;
+            var exe = Directory.EnumerateFiles(dir, "*.exe").FirstOrDefault(f => !Path.GetFileName(f).StartsWith("unins", StringComparison.OrdinalIgnoreCase));
+            if (exe != null) return exe;
+        }
+        return null;
+    }
+
+    private static (string? Location, string? Icon, string? Uninstall)? UninstallEntry()
+    {
+        foreach (var hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
+            foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
+            {
+                try
+                {
+                    using var root = RegistryKey.OpenBaseKey(hive, view).OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
+                    if (root == null) continue;
+                    foreach (var name in root.GetSubKeyNames())
+                    {
+                        using var key = root.OpenSubKey(name);
+                        if (key?.GetValue("DisplayName") is not string display || !display.Contains("Recomp", StringComparison.OrdinalIgnoreCase)) continue;
+                        return (key.GetValue("InstallLocation") as string, key.GetValue("DisplayIcon") as string,
+                                key.GetValue("QuietUninstallString") as string ?? key.GetValue("UninstallString") as string);
+                    }
+                }
+                catch (Exception) { }
+            }
+        return null;
+    }
+
+    /// <summary>Downloads the newest x64 setup (reporting 0–1 progress) and runs it, waiting for it to finish.</summary>
+    public static async Task<bool> InstallAsync(IProgress<double>? progress)
+    {
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("SquareDeck");
+        http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        string json = await http.GetStringAsync(Api + "?per_page=10");
+        string? url = null, file = null;
+        using (var doc = System.Text.Json.JsonDocument.Parse(json))
+        {
+            // Releases come newest first; take the first with an x64 setup program.
+            foreach (var release in doc.RootElement.EnumerateArray())
+            {
+                if (release.TryGetProperty("draft", out var d) && d.GetBoolean()) continue;
+                if (!release.TryGetProperty("assets", out var assets)) continue;
+                foreach (var asset in assets.EnumerateArray())
+                {
+                    string n = asset.GetProperty("name").GetString() ?? "";
+                    if (n.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && n.Contains("x64", StringComparison.OrdinalIgnoreCase) && n.Contains("setup", StringComparison.OrdinalIgnoreCase))
+                    {
+                        url = asset.GetProperty("browser_download_url").GetString();
+                        file = n;
+                        break;
+                    }
+                }
+                if (url != null) break;
+            }
+        }
+        if (url == null || file == null) return false;
+
+        var target = Path.Combine(Path.GetTempPath(), "SquareDeck", file);
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        using (var response = await http.GetAsync(url, System.Net.Http.HttpCompletionOption.ResponseHeadersRead))
+        {
+            response.EnsureSuccessStatusCode();
+            long? total = response.Content.Headers.ContentLength;
+            await using var input = await response.Content.ReadAsStreamAsync();
+            await using var output = File.Create(target);
+            var buffer = new byte[81920];
+            long done = 0;
+            int read;
+            while ((read = await input.ReadAsync(buffer)) > 0)
+            {
+                await output.WriteAsync(buffer.AsMemory(0, read));
+                done += read;
+                if (total > 0) progress?.Report((double)done / total.Value);
+            }
+        }
+
+        // Its own installer runs as normal (it may ask where to install, or for permission).
+        using var setup = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(target) { UseShellExecute = true });
+        if (setup == null) return false;
+        await setup.WaitForExitAsync();
+        try { File.Delete(target); } catch (Exception) { }
+        return FindExe() != null;
+    }
+
+    public static async Task<bool> UninstallAsync()
+    {
+        if (UninstallEntry() is not { Uninstall: { Length: > 0 } command }) return false;
+        try
+        {
+            using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c \"" + command + "\"") { UseShellExecute = true, WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden });
+            if (p != null) await p.WaitForExitAsync();
+        }
+        catch (Exception) { return false; }
+        return FindExe() == null;
     }
 }

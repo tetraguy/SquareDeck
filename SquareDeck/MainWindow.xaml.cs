@@ -158,6 +158,16 @@ public partial class MainWindow : Window
                 greet.Tick += (_, _) => { greet.Stop(); if (Settings.SetupDone == true) ShowWelcome(); };
                 greet.Start();
             }
+            // After a silent update: say whether it worked.
+            if (SilentUpdate.TakeResult() is { } update)
+            {
+                if (update.Code is 0 or 3010)
+                    ShowToast("Updated", "SquareDeck " + Updater.Current, "The update installed. See what's new in Settings > About.", "", "success");
+                else if (update.Code is not (1602 or 1223))
+                    ShowToast("Update", "The update didn't install", $"Windows Installer stopped with error {update.Code}. Try again from Settings > About.", "", "warning");
+            }
+            StartPriceWatch();
+            StartStreamPill();
             // Games load while the welcome pages show, so they can say what was found.
             var loading = ReloadAsync();
             if (Settings.SetupDone != true)
@@ -343,13 +353,14 @@ public partial class MainWindow : Window
         _custom.Clear();
         foreach (var entry in Library.CustomGames)
         {
-            if (!existing.TryGetValue(entry.Id, out var game) || game.LaunchPath != entry.Path)
+            if (!existing.TryGetValue(entry.Id, out var game) || game.LaunchPath != entry.Path || (game.LaunchArgs ?? "") != (entry.Arguments ?? ""))
             {
                 game = new Game
                 {
                     Kind = ItemKind.Custom,
                     LaunchId = entry.Id,
                     LaunchPath = entry.Path,
+                    LaunchArgs = string.IsNullOrWhiteSpace(entry.Arguments) ? null : entry.Arguments,
                     InstallDir = Path.GetDirectoryName(entry.Path),
                     OriginalName = entry.Name,
                     Name = entry.Name
@@ -360,6 +371,7 @@ public partial class MainWindow : Window
             game.Name = string.IsNullOrWhiteSpace(o?.Title) ? entry.Name : o.Title;
             game.IsFavorite = o?.Favorite == true;
             game.RecentAt = o?.LastPlayed ?? entry.AddedAt;
+            if (entry.ReleaseYear is int year) game.ReleaseYear = year;
             _custom.Add(game);
         }
     }
@@ -368,6 +380,14 @@ public partial class MainWindow : Window
     {
         Library.CustomGames.Add(new CustomGame { Id = id, Name = name, Path = programPath, AddedAt = DateTime.Now });
         if (coverPath != null) Library.For("custom:" + id).CoverPath = coverPath;
+        Library.Save();
+        SyncCustomGames();
+        NotifyLibraryChanged();
+    }
+
+    /// <summary>Saves changes to a game added by hand (Edit information) and refreshes its tile.</summary>
+    public void UpdateCustomGame(CustomGame entry)
+    {
         Library.Save();
         SyncCustomGames();
         NotifyLibraryChanged();
@@ -506,6 +526,18 @@ public partial class MainWindow : Window
         {
             tile.Cover ??= target.Cover;
         }
+        // The logo goes where the name was.
+        try
+        {
+            var logo = await Task.Run(async () =>
+            {
+                using var client = new SteamGridDbClient(Settings.SteamGridDbApiKey);
+                var path = await client.GetLogoAsync(target, CancellationToken.None);
+                return path == null ? null : ImageLoader.FromFile(path, 720);
+            });
+            if (logo != null) tile.ContinueLogo = logo;
+        }
+        catch (Exception) { }
     }
 
     private void SetMode(HomeView mode)
@@ -811,12 +843,24 @@ public partial class MainWindow : Window
             if (!await countdown.Result) return;
         }
 
-        // Performance Boost: free memory first, with its animation.
+        // Performance Boost: free memory first, with its animation. With the launch splash on, the splash fades in
+        // over the end of the boost (a cross-fade) instead of the boost closing to the home screen first.
+        LaunchSplashScreen? splash = null;
         if (Settings.PerformanceBoost && !item.IsRunning)
         {
-            var boost = new BoostScreen(item, Settings.BoostAnimation, Settings.BoostRumble);
+            var boost = new BoostScreen(item, Settings.BoostAnimation, Settings.BoostRumble) { KeepOpenOnFinish = Settings.LaunchSplash };
             Push(boost);
             await boost.Result;
+            if (boost.KeepOpenOnFinish && IsTop(boost))
+            {
+                splash = new LaunchSplashScreen(item);
+                Push(splash);
+                boost.Visibility = Visibility.Visible; // stays under the splash while it fades in
+                var fade = new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(420)) { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
+                fade.Completed += (_, _) => RemoveBelow(boost);
+                splash.BeginAnimation(OpacityProperty, fade);
+            }
+            else if (boost.KeepOpenOnFinish) RemoveBelow(boost);
         }
 
         // Switch to the game's own display / sound / power settings, and quieten Windows, before it starts.
@@ -852,13 +896,17 @@ public partial class MainWindow : Window
             StatusText.Text = started ? "" : "Couldn't start the game. Is Steam installed?";
         }
 
-        if (!started) await RestoreLaunchAsync();
+        if (!started)
+        {
+            await RestoreLaunchAsync();
+            if (splash != null) Pop(splash);
+        }
 
         if (started)
         {
             UiSound.Launch();
             // A splash screen with the cover until the game is running.
-            if (Settings.LaunchSplash && !item.IsRunning) Push(new LaunchSplashScreen(item));
+            if (Settings.LaunchSplash && !item.IsRunning && splash == null) Push(new LaunchSplashScreen(item));
             _ = CheckWindowsUpdateAsync(atLaunch: true); // a pending restart could cut the session short
             // Move it to the front of the home row straight away.
             item.RecentAt = DateTime.Now;
@@ -1115,11 +1163,15 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Queues a small pop-up in the bottom-right corner. They show one at a time.</summary>
-    public void ShowToast(string heading, string title, string detail, string iconUrl, string kind = "info", ImageSource? picture = null, Game? game = null)
+    public void ShowToast(string heading, string title, string detail, string iconUrl, string kind = "info", ImageSource? picture = null, Game? game = null, bool remember = true)
     {
-        // Everything that pops up is also kept in the notification center (with its game, for the icon there).
-        Notifications.Add(kind, title, detail, iconUrl, game?.Key ?? "");
-        UpdateBell();
+        // Everything that pops up is also kept in the notification center (with its game, for the icon there),
+        // except quick confirmations of something you just did.
+        if (remember)
+        {
+            Notifications.Add(kind, title, detail, iconUrl, game?.Key ?? "");
+            UpdateBell();
+        }
         _toasts.Enqueue((heading, title, detail, iconUrl, picture, kind, game));
         if (!_toastShowing) _ = RunToastsAsync();
     }
@@ -1200,6 +1252,8 @@ public partial class MainWindow : Window
     public void OpenNotification(string kind, string title, string detail, Game? game)
     {
         UiSound.Select();
+        // A session summary opens Your play time.
+        if (kind == "session") { Push(new PlaytimeScreen()); return; }
         if (game != null && game.IsGame) { Push(new DetailsScreen(game)); return; }
         switch (kind)
         {
@@ -1264,6 +1318,9 @@ public partial class MainWindow : Window
         if (_runningTimer.Interval != interval) _runningTimer.Interval = interval;
         UpdateGpuSaver(); // hand the graphics memory to the game while it runs
         UpdateHomeHints(); // "Back to game" only shows while one is running
+        // The Ally's lights while playing: off, or the game's own effect (game profile, its cover's colors by default).
+        AllyControl.SetRunning(running, running == null ? null : Library.Find(running.Key)?.Profile);
+        UpdateAmdMetrics(running);
         if (running != null)
         {
             EnsureRunningMarquee();
@@ -1395,11 +1452,13 @@ public partial class MainWindow : Window
         {
             AddAsync(Mine, "Add to a collection", "\uE8F1", () => ChooseCollectionsAsync(item));
             AddAsync(Mine, "Set category", "\uE8EC", () => SetCategoryAsync(item));
-            Add(Mine, "Rating, status and notes", "\uE70B", () => Push(new GameNotesScreen(item)));
+            Add(Mine, "Notebook, rating and status", "\uE70B", () => Push(new GameNotesScreen(item)));
         }
 
         Add(Look, item.IsApp ? "Change icon" : "Change artwork", "\uE8B9", () => Push(new CoverPickerScreen(item)));
-        AddAsync(Look, "Edit title", "\uE70F", () => EditTitleAsync(item));
+        // Games added by hand can change everything about them; the rest just their title.
+        if (item.IsCustom) Add(Look, "Edit information", "\uE70F", () => Push(new EditCustomGameScreen(item)));
+        else AddAsync(Look, "Edit title", "\uE70F", () => EditTitleAsync(item));
         if (item.IsGame) Add(Look, "Game profile", "\uE713", () => Push(new GameProfileScreen(item)));
 
         if (item.IsSteam)
@@ -1525,6 +1584,15 @@ public partial class MainWindow : Window
         screen.FocusDefaultLater();
     }
 
+    /// <summary>Takes a screen out from under the top one without disturbing what's on top.</summary>
+    public void RemoveBelow(Screen screen)
+    {
+        if (IsTop(screen)) { Pop(screen); return; }
+        if (!_screens.Remove(screen)) return;
+        ScreenLayer.Children.Remove(screen);
+        screen.OnClosed();
+    }
+
     /// <summary>Closes a screen (and anything opened on top of it).</summary>
     public void Pop(Screen screen)
     {
@@ -1614,6 +1682,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        // A rich-text page (notes) keeps every key except Escape (leave) and Page Up / Down.
+        if (Keyboard.FocusedElement is RichTextBox && e.Key is not (Key.Escape or Key.PageUp or Key.PageDown)) return;
         // While typing, letters and the left/right arrows belong to the text box.
         bool typing = Keyboard.FocusedElement is TextBox;
         NavAction? action = e.Key switch
@@ -1646,10 +1716,20 @@ public partial class MainWindow : Window
     private void PollGamepad()
     {
         // A cloud game is in front: the controller belongs to the page, except the hold-to-exit combo.
-        if (CloudGameScreen.Active is { } cloud && IsActive && _overlay is not { IsVisible: true })
+        // A web page (streaming, browser, cloud) is its own window inside ours: while it has the keyboard focus WPF can
+        // report the launcher as not active even though it's in front, so the foreground window decides too.
+        bool active = IsActive || WindowActivator.IsInFront(this);
+        if (CloudGameScreen.Active is { } cloud && active && _overlay is not { IsVisible: true })
         {
             cloud.PollController(_gamepad);
             _gamepad.Reset();
+            return;
+        }
+        // A streaming service whose page reads the controller itself: SquareDeck keeps out of its way (the page
+        // says it's alive every second; if it stops, SquareDeck's own handling below takes over again).
+        if (active && _overlay is not { IsVisible: true } && _screens.Count > 0 && _screens[^1] is StreamingScreen { PadInPage: true })
+        {
+            _gamepad.Poll(); // keeps the button state, so nothing fires twice when SquareDeck takes over
             return;
         }
         // Ignore the controller while a game (or anything else) is in front of us.
@@ -1661,7 +1741,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!IsActive)
+        if (!active)
         {
             // ...except for the one shortcut that brings the launcher (or its quick menu) back.
             if ((Settings.GuideSummon || Settings.InGameQuickMenu) && _gamepad.PollSummon())
@@ -2070,7 +2150,10 @@ public partial class MainWindow : Window
 
     private void GameList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        string before = InfoText.Text;
         InfoText.Text = (GameList.SelectedItem as Game)?.InfoLine ?? "";
+        // The big title follows the info line; apps all share the same one, so it wouldn't change: update it here.
+        if (InfoText.Text == before) UpdateStyleTitle();
         ScrollSelectionIntoView();
         // The highlight ring breathes on the selected tile only.
         foreach (var old in e.RemovedItems)
@@ -2085,7 +2168,7 @@ public partial class MainWindow : Window
                 Motion.GrowTile(GameList.ItemContainerGenerator.ContainerFromItem(GameList.SelectedItem) as UIElement, true);
         }));
         if (GameList.SelectedItem != null && e.RemovedItems.Count > 0) Rumble();
-        if (Game.Portrait) StartPortraits(); // poster art for the games coming into view
+        if (Game.Portrait || Game.Wide) StartPortraits(); // poster art for the games coming into view
         // The animated cover belongs to the highlighted tile only.
         if (_animatedGame != null && !ReferenceEquals(_animatedGame, GameList.SelectedItem))
         {
@@ -2142,6 +2225,31 @@ public partial class MainWindow : Window
         // First click selects a tile; clicking the already-selected tile starts it.
         if (_tileWasSelected && sender is ListBoxItem { IsSelected: true, DataContext: Game g }) _ = ActivateAsync(g);
         _tileWasSelected = false;
+    }
+
+    // Touch is handled on its own rather than through the mouse events Windows makes from it, which didn't always
+    // arrive (the Game library tile wouldn't open from a tap). A tap selects a tile; a tap on the selected tile
+    // opens it; the Game library, More apps and Add app tiles open from the first tap.
+    private bool _touchWasSelected;
+    private Point _tileTouchStart;
+
+    private void Tile_TouchDown(object? sender, TouchEventArgs e)
+    {
+        if (sender is not ListBoxItem item) return;
+        _touchWasSelected = item.IsSelected;
+        _tileTouchStart = e.GetTouchPoint(this).Position;
+        SetButtonIndex(-1);
+    }
+
+    private void Tile_TouchUp(object? sender, TouchEventArgs e)
+    {
+        if (sender is not ListBoxItem { DataContext: Game g } item) return;
+        var at = e.GetTouchPoint(this).Position;
+        if (Math.Abs(at.X - _tileTouchStart.X) + Math.Abs(at.Y - _tileTouchStart.Y) > 30) return; // a swipe, not a tap
+        e.Handled = true; // no mouse click made from this tap as well
+        _tileWasSelected = false;
+        item.IsSelected = true;
+        if (_touchWasSelected || g.IsActionTile) _ = ActivateAsync(g);
     }
 
     private void Tile_RightClick(object sender, MouseButtonEventArgs e)
@@ -2362,6 +2470,8 @@ public partial class MainWindow : Window
         ApplyWallpaper();
         ApplyUiStyle();
         UpdateMenuMusic();
+        // Open pages take on the new wallpaper or artwork straight away (their colors and font follow on their own).
+        foreach (var screen in _screens) screen.RefreshBackdrop();
     }
 
     private void ApplyWallpaper()
@@ -2369,6 +2479,10 @@ public partial class MainWindow : Window
         var brush = Theme.WallpaperBrush(Settings.Wallpaper) ?? UiStyles.Backdrop(UiStyles.Current);
         Theme.CurrentWallpaper = brush; // pages show the same wallpaper behind them
         WallpaperLayer.Fill = brush;
+        // Blur (Settings > wallpaper), with the edges pushed off screen so they don't go soft. None in Performance mode.
+        int blur = Perf.Active ? 0 : Math.Clamp(Settings.WallpaperBlur, 0, 100);
+        WallpaperLayer.Effect = blur > 0 ? new System.Windows.Media.Effects.BlurEffect { Radius = blur, RenderingBias = System.Windows.Media.Effects.RenderingBias.Performance } : null;
+        WallpaperLayer.Margin = new Thickness(-blur);
         WallpaperLayer.Visibility = WallpaperScrim.Visibility = brush == null ? Visibility.Collapsed : Visibility.Visible;
         if (_dynamicVideo != null) ApplyDynamicBackground(); // a moving background takes the wallpaper's place
     }
@@ -2747,6 +2861,7 @@ public partial class MainWindow : Window
             ? (Settings.ClockSeconds ? "H:mm:ss" : "H:mm")
             : (Settings.ClockSeconds ? "h:mm:ss tt" : "h:mm tt");
         ClockText.Text = DateTime.Now.ToString((Settings.ClockDate ? "ddd, MMM d    " : "") + time);
+        ClockText.Visibility = Settings.ShowClock ? Visibility.Visible : Visibility.Collapsed;
 
         // "Follow system": pick up a Windows light/dark switch without a restart.
         if (Settings.ThemeMode == "system" && Theme.SystemIsDark() != Theme.CurrentIsDark) Theme.Apply(Settings);

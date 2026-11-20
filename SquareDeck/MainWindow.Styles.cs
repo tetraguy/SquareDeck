@@ -54,7 +54,7 @@ public partial class MainWindow
         ButtonRow.Margin = new Thickness(left ? 88 : 0, 0, 0, 0);
         ButtonLabel.HorizontalAlignment = s.ButtonsAlign;
         ButtonLabel.Margin = new Thickness(left ? 104 : 0, 0, 0, 2);
-        ButtonLabel.Visibility = s.Buttons is "card" or "tab" ? Visibility.Collapsed : Visibility.Visible;
+        ButtonLabel.Visibility = s.Buttons is "card" or "tab" or "wide" ? Visibility.Collapsed : Visibility.Visible;
 
         // Where the game's name goes.
         bool big = s.Title == "big", beside = s.Title == "row";
@@ -77,13 +77,11 @@ public partial class MainWindow
         HeroScrim.Visibility = HeroScrim.Fill == null ? Visibility.Collapsed : Visibility.Visible;
 
         // Footer: a line, a full-width bar, a floating pill, or nothing.
-        FooterLine.Visibility = s.Footer == "line" ? Visibility.Visible : Visibility.Collapsed;
-        FooterGrid.Margin = s.Footer == "bar" ? new Thickness(0) : s.Footer == "pill" ? new Thickness(40, 8, 40, 12) : new Thickness(30, 0, 30, 0);
-        FooterGrid.Background = s.Footer == "bar" ? new SolidColorBrush(Color.FromArgb(0xF2, 0x0A, 0x0D, 0x12)) : null;
-        FrostPanel(FooterPill, s.Footer == "pill");
+        ApplyFooter(s);
 
-        // Frosted: one shelf behind all the buttons, sized to them.
+        // One shelf behind all the buttons, sized to them: frosted, solid, outlined or glowing.
         FrostPanel(ButtonDock, s.ButtonDock);
+        if (s.ButtonDock) DockLook(s.DockLook);
         if (s.ButtonDock)
         {
             ButtonRow.Margin = new Thickness(0);
@@ -93,6 +91,9 @@ public partial class MainWindow
             ButtonRow.SizeChanged += SizeDockToButtons;
             SizeDockToButtons(null, null);
         }
+
+        // Gentle animated decoration behind the home screen (stars, radar, leaves...).
+        ApplyAmbient(s);
 
         // Scan lines / grid over everything.
         StyleOverlay.Fill = UiStyles.OverlayBrush(s);
@@ -150,7 +151,7 @@ public partial class MainWindow
     /// </summary>
     private double FitTileScale(UiStyle s)
     {
-        double grow = Math.Max(s.SelectGrow, Motion.TileStyle == "grow" ? 1.08 : 1.0);
+        double grow = Math.Max(s.SelectGrow, Motion.HighlightGrow > 1 ? 1.08 : 1.0);
         var origin = s.GrowOrigin ?? (grow > 1.1 ? new Point(0.5, 0.92) : new Point(0.5, 0.5));
         double extra = 270 * (grow - 1);
         // How far the ring's glow reaches past the tile. The ring is drawn inside the tile's gap, its glow spreads about
@@ -182,6 +183,140 @@ public partial class MainWindow
         panel.BorderBrush = UiStyles.RimBrush(UiStyles.Current);
         panel.BorderThickness = new Thickness(1.2);
         panel.Effect = new DropShadowEffect { BlurRadius = 30, ShadowDepth = 8, Opacity = 0.3 };
+    }
+
+    /// <summary>A 90s taskbar: battleship grey with a white raised top edge.</summary>
+    private static Brush Taskbar()
+    {
+        var b = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1), MappingMode = BrushMappingMode.Absolute };
+        b.EndPoint = new Point(0, 72);
+        b.GradientStops.Add(new GradientStop(Color.FromRgb(0xDF, 0xDF, 0xDF), 0));
+        b.GradientStops.Add(new GradientStop(Colors.White, 1.0 / 72));
+        b.GradientStops.Add(new GradientStop(Colors.White, 3.0 / 72));
+        b.GradientStops.Add(new GradientStop(Color.FromRgb(0xC0, 0xC0, 0xC0), 3.0 / 72));
+        b.GradientStops.Add(new GradientStop(Color.FromRgb(0xC0, 0xC0, 0xC0), 1));
+        b.Freeze();
+        return b;
+    }
+
+    private void ApplyFooter(UiStyle s)
+    {
+        var accent = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.White;
+        bool lineLike = s.Footer is "line" or "neonline";
+        FooterLine.Visibility = lineLike ? Visibility.Visible : Visibility.Collapsed;
+        FooterLine.Height = s.Footer == "neonline" ? 2 : 1;
+        FooterLine.Effect = null;
+        if (s.Footer == "neonline")
+        {
+            FooterLine.Fill = new SolidColorBrush(accent);
+            FooterLine.Effect = Perf.Active ? null : new DropShadowEffect { Color = accent, BlurRadius = 14, ShadowDepth = 0, Opacity = 1 };
+        }
+        else FooterLine.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "FgBrush");
+
+        bool floating = s.Footer is "pill" or "outlinepill" or "floatbar";
+        FooterGrid.Margin = s.Footer is "bar" or "glassbar" or "taskbar" or "fade" or "accentbar" ? new Thickness(0)
+                          : floating ? new Thickness(40, 8, 40, 12) : new Thickness(30, 0, 30, 0);
+        FooterGrid.Background = s.Footer switch
+        {
+            "bar" => new SolidColorBrush(Color.FromArgb(0xF2, 0x0A, 0x0D, 0x12)),
+            "glassbar" => UiStyles.ShelfBrush(s),
+            "taskbar" => Taskbar(),
+            "accentbar" => new SolidColorBrush(Color.FromArgb(0xE0, accent.R, accent.G, accent.B)),
+            "fade" => FadeUp(),
+            _ => null
+        };
+
+        // The floating panel behind the hints: frosted (pill), an outline, or a solid rounded bar.
+        FrostPanel(FooterPill, floating);
+        FooterPill.CornerRadius = new CornerRadius(s.Footer == "floatbar" ? 16 : 26);
+        if (s.Footer == "outlinepill")
+        {
+            FooterPill.Background = Brushes.Transparent;
+            FooterPill.BorderBrush = new SolidColorBrush(Color.FromArgb(0xB0, accent.R, accent.G, accent.B));
+            FooterPill.BorderThickness = new Thickness(2);
+            FooterPill.Effect = null;
+        }
+        else if (s.Footer == "floatbar")
+        {
+            FooterPill.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+            FooterPill.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+            FooterPill.BorderThickness = new Thickness(1);
+            FooterPill.Effect = Perf.Active ? null : new DropShadowEffect { BlurRadius = 26, ShadowDepth = 6, Opacity = 0.45 };
+        }
+    }
+
+    /// <summary>Clear at the top of the footer, darkening toward the bottom edge.</summary>
+    private static Brush FadeUp()
+    {
+        var b = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
+        b.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0, 0, 0), 0));
+        b.GradientStops.Add(new GradientStop(Color.FromArgb(0xA0, 0, 0, 0), 0.7));
+        b.GradientStops.Add(new GradientStop(Color.FromArgb(0xD0, 0, 0, 0), 1));
+        b.Freeze();
+        return b;
+    }
+
+    private void DockLook(string look)
+    {
+        var accent = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.White;
+        ButtonDock.CornerRadius = new CornerRadius(look is "bevel" ? 4 : look is "sticker" ? 22 : look is "underline" ? 0 : 50);
+        switch (look)
+        {
+            case "smoke":
+                ButtonDock.Background = new SolidColorBrush(Color.FromArgb(0xA8, 0x0C, 0x0E, 0x14));
+                ButtonDock.BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
+                ButtonDock.BorderThickness = new Thickness(1);
+                ButtonDock.Effect = Perf.Active ? null : new DropShadowEffect { BlurRadius = 28, ShadowDepth = 6, Opacity = 0.45 };
+                break;
+            case "gradient":
+            {
+                var fade = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
+                fade.GradientStops.Add(new GradientStop(Color.FromArgb(0xC0, accent.R, accent.G, accent.B), 0));
+                fade.GradientStops.Add(new GradientStop(Color.FromArgb(0x30, accent.R, accent.G, accent.B), 1));
+                ButtonDock.Background = fade;
+                ButtonDock.BorderBrush = new SolidColorBrush(Color.FromArgb(0x60, 0xFF, 0xFF, 0xFF));
+                ButtonDock.BorderThickness = new Thickness(1);
+                ButtonDock.Effect = Perf.Active ? null : new DropShadowEffect { Color = accent, BlurRadius = 24, ShadowDepth = 4, Opacity = 0.4 };
+                break;
+            }
+            case "bevel":
+                ButtonDock.Background = new SolidColorBrush(Color.FromRgb(0xC0, 0xC0, 0xC0));
+                ButtonDock.BorderBrush = new LinearGradientBrush(Colors.White, Color.FromRgb(0x40, 0x40, 0x40), 45);
+                ButtonDock.BorderThickness = new Thickness(3);
+                ButtonDock.Effect = null;
+                break;
+            case "underline":
+                ButtonDock.Background = Brushes.Transparent;
+                ButtonDock.BorderBrush = new SolidColorBrush(accent);
+                ButtonDock.BorderThickness = new Thickness(0, 0, 0, 4);
+                ButtonDock.Effect = null;
+                break;
+            case "sticker":
+                ButtonDock.Background = new SolidColorBrush(Color.FromRgb(0xFB, 0xF7, 0xEE));
+                ButtonDock.BorderBrush = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+                ButtonDock.BorderThickness = new Thickness(2.5);
+                ButtonDock.Effect = Perf.Active ? null : new DropShadowEffect { BlurRadius = 0, ShadowDepth = 7, Direction = 315, Opacity = 0.9, Color = Colors.Black };
+                break;
+            case "solid":
+                ButtonDock.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+                ButtonDock.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+                ButtonDock.BorderThickness = new Thickness(1);
+                ButtonDock.Effect = Perf.Active ? null : new DropShadowEffect { BlurRadius = 24, ShadowDepth = 6, Opacity = 0.35 };
+                break;
+            case "outline":
+                ButtonDock.Background = Brushes.Transparent;
+                ButtonDock.BorderBrush = new SolidColorBrush(Color.FromArgb(0x90, accent.R, accent.G, accent.B));
+                ButtonDock.BorderThickness = new Thickness(2);
+                ButtonDock.Effect = null;
+                break;
+            case "glow":
+                ButtonDock.Background = new SolidColorBrush(Color.FromArgb(0xB0, 0x08, 0x08, 0x10));
+                ButtonDock.BorderBrush = new SolidColorBrush(accent);
+                ButtonDock.BorderThickness = new Thickness(1.5);
+                ButtonDock.Effect = Perf.Active ? null : new DropShadowEffect { Color = accent, BlurRadius = 26, ShadowDepth = 0, Opacity = 0.75 };
+                break;
+            // glass: FrostPanel already did it
+        }
     }
 
     private void SizeDockToButtons(object? sender, SizeChangedEventArgs? e)
@@ -248,6 +383,16 @@ public partial class MainWindow
             case "heroes":
                 _heroKey = null;
                 if (selected != null) _ = ShowHeroAsync(selected.Actual);
+                break;
+            case "headers":
+                // The wide art on home tiles (Rectangle) and in the library's Rectangle view.
+                foreach (var g in _view.Where(g => g.Actual.Key == item.Key).Append(item).Append(item.Actual).Distinct())
+                {
+                    g.HeaderCover = null;
+                    g.HeaderTried = false;
+                }
+                Screens.LibraryScreen.ForgetArt();
+                StartPortraits();
                 break;
             case "logos":
                 _logoCache.Remove(item.Key);

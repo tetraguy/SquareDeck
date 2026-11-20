@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using Microsoft.Win32;
 using SquareDeck.Services;
 using Windows.Devices.Radios;
@@ -15,18 +16,68 @@ public sealed class SettingsScreen : ListScreen
 {
     private static readonly (string Id, string Name, string Glyph, string About)[] Categories =
     {
-        ("look", "Appearance", "", "UI style, colors, your saved looks, top bar, display"),
-        ("home", "Home screen", "", "Home row and buttons, animations, screen saver, startup"),
-        ("sound", "Sound", "", "Interface sounds, menu music, Multimedia page, output"),
-        ("controller", "Controller and quick menu", "", "Buttons, vibration, typing, quick menu, handheld buttons"),
-        ("power", "Power and performance", "\uEC4A", "TDP limit, Ryzen tuning, power mode, Performance mode"),
+        ("overview", "Home", "\uE80F", "Your profile, your device at a glance, and the settings people change most"),
+        ("look", "Look and feel", "\uE790", "UI style, colors, wallpaper and themes, the top bar and home screen buttons"),
+        ("home", "Home screen", "\uE8A9", "The games row, animations, screen saver, starting and closing"),
+        ("sound", "Sound and music", "\uE767", "Interface sounds, menu music, the Multimedia page and sound output"),
+        ("gaming", "Gaming", "\uE768", "Launching games, while you play, Performance Boost, the overlay, cloud gaming"),
+        ("library", "Library and stores", "\uE8F1", "Library layout and stores, achievements, play time, service keys"),
+        ("controller", "Controller and quick menu", "\uE7FC", "Buttons, vibration, typing, the quick menu, handheld buttons"),
+        ("power", "Power and performance", "\uEC4A", "Live hardware readouts, TDP limit, Ryzen tuning, launcher performance"),
+        ("network", "Network and browser", "\uE774", "Wi-Fi, Bluetooth, troubleshooting, the web browser"),
+        ("access", "Accessibility", "\uE776", "Text size, high contrast, reduced motion"),
         ("apps", "Apps", "\uE71D", "Installed apps: uninstall, repair, reset; startup and default apps"),
-        ("games", "Games and library", "", "Launching, while playing, library, achievements, keys"),
-        ("access", "Accessibility", "", "Text size, high contrast, reduced motion"),
-        ("network", "Network and browser", "", "Wi-Fi, Bluetooth, troubleshooting, web browser"),
-        ("system", "System and tools", "", "Notifications, disk cleanup, tools, Xbox mode, startup"),
-        ("data", "Updates, backup and reset", "", "New versions, backup, downloaded art, start over")
+        ("system", "System and tools", "\uE7F8", "Notifications, disk cleanup, tools, Xbox mode, starting with Windows"),
+        ("data", "Updates and data", "\uE777", "New versions, backup, downloaded art, start over"),
+        ("experimental", "Experimental", "\uE9D9", "Features still being tried out. They may change or go away")
     };
+
+    /// <summary>
+    /// The sections shown: on a recognized handheld, "&lt;model&gt; Specific Settings" sits after Power and performance.
+    /// </summary>
+    private static (string Id, string Name, string Glyph, string About)[] VisibleCategories
+    {
+        get
+        {
+            if (!Handheld.IsHandheld) return Categories;
+            var list = Categories.ToList();
+            int at = list.FindIndex(c => c.Id == "power") + 1;
+            list.Insert(at, ("handheld", Handheld.DisplayName + " Specific Settings", Ui.HandheldGlyph,
+                "Settings only this device has: " + (Handheld.Vendor switch
+                {
+                    HandheldVendor.Asus => "lights, ASUS modes, fans, battery care, buttons",
+                    HandheldVendor.Lenovo => "Legion modes, fan boost, charge limit, power",
+                    HandheldVendor.Msi => "user scenarios, fan boost, charge limit, power",
+                    _ => "its power range and TDP"
+                }) + ", and the supported handhelds"));
+            return list.ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Which groups of settings each section shows, from which part of the settings code. Null groups = all of that part.
+    /// Sections can borrow groups from each other's parts, so settings sit where you'd look for them.
+    /// </summary>
+    private static readonly Dictionary<string, (string Part, string[]? Groups)[]> Sections = new()
+    {
+        ["look"] = new[] { ("look", (string[]?)new[] { "Style", "Colors", "Your looks", "Artwork" }), ("home", new[] { "Home screen buttons" }), ("look", new[] { "Top bar", "Display" }) },
+        ["home"] = new[] { ("home", (string[]?)new[] { "Home row and buttons", "Buttons under the games", "Animations", "Screen saver", "Starting and closing" }) },
+        ["sound"] = new[] { ("sound", (string[]?)null) },
+        ["gaming"] = new[] { ("games", (string[]?)new[] { "Launching games", "While playing" }), ("power", new[] { "Performance Boost", "Performance overlay" }), ("games", new[] { "Cloud gaming" }) },
+        ["library"] = new[] { ("games", (string[]?)new[] { "Library and stores", "Achievements, play time and captures", "Service keys" }) },
+        ["controller"] = new[] { ("controller", (string[]?)null) },
+        ["power"] = new[] { ("power", (string[]?)new[] { "This device", "Processor power (TDP)", "Processor (Ryzen Z1 / Z2)", "TDP helper", "Launcher performance" }) },
+        ["network"] = new[] { ("network", (string[]?)null) },
+        ["access"] = new[] { ("access", (string[]?)null) },
+        ["apps"] = new[] { ("apps", (string[]?)null) },
+        ["system"] = new[] { ("system", (string[]?)null) },
+        ["data"] = new[] { ("data", (string[]?)null) },
+        ["experimental"] = new[] { ("experimental", (string[]?)null) },
+        ["handheld"] = new[] { ("handheld", (string[]?)null) },
+    };
+
+    /// <summary>Section ids from earlier versions.</summary>
+    private static string Upgrade(string id) => id switch { "games" => "gaming", _ => id };
 
     private string _category;
     private readonly StackPanel _nav = new();
@@ -38,7 +89,7 @@ public sealed class SettingsScreen : ListScreen
     internal static List<SearchSetting> BuildIndex(MainWindow host)
     {
         var list = new List<SearchSetting>();
-        foreach (var c in Categories)
+        foreach (var c in VisibleCategories)
         {
             var cat = c;
             list.Add(new SearchSetting(cat.Name, cat.About, "Settings", cat.Glyph, () => new SettingsScreen(cat.Id)));
@@ -65,7 +116,7 @@ public sealed class SettingsScreen : ListScreen
     internal SettingsScreen(string? category)
         : base("Settings", "{Select}  Select      {Back}  Back", null)
     {
-        _category = category ?? _lastCategory;
+        _category = Upgrade(category ?? "overview"); // Settings opens on its home page
         // A light tick on the controller each time the highlight moves to another row (if vibration is on).
         AddHandler(UIElement.GotKeyboardFocusEvent, new System.Windows.Input.KeyboardFocusChangedEventHandler((_, e) =>
         {
@@ -80,72 +131,37 @@ public sealed class SettingsScreen : ListScreen
         BuildLayout();
     }
 
+    /// <summary>One wide, centered column: no sidebar. Home lists the sections; each opens on its own.</summary>
     private void BuildLayout()
     {
-        // Replace the plain list page with two panes.
-        var navPanel = new Border { Width = 300, CornerRadius = new CornerRadius(18), Padding = new Thickness(10, 12, 10, 12), Margin = new Thickness(0, 0, 22, 0), ClipToBounds = true };
-        _navPanel = navPanel;
-        navPanel.SetResourceReference(Border.BackgroundProperty, "TileBrush");
-        navPanel.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
-        navPanel.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
-        navPanel.Child = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            PanningMode = PanningMode.VerticalOnly, Focusable = false, Content = _nav
-        };
-        _nav.PreviewGotKeyboardFocus += (_, _) => _focusInNav = true;
-        Rows.PreviewGotKeyboardFocus += (_, _) => _focusInNav = false;
-        Rows.Width = double.NaN;
-        Rows.HorizontalAlignment = HorizontalAlignment.Stretch;
-        Rows.Margin = new Thickness(0, 0, 14, 20);
-        if (RowsScroll.Parent is Panel old) old.Children.Remove(RowsScroll);
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.Children.Add(navPanel);
-        Grid.SetColumn(RowsScroll, 1);
-        grid.Children.Add(RowsScroll);
-        ReplaceBody(grid);
+        Rows.Width = 1040;
+        Rows.HorizontalAlignment = HorizontalAlignment.Center;
+        Rows.Margin = new Thickness(0, 0, 0, 24);
     }
 
     public override void OnShown()
     {
-        SizeNav(animate: false);
-        BuildNav();
         if (FocusLabel != null) { Rebuild(); return; } // opened from Search: land on that row
-        SuppressAutoFocus = true;
+        ForgetRow();
         Rebuild();
-        SuppressAutoFocus = false;
-        FocusLater(NavRow(_category));
     }
 
-    private bool _focusInNav = true;
-
-    public override void OnResumed()
-    {
-        BuildNav();
-        if (_focusInNav)
-        {
-            // Back from a page opened from the list of sections (profile, search): the highlight stays in the list.
-            SuppressAutoFocus = true;
-            Rebuild();
-            SuppressAutoFocus = false;
-            FocusLater(NavRow(_category));
-            return;
-        }
-        Rebuild(); // back on the setting that opened the page
-    }
+    public override void OnResumed() => Rebuild(); // back on the setting that opened the page
 
     public override void OnClosed() => _switchSoon.Stop();
 
-    public override void FocusDefault() => (NavRow(_category) ?? (UIElement?)Rows.Children.OfType<Button>().FirstOrDefault())?.Focus();
+    public override void FocusDefault() => Rows.Children.OfType<Button>().FirstOrDefault()?.Focus();
 
     public override bool OnAction(NavAction action)
     {
-        // B in the settings goes back to the list of sections first.
-        if (action == NavAction.Back && Rows.IsKeyboardFocusWithin && NavRow(_category) is { } row)
+        if (action != NavAction.Back) return false;
+        // B steps back: a group to its section, a section to Settings home, then out of Settings.
+        if (_group != null) { LeaveGroup(); return true; }
+        if (_category != "overview")
         {
-            row.Focus();
+            var from = _category;
+            Show("overview", focusContent: false);
+            if (Rows.Children.OfType<Button>().FirstOrDefault(b => b.DataContext as string == "section:" + from) is { } card) FocusLater(card);
             return true;
         }
         return false;
@@ -223,7 +239,7 @@ public sealed class SettingsScreen : ListScreen
         _nav.Children.Add(search);
         _nav.Children.Add(new Border { Height = 2 });
 
-        foreach (var c in Categories)
+        foreach (var c in VisibleCategories)
         {
             string id = c.Id;
             var row = Ui.Row(c.Name, null, c.Glyph);
@@ -258,7 +274,7 @@ public sealed class SettingsScreen : ListScreen
         var face = Avatars.Build(Host.Settings.Avatar, 40);
         Add(Ui.BladeButton(null, "Your profile", picture: face), "nav:profile", new Thickness(0, 4, 0, 0)).Click += (_, _) => Host.Push(new ProfileScreen());
         Add(Ui.BladeButton("\uE721", "Find a setting"), "nav:search", new Thickness(0, 0, 0, 8)).Click += (_, _) => Host.Push(new SearchScreen(settingsOnly: true));
-        foreach (var c in Categories)
+        foreach (var c in VisibleCategories)
         {
             string id = c.Id;
             var row = Add(Ui.BladeButton(c.Glyph, c.Name, selected: id == _category), "nav:" + id, new Thickness(0));
@@ -276,56 +292,291 @@ public sealed class SettingsScreen : ListScreen
     private void Show(string id, bool focusContent)
     {
         _switchSoon.Stop();
+        if (_category != id) _group = null;
         _category = id;
         _lastCategory = id;
-        if (Collapsed)
-        {
-            // The blade shows where you are with a stronger tint, so it's redrawn (keeping the focus on the same icon).
-            var focused = _nav.Children.OfType<Button>().FirstOrDefault(b => b.IsKeyboardFocused)?.DataContext as string;
-            BuildNav();
-            if (focused != null) _nav.Children.OfType<Button>().FirstOrDefault(b => b.DataContext as string == focused)?.Focus();
-        }
-        else
-            foreach (var b in _nav.Children.OfType<Button>())
-                if (b.DataContext is string tag && tag.StartsWith("nav:") && tag is not ("nav:profile" or "nav:search" or "nav:toggle"))
-                    b.Tag = tag == "nav:" + id ? "selected" : null;
         SuppressAutoFocus = true;
         ForgetRow(); // a different section starts at its top
         Rebuild();
         SuppressAutoFocus = false;
         RowsScroll.ScrollToTop();
-        if (focusContent) FocusLater(Rows.Children.OfType<Button>().FirstOrDefault());
-        // No sound here: moving onto the section in the list already made one.
+        // The first setting (past the way back), or the first card on Settings home.
+        FocusLater(Rows.Children.OfType<Button>().Skip(id == "overview" ? 0 : 1).FirstOrDefault() ?? Rows.Children.OfType<Button>().FirstOrDefault());
     }
 
     protected override void Build()
     {
         var s = Host.Settings;
-        var cat = Categories.FirstOrDefault(c => c.Id == _category);
-        if (cat.Id == null) { _category = "look"; cat = Categories[0]; }
+        var cat = VisibleCategories.FirstOrDefault(c => c.Id == _category);
+        if (cat.Id == null) { _category = "overview"; cat = Categories[0]; }
 
-        // The section's name and what's in it, at the top of the right pane.
-        var title = Ui.Text(cat.Name, 30, "FgBrush", bold: true);
-        title.Margin = new Thickness(6, 0, 0, 2);
-        Rows.Children.Add(title);
-        var about = Ui.Text(cat.About, 15, "SubtleBrush");
-        about.Margin = new Thickness(6, 0, 0, 0);
-        Rows.Children.Add(about);
+        // The section's banner: its icon, name and what's in it (and where you are, inside a group).
+        Rows.Children.Add(Banner(cat.Glyph, cat.Name, _group == null ? cat.About : null));
 
-        switch (_category)
+        if (_category == "overview") { BuildOverview(s); return; }
+        var back = Ui.Row("Settings", null, "\uE72B", subtitle: "Back to all settings");
+        back.Click += (_, _) => OnAction(NavAction.Back);
+        back.Margin = new Thickness(0, 8, 0, 4);
+        back.Tag = "back";
+        Rows.Children.Add(back);
+        Rows.Children.Add(new Border { Height = 4 });
+        foreach (var (part, groups) in Sections[_category])
         {
-            case "look": BuildLook(s); break;
-            case "home": BuildHome(s); break;
-            case "sound": BuildSound(s); break;
-            case "controller": BuildController(s); break;
-            case "power": BuildPower(s); break;
-            case "apps": BuildApps(s); break;
-            case "games": BuildGames(s); break;
-            case "access": BuildAccess(s); break;
-            case "network": BuildNetwork(s); break;
-            case "system": BuildSystem(s); break;
-            case "data": BuildData(s); break;
+            int start = Rows.Children.Count;
+            switch (part)
+            {
+                case "look": BuildLook(s); break;
+                case "home": BuildHome(s); break;
+                case "sound": BuildSound(s); break;
+                case "controller": BuildController(s); break;
+                case "power": BuildPower(s); break;
+                case "apps": BuildApps(s); break;
+                case "games": BuildGames(s); break;
+                case "access": BuildAccess(s); break;
+                case "network": BuildNetwork(s); break;
+                case "system": BuildSystem(s); break;
+                case "data": BuildData(s); break;
+                case "experimental": BuildExperimental(s); break;
+                case "handheld": BuildHandheld(s); break;
+            }
+            if (groups != null) KeepGroups(start, groups);
         }
+        Organize(cat.Name);
+    }
+
+    /// <summary>Of the rows added since <paramref name="start"/>, keeps only the named groups (in the order they were built).</summary>
+    private void KeepGroups(int start, string[] groups)
+    {
+        var added = Rows.Children.Cast<UIElement>().Skip(start).ToList();
+        bool keep = false;
+        foreach (var e in added)
+        {
+            if (e is TextBlock { Tag: "group" } h) keep = groups.Contains(h.Text);
+            if (!keep) Rows.Children.Remove(e);
+        }
+    }
+
+    // ---------------------------------------------------------------- the Home section: a dashboard
+
+    private void BuildOverview(Settings s)
+    {
+        // You and your device.
+        var me = new DockPanel();
+        var face = Avatars.Build(s.Avatar, 64);
+        face.Margin = new Thickness(0, 0, 18, 0);
+        DockPanel.SetDock(face, Dock.Left);
+        me.Children.Add(face);
+        var who = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        who.Children.Add(Ui.Text(UserName.Display, 24, "FgBrush", bold: true));
+        var facts = new List<string> { "SquareDeck " + Updater.Current, UiStyles.Find(s.UiStyle).Name };
+        if (Battery.GetPercent() is int battery) facts.Add(battery + "% battery");
+        if (TdpControl.Ready) facts.Add(TdpControl.EffectiveWatts + " W TDP");
+        who.Children.Add(Ui.Text(string.Join("   \u00B7   ", facts), 14, "SubtleBrush"));
+        me.Children.Add(who);
+        var profile = new Button { Style = Ui.StyleOf("RowButton"), Content = me, Padding = new Thickness(18, 14, 18, 14) };
+        profile.Click += (_, _) => Host.Push(new ProfileScreen());
+        Rows.Children.Add(profile);
+        Rows.Children.Add(new Border { Height = 4 });
+
+        var search = Ui.Row("Find a setting", null, "\uE721", subtitle: "Search every setting by name");
+        search.Click += (_, _) => Host.Push(new SearchScreen(settingsOnly: true));
+        search.Margin = new Thickness(0, 8, 0, 0);
+        Rows.Children.Add(search);
+        Rows.Children.Add(new Border { Height = 4 });
+
+        // Every section, as a card.
+        AddHeader("All settings");
+        foreach (var c in VisibleCategories.Skip(1))
+        {
+            var id = c.Id;
+            var row = AddRow(c.Name, null, c.Glyph, click: () => Show(id, focusContent: true), subtitle: c.About);
+            row.DataContext = "section:" + id;
+        }
+    }
+
+    /// <summary>Opens a section, a group in it, and puts the highlight on one row.</summary>
+    private void Jump(string section, string group, string? row)
+    {
+        Show(section, focusContent: false);
+        _group = group;
+        ForgetRow();
+        if (row != null) FocusLabel = row;
+        Rebuild();
+        if (row == null) FocusLater(Rows.Children.OfType<Button>().Skip(1).FirstOrDefault());
+    }
+
+    // ---------------------------------------------------------------- groups: a tidy overview, one group at a time
+
+    private string? _group;       // the group open inside the section, or null for the overview
+    private bool _indexing;        // building for Search: keep every row
+
+    /// <summary>Headers in Settings mark the start of a group.</summary>
+    private new void AddHeader(string text)
+    {
+        var header = Ui.Header(text);
+        header.Tag = "group";
+        Rows.Children.Add(header);
+    }
+
+    internal new List<(string Label, string? Subtitle)> RowLabels()
+    {
+        _indexing = true;
+        try { return base.RowLabels(); }
+        finally { _indexing = false; }
+    }
+
+    /// <summary>
+    /// Sections with several groups open as a short list of group cards (name, icon, what's inside); choosing one
+    /// shows just that group's settings, with a way back. Small sections stay as one list.
+    /// </summary>
+    private void Organize(string section)
+    {
+        if (_indexing) return;
+        // The way back (to Settings home) stays at the top; it isn't part of any group.
+        var backRow = Rows.Children.OfType<Button>().FirstOrDefault(b => b.Tag as string == "back");
+        var all = Rows.Children.Cast<UIElement>().Skip(1).ToList();
+        int backAt = backRow != null ? all.IndexOf(backRow) : -1;
+        var body = all.Where((e, i) => i != backAt && i != backAt + 1).ToList();
+        var groups = new List<(string Name, List<UIElement> Items)>();
+        foreach (var e in body)
+        {
+            if (e is TextBlock { Tag: "group" } h) groups.Add((h.Text, new List<UIElement>()));
+            else
+            {
+                if (groups.Count == 0) groups.Add(("General", new List<UIElement>()));
+                groups[^1].Items.Add(e);
+            }
+        }
+        groups.RemoveAll(g => g.Items.Count == 0);
+        int rows = body.Count(e => e is Button);
+        if (groups.Count <= 1 || rows <= 8) { _group = null; return; }
+
+        // Opened from Search: go straight to the group holding that row.
+        if (FocusLabel != null)
+            foreach (var g in groups)
+                if (g.Items.OfType<Button>().Any(b => LabelOf(b)?.Label == FocusLabel)) { _group = g.Name; break; }
+
+        if (_group != null && groups.FirstOrDefault(g => g.Name == _group) is { Name: not null } open)
+        {
+            var banner = Rows.Children[0];
+            Rows.Children.Clear();
+            Rows.Children.Add(banner);
+            var back = Ui.Row(section, null, "\uE72B", subtitle: "Back to all " + section.ToLowerInvariant() + " settings");
+            back.Click += (_, _) => LeaveGroup();
+            back.Margin = new Thickness(0, 6, 0, 4);
+            Rows.Children.Add(back);
+            Rows.Children.Add(new Border { Height = 6 }); // keeps it out of the group below
+            var title = Ui.Text(open.Name, 24, "FgBrush", bold: true);
+            title.Margin = new Thickness(6, 14, 0, 8);
+            Rows.Children.Add(title);
+            foreach (var e in open.Items) Rows.Children.Add(e);
+            return;
+        }
+        _group = null;
+
+        var top = Rows.Children[0];
+        Rows.Children.Clear();
+        Rows.Children.Add(top);
+        if (backRow != null) { Rows.Children.Add(backRow); Rows.Children.Add(new Border { Height = 6 }); }
+        Rows.Children.Add(new Border { Height = 4 });
+        foreach (var g in groups)
+        {
+            var name = g.Name;
+            var buttons = g.Items.OfType<Button>().ToList();
+            string glyph = buttons.Select(GlyphOf).FirstOrDefault(x => x != null) ?? "\uE713";
+            var labels = buttons.Select(b => LabelOf(b)?.Label).Where(l => !string.IsNullOrEmpty(l)).Take(3).ToList();
+            var card = new Grid();
+            card.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            card.ColumnDefinitions.Add(new ColumnDefinition());
+            card.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var badge = new Border { Width = 50, Height = 50, CornerRadius = new CornerRadius(14), Margin = new Thickness(0, 0, 18, 0) };
+            var a = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.DeepSkyBlue;
+            badge.Background = new LinearGradientBrush(Color.FromArgb(0xFF, a.R, a.G, a.B), Color.FromArgb(0x90, a.R, a.G, a.B), 45);
+            var icon = Ui.Glyph(glyph, 22, "BgBrush");
+            icon.HorizontalAlignment = HorizontalAlignment.Center;
+            icon.VerticalAlignment = VerticalAlignment.Center;
+            badge.Child = icon;
+            card.Children.Add(badge);
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(Ui.Text(name, 20, "FgBrush", bold: true));
+            var sub = Ui.Text($"{buttons.Count} {(buttons.Count == 1 ? "setting" : "settings")}  \u00B7  {string.Join(", ", labels)}", 14, "SubtleBrush");
+            sub.TextTrimming = TextTrimming.CharacterEllipsis;
+            sub.Margin = new Thickness(0, 3, 0, 0);
+            text.Children.Add(sub);
+            Grid.SetColumn(text, 1);
+            card.Children.Add(text);
+            var chevron = Ui.Glyph("\uE76C", 16, "SubtleBrush");
+            chevron.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(chevron, 2);
+            card.Children.Add(chevron);
+            var button = new Button { Style = Ui.StyleOf("RowButton"), Content = card, Padding = new Thickness(18, 14, 18, 14), Margin = new Thickness(0, 0, 0, 10) };
+            button.Click += (_, _) => EnterGroup(name);
+            Rows.Children.Add(button);
+            Rows.Children.Add(new Border { Height = 0 }); // each card stands on its own (not merged into one group)
+        }
+    }
+
+    private static string? GlyphOf(Button b)
+    {
+        string? found = null;
+        void Walk(object node)
+        {
+            if (found != null) return;
+            if (node is TextBlock t && Equals(t.FontFamily, Ui.IconFont) && !string.IsNullOrEmpty(t.Text)) { found = t.Text; return; }
+            if (node is DependencyObject d) foreach (var c in LogicalTreeHelper.GetChildren(d)) Walk(c);
+        }
+        Walk(b);
+        return found;
+    }
+
+    private void EnterGroup(string name)
+    {
+        _group = name;
+        ForgetRow();
+        Rebuild();
+        RowsScroll.ScrollToTop();
+        // The first setting of the group, not the way back.
+        FocusLater(Rows.Children.OfType<Button>().Skip(1).FirstOrDefault() ?? Rows.Children.OfType<Button>().FirstOrDefault());
+    }
+
+    private void LeaveGroup()
+    {
+        var name = _group;
+        _group = null;
+        ForgetRow();
+        Rebuild();
+        if (Rows.Children.OfType<Button>().FirstOrDefault(b => LabelOf(b)?.Label == name) is { } card) FocusLater(card);
+    }
+
+    /// <summary>The section's banner: a big icon in a highlight-colored badge, its name, and what it covers.</summary>
+    private static UIElement Banner(string glyph, string name, string? about)
+    {
+        var a = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.DeepSkyBlue;
+        var panel = new Border
+        {
+            CornerRadius = new CornerRadius(20), Padding = new Thickness(22, 18, 22, 18), Margin = new Thickness(0, 0, 0, 4),
+            Background = new LinearGradientBrush(Color.FromArgb(0x48, a.R, a.G, a.B), Color.FromArgb(0x08, a.R, a.G, a.B), 0)
+        };
+        var row = new DockPanel();
+        var badge = new Border { Width = 60, Height = 60, CornerRadius = new CornerRadius(18), Margin = new Thickness(0, 0, 18, 0), Background = new SolidColorBrush(a) };
+        var icon = Ui.Glyph(glyph, 28, "BgBrush");
+        icon.HorizontalAlignment = HorizontalAlignment.Center;
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        badge.Child = icon;
+        DockPanel.SetDock(badge, Dock.Left);
+        row.Children.Add(badge);
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(Ui.Text(name, 30, "FgBrush", bold: true));
+        if (about != null)
+        {
+            var sub = Ui.Text(about, 15, "SubtleBrush");
+            sub.TextWrapping = TextWrapping.Wrap;
+            sub.TextTrimming = TextTrimming.None;
+            text.Children.Add(sub);
+        }
+        row.Children.Add(text);
+        panel.Child = row;
+        return panel;
     }
 
     private static readonly int[] TextSizes = { 100, 115, 130, 150 };
@@ -371,7 +622,7 @@ public sealed class SettingsScreen : ListScreen
         AddNote("Stops the pulsing highlight, page slides, fades, animated covers and the startup animation.");
     }
 
-    private static string _lastCategory = "look";
+    private static string _lastCategory = "overview";
 
 
     private void BuildLook(Settings s)
@@ -411,6 +662,10 @@ public sealed class SettingsScreen : ListScreen
             Toggle(() => s.DetailsGradient = !s.DetailsGradient));
 
         AddHeader("Top bar");
+        AddRow("Show the clock", OnOff(s.ShowClock), "\uE823", click: () => Toggle(() => s.ShowClock = !s.ShowClock));
+        AddRow("Font", UiFonts.FirstOrDefault(f => f.Id == s.UiFont).Name ?? "From the UI style", "\uE8D2",
+            click: () => Preview("Font", "Used everywhere in SquareDeck. Choose one to use it.", UiFonts, () => s.UiFont, PreviewPickerScreen.Font, id => s.UiFont = id),
+            subtitle: "The typeface for the whole app: ten to choose from");
         AddRow("Clock", (s.Clock24Hour ? "24-hour" : "12-hour") + (s.ClockSeconds ? ", seconds" : "") + (s.ClockDate ? ", date" : ""),
             "", click: ClockOptions);
         AddRow("Show battery percentage", OnOff(s.ShowBatteryPercent), "", click: () =>
@@ -442,8 +697,7 @@ public sealed class SettingsScreen : ListScreen
             ("fade", "Fade"), ("zoom", "Zoom"), ("pop", "Pop"), ("spring", "Spring"), ("drop", "Bounce"), ("flip", "Card flip"),
             ("swing", "Swing"), ("focus", "Come into focus"), ("none", "None")
         };
-    private static readonly (string Id, string Name)[] TileStyles =
-        { ("pulse", "Pulsing ring"), ("steady", "Steady ring"), ("grow", "Tile grows") };
+    private static readonly (string Id, string Name)[] TileStyles = Motion.TileHighlights;
 
     private async Task ChooseAsync((string Id, string Name)[] options, string title, string? message, Action<string> set)
     {
@@ -454,6 +708,13 @@ public sealed class SettingsScreen : ListScreen
     private void BuildHome(Settings s)
     {
         AddHeader("Home row and buttons");
+        AddRow("Game art", UiStyles.TileArts.FirstOrDefault(x => x.Id == s.TileArt).Name ?? "From the UI style", "\uE91B",
+            click: () => Preview("Game art", "How games and apps look on the home row, in Favorites and in Apps. Choose one to use it.", UiStyles.TileArts,
+                () => s.TileArt, id => PreviewPickerScreen.Art(id, s.TileSize), id => s.TileArt = id),
+            subtitle: "Square, tall grid, or rectangle (header capsule)");
+        AddRow("Game art size", UiStyles.TileSizes.FirstOrDefault(x => x.Id == s.TileSize).Name ?? "From the UI style", "\uE740",
+            click: () => Preview("Game art size", "How big the tiles are on the home row. Choose one to use it.", UiStyles.TileSizes,
+                () => s.TileSize, id => PreviewPickerScreen.Art(s.TileArt == "style" ? "square" : s.TileArt, id), id => s.TileSize = id));
         AddRow("Continue where you left off", OnOff(s.ContinueTile), "\uE768", click: () =>
             Toggle(() => s.ContinueTile = !s.ContinueTile),
             subtitle: "Your last game as a large tile with its artwork, first on the home row");
@@ -465,6 +726,14 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Explorer (files) button", OnOff(s.ShowExplorerButton), "", click: () => Toggle(() => s.ShowExplorerButton = !s.ShowExplorerButton));
         AddRow("News button", OnOff(s.ShowNewsButton), "\uE789", click: () => Toggle(() => s.ShowNewsButton = !s.ShowNewsButton),
             subtitle: "Game news, patches, announcements and sales");
+        if (Handheld.IsHandheld)
+            AddRow("My Device button", OnOff(s.ShowMyDeviceButton), Ui.HandheldGlyph, click: () =>
+            {
+                s.ShowMyDeviceButton = !s.ShowMyDeviceButton;
+                s.Save();
+                Host.RefreshHomeButtonsPublic();
+                Rebuild();
+            }, subtitle: "Your " + Handheld.DisplayName + "'s temperatures, fans, battery and more");
         AddNote("Home, Favorites, Apps, Captures, Stores, Settings and Power are always shown. Hidden pages can still be opened from Settings.");
 
         AddHeader("Animations");
@@ -484,7 +753,8 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Opening pages", PageStyles.FirstOrDefault(p => p.Id == s.PageTransition).Name ?? "Slide up", "\uE8A7",
             click: () => _ = ChooseAsync(PageStyles, "Opening pages", "How pages and pop-ups appear.", v => s.PageTransition = v));
         AddRow("Selected game", TileStyles.FirstOrDefault(t => t.Id == s.TileHighlight).Name ?? "Pulsing ring", "\uE7FC",
-            click: () => _ = ChooseAsync(TileStyles, "Selected game", "How the highlighted game on the home row stands out.", v => s.TileHighlight = v));
+            click: () => _ = ChooseAsync(TileStyles, "Selected game", "How the highlighted game or app on the home row stands out. Move along the row to see it.", v => s.TileHighlight = v),
+            subtitle: "Ten highlight animations: pulse, grow, bounce, lift, wobble, breathe, tilt, glow, shake…");
         AddNote("Startup and closing animations are further down. Reduce motion (Accessibility) turns all of these off.");
 
         AddHeader("Screen saver");
@@ -513,6 +783,19 @@ public sealed class SettingsScreen : ListScreen
             Toggle(() => s.StartupIntro = !s.StartupIntro));
         AddRow("Startup animation", MainWindow.BootAnimations.FirstOrDefault(b => b.Id == s.BootAnimation).Name ?? "Logo pop", "",
             click: ChooseBootAnimation);
+        AddHeader("Home screen buttons");
+        AddRow("Button style", UiStyles.NavButtonStyles.FirstOrDefault(x => x.Id == s.NavButtonStyle).Name ?? "From the UI style", "\uE8A9",
+            click: () => Preview("Home screen buttons", "How the Home, Favorites, Apps, Social… buttons look. Choose one to use it.", UiStyles.NavButtonStyles,
+                () => s.NavButtonStyle, PreviewPickerScreen.Buttons, id => s.NavButtonStyle = id),
+            subtitle: "The Home, Favorites, Apps, Social… buttons under your games");
+        AddRow("Button shelf", UiStyles.DockStyles.FirstOrDefault(x => x.Id == s.DockStyle).Name ?? "From the UI style", "\uE7F4",
+            click: () => Preview("Button shelf", "The deck the home screen buttons sit on. Choose one to use it.", UiStyles.DockStyles,
+                () => s.DockStyle, PreviewPickerScreen.Shelf, id => s.DockStyle = id),
+            subtitle: "The deck the buttons sit on");
+        AddRow("Footer", UiStyles.FooterStyles.FirstOrDefault(x => x.Id == s.FooterStyle).Name ?? "From the UI style", "\uE8A1",
+            click: () => Preview("Footer", "The strip along the bottom of the home screen, with the button hints. Choose one to use it.", UiStyles.FooterStyles,
+                () => s.FooterStyle, PreviewPickerScreen.Footer, id => s.FooterStyle = id),
+            subtitle: "The strip along the bottom with the button hints");
         AddRow("Welcome message", OnOff(s.WelcomeMessage), "\uE8BD",
             click: () => Toggle(() => s.WelcomeMessage = !s.WelcomeMessage),
             subtitle: $"\"{MainWindow.Greeting(DateTime.Now)}, {MainWindow.FirstName()}\" slides out next to your profile picture at startup");
@@ -554,6 +837,9 @@ public sealed class SettingsScreen : ListScreen
         });
 
         AddHeader("Multimedia page");
+        AddRow("Streaming opening animation", StreamingIntro.Styles.FirstOrDefault(c => c.Id == s.StreamingIntro).Name ?? "Surprise me", "\uE714",
+            click: () => Pick("Streaming opening animation", StreamingIntro.Styles, id => s.StreamingIntro = id),
+            subtitle: "Plays while Netflix, Hulu and the other streaming services open");
         AddRow("Search Spotify and YouTube Music", OnOff(s.MusicServices), "\uE721", click: () => Toggle(() => s.MusicServices = !s.MusicServices));
         if (s.MusicServices)
         {
@@ -614,8 +900,8 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Vibration strength", s.RumbleStrength <= 0 ? "Off" : s.RumbleStrength + "%", "", click: RumbleStrength);
         AddRow("Vibrate when a notification pops up", OnOff(s.RumbleOnNotifications), "\uEA8F",
             click: () => Toggle(() => s.RumbleOnNotifications = !s.RumbleOnNotifications));
-        AddRow("Vibrate while moving through Settings", OnOff(s.RumbleInSettings), "\uE7FC",
-            click: () => Toggle(() => s.RumbleInSettings = !s.RumbleInSettings), subtitle: "A light tick from row to row");
+        AddRow("Vibrate while moving through menus", OnOff(s.RumbleInSettings), "\uE7FC",
+            click: () => Toggle(() => s.RumbleInSettings = !s.RumbleInSettings), subtitle: "A light tick from row to row in Settings, quick settings and the power menu");
         AddRow("Controller test", glyph: "", click: () => Host.Push(new ControllerTestScreen()));
 
         AddHeader("Typing");
@@ -632,14 +918,22 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Controller buttons", SummonLabel(s.SummonCombo), "", click: ChooseSummonButtons);
         AddRow("Keyboard shortcut", MainWindow.SummonKeys.FirstOrDefault(k => k.Id == s.SummonKey).Name ?? "None", "",
             click: ChooseSummonKey);
-        AddRow("Where the quick menu appears", s.OverlaySide switch { "left" => "Slides in from the left", "center" => "Pop-up in the middle", _ => "Slides in from the right" },
-            "", click: () => Toggle(() => s.OverlaySide = s.OverlaySide switch { "right" => "left", "left" => "center", _ => "right" }));
+        AddRow("Where the quick menu appears", s.OverlaySide switch { "right" => "Slides in from the right", "center" => "Pop-up in the middle", _ => "Slides in from the left" },
+            "", click: () => Toggle(() => s.OverlaySide = s.OverlaySide switch { "left" => "right", "right" => "center", _ => "left" }));
+        AddRow("Quick menu buttons", string.Join(", ", s.OverlayTiles.Take(3).Select(t => QuickOverlay.TileChoices.FirstOrDefault(c => c.Id == t).Name)) + "…", "\uE8A9",
+            click: () => Host.Push(new OverlayButtonsScreen()), subtitle: "The six buttons in the quick menu. Y on a button in the menu swaps it too");
+        AddRow("Quick menu stats", s.OverlayStats.Count == 0 ? "None" : string.Join(", ", s.OverlayStats.Select(x => QuickOverlay.StatChoices.FirstOrDefault(c => c.Id == x).Name)), "\uE9D9",
+            click: () => Host.Push(new OverlayStatsScreen()), subtitle: "What the strip at the top of the quick menu shows");
+        AddRow("Quick menu takes the controller", OnOff(s.OverlayTakesController), "\uE7FC", click: () => Toggle(() => s.OverlayTakesController = !s.OverlayTakesController),
+            subtitle: "While the menu is open, the game doesn't react to your buttons. Turn off if a game minimizes or goes black when the menu opens");
+        AddRow("TDP in the quick menu", OnOff(s.OverlayTdp), "\uE945", click: () => Toggle(() => s.OverlayTdp = !s.OverlayTdp),
+            subtitle: TdpControl.Ready ? "Presets and a slider for the power limit while you play" : "Turn on TDP control in Settings > Power first");
 
-        if (AllyButtons.Model.Length > 0 || AllyButtons.IsSupported)
+        if (Handheld.IsHandheld)
         {
-            AddHeader(AllyButtons.Model.Length > 0 ? AllyButtons.Model : "ROG Ally");
-            AddRow("Remap the Armoury Crate and Command Center buttons", s.AllyRemap ? "On" : "Off", "\uE765",
-                click: () => Host.Push(new AllyButtonsScreen()));
+            AddHeader("Handheld buttons");
+            AddRow(Handheld.DisplayName + " Specific Settings", null, Ui.HandheldGlyph, click: () => Show("handheld", focusContent: true),
+                subtitle: "The device's own buttons, lights and controls moved here");
         }
     }
 
@@ -706,18 +1000,35 @@ public sealed class SettingsScreen : ListScreen
         AddHeader("Processor power (TDP)");
         if (chip == null)
         {
-            AddNote("TDP control works with AMD processors (Ryzen Z2 Extreme, Z1 Extreme and similar). This PC has " +
+            AddNote("TDP control works with AMD and Intel processors. This PC has " +
                     (TdpControl.CpuName.Length > 0 ? TdpControl.CpuName : "a processor SquareDeck couldn't identify") + ".");
         }
-        else if (!TdpControl.Installed)
+        else if (!TdpControl.CanApply)
         {
             AddNote(chip.Name + ". " + chip.Note);
-            AddRow("Set up TDP control", "Not set up", "\uE896", click: SetUpTdp,
-                subtitle: TdpControl.HasBundled ? "Installs RyzenAdj, which comes with SquareDeck (one Windows permission prompt)"
-                                                : "Downloads RyzenAdj from GitHub and installs it (one Windows permission prompt)");
-            AddNote("Setting the power limit needs administrator rights. Setup installs RyzenAdj (an open-source tool, " +
-                    "github.com/FlyGoat/RyzenAdj) into Program Files and adds a background task, \"SquareDeck\\ApplyTdp\", " +
-                    "that applies your limits without asking each time. You can remove both here later.");
+            bool vendorFirmware = Handheld.Vendor is HandheldVendor.Lenovo or HandheldVendor.Msi;
+            if (vendorFirmware || TdpControl.IsIntel)
+            {
+                AddRow("Set up TDP control", "Not set up", "\uE896", click: () => _ = SetUpDeviceHelperAsync(),
+                    subtitle: vendorFirmware
+                        ? "Sets the limit through the " + Handheld.DisplayName + "'s own firmware (one Windows permission prompt)"
+                        : "Sets Intel's power limits with KX.exe from your HandheldCompanion install (one Windows permission prompt)");
+                AddNote("Setting the power limit needs administrator rights. Setup adds the device helper: a small script in Program Files " +
+                        "and a background task, \"SquareDeck\\DeviceHelper\", that changes only the settings on its list, without asking each time." +
+                        (TdpControl.IsIntel && !vendorFirmware
+                            ? " Intel power limits need KX.exe, which comes with HandheldCompanion (github.com/Valkirie/HandheldCompanion): install HandheldCompanion first, or point SquareDeck to its KX folder."
+                            : ""));
+            }
+            if (!TdpControl.IsIntel)
+            {
+                AddRow(vendorFirmware ? "Set up with RyzenAdj instead" : "Set up TDP control", "Not set up", "\uE896", click: SetUpTdp,
+                    subtitle: TdpControl.HasBundled ? "Installs RyzenAdj, which comes with SquareDeck (one Windows permission prompt)"
+                                                    : "Downloads RyzenAdj from GitHub and installs it (one Windows permission prompt)");
+                if (!vendorFirmware)
+                    AddNote("Setting the power limit needs administrator rights. Setup installs RyzenAdj (an open-source tool, " +
+                            "github.com/FlyGoat/RyzenAdj) into Program Files and adds a background task, \"SquareDeck\\ApplyTdp\", " +
+                            "that applies your limits without asking each time. You can remove both here later.");
+            }
         }
         else
         {
@@ -726,6 +1037,7 @@ public sealed class SettingsScreen : ListScreen
                 s.TdpEnabled = !s.TdpEnabled;
                 SaveTdp();
             }, subtitle: s.TdpEnabled ? (TdpControl.LastResult.Length > 0 ? TdpControl.LastResult : chip.Name) : chip.Name);
+            AddTdpMethodRow(s);
             if (s.TdpEnabled)
             {
                 AddRow("TDP limit", TdpControl.Clamp(s.TdpWatts) + " W", "\uE945", click: () => _ = PickWattsAsync("TDP limit",
@@ -817,6 +1129,12 @@ public sealed class SettingsScreen : ListScreen
         AddNote("Games can have their own TDP, CPU boost, speed and power mode: open a game's options (Y) > Game profile. " +
                 "The TDP can also be changed while playing from the Guide menu or Quick settings, until the game closes.");
 
+        if (!TdpControl.Installed && TdpControl.Method is "asus" or "lenovo" or "msi" && !TdpControl.IsIntel && chip != null)
+        {
+            AddHeader("TDP helper");
+            AddRow("Set up RyzenAdj too", "Optional", "\uE896", click: SetUpTdp,
+                subtitle: "Not needed on this device. Adds the temperature limit and power profile, which the firmware can't set");
+        }
         if (TdpControl.Installed)
         {
             AddHeader("TDP helper");
@@ -850,6 +1168,221 @@ public sealed class SettingsScreen : ListScreen
                 "animated covers, and draws animations at 30 frames a second (from the next start). While a game runs and " +
                 "SquareDeck is in the background, it always stops drawing and gives the game its CPU and graphics time.");
 
+    }
+
+    /// <summary>"How the limit is set": a choice when there's more than one way on this PC.</summary>
+    private void AddTdpMethodRow(Settings s)
+    {
+        var methods = TdpControl.AvailableMethods;
+        if (methods.Count == 0) return;
+        string now = TdpControl.Method;
+        string about = now switch
+        {
+            "asus" => "Through the Ally's firmware, like Armoury Crate (no helper needed)",
+            "lenovo" => "Through Lenovo's firmware, like Legion Space (device helper)",
+            "msi" => "Through MSI's firmware, like MSI Center M (device helper)",
+            "kx" => "Intel's PL1 / PL2 limits with KX.exe (device helper)",
+            _ => "Through the RyzenAdj helper"
+        };
+        AddRow("How the limit is set", TdpControl.MethodName(now), "\uE950", click: async () =>
+        {
+            if (methods.Count < 2)
+            {
+                await Host.AskAsync("How the limit is set", about + ". It's the only way set up on this device.", "OK");
+                return;
+            }
+            int choice = await Host.AskAsync("How the limit is set", null, methods.Select(TdpControl.MethodName).ToArray());
+            if (choice < 0) return;
+            s.TdpMethod = methods[choice];
+            SaveTdp();
+        }, subtitle: about);
+    }
+
+    /// <summary>Sets up the device helper (Legion Go, MSI Claw, Intel TDP), finding KX.exe for Intel.</summary>
+    private async Task SetUpDeviceHelperAsync()
+    {
+        bool vendor = Handheld.Vendor is HandheldVendor.Lenovo or HandheldVendor.Msi;
+        string? kx = DeviceHelper.FindKx();
+        if (TdpControl.IsIntel && kx == null)
+        {
+            int pick = await Host.AskAsync("KX.exe wasn't found",
+                "Intel power limits are set with KX.exe, which comes with HandheldCompanion (github.com/Valkirie/HandheldCompanion). " +
+                "SquareDeck looked in Program Files and didn't find it. " +
+                (vendor ? "You can set up without it: the " + Handheld.DisplayName + "'s own firmware sets the limit." : "Install HandheldCompanion, or choose its KX folder."),
+                vendor ? new[] { "Set up without it", "Choose the KX folder…", "Cancel" } : new[] { "Choose the KX folder…", "Cancel" });
+            string chosen = vendor ? (pick switch { 0 => "skip", 1 => "browse", _ => "" }) : (pick == 0 ? "browse" : "");
+            if (chosen == "") return;
+            if (chosen == "browse")
+            {
+                var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Find KX.exe", Filter = "KX.exe|KX.exe", CheckFileExists = true };
+                if (dialog.ShowDialog() != true) return;
+                kx = System.IO.Path.GetDirectoryName(dialog.FileName);
+            }
+        }
+        if (await Host.AskAsync("Set up the device helper?",
+                "Windows will ask for permission once. SquareDeck adds a small script to Program Files and a background task, " +
+                "\"SquareDeck\\DeviceHelper\", that changes only the settings on its list (power modes, fan boost, charge limit, power limits). " +
+                "Changing power limits is at your own risk; stay within your device's range.",
+                "Set up", "Cancel") != 0) return;
+        Host.ShowToast("DEVICE HELPER", "Setting up…", "", "", "info");
+        bool hadTdp = TdpControl.CanApply;
+        var error = await DeviceHelper.InstallAsync(kx);
+        if (error != null)
+        {
+            await Host.AskAsync("The device helper isn't set up", error, "OK");
+            Rebuild();
+            return;
+        }
+        Host.ShowToast("DEVICE HELPER", "Set up", "", "", "info");
+        if (!hadTdp && TdpControl.CanApply)
+        {
+            Host.Settings.TdpEnabled = true;
+            Host.Settings.TdpWatts = TdpControl.Chip?.Default ?? 15;
+        }
+        _ = HandheldVendors.ApplyAllAsync(Host.Settings);
+        SaveTdp();
+    }
+
+    // ---------------------------------------------------------------- <model> Specific Settings
+
+    private void BuildHandheld(Settings s)
+    {
+        var device = Handheld.Current;
+        string name = Handheld.DisplayName;
+
+        AddHeader("Your " + name);
+        var facts = new List<string>();
+        if (Handheld.Brand.Length > 0) facts.Add(Handheld.Brand);
+        if (TdpControl.CpuName.Length > 0) facts.Add(TdpControl.CpuName);
+        if (device != null) facts.Add($"{device.TdpMin}–{device.TdpMax} W");
+        AddRow(name, null, Ui.HandheldGlyph, click: () => Host.Push(new MyDeviceScreen()),
+            subtitle: string.Join("   \u00B7   ", facts));
+        AddRow("My Device", null, "\uE950", click: () => Host.Push(new MyDeviceScreen()),
+            subtitle: "Temperatures, fan speed, battery health, power draw and more, live");
+        AddRow("My Device on the home screen", OnOff(s.ShowMyDeviceButton), "\uE8A9", click: () =>
+        {
+            s.ShowMyDeviceButton = !s.ShowMyDeviceButton;
+            s.Save();
+            Host.RefreshHomeButtonsPublic();
+            Rebuild();
+        }, subtitle: "A button beside the others under the games row");
+        if (device != null)
+            AddNote("SquareDeck can change: " + Handheld.ControlsText(device) + ".");
+
+        // ROG Ally family: every Ally setting lives here now.
+        if (Handheld.Vendor == HandheldVendor.Asus)
+        {
+            AddHeader("ROG Ally");
+            AddRow("Lights", AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights).Name ?? "Leave as it is", "\uE781",
+                click: () => Host.Push(new AllyControlScreen("lights")), subtitle: "Effects, colors, brightness, game lights");
+            AddRow("Performance and fans", AllyControl.AsusModes.FirstOrDefault(m => m.Id == s.AllyAsusMode).Name ?? "Leave as it is", "\uE9CA",
+                click: () => Host.Push(new AllyControlScreen("performance")), subtitle: "ASUS mode, fan curves, fan speed");
+            AddRow("Battery care", s.AllyChargeLimit is > 0 and < 100 ? "Stop at " + s.AllyChargeLimit + "%" : "Off", "\uEBB5",
+                click: () => Host.Push(new AllyControlScreen("battery")), subtitle: "Charge limit, charge to full once");
+            AddRow("Controller", AllyControl.MouseMode ? "Mouse mode" : null, "\uE7FC",
+                click: () => Host.Push(new AllyControlScreen("controller")), subtitle: "M1 / M2 back buttons, mouse mode, the built-in controller");
+            AddRow("Buttons", s.AllyRemap ? "Remapped" : "Off", "\uE765", click: () => Host.Push(new AllyButtonsScreen()),
+                subtitle: "Armoury Crate, Command Center, Xbox Library, M1 / M2, the quick-menu button, button test");
+        }
+
+        // Legion Go / MSI Claw: through the device helper.
+        if (HandheldVendors.Supported)
+        {
+            bool lenovo = Handheld.Vendor == HandheldVendor.Lenovo;
+            AddHeader(lenovo ? "Legion" : "MSI Claw");
+            if (!DeviceHelper.Installed)
+            {
+                AddRow("Set up the device helper", "Not set up", "\uE896", click: () => _ = SetUpDeviceHelperAsync(),
+                    subtitle: (lenovo ? "Legion modes" : "User scenarios") + ", fan boost and the charge limit need it (one Windows permission prompt)");
+            }
+            else
+            {
+                var modes = HandheldVendors.Modes;
+                AddRow(lenovo ? "Legion mode" : "User scenario", modes.FirstOrDefault(m => m.Id == s.HandheldPowerMode).Name ?? "Leave as it is", "\uEC4A",
+                    click: async () =>
+                    {
+                        int choice = await Host.AskAsync(lenovo ? "Legion mode" : "User scenario", null, modes.Select(m => m.Name).ToArray());
+                        if (choice < 0) return;
+                        s.HandheldPowerMode = modes[choice].Id;
+                        s.Save();
+                        bool ok = await HandheldVendors.SetModeAsync(s.HandheldPowerMode);
+                        Host.ShowToast(Handheld.DisplayName.ToUpperInvariant(), ok ? modes[choice].Name : "Couldn't change it", ok ? "" : DeviceHelper.LastResult, "", "info");
+                        Rebuild();
+                    }, subtitle: modes.FirstOrDefault(m => m.Id == s.HandheldPowerMode).About);
+                AddRow("Fan boost", OnOff(s.HandheldFanBoost), "\uE9CA", click: async () =>
+                {
+                    s.HandheldFanBoost = !s.HandheldFanBoost;
+                    s.Save();
+                    if (!await HandheldVendors.SetFanBoostAsync(s.HandheldFanBoost))
+                        Host.ShowToast(Handheld.DisplayName.ToUpperInvariant(), "Couldn't change the fans", DeviceHelper.LastResult, "", "info");
+                    Rebuild();
+                }, subtitle: "The fans at full speed: loud, but the coolest");
+                if (lenovo)
+                    AddRow("Stop charging at 80%", OnOff(s.HandheldChargeLimit is > 0 and < 100), "\uEBB5", click: async () =>
+                    {
+                        s.HandheldChargeLimit = s.HandheldChargeLimit is > 0 and < 100 ? 100 : 80;
+                        s.Save();
+                        if (!await HandheldVendors.SetChargeLimitAsync(s.HandheldChargeLimit))
+                            Host.ShowToast("LEGION", "Couldn't change the charge limit", DeviceHelper.LastResult, "", "info");
+                        Rebuild();
+                    }, subtitle: "Kinder to the battery when the Legion Go is mostly plugged in");
+                else
+                    AddRow("Stop charging at", s.HandheldChargeLimit is > 0 ? s.HandheldChargeLimit + "%" : "Leave as it is", "\uEBB5", click: async () =>
+                    {
+                        var limits = HandheldVendors.ClawChargeLimits;
+                        int choice = await Host.AskAsync("Stop charging at", "80% is kinder to the battery when the Claw is mostly plugged in.",
+                            limits.Select(l => l == 0 ? "Leave as it is" : l + "%").ToArray());
+                        if (choice < 0) return;
+                        s.HandheldChargeLimit = limits[choice];
+                        s.Save();
+                        if (s.HandheldChargeLimit > 0 && !await HandheldVendors.SetChargeLimitAsync(s.HandheldChargeLimit))
+                            Host.ShowToast("MSI CLAW", "Couldn't change the charge limit", DeviceHelper.LastResult, "", "info");
+                        Rebuild();
+                    });
+            }
+        }
+
+        // Power, on every handheld.
+        AddHeader("Power");
+        var chip = TdpControl.Chip;
+        AddRow("TDP limit", TdpControl.Ready ? TdpControl.EffectiveWatts + " W" : TdpControl.CanApply ? "Off" : "Not set up", "\uE945",
+            click: () => Show("power", focusContent: true),
+            subtitle: chip != null ? $"{chip.Min}–{chip.Max} W on this device, set in Power and performance" : "Set in Power and performance");
+        AddTdpMethodRow(s);
+        if (HandheldVendors.Supported || TdpControl.IsIntel)
+        {
+            if (DeviceHelper.Installed)
+            {
+                AddRow("Device helper", "Set up", "\uE90F", click: async () =>
+                {
+                    int choice = await Host.AskAsync("Device helper", "Changes handheld settings that need administrator rights.", "Set it up again", "Remove it", "Cancel");
+                    if (choice == 0) await SetUpDeviceHelperAsync();
+                    else if (choice == 1)
+                    {
+                        var error = await DeviceHelper.UninstallAsync();
+                        if (error != null) await Host.AskAsync("Device helper", error, "OK");
+                        Rebuild();
+                    }
+                }, subtitle: TdpControl.IsIntel ? (DeviceHelper.HasKx ? "With KX.exe for Intel power limits" : "Without KX.exe: Intel power limits through the firmware only") : "Power modes, fans, charge limit, power limits");
+            }
+            else if (!HandheldVendors.Supported)
+            {
+                AddRow("Set up Intel TDP", "Not set up", "\uE896", click: () => _ = SetUpDeviceHelperAsync(),
+                    subtitle: "Uses KX.exe from HandheldCompanion (one Windows permission prompt)");
+            }
+        }
+
+        // Every handheld SquareDeck knows, by maker.
+        AddHeader("Supported Windows Handheld Devices");
+        AddNote("SquareDeck recognizes these handhelds (the list comes from HandheldCompanion) and uses each one's own power range. " +
+                "TDP works on all of them; the ROG Ally family, Legion Go and MSI Claw also get their own controls.");
+        foreach (var brand in Handheld.Models.GroupBy(m => m.Brand))
+        {
+            string b = brand.Key;
+            var names = brand.Select(m => m.Name).Distinct().ToList();
+            AddRow(b, names.Count + (names.Count == 1 ? " model" : " models"), Ui.HandheldGlyph,
+                click: () => Host.Push(new SupportedHandheldsScreen(b)), subtitle: string.Join(", ", names));
+        }
     }
 
     private void SaveTdp()
@@ -958,7 +1491,7 @@ public sealed class SettingsScreen : ListScreen
 
         AddHeader("Cloud gaming");
         AddNote("Turned-on services appear on the Stores page. They open full screen, and the controller goes straight to the game. " +
-                "To leave, hold View + Start, press Ctrl + Shift + Q, or use the small button in a corner.");
+                "To leave, hold the leave buttons, press the leave shortcut (both below), or use the small button in a corner.");
         foreach (var service in CloudService.All)
         {
             var cs = service;
@@ -968,12 +1501,41 @@ public sealed class SettingsScreen : ListScreen
                 if (s.CloudServices.Contains(cs.Id)) s.CloudServices.Remove(cs.Id); else s.CloudServices.Add(cs.Id);
             }), subtitle: cs.About);
         }
+        AddRow("Leave with these buttons", CloudGameScreen.LeaveButtonsName(s.CloudLeaveButtons), "\uE7FC",
+            click: () => Pick("Buttons that leave a cloud game", CloudGameScreen.LeaveButtons, id => s.CloudLeaveButtons = id),
+            subtitle: "Hold them together to close the stream and go back to SquareDeck. Pick ones your games don't need");
+        AddRow("How long to hold them", CloudGameScreen.LeaveHolds.FirstOrDefault(h => double.Parse(h.Id, System.Globalization.CultureInfo.InvariantCulture) == s.CloudLeaveHold).Name ?? $"{s.CloudLeaveHold:0.#} seconds", "\uE916",
+            click: () => Pick("How long to hold the leave buttons", CloudGameScreen.LeaveHolds, id => s.CloudLeaveHold = double.Parse(id, System.Globalization.CultureInfo.InvariantCulture)),
+            subtitle: "Longer means you won't leave by accident; the corner button fills up while you hold");
+        AddRow("Leave with this shortcut", CloudGameScreen.LeaveKeyName(s.CloudLeaveKey), "\uE765",
+            click: () => Pick("Keyboard shortcut that leaves a cloud game", CloudGameScreen.LeaveKeys, id => s.CloudLeaveKey = id),
+            subtitle: "For a keyboard, or handheld buttons set to send keys");
         AddRow("Exit button corner", s.CloudCorner switch { "top-left" => "Top left", "bottom-left" => "Bottom left", "bottom-right" => "Bottom right", _ => "Top right" }, "\uE8A0",
             click: () => Toggle(() => s.CloudCorner = s.CloudCorner switch { "top-right" => "bottom-right", "bottom-right" => "bottom-left", "bottom-left" => "top-left", _ => "top-right" }),
             subtitle: "Where the nearly invisible exit button waits during a cloud game");
+        AddRow("Launch animation", CloudIntro.Styles.FirstOrDefault(c => c.Id == s.CloudIntro).Name ?? "Surprise me", "\uE753",
+            click: () => Pick("Cloud launch animation", CloudIntro.Styles, id => s.CloudIntro = id),
+            subtitle: "Plays while a cloud gaming service opens");
         AddHeader("Library and stores");
+        AddRow("Wishlist sale alerts", s.SaleAlerts ? (s.SaleAlertMin <= 1 ? "Any discount" : $"{s.SaleAlertMin}% off or more") : "Off", "\uE8EC",
+            click: () => Toggle(() =>
+            {
+                // Off → any → 25% → 50% → 75% → off
+                if (!s.SaleAlerts) { s.SaleAlerts = true; s.SaleAlertMin = 1; }
+                else if (s.SaleAlertMin < 25) s.SaleAlertMin = 25;
+                else if (s.SaleAlertMin < 50) s.SaleAlertMin = 50;
+                else if (s.SaleAlertMin < 75) s.SaleAlertMin = 75;
+                else s.SaleAlerts = false;
+            }),
+            subtitle: "A notification when a game on your Steam wishlist (or one you watch) goes on sale");
+        AddRow("Release-day alerts", OnOff(s.ReleaseAlerts), "\uE787", click: () => Toggle(() => s.ReleaseAlerts = !s.ReleaseAlerts),
+            subtitle: "A notification the day a wishlist game comes out");
+        AddRow("Open the wishlist and release calendar", glyph: "\uE8A7", click: () => Host.Push(new WishlistScreen()));
+        AddRow("Player stats on game pages", OnOff(s.ShowPlayerStats), "\uE9D9",
+            click: () => Toggle(() => s.ShowPlayerStats = !s.ShowPlayerStats),
+            subtitle: "Players now and peaks, owner estimate, store data, monthly players and review history, with SteamDB's full page a press away");
         AddRow("Library layout", LibraryScreen.Layouts.First(l => l.Id == s.LibraryLayout || (l.Id == "sidebar" && LibraryScreen.Layouts.All(x => x.Id != s.LibraryLayout))).Name, "\uE8A9",
-            click: ChooseLibraryLayout, subtitle: "How the Game library page is laid out: six to choose from");
+            click: ChooseLibraryLayout, subtitle: "How the Game library page is laid out: eleven to choose from");
         AddRow("Library view", s.LibraryView switch { "grid" => "Grid", "header" => "Rectangle", _ => "Square" }, "\uE8B9",
             click: () => { s.LibraryView = s.LibraryView switch { "square" => "grid", "grid" => "header", _ => "square" }; s.Save(); Rebuild(); },
             subtitle: "Square covers, tall grid art or wide store headers");
@@ -1158,6 +1720,32 @@ public sealed class SettingsScreen : ListScreen
             click: () => Host.Push(new HomeAppScreen()), subtitle: "Start Xbox mode (the full screen experience) straight into SquareDeck");
     }
 
+    /// <summary>Features still being tried out. Each one is off until you turn it on here.</summary>
+    private void BuildExperimental(Settings s)
+    {
+        AddHeader("Experimental features");
+        AddNote("Features that are still being tried out live here first. They may change, move or go away, and " +
+                "they might not work everywhere yet. Nothing here is turned on unless you turn it on.");
+
+        AddHeader("Adrenaline Hook");
+        bool amd = AdrenalineHook.HasAmdGraphics;
+        AddRow("Adrenaline Hook", amd ? OnOff(s.ExperimentAdrenalineHook) : "Needs AMD graphics", "\uE7F4", click: () =>
+        {
+            if (!amd)
+            {
+                _ = Host.AskAsync("Adrenaline Hook", "Adrenaline Hook adds games to AMD Software: Adrenalin Edition, so it needs AMD Radeon graphics. " +
+                    "This PC has " + (AdrenalineHook.GraphicsName.Length > 0 ? AdrenalineHook.GraphicsName : "no AMD graphics") + ".", "OK");
+                return;
+            }
+            s.ExperimentAdrenalineHook = !s.ExperimentAdrenalineHook;
+            s.Save();
+            Rebuild();
+        }, subtitle: "Adds Xbox, Microsoft Store and other games to AMD Software, so its per-game settings (frame generation, sharpening and more) work for them");
+        if (amd && s.ExperimentAdrenalineHook)
+            AddRow("Open Adrenaline Hook", null, "\uE768", click: () => Host.Push(new AdrenalineHookScreen()),
+                subtitle: "Hook games, AMD per-game settings, the Radeon overlays, backups");
+    }
+
     private void BuildData(Settings s)
     {
         AddHeader("Updates");
@@ -1169,6 +1757,14 @@ public sealed class SettingsScreen : ListScreen
         if (s.SkippedVersion.Length > 0)
             AddRow("Stop ignoring " + s.SkippedVersion, glyph: "", click: () => Toggle(() => s.SkippedVersion = ""));
         AddRow("Open the releases page", glyph: "", click: () => ProcessUtil.Open(Updater.ReleasesPage));
+        AddRow("Update screen animation", SilentUpdate.Looks.FirstOrDefault(l => l.Id == s.UpdaterLook).Name ?? "A different one each time", "\uE768",
+            click: () => Pick("Update screen animation", SilentUpdate.Looks.Select(l => (l.Id, l.Name, "")).ToArray(), id => s.UpdaterLook = id),
+            subtitle: "What moves behind the progress while SquareDeck updates itself");
+        AddRow("Update screen vibration", SilentUpdate.Haptics.FirstOrDefault(h => h.Id == s.UpdaterHaptic).Name ?? "A different one each time", "\uE7FC",
+            click: () => Pick("Update screen vibration", SilentUpdate.Haptics.Select(h => (h.Id, h.Name, "")).ToArray(), id => s.UpdaterHaptic = id),
+            subtitle: s.RumbleStrength > 0 ? "How the controller vibrates during an update" : "Turn on vibration in Controller settings to feel it");
+        AddRow("Try the update screen", glyph: "\uE7B3", click: () => Host.PreviewUpdateScreen(),
+            subtitle: "Plays it without installing anything. Press any button to close it");
 
         AddHeader("Your data");
         AddRow("Backup and restore", glyph: "", click: () => Host.Push(new BackupScreen()));
@@ -1255,9 +1851,10 @@ public sealed class SettingsScreen : ListScreen
     {
         var s = Host.Settings;
         var layouts = LibraryScreen.Layouts;
-        int choice = await Host.AskAsync("Library layout", string.Join("\n", layouts.Select(l => $"{l.Name}: {l.About}")), layouts.Select(l => l.Name).ToArray());
+        int choice = await Host.AskAsync("Library layout", null, layouts.Select(l => l.Name).ToArray());
         if (choice < 0) return;
         s.LibraryLayout = layouts[choice].Id;
+        if (s.LibraryLayout == "showcase") s.LibraryView = "header"; // Showcase is rectangles
         s.Save();
         Rebuild();
     }
@@ -1268,9 +1865,7 @@ public sealed class SettingsScreen : ListScreen
         var s = Host.Settings;
         var names = BoostScreen.Styles.Select(x => x.Name).Append("Surprise me").ToArray();
         int current = Array.FindIndex(BoostScreen.Styles, x => x.Id == s.BoostAnimation);
-        int choice = await Host.AskAsync("Boost animation",
-            string.Join("\n", BoostScreen.Styles.Select(x => $"{x.Name}: {x.About}")) + "\nSurprise me: a different one each time",
-            names);
+        int choice = await Host.AskAsync("Boost animation", null, names);
         if (choice < 0) return;
         s.BoostAnimation = choice < BoostScreen.Styles.Length ? BoostScreen.Styles[choice].Id : "random";
         s.Save();
@@ -1476,11 +2071,39 @@ public sealed class SettingsScreen : ListScreen
         Rebuild();
     }
 
+    /// <summary>A page of pictures of each choice; choosing one stores it and applies the look straight away.</summary>
+    private void Preview(string title, string note, (string Id, string Name, string About)[] options, Func<string> current,
+        Func<string, FrameworkElement> draw, Action<string> store)
+    {
+        Host.Push(new PreviewPickerScreen(title, note, options, current, draw, id =>
+        {
+            store(id);
+            Host.Settings.Save();
+            Host.ApplyLook();
+            Host.ApplySettings();
+        }));
+    }
+
+    public static readonly (string Id, string Name, string About)[] UiFonts =
+    {
+        ("style", "From the UI style", "Each UI style's own font"),
+        ("Segoe UI", "Segoe UI", "Windows' clean everyday font"),
+        ("Segoe UI Variable Display", "Segoe UI Variable", "Windows 11's rounder, modern take"),
+        ("Bahnschrift", "Bahnschrift", "Condensed and technical, like signage"),
+        ("Trebuchet MS", "Trebuchet", "Friendly and a little playful"),
+        ("Franklin Gothic Medium", "Franklin Gothic", "Bold, newsy headlines"),
+        ("Georgia", "Georgia", "A readable serif with character"),
+        ("Palatino Linotype", "Palatino", "Elegant, classic book type"),
+        ("Cascadia Mono, Consolas", "Cascadia Mono", "Monospaced, like a terminal"),
+        ("Ink Free", "Ink Free", "Handwritten marker"),
+        ("Comic Sans MS", "Comic Sans", "Casual and cartoony"),
+    };
+
     /// <summary>A list of choices for a setting; the chosen id is stored and applied straight away.</summary>
     private async void Pick(string title, (string Id, string Name, string About)[] options, Action<string> store)
     {
-        string? message = options.Any(o => o.About.Length > 0) ? string.Join("\n", options.Select(o => $"{o.Name}: {o.About}")) : null;
-        int choice = await Host.AskAsync(title, message, options.Select(o => o.Name).ToArray());
+        // Just the names: a line of description for each made long lists too tall to use.
+        int choice = await Host.AskAsync(title, null, options.Select(o => o.Name).ToArray());
         if (choice < 0) return;
         Toggle(() => store(options[choice].Id));
     }
@@ -1905,7 +2528,7 @@ public sealed class BluetoothScreen : ListScreen
 }
 
 /// <summary>
-/// Quick settings: a panel that slides in from the right (View button, Q, or the top-bar icon). The time and battery
+/// Quick settings: a panel that slides in from the left (View button, Q, or the top-bar icon). The time and battery
 /// at the top, a grid of tiles that light up in the highlight color when on (Wi-Fi, Bluetooth, airplane mode, night
 /// light, mute, settings), sliders for volume, brightness and TDP, and the power menu at the bottom.
 /// It follows the UI style's colors and corners.
@@ -1930,6 +2553,7 @@ public sealed class QuickSettingsScreen : Screen
 
     public QuickSettingsScreen()
     {
+        RumbleOnMove();
         var panel = new StackPanel();
 
         // ---- the time, the date, and the battery
@@ -2044,12 +2668,12 @@ public sealed class QuickSettingsScreen : Screen
         };
         _tick.Tick += (_, _) => ShowClock();
 
-        // A sheet on the right, over the dimmed screen.
+        // A sheet on the left, over the dimmed screen.
         _sheet = new Border
         {
-            Width = 470, Padding = new Thickness(26, 24, 26, 24), Margin = new Thickness(0, 18, 18, 18),
+            Width = 470, Padding = new Thickness(26, 24, 26, 24), Margin = new Thickness(18, 18, 0, 18),
             CornerRadius = new CornerRadius(Round(24)),
-            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
             Child = panel, RenderTransform = new System.Windows.Media.TranslateTransform(),
             Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 40, ShadowDepth = 0, Opacity = 0.45 }
         };
@@ -2082,7 +2706,7 @@ public sealed class QuickSettingsScreen : Screen
         {
             var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
             slide.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty,
-                new System.Windows.Media.Animation.DoubleAnimation(80, 0, TimeSpan.FromMilliseconds(220)) { EasingFunction = ease });
+                new System.Windows.Media.Animation.DoubleAnimation(-80, 0, TimeSpan.FromMilliseconds(220)) { EasingFunction = ease });
             _sheet.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
         }
     }
@@ -2487,6 +3111,7 @@ public sealed class PowerMenuScreen : Screen
 
     public PowerMenuScreen(string? warning)
     {
+        RumbleOnMove();
         var panel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
 
         // Who and how much battery, above the buttons.
@@ -2672,4 +3297,77 @@ public sealed class PowerMenuScreen : Screen
     public override void FocusDefault() => _items[1].Button.Focus(); // Sleep, the one used most on a handheld
 
     public override void OnClosed() => _done.TrySetResult(_choice);
+}
+
+
+/// <summary>The in-game quick menu's six quick buttons: press one to choose what it does.</summary>
+public sealed class OverlayButtonsScreen : ListScreen
+{
+    public OverlayButtonsScreen() : base("Quick menu buttons") { }
+
+    protected override void Build()
+    {
+        var s = Host.Settings;
+        while (s.OverlayTiles.Count < 6) s.OverlayTiles.Add(QuickOverlay.DefaultTiles.First(d => !s.OverlayTiles.Contains(d)));
+        AddHeader("Buttons, in order (top row, then bottom row)");
+        for (int i = 0; i < 6; i++)
+        {
+            int slot = i;
+            var current = QuickOverlay.TileChoices.FirstOrDefault(c => c.Id == s.OverlayTiles[slot]);
+            AddRow($"Button {slot + 1}", current.Name ?? "", current.Glyph ?? "\uE710", click: async () =>
+            {
+                var choices = QuickOverlay.TileChoices.Where(c => c.Id == s.OverlayTiles[slot] || !s.OverlayTiles.Contains(c.Id)).ToList();
+                int pick = await Host.AskAsync($"Button {slot + 1}", null, choices.Select(c => c.Name).Append("Cancel").ToArray());
+                if (pick < 0 || pick >= choices.Count) return;
+                s.OverlayTiles[slot] = choices[pick].Id;
+                s.Save();
+                Rebuild();
+            });
+        }
+        AddHeader("More");
+        AddRow("Back to the usual six", glyph: "\uE777", click: () =>
+        {
+            s.OverlayTiles = QuickOverlay.DefaultTiles.ToList();
+            s.Save();
+            Rebuild();
+        });
+        AddNote("In the quick menu, highlight a button and press " + Hints.KeyLabel("Options") + " to swap it for the next one.");
+    }
+}
+
+/// <summary>Which stats the in-game quick menu shows along its top, and in what order.</summary>
+public sealed class OverlayStatsScreen : ListScreen
+{
+    public OverlayStatsScreen() : base("Quick menu stats") { }
+
+    protected override void Build()
+    {
+        var s = Host.Settings;
+        AddHeader("Shown");
+        foreach (var id in s.OverlayStats.ToList())
+        {
+            var (_, name) = QuickOverlay.StatChoices.FirstOrDefault(c => c.Id == id);
+            if (name == null) continue;
+            string stat = id;
+            AddRow(name, "On", "\uE73E", click: async () =>
+            {
+                int i = s.OverlayStats.IndexOf(stat);
+                int pick = await Host.AskAsync(name, null, "Hide it", "Move it earlier", "Move it later", "Cancel");
+                if (pick == 0) s.OverlayStats.Remove(stat);
+                else if (pick == 1 && i > 0) { s.OverlayStats.RemoveAt(i); s.OverlayStats.Insert(i - 1, stat); }
+                else if (pick == 2 && i < s.OverlayStats.Count - 1) { s.OverlayStats.RemoveAt(i); s.OverlayStats.Insert(i + 1, stat); }
+                else return;
+                s.Save();
+                Rebuild();
+            });
+        }
+        if (s.OverlayStats.Count == 0) AddNote("Nothing is shown. Add something below.");
+        AddHeader("Not shown");
+        foreach (var (id, name) in QuickOverlay.StatChoices.Where(c => !s.OverlayStats.Contains(c.Id)))
+        {
+            string stat = id;
+            AddRow(name, "Off", "\uE710", click: () => { s.OverlayStats.Add(stat); s.Save(); Rebuild(); });
+        }
+        AddNote("Frames per second needs the performance overlay running (Settings > Performance overlay).");
+    }
 }

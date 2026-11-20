@@ -85,6 +85,15 @@ public sealed class Game : INotifyPropertyChanged
     public Game Actual => Target ?? this;
 
     /// <summary>Second line on the "Continue playing" tile, e.g. "Last played 2 hours ago".</summary>
+    /// <summary>The game's logo on the "Continue where you left off" tile (its name is shown until it arrives, or without one).</summary>
+    public ImageSource? ContinueLogo
+    {
+        get => _continueLogo;
+        set { _continueLogo = value; Changed(); Changed(nameof(HasContinueLogo)); }
+    }
+    private ImageSource? _continueLogo;
+    public bool HasContinueLogo => _continueLogo != null;
+
     public string Subtitle
     {
         get => _subtitle;
@@ -92,7 +101,20 @@ public sealed class Game : INotifyPropertyChanged
     }
 
     /// <summary>Width of the tile on the home row. Must match what MainWindow uses for scrolling.</summary>
-    public double TileWidth => Portrait ? PortraitWidth : IsContinueTile ? 640 : 270;
+    public double TileWidth => Wide ? WideWidth : Portrait ? PortraitWidth : IsContinueTile ? 540 : 270;
+
+    /// <summary>Home row in wide "header capsule" tiles (460×215 art), instead of square or tall ones.</summary>
+    public static bool Wide { get; set; }
+    public static double WideWidth { get; set; } = 560;
+
+    private ImageSource? _headerCover;
+    /// <summary>The wide header capsule art, for wide home tiles.</summary>
+    public ImageSource? HeaderCover
+    {
+        get => _headerCover;
+        set { _headerCover = value; Changed(); Changed(nameof(TileImage)); }
+    }
+    public bool HeaderTried { get; set; }
 
     /// <summary>
     /// Width of a poster tile: set by the style so the picture area inside the ring and gap is exactly 2:3. A fixed 180
@@ -140,10 +162,10 @@ public sealed class Game : INotifyPropertyChanged
     public bool PortraitTried { get; set; }
 
     /// <summary>The picture on the tile: the tall cover in poster styles (when there is one), otherwise the square one.</summary>
-    public ImageSource? TileImage => Portrait && _portraitCover != null ? _portraitCover : Cover;
+    public ImageSource? TileImage => Wide && _headerCover != null ? _headerCover : Portrait && _portraitCover != null ? _portraitCover : Cover;
 
     /// <summary>The wide "Continue where you left off" face (not in poster styles: the tile is too narrow for it).</summary>
-    public bool ShowContinueFace => IsContinueTile && !Portrait;
+    public bool ShowContinueFace => IsContinueTile && !Portrait && !Wide;
 
     /// <summary>The style changed between square and poster tiles.</summary>
     public void RefreshShape()

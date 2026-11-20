@@ -48,6 +48,8 @@ public sealed record UiStyle
     public double SquareCorner { get; init; } = -1;  // corner for "square" buttons; -1 = the row corner plus a little
     public bool OutlineButtons { get; init; }        // see-through buttons with only an outline
     public bool ButtonDock { get; init; }            // the buttons sit together on one frosted shelf
+    public string ButtonLook { get; init; } = "";      // "" (the usual fill), accent (filled with the highlight color), neon (glowing rings)
+    public string DockLook { get; init; } = "glass";  // the shelf: glass (frosted), solid, outline, glow
     public HorizontalAlignment ButtonsAlign { get; init; } = HorizontalAlignment.Center;
 
     // Home layout: the seven rows (top bar, games, info, buttons, button name, space, footer), the size of the
@@ -78,6 +80,7 @@ public sealed record UiStyle
     public bool NavTabs { get; init; }              // the buttons become text tabs (and icons) in the top bar
     public bool TabPill { get; init; }              // with NavTabs: the current tab is a filled pill instead of underlined
     public bool Portrait { get; init; }             // tall 2:3 poster tiles with poster art, instead of square
+    public bool Wide { get; init; }                 // wide 460×215 header-capsule tiles (Settings > Home screen > Game art)
     public string Actions { get; init; } = "";      // buttons for the selected game: "" none, "icons" (Play, …, ☆), "words" (Play, Add to favorites, More)
     public bool KeyHint { get; init; }              // with Actions: the Play button shows the A / Enter key
     public string Brand { get; init; } = "";        // sidebar heading
@@ -86,7 +89,8 @@ public sealed record UiStyle
     public string[]? PlayColors { get; init; }      // the Play button's fill (one color, or two for a gradient); null = the highlight color
 
     public string Footer { get; init; } = "line";    // line, bar (full width), pill (floating), none
-    public string Overlay { get; init; } = "none";   // none, scanlines, grid, dots, halftone, carbon, vignette
+    public string Overlay { get; init; } = "none";   // none, scanlines, grid, dots, halftone, carbon, vignette, paper, lcd, hud, notebook, cockpit, sheen
+    public string Ambient { get; init; } = "";       // gentle animated decoration behind the home screen (see MainWindow.Ambient)
     public double PageScrim { get; init; } = 0.55;
 
     /// <summary>Styles that look best with artwork behind them switch it on when chosen.</summary>
@@ -803,6 +807,212 @@ public static class UiStyles
             Buttons = "circle", Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
             TileScale = 0.78, TileGap = 8, SelectGrow = 1.05, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
             RowHeader = "Up next", HeroOpacity = 0.55, HeroBlur = 0, HeroScrim = "bottom", PageHero = true, Footer = "none", PageScrim = 0.6
+        },
+
+        // ---------------------------------------------------------------- 5.22: fifteen more
+
+        new()
+        {
+            Id = "pixel-arcade", Name = "Retro Pixel Arcade", Mode = "dark", Sounds = "arcade", Music = "track:Jumps", Glyphs = "pixel",
+            Description = "Chunky pixel type, a four-color palette, scan lines and bold button prompts, with pixel stars blinking overhead.",
+            Dark = new[] { "#0D0221", "#FFFFFF", "#9AA0FF", "#E61A0B3D", "#22104F", "#FFD400" },
+            Backdrop = new[] { "#0D0221", "#1A0B3D", "#0D0221" },
+            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 4, Shadow = "hard", Stroke = "accent", StrokeWidth = 2,
+            Buttons = "square", SquareCorner = 0, PlayColors = new[] { "#FFD400", "#FF3864" },
+            TileScale = 0.9, TileGap = 8, SelectGrow = 1.08, Title = "big", TitleLogo = true, Rows = new double[] { 96, 300, 60, 100, 30, 0, 56 },
+            HeroOpacity = 0, Footer = "bar", Overlay = "scanlines", Ambient = "pixelstars", PageScrim = 0.8
+        },
+        new()
+        {
+            Id = "minimal-oled", Name = "Minimal OLED", Mode = "oled", Sounds = "soft", Music = "",
+            Description = "Pure black, crisp white text and a single bright accent. No panels, no shadows, nothing that isn't needed.",
+            Dark = new[] { "#000000", "#FFFFFF", "#8A8A8A", "#FF0A0A0A", "#111111", "#00E5A0" },
+            Font = "Segoe UI Variable Display Light, Segoe UI Light, Segoe UI", TileCorner = 14, RowCorner = 12, RingThickness = 2, Shadow = "none",
+            Buttons = "small", OutlineButtons = true, Stroke = "#262626",
+            TileScale = 0.92, TileGap = 14, SelectGrow = 1.08, Title = "row", HeroOpacity = 0, Footer = "none", PageScrim = 0.92
+        },
+        new()
+        {
+            Id = "y2k", Name = "Y2K Techno", Mode = "light", Sounds = "pack:Dreamcast UI SFX", Music = "track:Aero", Moving = "Silver Wave",
+            Description = "Millennium chrome: glossy gradients, see-through bubble panels, chrome rims, futuristic type and twinkling sparkles.",
+            Light = new[] { "#DCE8FF", "#0A1A3A", "#4A5D86", "#C0FFFFFF", "#FFFFFF", "#2E6BFF" },
+            ForceLight = true, Backdrop = new[] { "#F2F7FF", "#B9D3FF", "#8F9BFF", "#D6C2FF" },
+            Font = "Trebuchet MS, Segoe UI", TileCorner = 22, RowCorner = 18, RingThickness = 3, Glass = true, LightGlass = true, Gloss = true, Glow = true,
+            Buttons = "circle", ButtonDock = true, DockLook = "glass", Stroke = "#80FFFFFF", PlayColors = new[] { "#7FB2FF", "#2E6BFF" },
+            TileScale = 0.95, TileGap = 10, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above", HeroOpacity = 0, Footer = "pill", Ambient = "sparkle", PageScrim = 0.35
+        },
+        new()
+        {
+            Id = "tactical", Name = "Tactical Dashboard", Mode = "dark", Sounds = "soft", Music = "track:Ripples",
+            Description = "A compact command grid: sharp condensed type, small tiles, status lights, corner brackets and muted field colors.",
+            Dark = new[] { "#0E1210", "#D7E3D2", "#7E8C7A", "#F2141A16", "#18201B", "#B5C94A" },
+            Font = "Bahnschrift SemiCondensed, Bahnschrift, Consolas", TileCorner = 2, RowCorner = 2, RingThickness = 2, Shadow = "none",
+            Stroke = "#3A4A3C", Buttons = "square", SquareCorner = 2, OutlineButtons = true, ButtonsAlign = HorizontalAlignment.Left,
+            Layout = "toprow", NavTabs = true, Actions = "words", KeyHint = true, PlayColors = new[] { "#B5C94A" }, TopBarFill = true,
+            Rows = new double[] { 64, 196, 40, 0, 0, 0, 40 }, TileScale = 0.52, TileGap = 6, SelectGrow = 1.06, GrowOrigin = new Point(0.5, 0.1),
+            GamesAlign = VerticalAlignment.Top, Title = "big", HeroOpacity = 0.18, HeroBlur = 12, Footer = "bar", Overlay = "hud", Ambient = "status", PageScrim = 0.85
+        },
+        new()
+        {
+            Id = "cozy", Name = "Cozy Collector", Mode = "light", Sounds = "bubble", Music = "track:Coffee Shop", Wallpaper = "image:Cafe.jpg",
+            Description = "Warm and soft: rounded cards, cream and terracotta, gentle bouncy motion and warm lights drifting by.",
+            Light = new[] { "#FBF3EA", "#4A3428", "#9A7B68", "#F2FFFFFF", "#F3E3D3", "#E8836B" },
+            Dark = new[] { "#2A211C", "#FBEFE4", "#C9AE9A", "#E6382C25", "#3A2E27", "#F19A7F" },
+            Font = "Segoe UI Variable Display Semibold, Segoe UI Semibold, Segoe UI", TileCorner = 26, RowCorner = 22, RingThickness = 4,
+            Buttons = "circle", ButtonDock = true, DockLook = "solid", PlayColors = new[] { "#F2A07B", "#E8836B" },
+            TileScale = 0.96, TileGap = 12, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above", HeroOpacity = 0, Footer = "pill", Ambient = "bokeh", PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "storybook", Name = "Hand-Drawn Adventure", Mode = "light", Sounds = "chime", Music = "track:Meditation", Wallpaper = "image:Terra.jpg",
+            Description = "A storybook on parchment: inked outlines, handwritten labels, sketched borders and a map's compass rose.",
+            Light = new[] { "#F3E7CF", "#3B2A1A", "#7A6248", "#E6FFF8EA", "#EFE0C2", "#B4532A" },
+            ForceLight = true, Backdrop = new[] { "#F6ECD6", "#EADBB9" },
+            Font = "Ink Free, Segoe Print, Segoe UI", TileCorner = 6, RowCorner = 8, RingThickness = 3, Shadow = "hard", Stroke = "#3B2A1A", StrokeWidth = 2,
+            Buttons = "square", SquareCorner = 10, OutlineButtons = true, PlayColors = new[] { "#B4532A" },
+            Layout = "stage", Portrait = true, Actions = "words", Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 },
+            TileScale = 1.0, TileGap = 10, SelectGrow = 1.18, GrowOrigin = new Point(0.5, 0.62), GamesAlign = VerticalAlignment.Center,
+            Title = "big", HeroOpacity = 0, Footer = "line", Overlay = "paper", Ambient = "compass", PageScrim = 0.6
+        },
+        new()
+        {
+            Id = "cyberpunk", Name = "Neon Cyberpunk", Mode = "dark", Sounds = "pack:Xbox 360 UI", Music = "track:Gaming Vibes", Moving = "Cyberpunk Rain",
+            Description = "Rain-slick dark streets: electric pink and blue, dense city graphics, glitching slices and a humming neon glow.",
+            Dark = new[] { "#07060D", "#F4F0FF", "#9C95C9", "#E60F0B1E", "#130E26", "#FF2BD6" },
+            Font = "Bahnschrift SemiBold, Bahnschrift, Segoe UI", TileCorner = 0, RowCorner = 0, RingThickness = 3, Glow = true, Shadow = "none", Stroke = "#3300E5FF",
+            Layout = "hero", NavTabs = true, TabPill = true, Portrait = true, Actions = "icons", KeyHint = true, TopBarFill = true,
+            PlayColors = new[] { "#00E5FF", "#FF2BD6" }, Buttons = "square", SquareCorner = 0, Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
+            TileScale = 0.78, TileGap = 6, SelectGrow = 1.05, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
+            RowHeader = "Jack in", HeroOpacity = 0, Footer = "none", Overlay = "scanlines", Ambient = "glitch", PageScrim = 0.82
+        },
+        new()
+        {
+            Id = "toy-tech", Name = "90s Toy-Tech", Mode = "light", Sounds = "bubble", Music = "track:Jumps",
+            Description = "Bright plastic in primary colors: chunky glossy buttons, playful shapes, a gadget-like shell and bouncing confetti.",
+            Light = new[] { "#FFE14D", "#1A1A2E", "#4D4D6B", "#F2FFFFFF", "#FFFFFF", "#FF3B6B" },
+            ForceLight = true, Backdrop = new[] { "#FFE14D", "#FFC93C" },
+            Font = "Arial Rounded MT Bold, Segoe UI Black, Segoe UI", TileCorner = 20, RowCorner = 20, RingThickness = 6, Shadow = "hard", Stroke = "#1A1A2E", StrokeWidth = 3,
+            Buttons = "circle", Gloss = true, ButtonDock = true, DockLook = "solid", PlayColors = new[] { "#3BC7FF", "#2E6BFF" },
+            TileScale = 0.9, TileGap = 14, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above", HeroOpacity = 0, Footer = "bar", Overlay = "dots", Ambient = "confetti", PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "lcd-pocket", Name = "Monochrome LCD", Mode = "light", Sounds = "retro", Music = "", Glyphs = "pixel",
+            Description = "A pocket game's tiny screen: four shades of grey-green, a visible pixel grid, segmented digits and simple icons.",
+            Light = new[] { "#B9C3A4", "#232A1C", "#4C5A3E", "#E6A9B394", "#A3AD8E", "#232A1C" },
+            ForceLight = true, Backdrop = new[] { "#C4CEAE", "#AEB896" },
+            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 3, Shadow = "none", Stroke = "#232A1C", StrokeWidth = 2,
+            Buttons = "square", SquareCorner = 0, OutlineButtons = true,
+            TileScale = 0.72, TileGap = 8, SelectGrow = 1.0, Title = "row", HeroOpacity = 0, Footer = "line", Overlay = "lcd", PageScrim = 0.85
+        },
+        new()
+        {
+            Id = "arcade-cabinet", Name = "Arcade Cabinet", Mode = "dark", Sounds = "arcade", Music = "track:Gaming Vibes", Glyphs = "pixel",
+            Description = "Insert coin: marquee lettering, a high-score table feel, high-contrast red and gold, and chasing marquee lights.",
+            Dark = new[] { "#0A0505", "#FFF6E0", "#E0B98A", "#E61A0A0A", "#220C0C", "#FFC700" },
+            Backdrop = new[] { "#2A0505", "#0A0505" },
+            Font = "Impact, Bahnschrift Condensed, Segoe UI Black", TileCorner = 4, RowCorner = 4, RingThickness = 4, Glow = true, Shadow = "none", Stroke = "#66FFC700",
+            Layout = "stage", NavTabs = true, TabPill = true, Portrait = true, Actions = "words", PlayColors = new[] { "#FF2A2A", "#FFC700" },
+            Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 }, TileScale = 1.04, TileGap = 8, SelectGrow = 1.22, GrowOrigin = new Point(0.5, 0.62),
+            GamesAlign = VerticalAlignment.Center, Title = "big", TitleLogo = true, HeroOpacity = 0, Footer = "line", Overlay = "vignette", Ambient = "marquee", PageScrim = 0.8
+        },
+        new()
+        {
+            Id = "field-guide", Name = "Nature Field Guide", Mode = "light", Sounds = "chime", Music = "track:Relaxing", Moving = "Yellowstone",
+            Description = "A naturalist's journal: earthy greens and ochre, specimen-card tiles, ruled pages and leaves drifting past.",
+            Light = new[] { "#EEE8D8", "#2F3A24", "#6B7458", "#E6FBF7EC", "#E2DBC4", "#6F8F3A" },
+            Dark = new[] { "#1E2318", "#ECE8D8", "#A9AE92", "#E62A3122", "#2A3122", "#A3C35E" },
+            Font = "Georgia, Sitka Text, Segoe UI", TileCorner = 4, RowCorner = 6, RingThickness = 3, Stroke = "#806F8F3A",
+            Buttons = "card", Layout = "sidebar", Brand = "Field Guide", Actions = "words", PlayColors = new[] { "#6F8F3A" },
+            TileScale = 0.82, TileGap = 10, SelectGrow = 1.06, Title = "big", HeroOpacity = 0, Footer = "none", Overlay = "notebook", Ambient = "leaves", PageScrim = 0.5
+        },
+        new()
+        {
+            Id = "cockpit", Name = "Spacecraft Cockpit", Mode = "dark", Sounds = "deep", Music = "track:Waves", Moving = "Stars and Me",
+            Description = "Flight deck at night: instrument rings, a sweeping radar, orbital paths and cool, controlled cyan lighting.",
+            Dark = new[] { "#050A12", "#DDF4FF", "#7FA6BF", "#E60A1624", "#0C1A2A", "#3FE0FF" },
+            Font = "Bahnschrift, Segoe UI", TileCorner = 10, RowCorner = 10, RingThickness = 2, Glow = true, Shadow = "none", Stroke = "#403FE0FF",
+            Buttons = "circle", OutlineButtons = true, ButtonDock = true, DockLook = "glow", PlayColors = new[] { "#3FE0FF", "#1A7FFF" },
+            TileScale = 0.88, TileGap = 10, SelectGrow = 1.1, Title = "big", HeroOpacity = 0, Footer = "line", Overlay = "cockpit", Ambient = "radar", PageScrim = 0.75
+        },
+        new()
+        {
+            Id = "scrapbook", Name = "Sticker Scrapbook", Mode = "light", Sounds = "bubble", Music = "track:Sweetness",
+            Description = "Layered stickers and doodles on kraft paper: handwritten labels, washi-tape corners and a slightly wonky, cut-out feel.",
+            Light = new[] { "#E8D5B5", "#2B2118", "#6B5640", "#F2FFFDF7", "#FFFDF7", "#FF5C8A" },
+            ForceLight = true, Backdrop = new[] { "#EAD8BA", "#DCC5A0" },
+            Font = "Segoe Print, Ink Free, Comic Sans MS", TileCorner = 8, RowCorner = 12, RingThickness = 5, Shadow = "hard", Stroke = "#FFFFFF", StrokeWidth = 4,
+            Buttons = "card", PlayColors = new[] { "#FF5C8A", "#FFB443" },
+            TileScale = 0.9, TileGap = 18, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above", HeroOpacity = 0, Footer = "pill", Overlay = "paper", Ambient = "stickers", PageScrim = 0.5
+        },
+        new()
+        {
+            Id = "boutique", Name = "Premium Boutique", Mode = "dark", Sounds = "soft", Music = "track:Ripples",
+            Description = "Quiet luxury: refined serif type, restrained ivory and charcoal with a thin gold line, generous spacing and slow, subtle motion.",
+            Dark = new[] { "#121110", "#F4EFE6", "#A69F93", "#F21A1917", "#1E1C1A", "#C9A96E" },
+            Light = new[] { "#F7F3EC", "#1C1A17", "#7C766C", "#F2FFFFFF", "#EDE6DA", "#9C7A3C" },
+            Font = "Palatino Linotype, Georgia, Segoe UI", TileCorner = 2, RowCorner = 2, RingThickness = 1.5, Shadow = "soft", Stroke = "#40C9A96E",
+            Buttons = "tab", Layout = "hero", NavTabs = true, Portrait = true, Actions = "words", PlayColors = new[] { "#C9A96E" },
+            Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 }, TileScale = 0.74, TileGap = 22, SelectGrow = 1.03, GamesAlign = VerticalAlignment.Bottom,
+            Title = "big", TitleLogo = true, RowHeader = "The collection", HeroOpacity = 0.45, HeroBlur = 0, HeroScrim = "left", PageHero = true, Footer = "line", PageScrim = 0.7
+        },
+        new()
+        {
+            Id = "holo-dream", Name = "Holographic Dreamscape", Mode = "dark", Sounds = "pack:Dreamy SFX", Music = "track:Sun Rays", Moving = "Heaven",
+            Description = "Iridescent gradients and soft glow: floating glass shapes drift slowly, colors shift like a soap bubble, everything flows.",
+            Dark = new[] { "#120F24", "#FFFFFF", "#C9C2F0", "#80FFFFFF", "#33FFFFFF", "#B98CFF" },
+            Backdrop = new[] { "#7FD6FF", "#B98CFF", "#FF9AD5", "#FFE3A3" },
+            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 28, RowCorner = 24, RingThickness = 3, Glass = true, Glow = true,
+            Buttons = "circle", ButtonDock = true, DockLook = "glass", PlayColors = new[] { "#7FD6FF", "#FF9AD5" },
+            TileScale = 0.94, TileGap = 12, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above", HeroOpacity = 0, Footer = "pill", Overlay = "sheen", Ambient = "float", PageScrim = 0.3
+        },
+
+        // ---------------------------------------------------------------- 5.23: vaporwave and a 90s desktop
+
+        new()
+        {
+            Id = "vapor-pool", Name = "Vaporwave Pool", Mode = "dark", Sounds = "pack:Dreamy SFX", Music = "track:Es Vapour", Moving = "La Fuente",
+            Wallpaper = "image:Viborl.jpg",
+            Description = "A marble fountain at dusk: pastel pink and pool cyan, smoked glass panels, VHS tracking lines and a slowed-down soundtrack.",
+            Dark = new[] { "#1A1030", "#FFF0FB", "#D9C2F0", "#A62A1A4A", "#3A2462", "#FF71CE" },
+            Font = "Yu Gothic UI Light, Yu Gothic UI, Segoe UI Light, Segoe UI", TileCorner = 6, RowCorner = 8, RingThickness = 3, Glass = true, DarkGlass = true, Glow = true,
+            Layout = "stage", NavTabs = true, TabPill = true, Portrait = true, Actions = "words", PlayColors = new[] { "#01CDFE", "#FF71CE" },
+            Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 }, TileScale = 1.04, TileGap = 10, SelectGrow = 1.18, GrowOrigin = new Point(0.5, 0.62),
+            GamesAlign = VerticalAlignment.Center, Title = "big", TitleLogo = true, HeroOpacity = 0, Footer = "line", Overlay = "scanlines", Ambient = "vhs", PageScrim = 0.45
+        },
+        new()
+        {
+            Id = "vapor-sunset", Name = "Marble Sunset", Mode = "dark", Sounds = "pack:Dreamy SFX", Music = "track:Recuerdos",
+            Wallpaper = "image:Tu Reflexion.jpg",
+            Description = "A pink sun sinking into a wireframe sea: deep plum, hot pink and gold, a scrolling neon horizon and black-and-gold marble pages.",
+            Dark = new[] { "#221A2E", "#FFF2F8", "#C7A9C9", "#CC2C2140", "#33264A", "#FF2E7E" },
+            Font = "Bahnschrift Light, Bahnschrift, Segoe UI", TileCorner = 2, RowCorner = 4, RingThickness = 2, Glow = true, Shadow = "none", Stroke = "#40FFD54A",
+            Layout = "hero", NavTabs = true, Portrait = true, Actions = "words", KeyHint = true, PlayColors = new[] { "#FFD54A", "#FF2E7E" },
+            Buttons = "circle", Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
+            TileScale = 0.78, TileGap = 8, SelectGrow = 1.05, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
+            RowHeader = "A E S T H E T I C", HeroOpacity = 0, Footer = "none", Ambient = "horizon", PageScrim = 0.7
+        },
+        new()
+        {
+            Id = "city-pop", Name = "City Pop '84", Mode = "dark", Sounds = "bubble", Music = "track:Fraxsu",
+            Wallpaper = "image:The View.jpg",
+            Description = "A seaside parking lot in endless summer: flat cobalt sky, coral and mint stripes, white convertibles and clean, sunny type.",
+            Dark = new[] { "#0B3A8C", "#FFFFFF", "#BFD6FF", "#B30A2E70", "#124AA8", "#FF6F8E" },
+            Font = "Trebuchet MS, Segoe UI", TileCorner = 4, RowCorner = 6, RingThickness = 4, Shadow = "hard", Stroke = "#FFFFFF", StrokeWidth = 2,
+            Buttons = "square", SquareCorner = 6, ButtonDock = true, DockLook = "solid", PlayColors = new[] { "#2ED3A0", "#FF6F8E" },
+            TileScale = 0.9, TileGap = 14, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above",
+            HeroOpacity = 0, Footer = "bar", PageScrim = 0.5
+        },
+        new()
+        {
+            Id = "desktop-95", Name = "Desktop 95", Mode = "light", Sounds = "classic", Music = "", Moving = "Analog",
+            Wallpaper = "image:Windows 95.jpg",
+            Description = "A mid-90s desktop: teal and battleship grey, raised 3D buttons with white and black edges, a navy title bar and a taskbar along the bottom.",
+            Light = new[] { "#008080", "#000000", "#3A3A3A", "#FFC0C0C0", "#C0C0C0", "#000080" },
+            ForceLight = true, Backdrop = new[] { "#008080", "#008080" },
+            Font = "Microsoft Sans Serif, Tahoma, Segoe UI", TileCorner = 0, RowCorner = 0, RingThickness = 3, Shadow = "hard", Stroke = "#FFFFFF", StrokeWidth = 2,
+            Buttons = "square", SquareCorner = 0, TopBarFill = true, PlayColors = new[] { "#000080", "#1084D0" },
+            TileScale = 0.86, TileGap = 10, SelectGrow = 1.0, Title = "row", HeroOpacity = 0, Footer = "taskbar", PageScrim = 0.6
         }
     };
 
@@ -821,6 +1031,112 @@ public static class UiStyles
     };
 
     public static void Select(string? id) => Current = Find(id);
+
+    public static readonly (string Id, string Name, string About)[] NavButtonStyles =
+    {
+        ("style", "From the UI style", "Whatever the chosen UI style uses"),
+        ("circle", "Circles", "Round buttons, name underneath"),
+        ("square", "Squares", "Rounded squares"),
+        ("small", "Small circles", "Compact round buttons"),
+        ("outline", "Outline", "See-through rings with just an edge"),
+        ("glossy", "Glossy", "Bubbly buttons with a shine across the top"),
+        ("card", "Cards", "Icon with its name on each button"),
+        ("tab", "Pills", "Wide pills with icon and name"),
+        ("large", "Big circles", "Larger round buttons, easy to hit on a touchscreen"),
+        ("soft", "Soft squares", "Squares with very round corners, like phone app icons"),
+        ("wide", "Wide tiles", "Wide rectangles with the name under the icon"),
+        ("accent", "Accent circles", "Round buttons filled with the highlight color"),
+        ("neon", "Neon rings", "Glowing rings in the highlight color"),
+    };
+
+    public static readonly (string Id, string Name, string About)[] FooterStyles =
+    {
+        ("style", "From the UI style", "Whatever the chosen UI style uses"),
+        ("line", "Line", "A thin line above the hints"),
+        ("bar", "Solid bar", "A dark bar across the bottom"),
+        ("glassbar", "Glass bar", "A frosted bar across the bottom"),
+        ("pill", "Floating pill", "A frosted pill floating above the bottom edge"),
+        ("taskbar", "Taskbar", "A grey 90s taskbar with a raised edge"),
+        ("fade", "Fade", "The bottom of the screen darkens softly behind the hints"),
+        ("accentbar", "Color bar", "A bar in the highlight color"),
+        ("outlinepill", "Outline pill", "A floating pill drawn as just an outline"),
+        ("floatbar", "Floating bar", "A solid rounded bar that floats above the edge"),
+        ("neonline", "Neon line", "A glowing line in the highlight color"),
+        ("none", "None", "Just the hints"),
+    };
+
+    public static readonly (string Id, string Name, string About)[] TileArts =
+    {
+        ("style", "From the UI style", "Whatever the chosen UI style uses"),
+        ("square", "Square", "The square cover"),
+        ("tall", "Tall grid", "Tall 2:3 poster art"),
+        ("wide", "Rectangle", "The wide header capsule (460×215)"),
+    };
+
+    public static readonly (string Id, string Name, string About)[] TileSizes =
+    {
+        ("style", "From the UI style", "The size the UI style uses"),
+        ("small", "Small", "More games on screen"),
+        ("medium", "Medium", "The usual size"),
+        ("large", "Large", "Bigger art, fewer on screen"),
+    };
+
+    public static readonly (string Id, string Name, string About)[] DockStyles =
+    {
+        ("style", "From the UI style", "Whatever the chosen UI style uses"),
+        ("none", "None", "Buttons stand on their own"),
+        ("glass", "Frosted shelf", "A frosted glass shelf behind the buttons"),
+        ("solid", "Solid shelf", "A solid panel in the theme's colors"),
+        ("outline", "Outline", "Just an outline around the buttons"),
+        ("glow", "Neon glow", "A dark shelf with a glowing highlight-color edge"),
+        ("smoke", "Smoked glass", "A dark, tinted shelf"),
+        ("gradient", "Color fade", "A shelf that fades from the highlight color"),
+        ("bevel", "Raised (90s)", "A grey shelf with a raised 3D edge"),
+        ("underline", "Underline", "No shelf, just a bold line under the buttons"),
+        ("sticker", "Sticker", "A light card with a hard shadow, like a sticker"),
+    };
+
+    /// <summary>
+    /// Your own choices for the home screen's buttons, footer and the shelf (dock) the buttons sit on, laid over the
+    /// UI style (Settings > Appearance > Home screen). "style" keeps the style's own.
+    /// </summary>
+    public static void ApplyOverrides(Settings settings)
+    {
+        var s = Current;
+        s = settings.NavButtonStyle switch
+        {
+            "circle" or "square" or "small" or "card" or "tab" => s with { Buttons = settings.NavButtonStyle, OutlineButtons = false, Gloss = false },
+            "outline" => s with { Buttons = "circle", OutlineButtons = true, Gloss = false },
+            "glossy" => s with { Buttons = "circle", OutlineButtons = false, Gloss = true },
+            "large" or "soft" or "wide" => s with { Buttons = settings.NavButtonStyle, OutlineButtons = false, Gloss = false, ButtonLook = "" },
+            "accent" => s with { Buttons = "circle", OutlineButtons = false, Gloss = false, ButtonLook = "accent" },
+            "neon" => s with { Buttons = "circle", OutlineButtons = true, Gloss = false, ButtonLook = "neon" },
+            _ => s
+        };
+        if (settings.UiFont is { Length: > 0 } font && font != "style") s = s with { Font = font };
+        s = settings.TileArt switch
+        {
+            "square" => s with { Portrait = false, Wide = false },
+            "tall" => s with { Portrait = true, Wide = false },
+            "wide" => s with { Portrait = false, Wide = true },
+            _ => s
+        };
+        // Wide tiles are about twice as wide, so they're drawn smaller to keep a few on screen.
+        double size = (settings.TileSize switch { "small" => 0.82, "large" => 1.16, _ => 1.0 }) * (s.Wide ? 0.66 : 1.0);
+        if (Math.Abs(size - 1) > 0.001) s = s with { TileScale = s.TileScale * size };
+        s = settings.FooterStyle switch
+        {
+            "line" or "bar" or "glassbar" or "pill" or "none" or "taskbar" or "fade" or "accentbar" or "outlinepill" or "floatbar" or "neonline" => s with { Footer = settings.FooterStyle },
+            _ => s
+        };
+        s = settings.DockStyle switch
+        {
+            "none" => s with { ButtonDock = false },
+            "glass" or "solid" or "outline" or "glow" or "smoke" or "gradient" or "bevel" or "underline" or "sticker" => s with { ButtonDock = true, DockLook = settings.DockStyle },
+            _ => s
+        };
+        Current = s;
+    }
 
     /// <summary>The colors for this style on the current theme, or null to keep the theme's own.</summary>
     public static string[]? PaletteFor(UiStyle style, bool dark) =>
@@ -980,10 +1296,13 @@ public static class UiStyles
             "tab" => (152.0, 46.0, 23.0, 16.0, true, 3.0, Orientation.Horizontal), // room for "Web browser"
             "square" => (88.0, 88.0, square, 30.0, false, 6.0, Orientation.Vertical),
             "small" => (70.0, 70.0, 35.0, 24.0, false, 8.0, Orientation.Vertical),
+            "large" => (116.0, 116.0, 58.0, 38.0, false, 6.0, Orientation.Vertical),
+            "soft" => (92.0, 92.0, 32.0, 30.0, false, 6.0, Orientation.Vertical),
+            "wide" => (134.0, 82.0, Math.Max(8, s.RowCorner + 6), 26.0, true, 5.0, Orientation.Vertical),
             _ => s.ButtonDock ? (84.0, 84.0, 42.0, 28.0, false, 4.0, Orientation.Vertical) : (96.0, 96.0, 48.0, 32.0, false, 6.0, Orientation.Vertical)
         };
         res["RoundWidth"] = w;
-        res["RoundLabelMax"] = s.Buttons == "tab" ? 104.0 : 76.0;
+        res["RoundLabelMax"] = s.Buttons is "tab" or "wide" ? 104.0 : 76.0;
         res["RoundHeight"] = h;
         res["RoundCorner"] = new CornerRadius(corner);
         res["RoundInnerCorner"] = new CornerRadius(Math.Max(0, corner - 9));
@@ -996,6 +1315,18 @@ public static class UiStyles
                          : s.ButtonDock ? (s.DarkGlass ? SmokeBrush(0x70, 0x50) : s.LightGlass ? FrostBrush(0xE0, 0xB0) : FrostBrush(0x30, 0x10))
                          : circle;
         if (s.OutlineButtons) res["PanelStrokeThickness"] = new Thickness(Math.Max(1, strokeWidth));
+        // Accent circles: filled with the highlight color. Neon rings: an outline that glows in it.
+        if (s.ButtonLook == "accent")
+        {
+            res["RoundFill"] = Frozen(new SolidColorBrush(Color.FromArgb(0xE6, accent.R, accent.G, accent.B)));
+            res["ButtonShadow"] = Perf.Active ? null : Frozen(new DropShadowEffect { Color = accent, BlurRadius = 16, ShadowDepth = 2, Opacity = 0.5 });
+        }
+        else if (s.ButtonLook == "neon")
+        {
+            res["RoundFill"] = Frozen(new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0x00, 0x00)));
+            res["PanelStrokeThickness"] = new Thickness(2);
+            res["ButtonShadow"] = Perf.Active ? null : Frozen(new DropShadowEffect { Color = accent, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.95 });
+        }
 
         // Glossy buttons: a bright shine over the top half that ends in a crisp line, like polished plastic.
         res["GlossVisibility"] = s.Gloss ? Visibility.Visible : Visibility.Collapsed;
@@ -1109,6 +1440,95 @@ public static class UiStyles
                 var brush = new DrawingBrush(group) { Stretch = Stretch.Fill };
                 brush.Freeze();
                 return brush;
+            }
+            case "paper":
+            {
+                // Paper grain: tiny speckles, plus a sketched double border around the whole screen.
+                var group = new DrawingGroup();
+                group.Children.Add(new GeometryDrawing(Brushes.Transparent, null, new RectangleGeometry(new Rect(0, 0, 1280, 720))));
+                var random = new Random(7);
+                var speck = new SolidColorBrush(Color.FromArgb(0x18, 0x40, 0x2A, 0x10));
+                var specks = new GeometryGroup();
+                for (int i = 0; i < 900; i++) specks.Children.Add(new EllipseGeometry(new Point(random.NextDouble() * 1280, random.NextDouble() * 720), 0.6 + random.NextDouble(), 0.6 + random.NextDouble()));
+                group.Children.Add(new GeometryDrawing(speck, null, specks));
+                var ink = new Pen(new SolidColorBrush(Color.FromArgb(0x70, 0x3B, 0x2A, 0x1A)), 1.6);
+                for (int k = 0; k < 2; k++)
+                {
+                    var f = new PathFigure { StartPoint = new Point(14 + k * 5, 16 + k * 4), IsClosed = true };
+                    foreach (var (x, y) in new[] { (1266 - k * 4, 13 + k * 5), (1268 - k * 5, 704 - k * 4), (12 + k * 4, 706 - k * 5) })
+                        f.Segments.Add(new LineSegment(new Point(x + random.NextDouble() * 2, y + random.NextDouble() * 2), true));
+                    group.Children.Add(new GeometryDrawing(null, ink, new PathGeometry(new[] { f })));
+                }
+                var paper = new DrawingBrush(group) { Stretch = Stretch.Fill };
+                paper.Freeze();
+                return paper;
+            }
+            case "lcd":
+            {
+                // The pixel grid of a small LCD: faint dark lines between every 4px "pixel".
+                var pen = new Pen(new SolidColorBrush(Color.FromArgb(0x16, 0x23, 0x2A, 0x1C)), 1);
+                var g = new GeometryGroup();
+                g.Children.Add(new LineGeometry(new Point(0, 0), new Point(4, 0)));
+                g.Children.Add(new LineGeometry(new Point(0, 0), new Point(0, 4)));
+                return Tiled(new GeometryDrawing(null, pen, g), 4);
+            }
+            case "hud":
+            {
+                // Corner brackets around the screen and a faint 32px grid, like a targeting display.
+                var group = new DrawingGroup();
+                group.Children.Add(new GeometryDrawing(Brushes.Transparent, null, new RectangleGeometry(new Rect(0, 0, 1280, 720))));
+                var grid = new Pen(new SolidColorBrush(Color.FromArgb(0x0C, 0xB5, 0xC9, 0x4A)), 1);
+                for (int x = 0; x <= 1280; x += 32) group.Children.Add(new GeometryDrawing(null, grid, new LineGeometry(new Point(x, 0), new Point(x, 720))));
+                for (int y = 0; y <= 720; y += 32) group.Children.Add(new GeometryDrawing(null, grid, new LineGeometry(new Point(0, y), new Point(1280, y))));
+                var bracket = new Pen(new SolidColorBrush(Color.FromArgb(0x90, 0xB5, 0xC9, 0x4A)), 2);
+                foreach (var (cx, cy, dx, dy) in new[] { (12.0, 12.0, 1, 1), (1268.0, 12.0, -1, 1), (12.0, 708.0, 1, -1), (1268.0, 708.0, -1, -1) })
+                {
+                    var f = new PathFigure { StartPoint = new Point(cx, cy + dy * 40) };
+                    f.Segments.Add(new LineSegment(new Point(cx, cy), true));
+                    f.Segments.Add(new LineSegment(new Point(cx + dx * 40, cy), true));
+                    group.Children.Add(new GeometryDrawing(null, bracket, new PathGeometry(new[] { f })));
+                }
+                var hud = new DrawingBrush(group) { Stretch = Stretch.Fill };
+                hud.Freeze();
+                return hud;
+            }
+            case "notebook":
+            {
+                // Ruled journal lines with a red margin line on the left.
+                var group = new DrawingGroup();
+                group.Children.Add(new GeometryDrawing(Brushes.Transparent, null, new RectangleGeometry(new Rect(0, 0, 1280, 720))));
+                var rule = new Pen(new SolidColorBrush(Color.FromArgb(0x1C, 0x2F, 0x5A, 0x8A)), 1);
+                for (int y = 60; y < 720; y += 30) group.Children.Add(new GeometryDrawing(null, rule, new LineGeometry(new Point(0, y), new Point(1280, y))));
+                group.Children.Add(new GeometryDrawing(null, new Pen(new SolidColorBrush(Color.FromArgb(0x30, 0xC0, 0x40, 0x40)), 1.4), new LineGeometry(new Point(72, 0), new Point(72, 720))));
+                var notebook = new DrawingBrush(group) { Stretch = Stretch.Fill };
+                notebook.Freeze();
+                return notebook;
+            }
+            case "cockpit":
+            {
+                // Instrument rings in the corners and orbital ellipses across the middle.
+                var group = new DrawingGroup();
+                group.Children.Add(new GeometryDrawing(Brushes.Transparent, null, new RectangleGeometry(new Rect(0, 0, 1280, 720))));
+                var faint = new Pen(new SolidColorBrush(Color.FromArgb(0x1A, 0x3F, 0xE0, 0xFF)), 1);
+                var tick = new Pen(new SolidColorBrush(Color.FromArgb(0x30, 0x3F, 0xE0, 0xFF)), 1.5);
+                foreach (var c in new[] { new Point(-40, 760), new Point(1320, 760) })
+                    for (int r = 120; r <= 300; r += 60) group.Children.Add(new GeometryDrawing(null, r == 300 ? tick : faint, new EllipseGeometry(c, r, r)));
+                group.Children.Add(new GeometryDrawing(null, faint, new EllipseGeometry(new Point(640, 330), 600, 150)));
+                group.Children.Add(new GeometryDrawing(null, faint, new EllipseGeometry(new Point(640, 330), 450, 100)));
+                var cockpit = new DrawingBrush(group) { Stretch = Stretch.Fill };
+                cockpit.Freeze();
+                return cockpit;
+            }
+            case "sheen":
+            {
+                // A soft iridescent wash across the screen, like light on a soap bubble.
+                var sheen = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
+                sheen.GradientStops.Add(new GradientStop(Color.FromArgb(0x1A, 0x7F, 0xD6, 0xFF), 0));
+                sheen.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 0.35));
+                sheen.GradientStops.Add(new GradientStop(Color.FromArgb(0x16, 0xFF, 0x9A, 0xD5), 0.65));
+                sheen.GradientStops.Add(new GradientStop(Color.FromArgb(0x10, 0xFF, 0xE3, 0xA3), 1));
+                sheen.Freeze();
+                return sheen;
             }
             case "vignette":
             {

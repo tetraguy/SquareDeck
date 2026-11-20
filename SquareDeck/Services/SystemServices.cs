@@ -105,6 +105,36 @@ public static class WindowActivator
     [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
 
+    /// <summary>The window in front right now (to give the focus back to it later).</summary>
+    public static IntPtr Foreground()
+    {
+        try { return GetForegroundWindow(); } catch (Exception) { return IntPtr.Zero; }
+    }
+
+    /// <summary>Gives the keyboard and controller back to another window (the game, after the quick menu).</summary>
+    public static void GiveFocusTo(IntPtr target)
+    {
+        try
+        {
+            if (target == IntPtr.Zero || !IsWindow(target)) return;
+            var front = GetForegroundWindow();
+            uint frontThread = front == IntPtr.Zero ? 0 : GetWindowThreadProcessId(front, IntPtr.Zero);
+            uint mine = GetCurrentThreadId();
+            bool attached = frontThread != 0 && frontThread != mine && AttachThreadInput(mine, frontThread, true);
+            BringWindowToTop(target);
+            bool ok = SetForegroundWindow(target);
+            if (attached) AttachThreadInput(mine, frontThread, false);
+            if (!ok)
+            {
+                const byte Alt = 0x12;
+                keybd_event(Alt, 0, 0, UIntPtr.Zero);
+                keybd_event(Alt, 0, 0x2, UIntPtr.Zero);
+                SetForegroundWindow(target);
+            }
+        }
+        catch (Exception) { }
+    }
+
     /// <summary>
     /// Puts a window on top of everything, even a full-screen game or the Xbox full screen experience, and gives it
     /// the keyboard and controller. Windows normally refuses this to apps in the background, so this borrows the

@@ -384,8 +384,14 @@ public sealed class BoostScreen : Screen
         _coverScale.ScaleX = _coverScale.ScaleY = 1;
         _coverShake.X = _coverShake.Y = 0;
         await Task.Delay(_preview ? 900 : 650);
-        Host.Pop(this);
+        // Handing over to the launch splash: the launcher fades the splash in over this screen and then removes it,
+        // so there's no flash of the home screen in between.
+        if (KeepOpenOnFinish) _done.TrySetResult(true);
+        else Host.Pop(this);
     }
+
+    /// <summary>When set, finishing signals <see cref="Result"/> but leaves the screen up for the next one to cover.</summary>
+    public bool KeepOpenOnFinish { get; init; }
 
     private static string Size(ulong bytes) => bytes >= 1UL << 30 ? $"{bytes / 1073741824.0:0.0} GB" : $"{bytes / 1048576.0:0} MB";
 

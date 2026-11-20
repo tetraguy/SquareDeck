@@ -105,6 +105,10 @@ public sealed class UiStyleScreen : GridScreen
     {
         Host.UseStyle(style);
         Build();
+        // Say so: the home screen behind this page has already changed.
+        UiSound.Select();
+        Host.Rumble(40);
+        Host.ShowToast("UI style", style.Name + " applied", Host.Settings.StyleMatching ? "With its colors, wallpaper, sounds and music" : "Your colors, wallpaper and sounds are kept", "", "info", remember: false);
     }
 
     /// <summary>A small drawing of the home screen in this style.</summary>

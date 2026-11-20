@@ -139,13 +139,18 @@ public partial class MainWindow
         // The picture sits inside the gap, the ring and 4 more on each side (TileInnerMargin); make that area 2:3.
         double inset = 2 * (s.TileGap + s.RingThickness + 4);
         double posterWidth = Math.Round((270 - inset) / 1.5 + inset);
-        bool shapeChanged = Game.Portrait != s.Portrait || (s.Portrait && Math.Abs(Game.PortraitWidth - posterWidth) > 0.5);
+        double wideWidth = Math.Round((270 - inset) * 460 / 215 + inset);
+        bool shapeChanged = Game.Portrait != s.Portrait || Game.Wide != s.Wide || (s.Portrait && Math.Abs(Game.PortraitWidth - posterWidth) > 0.5)
+                            || (s.Wide && Math.Abs(Game.WideWidth - wideWidth) > 0.5);
         Game.Portrait = s.Portrait;
         Game.PortraitWidth = posterWidth;
+        Game.Wide = s.Wide;
+        Game.WideWidth = wideWidth;
         if (shapeChanged)
         {
             foreach (var g in _view) g.RefreshShape();
             _scrollTarget = 0;
+            StartPortraits();
         }
 
         double tile = (270 + _rowPad.Bottom) * _tileScale;
@@ -614,7 +619,7 @@ public partial class MainWindow
     /// <summary>Poster styles: fetches tall covers for the games around the selection, a few at a time.</summary>
     private void StartPortraits()
     {
-        if (!Game.Portrait || _portraitBusy) return;
+        if (!(Game.Portrait || Game.Wide) || _portraitBusy) return;
         _portraitCts?.Cancel();
         _portraitCts = new CancellationTokenSource();
         _ = LoadPortraitsAsync(_portraitCts.Token);
@@ -626,33 +631,37 @@ public partial class MainWindow
         try
         {
             using var client = new SteamGridDbClient(Settings.SteamGridDbApiKey);
-            while (!ct.IsCancellationRequested && Game.Portrait)
+            while (!ct.IsCancellationRequested && (Game.Portrait || Game.Wide))
             {
-                // Nearest to the selection first.
+                // Tall poster art, or wide header capsules, nearest to the selection first.
+                bool wide = Game.Wide;
                 int at = Math.Max(0, GameList.SelectedIndex);
                 var next = _view.Select((g, i) => (g, i))
-                    .Where(x => !x.g.PortraitTried && x.g.Actual.IsGame && Math.Abs(x.i - at) <= 14)
+                    .Where(x => !(wide ? x.g.HeaderTried : x.g.PortraitTried) && x.g.Actual.IsGame && Math.Abs(x.i - at) <= 14)
                     .OrderBy(x => Math.Abs(x.i - at)).Select(x => x.g).FirstOrDefault();
                 if (next == null) break;
-                next.PortraitTried = true;
+                if (wide) next.HeaderTried = true; else next.PortraitTried = true;
                 var actual = next.Actual;
-                ImageSource? picture = actual.PortraitCover;
+                ImageSource? picture = wide ? actual.HeaderCover : actual.PortraitCover;
                 if (picture == null)
                 {
                     try
                     {
                         picture = await Task.Run(async () =>
                         {
-                            var path = await client.GetPortraitAsync(actual, ct);
-                            return path == null ? null : (ImageSource?)ImageLoader.FromFile(path, 360);
+                            var path = wide ? await client.GetHeaderAsync(actual, ct) : await client.GetPortraitAsync(actual, ct);
+                            return path == null ? null : (ImageSource?)ImageLoader.FromFile(path, wide ? 520 : 360);
                         }, ct);
                     }
                     catch (OperationCanceledException) { break; }
                     catch (Exception) { picture = null; }
-                    actual.PortraitTried = true;
-                    if (picture != null) actual.PortraitCover = picture;
+                    if (wide) { actual.HeaderTried = true; if (picture != null) actual.HeaderCover = picture; }
+                    else { actual.PortraitTried = true; if (picture != null) actual.PortraitCover = picture; }
                 }
-                if (picture != null && !ReferenceEquals(next, actual)) next.PortraitCover = picture;
+                if (picture != null && !ReferenceEquals(next, actual))
+                {
+                    if (wide) next.HeaderCover = picture; else next.PortraitCover = picture;
+                }
             }
         }
         catch (Exception) { }

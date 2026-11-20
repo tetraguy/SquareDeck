@@ -247,6 +247,8 @@ public sealed class SteamGridDbClient : IDisposable
     /// </summary>
     public async Task<string?> GetHeaderAsync(Game item, CancellationToken ct)
     {
+        // One you picked yourself (from SteamGridDB or a file) comes first.
+        if (FindChosenArt(item, "headers") is { } chosen) return chosen;
         Directory.CreateDirectory(HeaderDir);
         var basePath = Path.Combine(HeaderDir, HashKey(item.Key));
         foreach (var ext in ImageExtensions)
@@ -271,7 +273,7 @@ public sealed class SteamGridDbClient : IDisposable
     // ---- Artwork the user picked: tall grid ("grids"), hero ("heroes") or logo ("logos").
     // Kept with the user's own images (backed up, never removed by cache clean-up) and used before any download.
 
-    private static string ChosenPrefix(string kind) => kind switch { "heroes" => "hero_", "logos" => "logo_", _ => "grid_" };
+    private static string ChosenPrefix(string kind) => kind switch { "heroes" => "hero_", "logos" => "logo_", "headers" => "header_", _ => "grid_" };
 
     /// <summary>Where a picked image of this kind is saved for a game (plus .png/.jpg).</summary>
     public static string ChosenArtBase(Game item, string kind) => Path.Combine(CustomDir, ChosenPrefix(kind) + HashKey(item.Key));
@@ -298,7 +300,9 @@ public sealed class SteamGridDbClient : IDisposable
     /// <summary>Every image SteamGridDB has of one kind ("grids" = tall covers, "heroes", "logos") for a game.</summary>
     public async Task<List<GridImage>> ListArtAsync(Game item, string kind, CancellationToken ct)
     {
-        string query = kind switch { "heroes" => HeroQuery, "logos" => LogoQuery, _ => PortraitQuery };
+        string query = kind switch { "heroes" => HeroQuery, "logos" => LogoQuery, "headers" => HeaderQuery, _ => PortraitQuery };
+        // Header capsules are SteamGridDB's wide grids.
+        if (kind == "headers") kind = "grids";
         var result = new List<GridImage>();
         void Read(JsonDocument? doc)
         {
@@ -510,7 +514,8 @@ public sealed class SteamGridDbClient : IDisposable
     /// and falling back to a second address (the smaller preview) if the first never works.
     /// Returns null only when every attempt failed.
     /// </summary>
-    public async Task<string?> DownloadWithRetryAsync(string url, string? fallbackUrl, string pathWithoutExtension, CancellationToken ct)
+    public async Task<string?> DownloadWithRetryAsync(string url, string? fallbackUrl, string pathWithoutExtension, CancellationToken ct,
+        IProgress<(long Done, long? Total)>? progress = null, IProgress<int>? retrying = null)
     {
         foreach (var address in new[] { url, fallbackUrl })
         {
@@ -519,7 +524,8 @@ public sealed class SteamGridDbClient : IDisposable
             {
                 try
                 {
-                    var path = await DownloadAsync(address, pathWithoutExtension, ct).ConfigureAwait(false);
+                    if (attempt > 1) retrying?.Report(attempt);
+                    var path = await DownloadAsync(address, pathWithoutExtension, ct, progress).ConfigureAwait(false);
                     // A truncated file would show as a broken tile: check it really is an image.
                     if (path != null && new FileInfo(path).Length > 512) return path;
                 }
@@ -533,7 +539,7 @@ public sealed class SteamGridDbClient : IDisposable
     }
 
     /// <summary>Downloads an image to <paramref name="pathWithoutExtension"/> plus .png/.jpg.</summary>
-    public async Task<string?> DownloadAsync(string url, string pathWithoutExtension, CancellationToken ct)
+    public async Task<string?> DownloadAsync(string url, string pathWithoutExtension, CancellationToken ct, IProgress<(long Done, long? Total)>? progress = null)
     {
         var extension = url.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
         var path = pathWithoutExtension + extension;
@@ -543,7 +549,24 @@ public sealed class SteamGridDbClient : IDisposable
         // Written under a temporary name first, so a download that is cut off never leaves a half image behind.
         var temp = path + ".part";
         await using (var fs = File.Create(temp))
-            await resp.Content.CopyToAsync(fs, ct).ConfigureAwait(false);
+        {
+            if (progress == null) await resp.Content.CopyToAsync(fs, ct).ConfigureAwait(false);
+            else
+            {
+                long? total = resp.Content.Headers.ContentLength;
+                await using var input = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+                var buffer = new byte[65536];
+                long done = 0;
+                int read;
+                progress.Report((0, total));
+                while ((read = await input.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
+                {
+                    await fs.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                    done += read;
+                    progress.Report((done, total));
+                }
+            }
+        }
         File.Move(temp, path, overwrite: true);
         return path;
     }

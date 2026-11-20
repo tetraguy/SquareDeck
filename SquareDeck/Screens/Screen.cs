@@ -154,18 +154,18 @@ public abstract class Screen : UserControl
     private System.Windows.Shapes.Rectangle? _wallpaperLayer, _wallpaperScrim;
     private Image? _backdrop;
 
-    /// <summary>Standard full-page layout: title bar with a Back button, body, and a hint footer.</summary>
-    /// <param name="wide">Use nearly the full width (for pages that are a big grid).</param>
-    protected void SetPage(string title, UIElement body, string hints = DefaultHints, bool wide = false)
+    /// <summary>
+    /// The page's background: the home screen's wallpaper (softened), or the game's artwork in styles that show it.
+    /// Rebuilt by <see cref="RefreshBackdrop"/> when the look changes while the page is open.
+    /// </summary>
+    private void AddBackdrop(Grid root)
     {
-        double side = wide ? 26 : 62;
-        var root = new Grid { ClipToBounds = true };
-        _pageRoot = root;
-        root.SetResourceReference(Panel.BackgroundProperty, "BgBrush");
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(104) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(60) });
-
+        int at = 0;
+        void Put(UIElement e)
+        {
+            if (e is FrameworkElement fe) fe.Tag = "page-backdrop";
+            root.Children.Insert(at++, e);
+        }
         // The same wallpaper as the home screen, softened a little more so pages of text stay readable.
         // Styles that show the game's artwork behind the home screen show it, blurred, behind pages too.
         var style = UiStyles.Current;
@@ -180,11 +180,11 @@ public abstract class Screen : UserControl
             // Kept as a ready-made picture so the blur isn't redone whenever something on the page moves.
             var heroHost = new Grid { IsHitTestVisible = false, ClipToBounds = true, CacheMode = new System.Windows.Media.BitmapCache(0.5), Children = { hero } };
             Grid.SetRowSpan(heroHost, 3);
-            root.Children.Add(heroHost);
+            Put(heroHost);
             var heroScrim = new System.Windows.Shapes.Rectangle { Opacity = style.PageScrim, IsHitTestVisible = false };
             heroScrim.SetResourceReference(Shape.FillProperty, "BgBrush");
             Grid.SetRowSpan(heroScrim, 3);
-            root.Children.Add(heroScrim);
+            Put(heroScrim);
         }
         else if (Theme.CurrentWallpaper != null)
         {
@@ -200,12 +200,67 @@ public abstract class Screen : UserControl
                 wallpaper = host;
             }
             Grid.SetRowSpan(wallpaper, 3);
-            root.Children.Add(wallpaper);
+            Put(wallpaper);
             _wallpaperScrim = new System.Windows.Shapes.Rectangle { Opacity = style.Glass ? style.PageScrim : 0.55, IsHitTestVisible = false };
             _wallpaperScrim.SetResourceReference(Shape.FillProperty, "BgBrush");
             Grid.SetRowSpan(_wallpaperScrim, 3);
-            root.Children.Add(_wallpaperScrim);
+            Put(_wallpaperScrim);
         }
+
+    }
+
+    /// <summary>
+    /// A light tick on the controller each time the highlight moves to another button, and a firmer one when a button
+    /// is pressed or a slider moves (with "Vibrate while moving through menus" on). Used by quick settings and the
+    /// power menu.
+    /// </summary>
+    protected void RumbleOnMove()
+    {
+        AddHandler(UIElement.GotKeyboardFocusEvent, new System.Windows.Input.KeyboardFocusChangedEventHandler((_, e) =>
+        {
+            if (Host?.Settings.RumbleInSettings == true && e.NewFocus is Button or Slider && e.OldFocus is Button or Slider && !ReferenceEquals(e.NewFocus, e.OldFocus))
+                Host.Rumble(16);
+        }), true);
+        AddHandler(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, new RoutedEventHandler((_, _) =>
+        {
+            if (Host?.Settings.RumbleInSettings == true) Host.Rumble(40);
+        }), true);
+        AddHandler(System.Windows.Controls.Primitives.RangeBase.ValueChangedEvent, new RoutedPropertyChangedEventHandler<double>((_, _) =>
+        {
+            if (Host?.Settings.RumbleInSettings == true && IsKeyboardFocusWithin) Host.Rumble(12);
+        }), true);
+    }
+
+    /// <summary>Lays something over the whole page (a progress card, for instance).</summary>
+    protected void ShowOver(UIElement element)
+    {
+        if (_pageRoot is not Grid root) return;
+        Grid.SetRowSpan(element, Math.Max(1, root.RowDefinitions.Count));
+        root.Children.Add(element);
+    }
+
+    /// <summary>Puts the current UI style's wallpaper or artwork behind the page (after a change of style or wallpaper).</summary>
+    public void RefreshBackdrop()
+    {
+        if (_pageRoot is not Grid root) return;
+        foreach (var old in root.Children.OfType<FrameworkElement>().Where(e => e.Tag as string == "page-backdrop").ToList()) root.Children.Remove(old);
+        _wallpaperLayer = _wallpaperScrim = null;
+        AddBackdrop(root);
+    }
+
+    /// <summary>Standard full-page layout: title bar with a Back button, body, and a hint footer.</summary>
+    /// <param name="wide">Use nearly the full width (for pages that are a big grid).</param>
+    protected void SetPage(string title, UIElement body, string hints = DefaultHints, bool wide = false)
+    {
+        double side = wide ? 26 : 62;
+        var root = new Grid { ClipToBounds = true };
+        _pageRoot = root;
+        root.SetResourceReference(Panel.BackgroundProperty, "BgBrush");
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(104) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(60) });
+
+        AddBackdrop(root);
 
         // A blurred picture behind everything (album art on the Music page); empty until asked for.
         _backdrop = new Image

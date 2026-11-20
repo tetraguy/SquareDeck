@@ -130,6 +130,8 @@
                         <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Tile_MouseDown"/>
                         <EventSetter Event="PreviewMouseLeftButtonUp" Handler="Tile_MouseUp"/>
                         <EventSetter Event="PreviewMouseRightButtonUp" Handler="Tile_RightClick"/>
+                        <EventSetter Event="PreviewTouchDown" Handler="Tile_TouchDown"/>
+                        <EventSetter Event="PreviewTouchUp" Handler="Tile_TouchUp"/>
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="ListBoxItem">
@@ -215,8 +217,35 @@
                                                     <StackPanel VerticalAlignment="Bottom" Margin="24,0,24,18">
                                                         <TextBlock Text="CONTINUE WHERE YOU LEFT OFF" FontSize="14" FontWeight="Bold"
                                                                    Foreground="{DynamicResource AccentBrush}"/>
-                                                        <TextBlock Text="{Binding Name}" FontSize="32" FontWeight="SemiBold" Margin="0,2,0,0"
-                                                                   Foreground="White" TextTrimming="CharacterEllipsis"/>
+                                                        <!-- The game's logo when SteamGridDB has one, else its name -->
+                                                        <Image Source="{Binding ContinueLogo}" MaxHeight="92" MaxWidth="360" Stretch="Uniform"
+                                                               HorizontalAlignment="Left" Margin="0,8,0,6" RenderOptions.BitmapScalingMode="HighQuality">
+                                                            <Image.Style>
+                                                                <Style TargetType="Image">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding HasContinueLogo}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Image.Style>
+                                                            <Image.Effect>
+                                                                <DropShadowEffect BlurRadius="14" ShadowDepth="0" Opacity="0.75"/>
+                                                            </Image.Effect>
+                                                        </Image>
+                                                        <TextBlock Text="{Binding Name}" FontSize="30" FontWeight="SemiBold" Margin="0,2,0,0"
+                                                                   Foreground="White" TextTrimming="CharacterEllipsis">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding HasContinueLogo}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
                                                         <TextBlock Text="{Binding Subtitle}" FontSize="16" Foreground="#E0FFFFFF"
                                                                    TextTrimming="CharacterEllipsis"/>
                                                     </StackPanel>
@@ -354,6 +383,8 @@
                         ToolTip="Explorer" Click="Explorer_Click"/>
                 <Button x:Name="StoresBtn" Style="{StaticResource RoundButton}" Content="&#xE7BF;" Foreground="{DynamicResource SubtleBrush}"
                         ToolTip="Stores" Click="Stores_Click"/>
+                <Button x:Name="MyDeviceBtn" Style="{StaticResource RoundButton}" Content="&#xE7FC;" Foreground="#E23D7A"
+                        ToolTip="My Device" Click="MyDevice_Click" Visibility="Collapsed"/>
                 <Button x:Name="SettingsBtn" Style="{StaticResource RoundButton}" Content="&#xE713;" Foreground="{DynamicResource SubtleBrush}"
                         ToolTip="Settings" Click="Settings_Click"/>
                 <Button x:Name="PowerBtn" Style="{StaticResource RoundButton}" Content="&#xE7E8;" Foreground="{DynamicResource SubtleBrush}"
@@ -386,6 +417,20 @@
                             <TextBlock x:Name="MusicText" MaxWidth="170" TextTrimming="CharacterEllipsis"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
+                    </Button>
+
+                    <!-- A streaming service kept open in the background: its logo and what's on; press to go back to it -->
+                    <Button x:Name="StreamButton" Style="{StaticResource PanelButton}" FontSize="15" Focusable="False"
+                            Margin="16,0,0,0" Visibility="Collapsed" Click="StreamOpen_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Border x:Name="StreamLogo" Width="56" Height="30" CornerRadius="7" Margin="-8,0,10,0" ClipToBounds="True"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock x:Name="StreamText" MaxWidth="240" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="StreamCloseButton" Style="{StaticResource PanelButton}" FontSize="13" Focusable="False"
+                            Margin="6,0,0,0" Visibility="Collapsed" Click="StreamClose_Click" ToolTip="Close the service">
+                        <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center"/>
                     </Button>
 
                     <!-- Shown while a game is running -->

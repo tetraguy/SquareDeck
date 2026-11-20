@@ -25,6 +25,21 @@ public partial class MainWindow
         StateChanged += (_, _) => UpdateBackgroundMode();
         Perf.Update(Settings);
         TdpControl.Init(Settings);
+        AllyControl.Init(Settings);
+        _ = HandheldVendors.ApplyAllAsync(Settings); // Legion Go / MSI Claw: mode, fan boost, charge limit
+        if (Settings.ExperimentAdrenalineHook && Settings.AdrenalineAutoHook)
+        {
+            // Adrenaline Hook: new Xbox games go into AMD Software's list, a minute after starting (it scans the Store apps).
+            var later = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+            later.Tick += async (_, _) =>
+            {
+                later.Stop();
+                if (AllGames.Any(g => g.IsRunning)) return; // not while playing: AMD Software is closed to save
+                int added = await AdrenalineHook.AutoHookAsync();
+                if (added > 0) ShowToast("ADRENALINE HOOK", added + (added == 1 ? " new game added to AMD Software" : " new games added to AMD Software"), "", "", "info");
+            };
+            later.Start();
+        }
         LocalMusic.Init(Settings);
         // Background music makes way for Spotify playing inside the launcher.
         SpotifyPlayer.Changed += () => Dispatcher.BeginInvoke(new Action(() => { UpdateMenuMusic(); UpdateNowPlaying(); }));
@@ -242,7 +257,7 @@ public partial class MainWindow
         }
         else
         {
-            ApplyDynamicBackground();
+            RestoreDynamicBackground();
             UpdateMenuMusic();
             _heroKey = null;
             if (Settings.HeroBackgrounds) _ = ShowHeroAsync((GameList.SelectedItem as Game)?.Actual);
@@ -305,6 +320,7 @@ public partial class MainWindow
         if (background == _backgroundMode) { UpdateLean(background && gameRunning); return; }
         _backgroundMode = background;
         UpdateLean(background && gameRunning);
+        PauseAmbient(background);
 
         if (background)
         {

@@ -28,8 +28,31 @@ public static class Ui
         return t;
     }
 
+    /// <summary>Stands for a drawn handheld console (Segoe MDL2 Assets has none), wherever a glyph is taken.</summary>
+    public const string HandheldGlyph = "{handheld}";
+
+    internal static readonly Geometry HandheldShape = Geometry.Parse(
+        "F0 M5,3 H19 A4,4 0 0 1 23,7 V9 A4,4 0 0 1 19,13 H5 A4,4 0 0 1 1,9 V7 A4,4 0 0 1 5,3 Z " +
+        "M7.5,4.8 H16.5 V11.2 H7.5 Z " +
+        "M3.6,6.4 H4.8 V7.4 H5.8 V8.6 H4.8 V9.6 H3.6 V8.6 H2.6 V7.4 H3.6 Z " +
+        "M18.4,7.2 A0.8,0.8 0 1 0 20,7.2 A0.8,0.8 0 1 0 18.4,7.2 Z M19.8,8.8 A0.8,0.8 0 1 0 21.4,8.8 A0.8,0.8 0 1 0 19.8,8.8 Z");
+
     public static TextBlock Glyph(string glyph, double size, string brushKey = "FgBrush")
     {
+        if (glyph == HandheldGlyph)
+        {
+            // A drawing in a TextBlock, so it sits wherever glyphs do and takes the same color.
+            var holder = Text("", size, brushKey);
+            holder.HorizontalAlignment = HorizontalAlignment.Center;
+            holder.Tag = HandheldGlyph;
+            var path = new System.Windows.Shapes.Path
+            {
+                Data = HandheldShape, Stretch = Stretch.Uniform, Width = size * 1.35, Height = size * 0.95, SnapsToDevicePixels = true
+            };
+            path.SetBinding(System.Windows.Shapes.Shape.FillProperty, new System.Windows.Data.Binding(nameof(TextBlock.Foreground)) { Source = holder });
+            holder.Inlines.Add(new System.Windows.Documents.InlineUIContainer(path) { BaselineAlignment = BaselineAlignment.Center });
+            return holder;
+        }
         var t = Text(glyph, size, brushKey);
         t.FontFamily = IconFont;
         t.HorizontalAlignment = HorizontalAlignment.Center;
@@ -621,17 +644,80 @@ public static class Motion
     /// <summary>Where the selected tile grows from, if the UI style says (null = automatic).</summary>
     public static Point? GrowOrigin { get; set; }
 
+    /// <summary>Highlight animations for the selected home tile (Settings > Home screen > Selected game).</summary>
+    public static readonly (string Id, string Name)[] TileHighlights =
+    {
+        ("pulse", "Pulsing ring"), ("steady", "Steady ring"), ("grow", "Tile grows"), ("bounce", "Bounce"),
+        ("lift", "Lift"), ("wobble", "Wobble"), ("breathe", "Breathe"), ("tilt", "Tilt"), ("glow", "Glow pulse"), ("shake", "Shake")
+    };
+
+    /// <summary>How much the highlight animation alone grows the tile (when the UI style doesn't).</summary>
+    public static double HighlightGrow => TileStyle switch { "grow" => 1.05, "bounce" => 1.07, "lift" => 1.03, "wobble" => 1.04, "breathe" => 1.05, "tilt" => 1.05, "shake" => 1.03, _ => 1 };
+
     public static void GrowTile(UIElement? tile, bool on)
     {
         if (tile == null) return;
-        var scale = ScaleOf(tile);
-        double grow = SelectGrow > 1.001 ? SelectGrow : TileStyle == "grow" ? 1.05 : 1;
+        var parts = PartsOf(tile);
+        var scale = parts.Scale;
+        double grow = SelectGrow > 1.001 ? SelectGrow : HighlightGrow;
         double target = on && !Theme.ReduceMotion ? grow : 1;
         Panel.SetZIndex(tile, on ? 1 : 0); // a grown tile sits over its neighbours
         // Big growth goes upward, into the space kept for the title, so the bottom of the tile isn't cut off.
         tile.RenderTransformOrigin = GrowOrigin ?? (grow > 1.1 ? new Point(0.5, 0.92) : new Point(0.5, 0.5));
-        To(scale, ScaleTransform.ScaleXProperty, target, 220, new CubicEase { EasingMode = EasingMode.EaseOut });
-        To(scale, ScaleTransform.ScaleYProperty, target, 220, new CubicEase { EasingMode = EasingMode.EaseOut });
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        bool motion = on && !Theme.ReduceMotion;
+
+        // Off: everything settles back.
+        parts.Rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+        parts.Move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+        parts.Move.BeginAnimation(TranslateTransform.XProperty, null);
+
+        switch (motion ? TileStyle : "")
+        {
+            case "bounce":
+            {
+                var pop = new DoubleAnimation(target, TimeSpan.FromMilliseconds(460)) { EasingFunction = new ElasticEase { Oscillations = 2, Springiness = 5, EasingMode = EasingMode.EaseOut } };
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+                return;
+            }
+            case "lift":
+                parts.Move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-14, TimeSpan.FromMilliseconds(240)) { EasingFunction = new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut } });
+                break;
+            case "wobble":
+            {
+                var wob = new DoubleAnimationUsingKeyFrames();
+                foreach (var (ms, a) in new[] { (0, 0.0), (90, -4.0), (180, 3.5), (270, -2.0), (360, 1.0), (450, 0.0) })
+                    wob.KeyFrames.Add(new EasingDoubleKeyFrame(a, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ms))));
+                parts.Rotate.BeginAnimation(RotateTransform.AngleProperty, wob);
+                break;
+            }
+            case "tilt":
+                parts.Rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(-2.5, TimeSpan.FromMilliseconds(260)) { EasingFunction = new BackEase { Amplitude = 0.6, EasingMode = EasingMode.EaseOut } });
+                break;
+            case "shake":
+            {
+                var shake = new DoubleAnimationUsingKeyFrames();
+                foreach (var (ms, x) in new[] { (0, 0.0), (50, -6.0), (100, 6.0), (150, -4.0), (200, 4.0), (250, -2.0), (300, 0.0) })
+                    shake.KeyFrames.Add(new LinearDoubleKeyFrame(x, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ms))));
+                parts.Move.BeginAnimation(TranslateTransform.XProperty, shake);
+                break;
+            }
+            case "breathe":
+            {
+                // Grows, then gently breathes in and out while it stays selected.
+                var breathe = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever };
+                breathe.KeyFrames.Add(new EasingDoubleKeyFrame(target, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(260)), ease));
+                breathe.KeyFrames.Add(new EasingDoubleKeyFrame(target - 0.03, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1460)), new SineEase { EasingMode = EasingMode.EaseInOut }));
+                breathe.KeyFrames.Add(new EasingDoubleKeyFrame(target, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2660)), new SineEase { EasingMode = EasingMode.EaseInOut }));
+                if (Perf.Active) break; // Performance mode: no endless animation
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, breathe);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, breathe);
+                return;
+            }
+        }
+        To(scale, ScaleTransform.ScaleXProperty, target, 220, ease);
+        To(scale, ScaleTransform.ScaleYProperty, target, 220, ease);
     }
 
     /// <summary>A press: a quick squash, then a spring back to its highlighted size.</summary>
@@ -684,6 +770,16 @@ public static class Motion
     {
         if (ring == null) return;
         // Performance mode: a steady ring (a pulse redraws the screen every frame).
+        if (TileStyle == "glow" && !Theme.ReduceMotion && !Perf.Active && ring is FrameworkElement fe)
+        {
+            // A soft halo in the highlight color that swells and fades around the ring.
+            var accent = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.White;
+            var halo = new System.Windows.Media.Effects.DropShadowEffect { Color = accent, ShadowDepth = 0, BlurRadius = 10, Opacity = 0.9 };
+            fe.Effect = halo;
+            halo.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.BlurRadiusProperty,
+                new DoubleAnimation(8, 34, TimeSpan.FromSeconds(1)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
+            return;
+        }
         if (Theme.ReduceMotion || TileStyle != "pulse" || Perf.Active) { StopPulse(ring); return; }
         ring.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.3, TimeSpan.FromSeconds(1.2))
         {
@@ -696,6 +792,12 @@ public static class Motion
     public static void StopPulse(UIElement? ring)
     {
         if (ring == null) return;
+        // Undo a glow pulse: back to the ring's own effect from the UI style.
+        if (ring is FrameworkElement fe && fe.Effect is System.Windows.Media.Effects.DropShadowEffect { IsFrozen: false })
+        {
+            if (fe.Name == "Ring") fe.SetResourceReference(UIElement.EffectProperty, "RingGlow");
+            else fe.ClearValue(UIElement.EffectProperty);
+        }
         ring.BeginAnimation(UIElement.OpacityProperty, null);
         ring.Opacity = 1;
     }

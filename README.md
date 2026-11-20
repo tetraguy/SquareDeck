@@ -31,27 +31,44 @@ one home screen in front of all of it: pick it up, press A, play.
 - **Built for a controller.** Every page, setting and pop-up works with a gamepad, touch, keyboard or mouse.
 - **Made for handhelds.** Power limits (TDP) per game, a quick menu over your game, and it gets out of the game's way
   while you play.
-- **Yours to style.** 65 UI styles with matching colors, wallpapers, sounds and music.
+- **Yours to style.** 84 UI styles with matching colors, wallpapers, sounds and music.
 
 ## Features
 
 ### Library and games
-- Home row of recent games, favorites, collections, categories, ratings, status and notes
+- Home row of recent games, favorites, collections, categories, ratings and status
+- A notebook for every game: rich-text notes (headings, lists, checklists, highlights, colors) with your screenshots
+  dropped right into the text, pinned and colored note cards, and templates to start from
 - Game pages with details, achievements, screenshots, trailers and play time, for every game (details for non-Steam
   games come from the Steam store when the game is sold there, or Wikipedia)
-- Pick any game's square cover, tall grid, hero image and logo from SteamGridDB, or use your own
-- Library views: Square (the cover as it is), Grid (tall poster art) or Rectangle (the wide store header), in six
-  layouts: Sidebar, Compact, Large tiles, List, Shelves and Spotlight
+- Pick any game's square cover, icon, tall grid, header capsule, hero image and logo from SteamGridDB (one tab each), or
+  use your own, with a progress card while it downloads
+- Library views: Square (the cover as it is), Grid (tall poster art) or Rectangle (the wide store header), in eleven
+  layouts: Sidebar, Compact, Large tiles, List, Shelves, Spotlight, Poster wall, Showcase, Mini grid, Focus list and Timeline, grouped
+  by category, main genre, or played and never played
+- Home row art as Square, Tall grid or Rectangle, in Small, Medium or Large, with ten highlight animations
+- **Wishlist and sales:** your Steam wishlist and games you watch, with prices, discounts and the lowest price seen, a
+  notification when one goes on sale, and a month-view **release calendar**
+- Install stores from SquareDeck, including RecompLauncher (PC recomps) straight from its GitHub releases
 - Launch splash that covers store pop-ups until the game is on screen, with an optional countdown
 - Start Steam games straight from their .exe to skip Steam's launch pop-up
 - Asks before starting a Steam game with an update waiting: update first (with live progress) or play anyway
 - Stop a game from the launcher, with a console-style "Closing software" screen
 - Session summaries, play-time tracking and achievement pop-ups
 - **Cloud gaming:** Xbox Cloud Gaming, GeForce NOW, Amazon Luna and Antstream Arcade on the Stores page, full screen
-  with your controller passed straight to the game. Leave with View + Start (hold), Ctrl+Shift+Q, or the hidden corner button
+  with your controller passed straight to the game. Leave by holding View + Start (or other buttons you choose in Settings), with Ctrl+Shift+Q (also changeable), or the hidden corner button
 
 ### Handheld
-- **TDP control** for AMD handhelds through RyzenAdj, with per-game limits for battery and plugged in
+- **TDP control** for AMD and Intel handhelds (RyzenAdj, the device's own firmware on ROG Ally, Legion Go and MSI Claw,
+  or KX.exe from HandheldCompanion for Intel), with per-game limits for battery and plugged in
+- **<Your model> Specific Settings:** a settings section named after the handheld SquareDeck recognizes (about 75
+  models from ASUS, Lenovo, MSI, Valve, AYANEO, GPD, OneXPlayer, AOKZOE, AYN, ZOTAC and more), with its own power
+  range, its controls, and the list of supported handhelds
+- **My Device:** temperatures, fans, battery health and power draw, battery pace, processor and graphics load, the
+  power limit, storage and display, live with small graphs (a home screen button, off by default)
+- **Legion Go and MSI Claw:** Legion modes / MSI user scenarios, fan boost, charge limit and TDP through their firmware
+- **Adrenaline Hook** (experimental, AMD graphics): adds Xbox, Store and other games to AMD Software so its per-game
+  settings work for them, with Adrenalin switches per game, repair after updates, backups and the Radeon overlay shortcuts
 - Live processor, memory, graphics, storage and network readouts in Settings > Power and performance
 - **Performance Boost:** frees memory before a game starts, with ten animations and matching vibration
 - **Performance overlay:** FPS, frame time, CPU / GPU use, CPU speed, RAM, TDP and battery over your games, in three
@@ -60,16 +77,22 @@ one home screen in front of all of it: pick it up, press A, play.
 - **In-game quick menu** over any full-screen game (Xbox mode too): live CPU / GPU / RAM use, screenshot and record,
   volume, brightness, TDP and exit
 - **Xbox mode home app:** boot straight into SquareDeck on Windows 11's full screen experience, no extra tool needed
-- **ROG Ally buttons:** remap Armoury Crate, Command Center and the back-button combos
+- **ROG Ally buttons:** remap Armoury Crate, Command Center, Xbox Library, M1 / M2 and the back-button combos
+  (ROG Ally, Ally X, Xbox Ally, Xbox Ally X and Xbox Ally X20)
+- **ROG Ally controls:** stick lights (effects, colors, battery level, the selected game's colors, low-battery pulse,
+  game lights that follow the running game or its game profile),
+  ASUS Silent / Performance / Turbo, fan curves, battery charge limit, TDP through ASUS's firmware with no setup,
+  mouse mode and switching off the built-in controller
 - Lean mode while a game runs: lets go of covers, pages and caches, frees graphics memory and lets Windows reclaim
   its memory first, then comes back with focus when the game closes
 - Rests while another app is in front: music, moving backgrounds and animated covers pause
 - Performance mode, low-battery notice and Do not disturb while playing
 
 ### Look and feel
-- 65 UI styles across five layouts: classic row, hero, top row, sidebar and stage
+- 84 UI styles across five layouts: classic row, hero, top row, sidebar and stage, some with gentle ambient animation
+- Your own choice of home-screen button style (13), button shelf (10) and footer (12), on top of any UI style, and 22 color themes
 - Pixel-art, frosted glass, Frutiger Aero, OLED black, console-inspired and themed styles
-- 24 moving backgrounds (or add your own videos), 11 picture wallpapers, 11 music tracks and 7 interface sound packs
+- 26 moving backgrounds (or add your own videos), 18 picture wallpapers, 14 music tracks and 7 interface sound packs
 - Controller button pictures for Xbox, PlayStation and Switch, in two art styles, plus keyboard keys
 - Light, dark, OLED and high-contrast themes, larger text and reduced motion
 - 16 startup animations, and a "Good morning" greeting by your profile picture
@@ -77,13 +100,19 @@ one home screen in front of all of it: pick it up, press A, play.
 ### Built in
 - Web browser with tabs, favorites and controller navigation
 - Multimedia page: music player for your own files, Spotify playing inside the launcher (Premium), now-playing from any app, and Netflix, YouTube, Hulu,
-  Prime Video, Crunchyroll, Disney+, Paramount+ and Tubi full screen with controller controls (each locked to its own site)
-- Captures gallery for Game Bar screenshots and clips, grouped by game, with a built-in share sheet
+  Prime Video, Crunchyroll, Disney+, Paramount+ and Tubi full screen with controller controls (each locked to its own site),
+  opening with a movie-night animation (curtains, film countdown, clapperboard, marquee lights or popcorn); full
+  screen, with the controller read by the page itself, and a now-playing pill on the home screen while one is open
+- Captures gallery for Game Bar screenshots and clips, grouped by game, with a built-in share sheet and 3 to 6 captures per row
 - File explorer, task manager, Wi-Fi, Bluetooth, display and sound settings
 - Terminal (Command Prompt or PowerShell) inside the launcher, and a storage speed test for drives and memory cards
 - Steam friends, game news, search across everything
 - Backup and restore of settings and library
+- Updates install by themselves: the new version downloads, installs silently behind a full-screen progress
+  animation, and SquareDeck opens again
 - Apps in Settings: see every installed app, and uninstall, modify, repair or reset it
+- A play-time dashboard: weekly and 12-week charts, an activity heat map, most-played games, genres, habits, achievements and records
+- Optional player stats on game pages: players now and peaks, owner estimates, monthly players and review history, with SteamDB a press away
 
 ### Some of the Many Available UI Styles
 
@@ -177,7 +206,7 @@ one home screen in front of all of it: pick it up, press A, play.
 | Windows | 10 version 2004 or newer. Windows 11 24H2 for Xbox mode. |
 | Runtime | [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) |
 | Browser | WebView2 Runtime (included with Windows 11 and current Windows 10) |
-| TDP control | An AMD Ryzen handheld. Setup asks for administrator permission once. |
+| TDP control | An AMD Ryzen or Intel handheld (Intel: HandheldCompanion installed, for KX.exe). Setup asks for administrator permission once. |
 
 ## Controls
 
@@ -247,6 +276,13 @@ More notes on individual features are in the [changelog](CHANGELOG.md).
 - FPS in the performance overlay uses [PresentMon](https://github.com/GameTechDev/PresentMon) (MIT), bundled in `SquareDeck/Tools/PresentMon`
 - TDP control uses [RyzenAdj](https://github.com/FlyGoat/RyzenAdj) (LGPL-3.0), bundled in `SquareDeck/Tools/RyzenAdj`
 - ROG Ally button reading is based on [AnyFSE](https://github.com/ashpynov/AnyFSE) by Artem Shpynov (MIT)
+- ROG Ally firmware, lights and controller messages, and the Xbox Ally X20's model id, come from
+  [HandheldCompanion](https://github.com/Valkirie/HandheldCompanion) by Valkirie (CC BY-NC-SA 4.0). The files ported
+  from it (`Services/AllyHardware.cs`, and the parts of `Services/AllyButtons.cs` marked as such) are shared under the
+  same licence. So are the handheld list and power ranges (`Services/Handheld.cs`) and the Legion Go, MSI Claw and
+  Intel commands (`Services/DeviceHelper.cs`, `Services/HandheldVendors.cs`), which follow it too. Intel power limits
+  use KX.exe from your own HandheldCompanion install; SquareDeck doesn't include it
+- Adrenaline Hook (Settings > Experimental) is rebuilt from [Adrenaline Hook](https://github.com/tetraguy/Adrenaline-Hook) by tetraguy
 - Sound packs, music, moving backgrounds and controller glyphs belong to their respective creators
 
 SquareDeck is an independent project. It isn't affiliated with or endorsed by Valve, Microsoft, Nintendo, Sony,

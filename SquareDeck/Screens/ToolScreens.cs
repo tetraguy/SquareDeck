@@ -245,6 +245,33 @@ public sealed class GameProfileScreen : ListScreen
             AddRow("Maximum CPU speed", p.MaxCpu > 0 ? (p.MaxCpu >= 100 ? "No limit" : p.MaxCpu + "%") : "Default", "\uEC48", click: CpuChoice);
             AddRow("Windows power mode", p.PowerMode == null ? "Default" : TdpControl.PowerModeName(p.PowerMode), "\uE83F", click: PowerModeChoice);
         }
+        // The ROG Ally's lights while this game runs.
+        if (AllyControl.IsAlly)
+        {
+            AddHeader("Lights (ROG Ally)");
+            string effect = p.Lights switch
+            {
+                null => "Game color (default)",
+                "everyday" => "Same as outside games",
+                var id => AllyControl.LightModes.FirstOrDefault(m => m.Id == id).Name ?? id
+            };
+            AddRow("Light effect while playing", effect, "\uE781", click: LightsChoice,
+                subtitle: Host.Settings.AllyGameLights ? (p.Lights == null ? "The main color of the game's cover" : null)
+                                                       : "Game lights are off in Settings > ROG Ally controls, so this isn't used");
+            string mode = p.Lights ?? "game";
+            if (mode is "solid" or "breathing" or "sticks")
+            {
+                string one = p.LightColor ?? Host.Settings.AllyLightColor, two = p.LightColor2 ?? Host.Settings.AllyLightColor2;
+                AddRow(mode == "sticks" ? "Left stick color" : "Color", AllyControlScreen.ColorName(one), "\uE790",
+                    click: () => Host.Push(new LedColorScreen("Light color – " + _game.Name, one, hex => { Profile.LightColor = hex; Saved(); })));
+                if (mode is "breathing" or "sticks")
+                    AddRow(mode == "sticks" ? "Right stick color" : "Second color", AllyControlScreen.ColorName(two), "\uE790",
+                        click: () => Host.Push(new LedColorScreen("Second light color – " + _game.Name, two, hex => { Profile.LightColor2 = hex; Saved(); })));
+            }
+        }
+        // AMD Adrenalin settings for this game (with Adrenaline Hook on, and AMD graphics).
+        if (Host.Settings.ExperimentAdrenalineHook && AdrenalineHook.HasAmdGraphics) AddAmdSection(p);
+
         if (!p.IsEmpty) AddRow("Clear this profile", glyph: "", click: () => { Host.Library.For(_game.Key).Profile = null; Saved(); });
     }
 
@@ -253,7 +280,102 @@ public sealed class GameProfileScreen : ListScreen
         var o = Host.Library.For(_game.Key);
         if (o.Profile is { IsEmpty: true }) o.Profile = null;
         Host.Library.Save();
+        AllyControl.ProfileChanged(_game, o.Profile); // shows straight away if the game is running
         Rebuild();
+    }
+
+    /// <summary>
+    /// The game's entry in AMD Software: its Adrenalin switches, what AMD Software recorded about playing it, and the
+    /// metrics overlay while it runs. Steam games are usually in AMD Software already; others can be added from here.
+    /// </summary>
+    private void AddAmdSection(GameProfile p)
+    {
+        AddHeader("AMD Adrenalin");
+        var entry = AdrenalineHook.FindFor(_game);
+        if (entry == null)
+        {
+            AddRow("Add to AMD Software", "Not in AMD Software", "\uE710", click: async () =>
+            {
+                Host.ShowToast("ADRENALINE HOOK", "Adding " + _game.Name + "…", "", "", "info");
+                var added = await AdrenalineHook.AddGameAsync(_game);
+                if (added == null)
+                {
+                    int pick = await Host.AskAsync("Couldn't find its program", "SquareDeck couldn't tell which program runs " + _game.Name + ". Choose it?", "Choose…", "Cancel");
+                    if (pick == 0)
+                    {
+                        var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Choose " + _game.Name + "'s program", Filter = "Programs (*.exe)|*.exe", CheckFileExists = true,
+                            InitialDirectory = !string.IsNullOrEmpty(_game.InstallDir) && System.IO.Directory.Exists(_game.InstallDir) ? _game.InstallDir : null };
+                        if (dialog.ShowDialog() == true) AdrenalineHook.Add(new[] { new HookCandidate(_game.Name, dialog.FileName, dialog.FileName, "Manual") });
+                    }
+                }
+                Host.ShowToast("ADRENALINE HOOK", AdrenalineHook.FindFor(_game) != null ? _game.Name + " is in AMD Software" : "Not added",
+                    AdrenalineHook.ClosedForChange ? "AMD Software was closed to save it" : "", "", "info");
+                Rebuild();
+            }, subtitle: _game.IsSteam ? "AMD Software usually adds Steam games by itself; it hasn't found this one yet"
+                                       : "So AMD Software's per-game settings work for it");
+        }
+        else
+        {
+            // What AMD Software has recorded about playing it.
+            var facts = new List<string>();
+            if (entry.PlayedMinutes > 0) facts.Add(AdrenalineGameScreen.Played(entry.PlayedMinutes));
+            if (entry.AverageFps > 0) facts.Add($"average {entry.AverageFps:0} FPS");
+            if (entry.Percentile95Ms > 0) facts.Add($"95% of frames under {entry.Percentile95Ms:0.0} ms");
+            AddNote("In AMD Software as \u201C" + entry.Title + "\u201D" + (entry.SteamId > 0 ? " (added by AMD Software from Steam)" : "") +
+                    (facts.Count > 0 ? ". AMD Software recorded: " + string.Join(", ", facts) + "." : "."));
+            var sw = AdrenalineHook.Switches(entry.Guid);
+            if (sw != null)
+            {
+                string key = entry.Guid;
+                void Change(Func<AdrenalineHook.GameSwitches, AdrenalineHook.GameSwitches> edit)
+                {
+                    var now = AdrenalineHook.Switches(key);
+                    if (now == null) return;
+                    bool ok = AdrenalineHook.SetSwitches(key, edit(now));
+                    Host.ShowToast("AMD ADRENALIN", ok ? "Saved for " + _game.Name : "Couldn't save", AdrenalineHook.ClosedForChange ? "AMD Software was closed to save it" : "", "", "info");
+                    Rebuild();
+                }
+                static string OnOff(bool on) => on ? "On" : "Off";
+                AddRow("Radeon Super Resolution", OnOff(sw.Upscaling), "\uE740", click: () => Change(x => x with { Upscaling = !x.Upscaling }),
+                    subtitle: "Upscaling for when the game runs below the screen's resolution");
+                if (sw.Upscaling)
+                    AddRow("Sharpness", sw.Sharpness + "%", "\uE7B3", click: async () =>
+                    {
+                        var dialog = new SliderDialog("Sharpness – " + _game.Name, "How much Radeon Super Resolution sharpens the picture.", "Sharpness", "\uE7B3",
+                            sw.Sharpness, null, 0, 100, v => v + "%");
+                        Host.Push(dialog);
+                        int value = await dialog.Result;
+                        Change(x => x with { Sharpness = value });
+                    });
+                AddRow("Fluid Motion Frames", OnOff(sw.FrameGen), "\uE916", click: () => Change(x => x with { FrameGen = !x.FrameGen }),
+                    subtitle: "AMD's frame generation, for smoother motion");
+                if (sw.FrameGen)
+                    AddRow("Frame generation mode", sw.FrameGenMode == 1 ? "Performance" : "Quality", "\uE9E9",
+                        click: () => Change(x => x with { FrameGenMode = x.FrameGenMode == 1 ? 0 : 1 }));
+                AddRow("Force FreeSync", OnOff(sw.FreeSync), "\uE7F4", click: () => Change(x => x with { FreeSync = !x.FreeSync }));
+            }
+            AddRow("Performance metrics while playing", p.AmdMetricsOverlay ? "On" : "Off", "\uE9D9", click: () =>
+            {
+                Profile.AmdMetricsOverlay = !Profile.AmdMetricsOverlay;
+                Saved();
+            }, subtitle: "AMD Software's FPS and temperature overlay shows by itself when " + _game.Name + " starts, and goes when it closes");
+            var e = entry;
+            AddRow("More in Adrenaline Hook", null, "\uE768", click: () => Host.Push(new AdrenalineGameScreen(e.Title, e.ExePath, e.Guid)),
+                subtitle: "Favorite and hidden in AMD Software, its folder, removing it");
+        }
+    }
+
+    private async void LightsChoice()
+    {
+        // The game's color first (the default), then the same as outside games, then every effect.
+        var options = new List<(string? Id, string Name)> { (null, "Game color (default)"), ("everyday", "Same as outside games") };
+        options.AddRange(AllyControl.LightModes.Where(m => m.Id is not ("" or "game")).Select(m => ((string?)m.Id, m.Name)));
+        int choice = await Host.AskAsync("Light effect while playing", "Used while " + _game.Name + " runs, with game lights on.",
+            options.Select(o => o.Name).ToArray());
+        if (choice < 0 || choice >= options.Count) return;
+        Profile.Lights = options[choice].Id;
+        if (options[choice].Id is not ("solid" or "breathing" or "sticks")) { Profile.LightColor = null; Profile.LightColor2 = null; }
+        Saved();
     }
 
     private async void Resolution()
@@ -665,6 +787,10 @@ public sealed class StoresScreen : GridScreen
             AddTile(cs.Face(TileSize, TileSize, 18), cs.Name, TileSize, () => Host.Push(new CloudGameScreen(cs)));
         }
 
+        // Prices and release days of the games you want.
+        int onSale = Host.PriceWatch.Games.Count(g => g.OnSale);
+        AddTile(GlyphBox(TileSize, TileSize, "\uE8EC"), onSale > 0 ? $"Wishlist · {onSale} on sale" : "Wishlist and sales", TileSize, () => Host.Push(new WishlistScreen()));
+        AddTile(GlyphBox(TileSize, TileSize, "\uE787"), "Release calendar", TileSize, () => Host.Push(new ReleaseCalendarScreen()));
         AddTile(GlyphBox(TileSize, TileSize, "\uE710"), "Add more stores", TileSize, () => Host.Push(new AddStoresScreen()));
         int hiddenInstalled = _all.Count(s => s.Installed && hidden.Contains(s.Name));
         if (hiddenInstalled > 0)
@@ -809,22 +935,29 @@ public sealed class AddStoresScreen : ListScreen
 
     private async void Install(StoreApp store)
     {
+        bool github = store.Name == RecompLauncher.Name;
         int choice = await Host.AskAsync("Get " + store.Name,
-            "Install it here with the Windows Package Manager, or download the installer from its website.",
-            "Install now", "Open the download page", "Cancel");
+            github ? "Download the newest x64 installer from its GitHub releases and run it, or open the releases page."
+                   : "Install it here with the Windows Package Manager, or download the installer from its website.",
+            "Install now", github ? "Open the releases page" : "Open the download page", "Cancel");
         if (choice == 1) { ProcessUtil.Open(store.DownloadUrl); return; }
         if (choice != 0) return;
 
-        _busy = $"Installing {store.Name}… this can take a few minutes. Windows may ask for permission.";
+        _busy = github ? $"Downloading {store.Name}…" : $"Installing {store.Name}… this can take a few minutes. Windows may ask for permission.";
         Rebuild();
         bool ok;
-        try { ok = await Task.Run(() => Stores.InstallAsync(store)); }
+        var progress = new Progress<double>(p =>
+        {
+            _busy = p < 0.999 ? $"Downloading {store.Name}… {p:P0}" : $"Running the {store.Name} installer… follow its steps.";
+            Rebuild();
+        });
+        try { ok = await Task.Run(() => Stores.InstallAsync(store, progress)); }
         catch (Exception) { ok = false; }
         _busy = null;
 
         if (ok) await Host.AskAsync(store.Name + " was installed", "Open it from the Stores page to sign in.", "OK");
         else if (await Host.AskAsync("Couldn't install " + store.Name,
-                     "The Windows Package Manager didn't complete the install.", "Open the download page", "Close") == 0)
+                     github ? "The download or the installer didn't finish." : "The Windows Package Manager didn't complete the install.", "Open the download page", "Close") == 0)
             ProcessUtil.Open(store.DownloadUrl);
         await LoadAsync();
     }

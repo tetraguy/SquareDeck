@@ -198,8 +198,12 @@ public sealed class ColorThemeScreen : GridScreen
 /// <summary>Background for the home screen.</summary>
 public sealed class WallpaperScreen : GridScreen
 {
+    private readonly WrapPanel _blur = new() { Margin = new Thickness(0, 0, 0, 12) };
+
     public WallpaperScreen() : base("Wallpaper")
     {
+        Body.Children.Insert(0, _blur);
+        BuildBlur();
         AddTile(GlyphBox(208, 117, ""), "None", 208, () => Pick(""));
         for (int i = 0; i < Theme.Wallpapers.Length; i++)
         {
@@ -218,6 +222,41 @@ public sealed class WallpaperScreen : GridScreen
             AddTile(swatch, name, 208, () => Pick(setting));
         }
         AddTile(GlyphBox(208, 117, ""), "Choose image…", 208, Browse);
+    }
+
+    public override void OnShown()
+    {
+        base.OnShown();
+        BuildBlur();
+    }
+
+    /// <summary>How soft the wallpaper is, as a row of choices (the same levels as the moving background's).</summary>
+    private void BuildBlur()
+    {
+        var s = Host?.Settings ?? Settings.Load();
+        _blur.Children.Clear();
+        var label = Ui.Text("Blur", 17, "FgBrush", bold: true);
+        label.VerticalAlignment = VerticalAlignment.Center;
+        label.Margin = new Thickness(4, 0, 14, 6);
+        _blur.Children.Add(label);
+        foreach (var (radius, name) in MainWindow.DynamicBlurLevels)
+        {
+            int r = radius;
+            var b = Ui.PanelButton(name);
+            b.FontSize = 16;
+            b.Margin = new Thickness(0, 0, 6, 6);
+            if (Math.Abs(s.WallpaperBlur - r) <= 2) b.SetResourceReference(ForegroundProperty, "AccentBrush");
+            b.DataContext = "blur:" + r;
+            b.Click += (_, _) =>
+            {
+                Host.Settings.WallpaperBlur = r;
+                Host.Settings.Save();
+                Host.ApplyLook();
+                BuildBlur();
+                FocusLater(_blur.Children.OfType<Button>().FirstOrDefault(x => x.DataContext as string == "blur:" + r));
+            };
+            _blur.Children.Add(b);
+        }
     }
 
     private void Pick(string setting)
@@ -247,65 +286,6 @@ public sealed class WallpaperScreen : GridScreen
         {
             _ = Host.AskAsync("Couldn't use that image", ex.Message, "OK");
         }
-    }
-}
-
-/// <summary>Your own rating, status and notes for one game.</summary>
-public sealed class GameNotesScreen : ListScreen
-{
-    public static readonly string[] Statuses = { "Playing", "Finished", "Dropped", "Backlog" };
-
-    private readonly Game _game;
-
-    public GameNotesScreen(Game game) : base("Rating and notes – " + game.Name)
-    {
-        _game = game;
-    }
-
-    private ItemOverride Mine => Host.Library.For(_game.Key);
-
-    protected override void Build()
-    {
-        var mine = Host.Library.Find(_game.Key);
-        AddRow("My rating", mine is { Rating: > 0 } ? Ui.Stars(mine.Rating) : "Not rated", "", click: Rate);
-        AddRow("Status", string.IsNullOrWhiteSpace(mine?.Status) ? "Not set" : mine.Status, "", click: SetStatus);
-        AddRow("Notes", string.IsNullOrWhiteSpace(mine?.Notes) ? "None" : "Edit", "", click: EditNotes);
-        if (!string.IsNullOrWhiteSpace(mine?.Notes)) AddNote(mine.Notes);
-        AddNote("Rating and status can be used to filter and sort the game library.");
-    }
-
-    private void Saved()
-    {
-        Host.Library.Save();
-        Host.LibraryEdited();
-        Rebuild();
-    }
-
-    private async void Rate()
-    {
-        var labels = Enumerable.Range(1, 5).Reverse().Select(Ui.Stars).Append("Not rated").ToArray();
-        int choice = await Host.AskAsync("Rate " + _game.Name, null, labels);
-        if (choice < 0) return;
-        Mine.Rating = choice == 5 ? 0 : 5 - choice;
-        Saved();
-    }
-
-    private async void SetStatus()
-    {
-        int choice = await Host.AskAsync("Status of " + _game.Name, null, Statuses.Append("Not set").ToArray());
-        if (choice < 0) return;
-        Mine.Status = choice < Statuses.Length ? Statuses[choice] : null;
-        Saved();
-    }
-
-    private async void EditNotes()
-    {
-        var text = await Host.PromptAsync("Notes for " + _game.Name,
-            "Anything you want to remember: where you left off, settings, tips. Leave it empty to remove the note.",
-            Host.Library.Find(_game.Key)?.Notes ?? "");
-        if (text == null) return;
-        Mine.Notes = text.Trim().Length == 0 ? null : text.Trim();
-        Saved();
     }
 }
 

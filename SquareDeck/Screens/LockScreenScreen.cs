@@ -40,7 +40,7 @@ public sealed class LockScreenScreen : GridScreen
         // Your SquareDeck wallpaper, when it's a picture of your own.
         var mine = Host.Settings.Wallpaper;
         if (mine.Length > 0 && !mine.StartsWith("image:") && File.Exists(mine))
-            AddTile(Face(mine), "Your SquareDeck wallpaper", W, () => _ = ApplyAsync(mine), into: row);
+            AddTile(Mark(Face(mine), mine), "Your SquareDeck wallpaper", W, () => _ = ApplyAsync(mine), into: row);
         Body.Children.Add(row);
 
         Body.Children.Add(Ui.Header("SquareDeck wallpapers"));
@@ -50,11 +50,47 @@ public sealed class LockScreenScreen : GridScreen
         {
             var path = Path.Combine(AppContext.BaseDirectory, "Wallpapers", file);
             if (!File.Exists(path)) continue;
-            var tile = AddTile(Face(path), name, W, () => _ = ApplyAsync(path), into: wallpapers);
+            var tile = AddTile(Mark(Face(path), path), name, W, () => _ = ApplyAsync(path), into: wallpapers);
             first ??= tile;
         }
         Body.Children.Add(wallpapers);
         FocusLater(first ?? row.Children.OfType<Button>().FirstOrDefault());
+    }
+
+    /// <summary>A "Current" badge on the picture that's on the lock screen now (as far as SquareDeck set it).</summary>
+    private Grid Mark(Grid face, string path)
+    {
+        if (!string.Equals(Host.Settings.LockScreenSource, path, StringComparison.OrdinalIgnoreCase)) return face;
+        var badge = new Border
+        {
+            CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 4, 12, 5), Margin = new Thickness(10),
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top
+        };
+        badge.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+        var text = new TextBlock { Text = "\u2713  On the lock screen", FontSize = 13, FontWeight = FontWeights.SemiBold };
+        text.SetResourceReference(TextBlock.ForegroundProperty, "BgBrush");
+        badge.Child = text;
+        face.Children.Add(badge);
+        var ring = new Border { BorderThickness = new Thickness(3), CornerRadius = new CornerRadius(12) };
+        ring.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+        face.Children.Add(ring);
+        return face;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool LockWorkStation();
+
+    /// <summary>Says plainly that it worked (and offers to lock now to see it), and marks the picture.</summary>
+    private async Task ConfirmAsync(string source)
+    {
+        Host.Settings.LockScreenSource = source;
+        Host.Settings.Save();
+        _status.Text = "\u2713 Lock screen updated.";
+        UiSound.Select();
+        Host.Rumble(60);
+        Build();
+        if (await Host.AskAsync("Lock screen updated", $"\"{Path.GetFileNameWithoutExtension(source)}\" is now the picture Windows shows when the device is locked.",
+                "OK", "Lock now to see it") == 1)
+            LockWorkStation();
     }
 
     private static Grid Face(string path)
@@ -119,8 +155,7 @@ public sealed class LockScreenScreen : GridScreen
         {
             var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(copy);
             await Windows.System.UserProfile.LockScreen.SetImageFileAsync(file);
-            _status.Text = "Done. Lock the device (Windows + L) to see it.";
-            UiSound.Select();
+            await ConfirmAsync(source);
             return;
         }
         catch (Exception) { }
@@ -140,7 +175,12 @@ public sealed class LockScreenScreen : GridScreen
         {
             using var p = Process.Start(new ProcessStartInfo("cmd.exe", "/c " + commands) { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden });
             if (p != null) await p.WaitForExitAsync();
-            _status.Text = p?.ExitCode == 0 ? "Done. Lock the device (Windows + L) to see it." : "Windows didn't accept the change.";
+            if (p?.ExitCode == 0) await ConfirmAsync(source);
+            else
+            {
+                _status.Text = "Windows didn't accept the change.";
+                await Host.AskAsync("Lock screen not changed", "Windows didn't accept the change.", "OK");
+            }
         }
         catch (Exception)
         {

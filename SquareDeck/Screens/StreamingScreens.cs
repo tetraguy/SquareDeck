@@ -121,8 +121,22 @@ public sealed class StreamingScreen : Screen
     private readonly TextBlock _blockedText = Ui.Text("", 15, "FgBrush");
     private readonly DispatcherTimer _blockedTimer = new() { Interval = TimeSpan.FromSeconds(3) };
     private readonly Border _loading = new() { Height = 3, HorizontalAlignment = HorizontalAlignment.Left, Width = 0, VerticalAlignment = VerticalAlignment.Bottom };
-    private bool _ready, _disposed, _started, _tvLayout;
+    private readonly Grid _introHost = new() { IsHitTestVisible = false };
+    private DateTime _openedAt;
+    private bool _ready, _disposed, _started, _tvLayout, _revealed;
     private DateTime _pointerMovedAt = DateTime.MinValue;
+    private DateTime _padAliveAt = DateTime.MinValue;
+
+    /// <summary>The page is reading the controller itself (see <see cref="StreamingPad"/>), so SquareDeck stays out of the way.</summary>
+    public bool PadInPage => _ready && _revealed && !_disposed && DateTime.UtcNow - _padAliveAt < TimeSpan.FromSeconds(2.5);
+
+    /// <summary>What's on: the show or film's name (or the page's), and whether it's playing.</summary>
+    public string NowTitle { get; private set; } = "";
+    public bool NowPlaying { get; private set; }
+
+    /// <summary>Raised when a service opens, closes, goes to the background, or what's playing changes.</summary>
+    public static event Action? StateChanged;
+    private static void Changed() => StateChanged?.Invoke();
     private bool _stickWasPressed;
     private double _moveX, _moveY;
 
@@ -227,21 +241,49 @@ public sealed class StreamingScreen : Screen
         root.Children.Add(page);
         Grid.SetRow(_footer, 2);
         root.Children.Add(_footer);
+        // The opening animation, over everything until the page is ready.
+        Grid.SetRowSpan(_introHost, 3);
+        root.Children.Add(_introHost);
         Content = root;
     }
 
     public override void OnShown()
     {
         _current = this;
+        Changed();
         if (_started)
         {
-            _web.Visibility = _ready ? Visibility.Visible : Visibility.Hidden;
+            _web.Visibility = _ready && _revealed && _introHost.Children.Count == 0 ? Visibility.Visible : Visibility.Hidden;
             _ = Run("document.querySelectorAll('video').forEach(function(v){ if(v.dataset.sdPaused==='1'){ v.dataset.sdPaused=''; v.play(); } });");
             Dispatcher.BeginInvoke(() => _web.Focus(), DispatcherPriority.Input);
             return;
         }
         _started = true;
+        _openedAt = DateTime.UtcNow;
+        _introHost.Children.Add(StreamingIntro.Build(Host.Settings.StreamingIntro, Service, Service.Face(320, 150, 34)));
         _ = StartAsync();
+    }
+
+    /// <summary>Shows the page once it has loaded and the opening animation has played.</summary>
+    private async void Reveal()
+    {
+        if (_revealed || _disposed) return;
+        _revealed = true;
+        var left = TimeSpan.FromMilliseconds(StreamingIntro.Length) - (DateTime.UtcNow - _openedAt);
+        if (left > TimeSpan.Zero) await Task.Delay(left);
+        if (_disposed) return;
+        // The page is a window of its own and can't fade, so the animation fades out over it first.
+        _introHost.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(260)));
+        await Task.Delay(260);
+        _introHost.Children.Clear();
+        _introHost.Visibility = Visibility.Collapsed;
+        // Full screen, like the cloud services: no bars, just the service.
+        _top.Visibility = _footer.Visibility = Visibility.Collapsed;
+        if (_disposed || !Host.IsTop(this)) return;
+        _web.Visibility = Visibility.Visible;
+        _web.Focus();
+        await Task.Delay(1200);
+        _ = Run("window.__sdpad && window.__sdpad.toast('B  Back   ·   X  Play / pause   ·   Y  Menu')");
     }
 
     // The page is a window of its own and would cover any pop-up drawn over it, so it steps aside for them.
@@ -249,7 +291,7 @@ public sealed class StreamingScreen : Screen
 
     public override void OnResumed()
     {
-        if (_ready) _web.Visibility = Visibility.Visible;
+        if (_ready && _introHost.Children.Count == 0) _web.Visibility = Visibility.Visible;
         Dispatcher.BeginInvoke(() => _web.Focus(), DispatcherPriority.Input);
     }
 
@@ -258,6 +300,8 @@ public sealed class StreamingScreen : Screen
     {
         if (_disposed) return;
         _web.Visibility = Visibility.Hidden;
+        NowPlaying = false;
+        Changed();
         _ = Run("document.querySelectorAll('video').forEach(function(v){ if(!v.paused){ v.dataset.sdPaused='1'; v.pause(); } });");
         Host.ShowToast("STREAMING", Service.Name + " is still open", "Paused. Go back to it from Multimedia > Streaming.", "", "info");
     }
@@ -293,8 +337,17 @@ public sealed class StreamingScreen : Screen
             core.DocumentTitleChanged += (_, _) => _title.Text = core.DocumentTitle;
             // Full-screen video: the bars step aside.
             core.ContainsFullScreenElementChanged += (_, _) =>
-                _top.Visibility = _footer.Visibility = core.ContainsFullScreenElement ? Visibility.Collapsed : Visibility.Visible;
+                _top.Visibility = _footer.Visibility = core.ContainsFullScreenElement || _revealed ? Visibility.Collapsed : Visibility.Visible;
             await core.AddScriptToExecuteOnDocumentCreatedAsync(BrowserScreen.HelperScript);
+            // The controller, read by the page itself.
+            string accent = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color is { } a ? $"#{a.R:X2}{a.G:X2}{a.B:X2}" : "#3AA0FF";
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(StreamingPad.For(accent));
+            core.WebMessageReceived += (_, e) =>
+            {
+                string message;
+                try { message = e.TryGetWebMessageAsString(); } catch (Exception) { return; }
+                OnPageMessage(message);
+            };
             _web.NavigationCompleted += (_, e) =>
             {
                 ShowLoading(false);
@@ -302,7 +355,7 @@ public sealed class StreamingScreen : Screen
                 {
                     _ready = true;
                     _status.Visibility = Visibility.Collapsed;
-                    if (Host.IsTop(this)) { _web.Visibility = Visibility.Visible; _web.Focus(); }
+                    Reveal();
                 }
             };
             _web.Source = new Uri(_tvLayout ? "https://www.youtube.com/tv" : Service.Url);
@@ -313,6 +366,44 @@ public sealed class StreamingScreen : Screen
             _status.Text = Service.Name + " couldn't open. It needs the Microsoft Edge WebView2 Runtime, which comes with Windows 11 " +
                            "and current Windows 10 (microsoft.com/edge/webview2).\n\n" + ex.Message;
         }
+    }
+
+    private void OnPageMessage(string message)
+    {
+        if (message == "sd:alive") { _padAliveAt = DateTime.UtcNow; return; }
+        if (!Host.IsTop(this) && !message.StartsWith("sd:media|")) return;
+        switch (message)
+        {
+            case "sd:leave": UiSound.Back(); Host.Pop(this); return; // kept open, paused
+            case "sd:menu": _ = MenuAsync(); return;
+            case "sd:quick": Host.Push(new QuickSettingsScreen()); return;
+        }
+        if (message.StartsWith("sd:media|"))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(message["sd:media|".Length..]);
+                var r = doc.RootElement;
+                string title = r.GetProperty("title").GetString() ?? "", page = r.GetProperty("page").GetString() ?? "";
+                if (title.Length == 0) title = CleanTitle(page);
+                bool playing = r.GetProperty("playing").GetBoolean();
+                if (title != NowTitle || playing != NowPlaying) { NowTitle = title; NowPlaying = playing; Changed(); }
+            }
+            catch (Exception) { }
+        }
+    }
+
+    /// <summary>"Stranger Things | Netflix" → "Stranger Things"; the bare service name when it's just the home page.</summary>
+    private string CleanTitle(string page)
+    {
+        var t = page;
+        foreach (var sep in new[] { " | ", " - ", " – ", " • " })
+        {
+            int i = t.LastIndexOf(sep, StringComparison.Ordinal);
+            if (i > 0 && t[(i + sep.Length)..].Contains(Service.Name.Split(' ')[0], StringComparison.OrdinalIgnoreCase)) t = t[..i];
+        }
+        t = t.Trim();
+        return t.Equals(Service.Name, StringComparison.OrdinalIgnoreCase) || t.Length == 0 ? "" : t;
     }
 
     private void ShowLoading(bool on)
@@ -331,6 +422,8 @@ public sealed class StreamingScreen : Screen
     {
         string where = Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.Host : "another site";
         _blockedText.Text = $"Stays on {Service.Name}: {where} isn't opened here";
+        // Full screen has no bar to show it in, so the page shows it.
+        if (_revealed) _ = Run("window.__sdpad && window.__sdpad.toast(" + JsonSerializer.Serialize(_blockedText.Text) + ")");
         _blocked.Visibility = Visibility.Visible;
         _blockedTimer.Stop();
         _blockedTimer.Start();
@@ -446,6 +539,7 @@ public sealed class StreamingScreen : Screen
         _blockedTimer.Stop();
         try { _web.Dispose(); } catch (Exception) { }
         if (ReferenceEquals(_current, this)) _current = null;
+        Changed();
     }
 
     private bool PointerActive => DateTime.UtcNow - _pointerMovedAt < TimeSpan.FromSeconds(4);

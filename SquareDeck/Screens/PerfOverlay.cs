@@ -131,7 +131,7 @@ public sealed class PerfOverlay : Window
     }
 
     /// <summary>The process of the window in front, and whether it fills its whole screen (a game, usually).</summary>
-    internal static (int Pid, bool FullScreen) Foreground()
+    internal static (int Pid, bool FullScreen) ForegroundApp()
     {
         try
         {
@@ -273,7 +273,7 @@ public sealed class PerfOverlay : Window
     private void Refresh()
     {
         // When to show: always, or only while a full-screen program other than SquareDeck is in front.
-        var (pid, full) = Foreground();
+        var (pid, full) = ForegroundApp();
         bool ours = pid == Environment.ProcessId;
         bool show = _s.OsdWhen == "always" || (full && !ours && pid != 0);
         FrameCounter.TargetPid = ours ? 0 : pid;

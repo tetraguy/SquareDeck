@@ -209,7 +209,7 @@ public sealed class GameConfirmScreen : Screen
         body.Margin = new Thickness(0, 12, 0, 0);
         body.MaxWidth = 500;
         panel.Children.Add(body);
-        _confirm = GameCard.Pill(confirmLabel, "", true, p, () => { _yes = true; Host.Pop(this); });
+        _confirm = GameCard.Pill(confirmLabel, "", true, p, () => { _yes = true; Host.Pop(this); });
         panel.Children.Add(GameCard.Buttons(_confirm, GameCard.Pill("Cancel", "", false, p, () => Host.Pop(this))));
         Content = GameCard.Frame(p, panel);
     }

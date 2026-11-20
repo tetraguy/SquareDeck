@@ -55,7 +55,10 @@ public sealed class CapturesScreen : GridScreen
     private static readonly string[] ImageTypes = { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
     private static readonly string[] VideoTypes = { ".mp4", ".mkv", ".avi", ".wmv", ".mov", ".webm" };
     private const int MaxItems = 300;
-    private const double TileWidth = 280, TileHeight = 158;
+    // Three across at 280 wide is the original size; more per row share the same width (each tile also takes ~16 of margin).
+    private int PerRow => Math.Clamp(Host.Settings.CapturesPerRow, 3, 6);
+    private double TileWidth => Math.Floor(3 * (280 + 16) / (double)PerRow - 16);
+    private double TileHeight => Math.Round(TileWidth * 158 / 280);
 
     private readonly TextBlock _note;
     private readonly StackPanel _filters = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
@@ -325,6 +328,16 @@ public sealed class CapturesScreen : GridScreen
         Filter("images", "Screenshots", images);
         Filter("videos", "Videos", videos);
         Filter("albums", "Albums", albums);
+        // Size: how many captures across, from 3 (big) to 6 (small). Each press steps to the next.
+        var size = new Button { Style = Ui.StyleOf("PillButton"), Content = IconText("\uE80A", $"{PerRow} per row", 16, null), Margin = new Thickness(10, 0, 0, 0) };
+        size.Click += (_, _) =>
+        {
+            Host.Settings.CapturesPerRow = PerRow >= 6 ? 3 : PerRow + 1;
+            Host.Settings.Save();
+            Reload();
+            FocusLater(_filters.Children.Count > 4 ? _filters.Children[4] : null); // stays on this button
+        };
+        _filters.Children.Add(size);
         var open = new Button { Style = Ui.StyleOf("PillButton"), Content = IconText("\uE8B7", "Open folder", 16, null), Margin = new Thickness(10, 0, 0, 0) };
         open.Click += (_, _) => ProcessUtil.Open(Directory.Exists(Folder) ? Folder : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos));
         _filters.Children.Add(open);

@@ -300,11 +300,56 @@ public partial class MainWindow
         FriendsBtn.Visibility = Shown(Settings.ShowFriendsButton);
         ExplorerBtn.Visibility = Shown(Settings.ShowExplorerButton);
         NewsBtn.Visibility = Shown(Settings.ShowNewsButton);
+        MyDeviceBtn.Visibility = Shown(Settings.ShowMyDeviceButton && Handheld.IsHandheld);
+        DrawMyDeviceIcon();
 
         _buttons = ButtonRow.Children.OfType<Button>().Where(b => b.Visibility == Visibility.Visible).ToArray();
         if (_buttonIndex >= _buttons.Length) _buttonIndex = -1;
         foreach (var hidden in ButtonRow.Children.OfType<Button>().Where(b => b.Visibility != Visibility.Visible)) hidden.Tag = null;
         UpdateButtonHighlight();
+    }
+
+    /// <summary>For Settings: shows or hides the home screen buttons after a change.</summary>
+    public void RefreshHomeButtonsPublic()
+    {
+        RefreshHomeButtons();
+        Dispatcher.BeginInvoke(new Action(FitButtonRow), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void MyDevice_Click(object sender, RoutedEventArgs e) => Push(new Screens.MyDeviceScreen());
+
+    /// <summary>My Device's button shows a drawn handheld in place of the font glyph the round buttons use.</summary>
+    private void DrawMyDeviceIcon()
+    {
+        void Draw()
+        {
+            MyDeviceBtn.ApplyTemplate();
+            var glyph = FindChild<TextBlock>(MyDeviceBtn, t => Equals(t.FontFamily?.Source, "Segoe MDL2 Assets") && t.Name != "Label");
+            if (glyph?.Parent is not Panel holder || holder.Children.OfType<System.Windows.Shapes.Path>().Any()) return;
+            double size = glyph.FontSize > 0 ? glyph.FontSize : 34;
+            var path = new System.Windows.Shapes.Path
+            {
+                Data = Ui.HandheldShape,
+                Stretch = Stretch.Uniform, Width = size * 1.35, Height = size * 0.95,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+            };
+            path.SetBinding(System.Windows.Shapes.Shape.FillProperty, new System.Windows.Data.Binding(nameof(Foreground)) { Source = MyDeviceBtn });
+            glyph.Visibility = Visibility.Collapsed;
+            holder.Children.Insert(holder.Children.IndexOf(glyph), path);
+        }
+        if (MyDeviceBtn.IsLoaded) Draw();
+        else MyDeviceBtn.Loaded += (_, _) => Draw();
+    }
+
+    private static T? FindChild<T>(DependencyObject parent, Func<T, bool> match) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T t && match(t)) return t;
+            if (FindChild(child, match) is { } found) return found;
+        }
+        return null;
     }
 
     private void Home_Click(object sender, RoutedEventArgs e)
@@ -838,6 +883,20 @@ public partial class MainWindow
             try
             {
                 SaveEverything();
+                if (file.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Installed silently: a full-screen progress window takes over, then the new version opens.
+                    string Hex(string key, string fallback) => (Application.Current.Resources[key] as SolidColorBrush)?.Color.ToString() ?? fallback;
+                    string ready = SilentUpdate.Start(file, release.Tag, Hex("BgBrush", "#FF0B0E14"), Hex("FgBrush", "#FFFFFFFF"), Hex("AccentBrush", "#FF2E9BFF"),
+                        Settings.RumbleStrength > 0 ? Settings.RumbleStrength / 100.0 : 0, Settings.UpdaterLook, Settings.UpdaterHaptic);
+                    // Stay on screen until the update window shows, so there's no flash of the desktop in between.
+                    await RunBusyAsync("Starting the update", async () =>
+                    {
+                        for (int i = 0; i < 100 && !File.Exists(ready); i++) await Task.Delay(100);
+                    });
+                    Close();
+                    return;
+                }
                 Updater.Install(file);
                 Close();
                 return;
@@ -846,6 +905,18 @@ public partial class MainWindow
         }
         if (await AskAsync("The update couldn't be installed", problem ?? "Something went wrong.", "Open the release page", "Close") == 0)
             ProcessUtil.Open(release.PageUrl);
+    }
+
+    /// <summary>Settings > Updates > Try the update screen: the real window, with nothing installed.</summary>
+    public void PreviewUpdateScreen()
+    {
+        string Hex(string key, string fallback) => (Application.Current.Resources[key] as SolidColorBrush)?.Color.ToString() ?? fallback;
+        try
+        {
+            SilentUpdate.Preview(Hex("BgBrush", "#FF0B0E14"), Hex("FgBrush", "#FFFFFFFF"), Hex("AccentBrush", "#FF2E9BFF"),
+                Settings.RumbleStrength > 0 ? Settings.RumbleStrength / 100.0 : 0, Settings.UpdaterLook, Settings.UpdaterHaptic);
+        }
+        catch (Exception ex) { ShowToast("UPDATES", "Couldn't show the update screen", ex.Message, "", "info"); }
     }
 
     // ================================================================ reset

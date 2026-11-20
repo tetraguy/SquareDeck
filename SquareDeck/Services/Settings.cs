@@ -34,6 +34,16 @@ public sealed class Settings
     public List<string> ExplorerPins { get; set; } = new();
     public string ExplorerView { get; set; } = "grid";
     public bool WelcomeMessage { get; set; } = true;
+    public bool ShowPlayerStats { get; set; }                 // game pages: players now, peaks, owners, monthly players, review history
+    public bool ShowClock { get; set; } = true;
+    public int WallpaperBlur { get; set; }                  // still wallpaper blur radius (same levels as the moving background)
+    public string UiFont { get; set; } = "style";           // app-wide font, or "style" for the UI style's own
+    public string TileArt { get; set; } = "style";          // home row art: style | square | tall | wide
+    public string TileSize { get; set; } = "style";         // home row size: style | small | medium | large
+    public string NavButtonStyle { get; set; } = "style";   // home screen buttons: style | circle | square | small | outline | glossy | card | tab | large | soft | wide | accent | neon
+    public string FooterStyle { get; set; } = "style";      // style | line | bar | glassbar | pill | none
+    public string DockStyle { get; set; } = "style";        // the shelf behind the buttons: style | none | glass | solid | outline | glow
+    public string LockScreenSource { get; set; } = "";       // the picture SquareDeck last put on the Windows lock screen
     // The performance overlay (Power and performance)
     public bool OsdEnabled { get; set; }
     public string OsdWhen { get; set; } = "games";        // games (full-screen programs) | always
@@ -44,7 +54,14 @@ public sealed class Settings
     public string OsdSize { get; set; } = "medium";
     public int OsdOpacity { get; set; } = 90;          // "Good morning, Richy" by the profile picture at startup
     public List<string> CloudServices { get; set; } = new(); // cloud gaming services shown on the Stores page (xcloud, geforcenow, luna, antstream)
-    public string CloudCorner { get; set; } = "top-right";    // where the little exit button sits during a cloud game
+    public string CloudCorner { get; set; } = "top-right";
+    /// <summary>Controller buttons held to leave a cloud game (an id from CloudGameScreen.LeaveButtons).</summary>
+    public string CloudLeaveButtons { get; set; } = "view+start";
+    /// <summary>How long they're held, in seconds.</summary>
+    public double CloudLeaveHold { get; set; } = 1.5;
+    /// <summary>Keyboard shortcut that leaves a cloud game (an id from CloudGameScreen.LeaveKeys).</summary>
+    public string CloudLeaveKey { get; set; } = "ctrl+shift+q";
+    public string CloudIntro { get; set; } = "random";     // skyrise | storm | beam | random | none    // where the little exit button sits during a cloud game
     public string LibraryLayout { get; set; } = "sidebar"; // Game library: sidebar, compact, large, list, shelves or spotlight
     public string LibraryView { get; set; } = "square"; // Game library: square covers, tall "grid" art, or wide "header" capsules
     public string ExplorerSort { get; set; } = "name";
@@ -188,6 +205,10 @@ public sealed class Settings
 
     /// <summary>YouTube in the Streaming tab uses its TV layout (built for arrow keys / a controller).</summary>
     public bool StreamingYouTubeTv { get; set; }
+    /// <summary>The animation while a streaming service opens: an id from StreamingIntro.Styles.</summary>
+    public string StreamingIntro { get; set; } = "random";
+    /// <summary>How the library groups games: "", "category", "genre" or "played".</summary>
+    public string LibraryGroupBy { get; set; } = "";
 
     /// <summary>Show a splash screen with the game's cover from pressing Play until the game is running.</summary>
     public bool LaunchSplash { get; set; } = true;
@@ -305,12 +326,64 @@ public sealed class Settings
 
     /// <summary>Ally button id ("ac", "mode-cc", ...) to action id (see AllyButtons.Actions).</summary>
     public Dictionary<string, string> AllyBindings { get; set; } = AllyButtons.DefaultBindings();
+    /// <summary>The Ally button (an id from AllyButtons.Buttons) that opens the in-game quick menu; "" = off. (Was experimental; the name is kept so the setting carries over.)</summary>
+    public string ExperimentAllyQuickMenu { get; set; } = "";
+    /// <summary>Which ROG Ally this is, when it isn't found by itself ("" = find out by itself).</summary>
+    public string AllyModel { get; set; } = "";
 
     /// <summary>Also handle the Ally's other keys (microphone, screenshot, keyboard, record).</summary>
     public bool AllyExtraKeys { get; set; } = true;
 
+    // ---- ROG Ally controls (Settings > ROG Ally). "" means leave it as ASUS / Armoury Crate set it.
+    /// <summary>The lights: "" (leave), off, solid, breathing, rainbow, wheel, sticks, accent, battery, game.</summary>
+    public string AllyLights { get; set; } = "";
+    /// <summary>The effect to come back to when the lights are switched on again.</summary>
+    public string AllyLightsLastOn { get; set; } = "";
+    public string AllyLightColor { get; set; } = "#FF0033";
+    public string AllyLightColor2 { get; set; } = "#00A0FF";
+    /// <summary>slow, medium or fast.</summary>
+    public string AllyLightSpeed { get; set; } = "medium";
+    /// <summary>5, 10, 30, 60 or 100 (percent).</summary>
+    public int AllyLightPercent { get; set; } = 100;
+    /// <summary>The lights pulse red when the battery is low (whatever they're set to).</summary>
+    public bool AllyLowBatteryFlash { get; set; } = true;
+    /// <summary>Game lights: while a game runs, the lights use its game profile's effect (its cover's colors by default).</summary>
+    public bool AllyGameLights { get; set; } = true;
+    /// <summary>The lights go off while a game is running, and come back after.</summary>
+    public bool AllyLightsOffPlaying { get; set; }
+    /// <summary>ASUS operating mode: "" (leave), silent, performance or turbo.</summary>
+    public string AllyAsusMode { get; set; } = "";
+    /// <summary>Fan curve: "" (leave), quiet, balanced, cool or max.</summary>
+    public string AllyFan { get; set; } = "";
+    /// <summary>Stop charging at this percentage; 0 = leave as it is.</summary>
+    public int AllyChargeLimit { get; set; }
+    /// <summary>M1 / M2 send F18 / F17, so they can be given actions in ROG Ally buttons.</summary>
+    public bool AllyBackKeys { get; set; }
+    // ---- Handheld Specific Settings (Legion Go, MSI Claw: through the device helper)
+    /// <summary>The maker's performance mode to set at start; -1 = leave as it is.</summary>
+    public int HandheldPowerMode { get; set; } = -1;
+    /// <summary>Fans at full speed.</summary>
+    public bool HandheldFanBoost { get; set; }
+    /// <summary>Stop charging at this percentage (Legion: 80% on or off); 0 = leave as it is.</summary>
+    public int HandheldChargeLimit { get; set; }
+    /// <summary>"My Device" on the home screen's buttons (handhelds only).</summary>
+    public bool ShowMyDeviceButton { get; set; }
+    /// <summary>Settings > Experimental: Adrenaline Hook (AMD graphics only).</summary>
+    public bool ExperimentAdrenalineHook { get; set; }
+    /// <summary>Adrenaline Hook: add new games from the library to AMD Software by themselves.</summary>
+    public bool AdrenalineAutoHook { get; set; }
+
+    /// <summary>The update screen's moving background (an id from SilentUpdate.Looks; "random" = a different one each time).</summary>
+    public string UpdaterLook { get; set; } = "random";
+    /// <summary>The update screen's vibration style (an id from SilentUpdate.Haptics).</summary>
+    public string UpdaterHaptic { get; set; } = "random";
+    /// <summary>How TDP is set: "" (RyzenAdj helper) or "asus" (the Ally's firmware, no setup needed).</summary>
+    public string TdpMethod { get; set; } = "";
+
     /// <summary>Open Captures showing one album per game.</summary>
     public bool CaptureAlbums { get; set; }
+    /// <summary>How many captures fit across the Captures page (3 to 6).</summary>
+    public int CapturesPerRow { get; set; } = 3;
     public bool CaptureAlbumIcons { get; set; } = true; // the game's picture next to each album's name
     public bool RumbleOnNotifications { get; set; } = true; // a short buzz when a notification pops up
     public bool RumbleInSettings { get; set; } = true;      // a light tick moving from row to row in Settings
@@ -391,7 +464,17 @@ public sealed class Settings
     public string SummonKey { get; set; } = "none";
 
     /// <summary>Where the in-game quick menu appears: "right", "left" or "center".</summary>
-    public string OverlaySide { get; set; } = "right";
+    public string OverlaySide { get; set; } = "left";
+    /// <summary>The in-game quick menu's six quick buttons (ids from QuickOverlay.TileChoices).</summary>
+    public List<string> OverlayTiles { get; set; } = QuickOverlay.DefaultTiles.ToList();
+    /// <summary>The stats along the top of the in-game quick menu (ids from QuickOverlay.StatChoices), in order.</summary>
+    public List<string> OverlayStats { get; set; } = QuickOverlay.DefaultStats.ToList();
+    /// <summary>TDP presets and slider in the in-game quick menu (when TDP control is set up).</summary>
+    public bool OverlayTdp { get; set; } = true;
+    /// <summary>The in-game quick menu takes the controller from the game while it's open (by becoming the window in front).</summary>
+    public bool OverlayTakesController { get; set; } = true;
+    /// <summary>Once: the quick menu moved to the left (5.30), for everyone who had it on the right.</summary>
+    public bool OverlayMovedLeft { get; set; }
 
     /// <summary>Wash the game details page in a soft gradient of the cover's colors.</summary>
     public bool DetailsGradient { get; set; } = true;
@@ -407,6 +490,11 @@ public sealed class Settings
 
     /// <summary>The user's own Steam Web API key, for the Friends page. Empty until they add one.</summary>
     public string SteamWebApiKey { get; set; } = "";
+    /// <summary>A notification when a wishlist or watched game goes on sale (at least <see cref="SaleAlertMin"/>% off).</summary>
+    public bool SaleAlerts { get; set; } = true;
+    public int SaleAlertMin { get; set; } = 1;
+    /// <summary>A notification on the day a wishlist game comes out.</summary>
+    public bool ReleaseAlerts { get; set; } = true;
 
     /// <summary>Show the battery percentage next to the battery icon.</summary>
     public bool ShowBatteryPercent { get; set; } = true;
@@ -450,7 +538,10 @@ public sealed class Settings
                     s.BootAnimation ??= "logo";
                     s.SummonCombo ??= "default";
                     s.SummonKey ??= "none";
-                    s.OverlaySide ??= "right";
+                    s.OverlaySide ??= "left";
+                    if (!s.OverlayMovedLeft) { if (s.OverlaySide == "right") s.OverlaySide = "left"; s.OverlayMovedLeft = true; }
+                    s.OverlayTiles ??= QuickOverlay.DefaultTiles.ToList();
+                    s.OverlayStats ??= QuickOverlay.DefaultStats.ToList();
                     s.MainDisplay ??= "";
                     s.HiddenStores ??= new();
                     s.ButtonAnimationStyle ??= "grow";
