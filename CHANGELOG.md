@@ -1,8 +1,5 @@
 # Changelog
 
-All notable changes to SquareDeck, newest first. Each section can be pasted as the description of the
-matching GitHub release; the launcher's updater shows that description as the changelog before installing.
-
 ## 6.1.0
 
 ### Added
