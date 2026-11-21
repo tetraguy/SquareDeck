@@ -1,7 +1,494 @@
 # Changelog
 
-All notable changes to SquareDeck, newest first. Each section can be pasted as the description of the
-matching GitHub release; the launcher's updater shows that description as the changelog before installing.
+All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
+version newer than the one installed (each section starts at its "## version" heading).
+
+## 6.24.0
+
+- 11 more fonts in the font picker, for 37 in total: Cyber Gaming, Forbidden Love, Sixrow, Tindamare, Orange Juice, Aurely Roliste, Marching Brush, Foliager Warmth, Frostpop, Jhendela and Prixma.
+- New fonts for ten styles:
+  - Cyber Gaming for Starship Bridge and Rain Circuit.
+  - Forbidden Love for Lavender Fields and Solitude.
+  - Sixrow for Phosphor and Blueprint.
+  - Tindamare for Frosted Light and Ocean Breeze.
+  - Orange Juice for Party Time and Bubblegum.
+- Bubblegum's and Phosphor's descriptions now name their new fonts.
+- No style uses Aurely Roliste, Marching Brush, Foliager Warmth, Frostpop, Jhendela or Prixma, because their numbers are missing or replaced by logos and pictures, which would break the clock. The picker says so for each.
+
+## 6.23.0
+
+- 22 new ready-made styles, for 100 in total:
+  - Arcade Cabinet, Lullaby, Autumn Walk, Mission Control, Glitch Pop and Party Time.
+  - Scrapbook, Treasure Map, Neon Highway, Cozy Cabin, Hologram and Starship Bridge.
+  - Sparkle Club, Third Eye, Rewind, Ocean Breeze, Desert Dusk and Starfall.
+  - Rainy Window, Matcha, Bubblegum and Phosphor.
+- Many of them bring a gentle moving decoration to the home screen, which no ready-made style had before: chasing marquee bulbs, blinking pixel stars, falling leaves, a sweeping radar, glitches, confetti, stickers, an inked compass, a neon horizon, drifting lights, floating glass, status lights, sparkles or a rolling VHS tape.
+- Each has its own colors, font, sounds and music. Most use a gradient backdrop of their own, and Third Eye uses the Chased picture.
+
+## 6.22.1
+
+- Fixed: choosing how to start a new style did nothing. The style builder failed to open, and the error was hidden. It opens now, and any future problem opening it shows a message instead of failing silently.
+- With Switch in use, "Create a style" no longer offers Switch twice.
+
+## 6.22.0
+
+- Create your own UI style (Settings > Themes > Your styles > Create a style). Start from Switch, the style in use, or any ready-made style, then choose:
+  - **Background:** any picture, gradient or moving background, or a picture or video of your own.
+  - **Sound:** background music (or a track of your own), interface sounds, and a separate navigation sound for moving the highlight. Each sound plays as you pick it.
+  - **Colors:** light, dark or OLED, a color theme, and a highlight color (or any color code).
+  - **Type and shape:** the font and the corners.
+  - **Home screen:** button shape (round, big, small, rounded square, square, card, pill, wide card), button look (solid, outline, highlight color, neon, glossy, frosted glass), a glow around the selection, the button shelf, the footer, button pictures (simple, controller icons, pixel art), game art (square, tall, rectangle) and Continue where you left off.
+  - **Effect:** halftone, comic book, retro tape, arcade, pixel night, futuristic, sci-fi cockpit, synthwave, Y2K, dreamcore, glitch, cozy, autumn, scrapbook, storybook, party, blueprint, carbon fiber, handheld LCD or vignette.
+  - **Animations:** home buttons, opening pages, the selected game, startup, closing and starting a game.
+  - **Windows lock screen:** leave it alone, use the style's wallpaper, or choose a picture. It's set when you choose the style.
+- The builder shows a large picture of the home screen that follows every change. Most choices open a page of pictures of the home screen with each option.
+- Save your style with its own name. From its card you can use, edit, duplicate, export, rename or delete it.
+- Export a style as a .sdstyle file, with any pictures, videos, music and sound packs of your own, and import styles others share.
+- Interface sounds can now use a different set for moving around than for everything else.
+- Style previews now draw the highlight-colored, neon and glossy buttons, the solid, outline and glow shelves, and the big, rounded-square and wide button shapes.
+
+## 6.21.0
+
+- Six new UI styles from two new sets, for 78 in total:
+  - Acid wave: Acid Garden (neon doodles on black), Melt (60s melting swirls) and Kaleidoscope (rainbow spirals).
+  - Y2K: Black Bug (a live black-and-white Y2K desktop, true black for OLED), Silver Lining (chrome bubbles with milky glass and glossy buttons) and Waivy Web (a warped wireframe grid).
+  - The acid styles use near-solid panels and a darker page wash so text stays readable over the busy art.
+- New picture wallpapers: Bad Trip, Chased, Too Much Acid, Your Fault, Silver Lining and Waivy Web. Chased has no style of its own.
+- New live wallpaper: Black Bug, converted from WebM/AV1 to H.264 so Windows can play it, in the renamed "Vaporwave and Y2K" group.
+
+## 6.20.0
+
+- Nine new live wallpapers: Gamer Den, Pixel Forest, Dark Sunset, Emerald, Pixel Ride, Midnight and Sleepy under Pixel art, and Summer Steam and Fall Blossom under Scenery. Dreamcore is now listed under Scenery too.
+  - The videos are re-encoded to 1080p with no sound, which takes them from about 150 MB to about 36 MB.
+- Nine new UI styles are built around them, each with its own colors, font, sounds and music:
+  - Gamer Den, Emerald Skies, Pixel Woods, Ember Horizon, Midnight Valley, Coastline Cruise, Nap Time, Seaside Summer and Blossom Night.
+  - The pixel-art styles also bring the pixel button pictures.
+- To make room, they replace nine styles:
+  - Six reused a live wallpaper another style already had: Spearmint, Emerald Rush, Aurora Bay, Graphite Ember, Obsidian Tide and Tidal Glass.
+  - Three only had a plain gradient: Daybreak, Lagoon and Dusk Bloom.
+  - There are still 72 styles. If you were using one of the removed styles, SquareDeck goes back to Switch.
+
+## 6.19.0
+
+- Every UI style now comes with a font picked to go with it. 43 of the 72 styles have a new one, including:
+  - Synth's thin retro lines for Sunset Drive, Neon and Vice Beach.
+  - Vislar for the airy, futuristic styles (Frosted Dark, Minimal, Stargazer, Quicksilver).
+  - Pixel It for Pixel City and Pocket Pals, and the Home Video date stamp for Retro and Analog Signal.
+  - Against Perfection's serif for Gilded, Dorado and Moonlit River, and Amazing Midnight's poster lettering for Cinema and Blue Moon.
+  - Hand lettering for the softer styles: Dreamink (Sakura, Cloud Nine, Spearmint, Corner Café, Dreamcore), Always Be Honest (Late Night Study, Me o Tú) and Happy Chicken (Plumber's Holiday, Grape Soda).
+  - Essentialo for Plague Doctor, Microsoft Sans Serif for Start Menu, and Windows' own Sitka, Corbel, Candara, Constantia and Franklin Gothic where they suit.
+- Each style's name in the Themes page is shown in its font.
+- The font picker's first choice is now "Match the style". Any other font is used with every style.
+- Font descriptions are corrected, and demo fonts that have no numbers now say so.
+
+## 6.18.0
+
+### New
+- **A "Font" section in Settings > Look and feel**, with a sample of the font in use right under it.
+  - Choosing a font opens a picker that shows every font in its own type.
+  - 16 new fonts come with SquareDeck, in a new Fonts folder:
+    - sans and display: Modesans, Vislar, Synth, Essentialo, Glafort;
+    - serif: Against Perfection;
+    - scripts: Amazing Midnight, Soul Seashell;
+    - handwriting: Dreamink, Jotbrisk, Always Be Honest, Childnotes;
+    - playful: Aboli, Happy Chicken;
+    - retro: Home Video (a VHS date stamp) and Pixel It (blocky pixels).
+  - That's 26 fonts with the Windows ones. A character a font doesn't have is drawn in Segoe UI.
+- The Font choice moved here from "Top bar".
+
+## 6.17.4
+
+### Changed
+- **"My themes, looks and wallpaper" in Settings > Look and feel only shows with the Switch style.** With any other
+  style, that part of the page shows just "Profile picture", under a "Profile" heading.
+
+## 6.17.3
+
+### Changed
+- **"Make your own" is only for the Switch style too.** Wallpaper, color theme, tile corners and sound set are hidden
+  with any other style, as "Ready-made looks" are. A note says why and that picking Switch brings them back.
+  "My themes" stays available with every style.
+
+## 6.17.2
+
+### Changed
+- **"Ready-made looks" only shows while the Switch style is in use.** These presets set light or dark, colors,
+  wallpaper, corners and sounds together. Every other style brings all of that itself, so with those styles the
+  section is hidden from the theme page.
+
+## 6.17.1
+
+### Changed
+- **Settings > Themes shows three styles to a row** instead of two. The cards and their pictures are a little smaller,
+  so more styles fit on the screen at once.
+
+## 6.17.0
+
+### New
+- **Dreamcore**, a new style in Settings > Themes (72 now). It's liminal and half-remembered: an endless tiled hall over
+  open water moves behind the home screen.
+  - Deep ultramarine panels with a faint tile grid over everything, like the tiled walls in the video.
+  - A warm amber highlight, like the lone sign far down the hall, with a soft glow on the tile you're on.
+  - Small square-ish corners, like the tiles.
+  - The Dreamy SFX sounds and a new hazy track, "Dreamcore".
+- A new moving background, "Dreamcore", and a new music track, "Dreamcore". You can also use them on their own.
+
+## 6.16.1
+
+### Changed
+- **Only the Switch style lets you choose Follow system, Light, Dark or OLED.** The Theme row in Settings > Look and
+  feel only shows while Switch is in use. Every other style always uses its own light, dark or OLED colors.
+  - Your choice for Switch is kept while you try other styles: picking a style no longer changes it, and it's back
+    when you return to Switch.
+  - High contrast still works with every style.
+
+## 6.16.0
+
+### New
+- **Fifty new styles in Settings > Themes**, 71 in all. Each one is built around a moving background or a picture, with
+  a color theme, interface sounds and music picked to go with it. All of them keep the Switch layout and round buttons.
+  - With a moving background (26):
+    Moonlit River, First Light, Rain Circuit, Cloud Nine, Stargazer, Spore Grove, Meadow, Geyser Steam, Fountain
+    Plaza, Silver Blade, Temple of Time, Plague Doctor, Pocket Pals, Plumber's Holiday, Analog Signal, Gilded,
+    Quicksilver, Velvet Static, Soft Focus, Spearmint, Emerald Rush, Graphite Ember, Aurora Bay, Late Night Study,
+    Obsidian Tide, Tidal Glass.
+  - With a picture (18):
+    Solitude, Blue Moon, Corner Café, Cloud Pool, Crimson Hour, Dorado, Gold Dust, Jewel Box, Lavender Fields, Vice
+    Beach, Me o Tú, Next Door, Nostalgia, Terra, The View, Reflections, Viborl, Start Menu.
+  - With a gradient (6):
+    Dusk Bloom, Grape Soda, Sandstone, Daybreak, Lagoon, Pine Lodge.
+  - They mix dark, light and true-black (OLED) themes and fonts (serif, monospaced, rounded, bold), along with touches
+    like a soft glow on the selection, frosted or smoked glass, glossy buttons, scanlines, paper grain, a carbon weave
+    or a vignette.
+  - They use the built-in sound sets and the Dreamy SFX, Switch 2 and Steam Big Picture Ambience packs.
+  - The colors, wallpaper, sounds and music come with a style when "Match theme, wallpaper, sounds and music" is on.
+
+## 6.15.3
+
+### Removed
+- **The ten styles that changed the Switch layout:** Steam Big Picture, Waves, Xenon, Grids, Sphere, Desktop, Stage,
+  Tokyo Night, Synthwave and Neon Cyberpunk. They moved the buttons into tabs or a sidebar, or put the games along the
+  top or in the middle. The 21 styles left all keep the Switch layout (the row of games with the round buttons under
+  it) and change only its colors, type, corners, buttons, wallpaper, sounds and music. If one of the removed styles was
+  in use, SquareDeck goes back to Switch.
+
+### Changed
+- **Every style uses the round buttons**, centered under the games as in Switch. No more square, small, card or tab
+  buttons.
+
+## 6.15.2
+
+### Changed
+- **"Themes and Looks" is now called "Themes"** in Settings and everywhere else that mentions it.
+
+## 6.15.1
+
+### Fixed
+- **The shelf behind the round buttons was too big in some styles.** It was sized to the row the buttons sit in, which
+  is often much taller than the buttons, so it came out far too tall and was cut off at the bottom. It now fits around
+  the buttons, with a little room underneath for the dot under the current view.
+
+## 6.15.0
+
+### Changed
+- **Switch is the only look again, and it has 31 styles to pick from**, in Settings > Themes and Looks. Each style
+  has a picture of its home screen: Switch, Steam Big Picture, Frosted, Frosted Dark, Frosted Light, Sunset Drive,
+  Blueprint, Forest, Newsprint, Deep Ocean, Sakura, Terminal, Cinema, Carbon, Pastel, Pop Art, Neon, Minimal, Waves,
+  Xenon, Grids, Sphere, Desktop, Stage, Tokyo Night, OLED, Pixel City, Retro, Aero, Synthwave and Neon Cyberpunk.
+  - Each style changes the home screen layout, colors, type, corners and buttons. With "Match theme, wallpaper,
+    sounds and music" on, it also brings its own theme, wallpaper or moving background, sounds and music.
+  - "Surprise me" picks a random style.
+
+### Removed
+- **The ubiquity, Aniki, J Hero, SquareDeck, Solaris, X Dash, Orbit and Blades looks**, with their home screens,
+  pages, footers, top bars, power menus, quick settings and startup animations. If one was in use, SquareDeck goes back
+  to Switch.
+- **The PlayStation, Xbox and Dreamcast interface sounds** (the PS5, PSP, Xbox One, Xbox 360 and Dreamcast sound packs).
+  If one was selected, the interface sounds go back to the usual set. The styles that used them now use built-in
+  sound sets.
+- The "From the look" startup animation. If it was chosen, the Logo pop plays.
+
+## 6.14.0
+
+### New
+- **A new look: Blades**, inspired by the Xbox 360 "Blades" dashboard (Settings > Themes and Looks).
+  - Every main button is a blade. The ones before the current one are stacked as curved silver blades on the left,
+    each with its name reading down it, and the ones after it on the right. The current one is a curved, glossy blue
+    panel in the middle with its own tab down the left edge.
+  - Left and right (or LB / RB) flip through the blades, and the panel slides in from that side. You can also click a
+    blade.
+  - On Games (Home), Favorites and Apps, the panel shows:
+    - your gamer card: picture, name, games, installed games and hours played;
+    - under it, the list of games as rows with an icon and a name, the one you're on glossy white (up and down move);
+    - beside the list, the game's logo or cover, its name, details and description;
+    - a "Play Game" bar along the bottom.
+    A starts the game, X opens its page and Y its options, as in every look.
+  - On the other blades (Captures, Multimedia, Friends, Stores, Settings, Power…), the panel says what's there and
+    A opens it.
+  - Other parts of the look:
+    - a light silver theme;
+    - the time and status icons on a glossy silver capsule at the top right;
+    - Xbox sounds;
+    - a startup animation in which the blades sweep in and the blue panel opens between them.
+
+## 6.13.2
+
+### Changed
+- **The controller symbol at the start of the home footer only shows in Switch.** The other looks start with the
+  now-playing pill. SquareDeck starts with "MENU" and a menu symbol.
+
+## 6.13.1
+
+### Changed
+- **No more shared row of tabs: each look draws its top buttons its own way.**
+  - Orbit: the main views are plain words at the top left. The current one is bright and the others are dimmed but
+    readable over light artwork. The other buttons are small round icons that turn white when you're on them.
+  - SquareDeck: rounded-rectangle tabs like a handheld's library, with the current one filled slate. The other buttons
+    are plain icons in the same bar.
+  - J Hero: every button is a small translucent pill with its icon and name. The current one is dark navy, and the one
+    you're on has a blue edge.
+
+## 6.13.0
+
+### Changed
+- **Aniki, J Hero and Solaris have home screens of their own**, rebuilt from the themes they're modeled on, as
+  ubiquity was in 6.7.0:
+  - Aniki: the game's logo large on the left and a panel of its numbers on the right edge (time played, last played,
+    size, year, where it's from). A dark band of shortcuts, each an icon and a name, runs across the screen above a row
+    of tall covers, and the cover you're on is lifted. Up from the covers reaches the shortcuts.
+  - J Hero: the logo at the top left with small framed tags (year, last played or "Not Played", where it's from), and
+    a big clock at the top right. Filter pills sit above a dark navy strip of tall covers along the bottom.
+  - Solaris: the game's name large and light over its artwork, with its details and genres under it. Square covers run
+    along the bottom above a dock of icons, and Down from the covers reaches the dock.
+- **SquareDeck:** the main buttons are tabs in the top bar, with the current one filled. Under the row are the game's
+  name and its buttons (Play, Add to favorites, More), and the black bottom bar starts with "MENU".
+- **Orbit:** your picture is at the top right, and the tabs start at the left edge. The welcome message comes out of
+  the picture's left side, as in ubiquity.
+- **Stores follows the look:**
+  - Aniki, Solaris and Orbit lay it out like ubiquity: the store you're on large at the top, in each look's type
+    (heavy, light capitals, light).
+  - SquareDeck shows labeled rows ("Stores", "More").
+  - J Hero and X Dash keep the grid with their own tiles.
+
+## 6.12.0
+
+### New
+- **"From the look" startup animation**: each look opens its own way. Choosing a look selects it (when "Match
+  wallpaper, sounds and music" is on); you can still pick any other in Settings > Look and feel > Startup animation.
+  - ubiquity: a magenta line draws across and the name rises in thin spaced capitals, left of center, over a soft
+    magenta glow.
+  - Aniki: a frosted card swells in under a big, heavy name.
+  - J Hero: on navy, a glowing blue ring draws itself around the logo.
+  - SquareDeck: the logo and name with a spinning arc under them, like a handheld booting.
+  - Solaris: a lime block slides in and the name follows in light capitals.
+  - X Dash: a green orb swells and flares white, and the name appears out of the light.
+  - Orbit: soft particles of light drift up through deep blue, then the name glows in.
+  - Switch keeps its logo pop.
+
+## 6.11.1
+
+### Changed
+- **ubiquity's sounds:** choosing ubiquity now sets the interface sounds to Chime, the game start chime to "From the
+  sound pack" and the background music to Sun Rays. As with the other looks, this only happens when "Match wallpaper,
+  sounds and music" is on, and you can change any of them after.
+
+## 6.11.0
+
+### Changed
+- **ubiquity: the Stores page is laid out like ubiquity's home screen.**
+  - The store you're on is shown large at the top left: its logo, its name in thin spaced capitals, a magenta line and
+    a line about it.
+  - Under that, "S T O R E S" over a row of small square tiles, and "M O R E" over smaller tiles for the wishlist, the
+    release calendar and adding stores.
+  - The tiles have no names under them, as on the home screen.
+- **Settings home no longer has the "Home" banner** at the top. The page is already titled Settings.
+
+## 6.10.2
+
+### Changed
+- **ubiquity: the welcome message comes out of the left side of your picture** at the top right and slides left, then
+  goes back behind the picture.
+- **ubiquity: the rail draws over everything on the home screen**, including the game's details, the time and status
+  icons, and the footer with the now-playing pill. Before, those were hidden or showed on top of it. Pages opened from
+  home still cover the rail.
+
+## 6.10.1
+
+### Changed
+- **ubiquity: the welcome message comes from the left.** It slides out beside the rail, under the time, as a
+  square-cornered bubble. Your picture is at the top right in ubiquity, so the bubble used to slide out beside it, off
+  the edge of the screen.
+- **ubiquity: the open rail covers the time and status icons** beside it, instead of leaving them showing on top of it.
+
+## 6.10.0
+
+### Changed
+- **The power options and quick settings follow the look**, in where they appear and how they're drawn:
+  - ubiquity: both are solid drawers from the left edge with a magenta edge. The power options are a list under a
+    spaced "P O W E R" heading.
+  - Aniki: frosted panels with glass tiles and a white ring. The power options are square tiles.
+  - J Hero: navy panels with a blue edge and glowing blue rings.
+  - SquareDeck: quick settings is a panel down the right side, like a handheld's quick menu. The power options are a
+    list in the middle, with slate tiles and a white ring.
+  - Solaris: dark panels with a lime top edge, square tiles that turn lime and captions in capitals.
+  - X Dash: both are panels down the right side, like a console's guide, with grey tiles and a thick white ring. The
+    power options are a list.
+  - Orbit: both are sheets that rise from the bottom, with soft rounded buttons that turn white with a glow.
+
+## 6.9.0
+
+### Changed
+- **Stores, and every other page of tiles, follow the look.** The tiles' corners, fill, edge, captions and highlight
+  ring now match each look:
+  - ubiquity: square, dark see-through boxes with a hairline edge, light captions, a thin magenta ring.
+  - Aniki: frosted boxes with a white ring.
+  - J Hero: navy boxes with a blue edge and a glowing blue ring.
+  - SquareDeck: flat slate boxes with a white ring.
+  - Solaris: square boxes, captions in small capitals, a lime ring.
+  - X Dash: grey tiles with a thick white ring.
+  - Orbit: soft rounded boxes, centered light captions, a glowing white ring.
+
+### Fixed
+- **ubiquity: the "Recently added" heading ran into the game's description.** The description now shortens to two
+  lines, one or none when space is tight, and the logo and details shrink if they still don't fit.
+
+## 6.8.3
+
+### Changed
+- **ubiquity: quick settings is a drawer from the left edge.** It slides out from off the screen over the rail, runs the
+  full height of the screen, is solid, and has a magenta edge, next to where ubiquity keeps the time and status icons.
+
+## 6.8.2
+
+### Changed
+- **Each look has its own home footer** (it was the Switch footer in all of them). The now-playing and running-game
+  pills and the button hints show in all of them.
+  - ubiquity: no line, a dark fade along the bottom, smaller hints.
+  - Aniki: a frosted bar across the bottom with a hairline on top.
+  - J Hero: a floating navy bar with a blue edge.
+  - SquareDeck: a solid black bar.
+  - Solaris: a floating outline in lime.
+  - X Dash: a glowing green line.
+  - Orbit: a floating frosted pill.
+
+## 6.8.1
+
+### Fixed
+- **ubiquity: the rail was see-through.** The game's name and details showed through it when it was open. It's solid
+  now, open or closed, and what's behind it is hidden while it's open.
+
+## 6.8.0
+
+### New
+- **Settings now takes on each look's design, not just its colors.**
+  - ubiquity: a column on the left over the artwork, thin spaced headings, rows on hairlines with a magenta bar and glow
+    on the one you're on.
+  - Aniki: a wider column, a big bold banner, frosted cards with a white ring.
+  - J Hero: navy cards with a blue edge, the section's icon in a ring.
+  - SquareDeck: two panes like a handheld console's settings, with the sections in a dark list on the left, plain rows
+    on the right and a light fill on the one you're on.
+  - Solaris: square cards, lime blocks for icons, a block of lime beside the row you're on.
+  - X Dash: two panes, grey tiles with a thick white ring.
+  - Orbit: two panes, soft rounded rows with a bright glow.
+  - Every other list in SquareDeck uses the same row design as the look's Settings.
+- **The time and status icons at the top of the home screen follow the look:**
+  - ubiquity: small, at the top left beside the rail.
+  - Aniki: in a dark capsule.
+  - J Hero: in a framed navy panel.
+  - SquareDeck, X Dash and Orbit: the time after the icons. Orbit sets it apart with a hairline.
+  - Solaris: the time in a block of lime.
+- **ubiquity: the menu mark opens the rail** into a list of icons with their names, and closes it again. It also opens
+  on its own while the controller is in it.
+
+## 6.7.1
+
+### Fixed
+- **The home footer was cut off in the new looks.** The now-playing and running-game pills and the button hints were
+  squeezed into a strip too short to show them. Every look now has the same footer as Switch: the line, the button
+  hints and the pills, at full height. In ubiquity it starts right of the icon rail.
+
+## 6.7.0
+
+### Changed
+- **The ubiquity look's home screen was rebuilt to match the ubiquity theme** instead of reusing the old layout:
+  - A thin rail of icons down the left, with a menu mark at the top. Left from the first game reaches it.
+  - The game's logo large at the top left, no longer cut off at the edge.
+  - A line of details, outlined genre chips and a short description under the logo, from the Steam store for Steam games.
+  - The artwork full screen behind it, with a dark fade from the left.
+  - A "R E C E N T L Y   A D D E D" row of small covers along the bottom.
+- The other looks will be rebuilt the same way, one at a time.
+
+## 6.6.1
+
+### Fixed
+- **Settings > Themes and Looks was empty.** The section showed only its banner and the way back; the looks now appear.
+- **Moving background and Windows lock screen were missing from Settings > Look and feel** (since 6.4.0, when their
+  heading was renamed). They're back at the top of the section.
+
+## 6.6.0
+
+### New
+- **Seven new looks** in Settings > Themes and Looks, each with its own home screen, its own frame for every page
+  (title, header clock and footer), its own game page, its own Play button and its own library layout:
+  - **ubiquity** (inspired by RedSchism's ubiquity for Playnite): cinematic. The game's artwork fills the screen with
+    its logo, details and description on the left and a "Recently added" row of tall covers, magenta accents, thin
+    spaced page titles. The game page puts the logo, numbers and an outlined Play over full-screen artwork; the library
+    is a poster wall.
+  - **Aniki** (inspired by Mike Aniki's Aniki ReMake): a couch console. Big artwork and logo, tall covers that lift the
+    one you're on, a black bar of button hints and the clock on every page. The game page has the numbers in a panel on
+    the right; the library shows the game you're on large above the tiles.
+  - **J Hero** (inspired by Jhanlon95's J-Hero): made for handhelds. The logo over the artwork, tabs of filters and
+    tall covers with their names on a navy background. The game page has stat panels and Play on the left and the
+    description on the right.
+  - **SquareDeck** (inspired by davidkgriggs's Playnite Deck): a handheld console UI. Rows of tall covers under a
+    "Games" heading, tabs underneath and a black bar of button hints. The game page is a banner with the logo in it
+    and a play bar with a green Play and your numbers.
+  - **Solaris** (inspired by And360red's Solaris): sleek and dark with lime highlights. The artwork and the game's name
+    across the screen, square covers, a bar along the bottom. The game page has a card with the cover, details, numbers
+    and Play beside a big picture of the game.
+  - **X Dash**: in the spirit of today's Xbox home screen. The artwork behind a row of tiles with the one you're on
+    larger, shortcut cards underneath and green highlights. The game page has the name, Play and details on the left
+    and the cover large on the right.
+  - **Orbit**: in the spirit of today's PlayStation home screen. Small round tiles along the top with the one you're
+    on growing out of the row, the artwork filling the screen and the logo and Play large below. The game page has a
+    big white Play and your numbers as large glass cards.
+- Choosing a look brings its colors, sounds and music (unless style matching is off) and sets the library to its
+  layout and art; you can change those afterwards. Each look shows a picture of itself in Themes and Looks.
+
+## 6.5.0
+
+### New
+- **Themes and Looks**, a new section in Settings and the first step of a new theme engine. A look is a complete
+  design for SquareDeck: its home screen and its own design for every page, drawn separately from every other look,
+  with colors, wallpaper, sounds and music on top. The first look is **Switch**, the design SquareDeck has today; more
+  will follow. The section shows each look with a picture of it, marks the one in use, and links to the colors,
+  wallpaper, sounds and music inside it.
+
+## 6.4.2
+
+### Removed
+- **The "Time to beat" button on game pages.** The How long to beat card further down the page shows the times, and
+  pressing it opens the game's HowLongToBeat page.
+
+## 6.4.1
+
+### Removed
+- **The choice of home button style, button shelf and footer.** Settings > Look and feel no longer has Button style,
+  Button shelf or Footer: the home screen uses Switch's own buttons, shelf and footer while theming is rebuilt. If you
+  had picked your own, it goes back to Switch's the first time 6.4.1 starts. The font and game art choices stay.
+
+## 6.4.0
+
+### Removed
+- **Every UI style except Switch.** The other 82 styles are gone while theming is rebuilt from the ground up.
+  Settings > Look and feel no longer has a UI style choice, and first-time setup asks only for light or dark.
+  - If you were using another style, SquareDeck moves you to Switch the first time 6.4.0 starts. When your style had
+    brought its own colors, wallpaper, sounds, music, moving background and button pictures, those go back to
+    Switch's as well; if you'd turned that off, your own choices are kept.
+  - Your choices of button style, button shelf, footer, game art, font and color theme all still work; their
+    "From the UI style" option is now called "Default".
+  - Themes you saved still restore their colors, wallpaper, sounds and music, on Switch.
+  - The moving backgrounds, wallpapers, music and sound packs the styles used are all still there to pick yourself.
 
 ## 6.3.0
 
