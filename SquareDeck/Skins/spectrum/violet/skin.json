@@ -1,0 +1,25 @@
+{
+ "panel": [
+  30,
+  30,
+  30,
+  30
+ ],
+ "button": [
+  30,
+  30,
+  30,
+  30
+ ],
+ "dialog": [
+  34,
+  96,
+  34,
+  34
+ ],
+ "scale": 0.5,
+ "pixel": false,
+ "iconPixel": false,
+ "cursorScale": 1,
+ "dialogPad": 120
+}

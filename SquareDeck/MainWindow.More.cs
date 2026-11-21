@@ -76,10 +76,13 @@ public partial class MainWindow
     /// The selected game's ring shows only while the games row itself has the focus. When a round button,
     /// a top-bar icon or the footer has it, that is the only thing highlighted.
     /// </summary>
+    /// <summary>The selected game's ring picks up a new ring brush (the highlight color or gradient changed).</summary>
+    public void RefreshHomeRing() => UpdateHomeRing();
+
     private void UpdateHomeRing()
     {
         bool onGames = _buttonIndex < 0 && _topIndex < 0 && _footerIndex < 0 && _actionIndex < 0;
-        Resources["RingActiveBrush"] = onGames ? (TryFindResource("AccentBrush") as Brush ?? Brushes.White) : Brushes.Transparent;
+        Resources["RingActiveBrush"] = onGames ? (TryFindResource("RingBrush") as Brush ?? TryFindResource("AccentBrush") as Brush ?? Brushes.White) : Brushes.Transparent;
     }
 
     /// <summary>

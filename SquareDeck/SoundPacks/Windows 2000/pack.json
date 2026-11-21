@@ -1,0 +1,9 @@
+{
+  "name": "Windows 2000",
+  "author": "Microsoft (via Sample Focus)",
+  "version": "v1.0",
+  "manifest_version": 2,
+  "music": false,
+  "mappings": {},
+  "ignore": []
+}

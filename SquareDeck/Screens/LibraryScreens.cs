@@ -2162,13 +2162,14 @@ public sealed class StoreSearchScreen : ListScreen
 }
 
 /// <summary>
-/// Every game in one place. A sidebar chooses what to show (all, favorites, installed, not installed,
-/// by store, category or status); the grid can be sorted, grouped and searched.
+/// Every game in one place. Section tabs across the top (LB / RB) choose what to show: installed, favorites, recently
+/// played, not installed, wishlist, updates and collections. Chips under them narrow it down by store, category or your
+/// own status; a slim toolbar has the search, sort, view and everything else under More. The header stays put while
+/// the games scroll.
 /// </summary>
 public sealed class LibraryScreen : Screen
 {
-    // With the sidebar shrunk to a blade, tiles are a little smaller so every row holds exactly six.
-    private double TileSize => Layout switch { "compact" => 124, "large" => 226, "posters" => 176, "showcase" => 286, "mini" => 92, _ => Collapsed ? 148 : 164 };
+    private double TileSize => Layout switch { "compact" => 124, "large" => 226, "posters" => 176, "showcase" => 286, "mini" => 92, _ => 164 };
     private bool ListLayout => Layout is "list" or "focus";
     private double _showcaseWidth;
 
@@ -2186,45 +2187,50 @@ public sealed class LibraryScreen : Screen
     private bool SpotlightLayout => Layout is "spotlight" or "focus";
 
     /// <summary>
-    /// The page's layout (Settings > Games and library, or the toolbar):
-    ///  - sidebar: sections on the left, tiles on the right (the usual);
-    ///  - compact: an icons-only sidebar and small tiles, to see more at once;
-    ///  - large: no sidebar (a "Show" button picks the section), big tiles;
-    ///  - list: sections on the left, one row per game with its facts;
-    ///  - shelves: no sidebar, rows that scroll sideways (recently played, favorites, each store, collections);
-    ///  - spotlight: an icons-only sidebar, the highlighted game large across the top, tiles below.
+    /// The page's views (the toolbar's View, or Settings > Games and library). "sidebar" is the id the usual grid has
+    /// always had (6.26 replaced the sidebar with tabs and chips; the id is kept so saved settings still match).
     /// </summary>
     public static readonly (string Id, string Name, string About)[] Layouts =
     {
-        ("sidebar", "Sidebar", "Sections on the left, tiles on the right"),
-        ("compact", "Compact", "Icons-only sidebar and small tiles, to see more at once"),
-        ("large", "Large tiles", "No sidebar and big tiles; pick the section with Show"),
-        ("list", "List", "One row per game, with its store, play time and when you last played"),
+        ("sidebar", "Grid", "Covers in rows, the usual"),
+        ("compact", "Compact grid", "Smaller covers, to see more at once"),
+        ("large", "Large grid", "Big covers"),
+        ("mini", "Mini grid", "Tiny covers, to see your whole library at once"),
+        ("posters", "Posters", "Tall movie-poster art in big rows"),
+        ("showcase", "Banners", "Wide store banners, four to a row"),
+        ("list", "List", "One row per game, with its store, play time, when you last played and size"),
+        ("spotlight", "Spotlight", "The highlighted game large across the top, covers below"),
+        ("focus", "Spotlight list", "The highlighted game large across the top, a list below"),
         ("shelves", "Shelves", "Rows that scroll sideways: recent, favorites, each store, collections"),
-        ("spotlight", "Spotlight", "The highlighted game large across the top, tiles below"),
-        ("posters", "Poster wall", "No sidebar, tall movie-poster art in big rows"),
-        ("showcase", "Showcase", "No sidebar, wide rectangle banners four to a row"),
-        ("mini", "Mini grid", "Icons-only sidebar and tiny tiles, to see your whole library at once"),
-        ("focus", "Focus list", "The highlighted game large across the top, a list below"),
         ("timeline", "Timeline", "Rows by when you last played: today, this week, this month, earlier, never"),
     };
 
     private string Layout => Layouts.Any(l => l.Id == Host.Settings.LibraryLayout) ? Host.Settings.LibraryLayout : "sidebar";
-    private bool SidebarHidden => Layout is "large" or "shelves" or "posters" or "showcase" or "timeline";
     private readonly Border _spotlight = new() { Margin = new Thickness(0, 0, 4, 14), Height = 250, Visibility = Visibility.Collapsed };
     private const string Uncategorized = "Uncategorized";
     private const int MaxNotInstalledShown = 400;
 
-    private readonly StackPanel _sidebar = new() { Width = 236 };
-    private Border _sidePanel = null!;
+    private readonly StackPanel _tabs = new() { Orientation = Orientation.Horizontal };
+    private readonly StackPanel _chips = new() { Orientation = Orientation.Horizontal };
+    private readonly ScrollViewer _chipScroll = new()
+    {
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        PanningMode = PanningMode.HorizontalOnly, Focusable = false, VerticalAlignment = VerticalAlignment.Center
+    };
+    private readonly List<string> _tabIds = new();
     private readonly TextBox _searchInput = new();
     private readonly Border _searchBar = new();
     private readonly System.Windows.Threading.DispatcherTimer _searchSoon = new() { Interval = TimeSpan.FromMilliseconds(250) };
-    private readonly WrapPanel _toolbar = new() { Margin = new Thickness(0, 0, 0, 8) };
+    private readonly StackPanel _toolbar = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _groups = new();
-    private readonly TextBlock _count = Ui.Text("", 16, "SubtleBrush");
+    private readonly Border _letterBadge = new()
+    {
+        Width = 150, Height = 150, CornerRadius = new CornerRadius(30), HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center, Opacity = 0, IsHitTestVisible = false
+    };
+    private readonly TextBlock _letterText = new() { FontSize = 84, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
 
-    private string _filter = "all";     // all | favorites | installed | notinstalled | rated | src:<store> | cat:<name> | status:<s>
+    private string _filter = "all";     // all | favorites | recent | installed | notinstalled | wishlist | updates | collections | col:<id> | rated | src:<store> | cat:<name> | status:<s>
     private string _sort = "recent";    // recent | name | playtime | size | rating
     private string _search = "";
     /// <summary>"" (no groups), "category", "genre" (main genre) or "played" (played / never played).</summary>
@@ -2233,45 +2239,63 @@ public sealed class LibraryScreen : Screen
     {
         ("", "No groups"), ("category", "Category"), ("genre", "Main genre"), ("played", "Played or never played"),
     };
-    private string? _lastFocus;         // game key, "tool:<index>" or "side:<filter>"
+    private string? _lastFocus;         // game key, "tool:<index>", "tab:<filter>" or "chip:<filter>"
 
     public LibraryScreen()
     {
-        static ScrollViewer Scroller(UIElement content) => new()
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            PanningMode = PanningMode.VerticalOnly,
-            Focusable = false,
-            Content = content
-        };
+        BuildSearchBar();
 
-        var right = new StackPanel { Margin = new Thickness(22, 0, 0, 0) };
-        right.Children.Add(_spotlight);
-        right.Children.Add(_toolbar);
-        right.Children.Add(_groups);
-        // Showcase fits four banners to the row, so a change of width (the window, the sidebar) lays it out again.
+        // The header: tabs, chips and the toolbar. It stays put; only the games scroll under it.
+        var tabScroll = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            PanningMode = PanningMode.HorizontalOnly, Focusable = false, Margin = new Thickness(0, 0, 0, 6), Content = _tabs
+        };
+        // Second row: the search box, the chips and the count on the left (scrolling sideways if there are many), the tools on the right.
+        var left = new StackPanel { Orientation = Orientation.Horizontal };
+        left.Children.Add(_searchBar);
+        left.Children.Add(_chips);
+        _chipScroll.Content = left;
+        var second = new DockPanel { Margin = new Thickness(0, 0, 0, 10), LastChildFill = true };
+        DockPanel.SetDock(_toolbar, Dock.Right);
+        second.Children.Add(_toolbar);
+        second.Children.Add(_chipScroll);
+        var header = new StackPanel();
+        header.Children.Add(tabScroll);
+        header.Children.Add(second);
+
+        var content = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+        content.Children.Add(_spotlight);
+        content.Children.Add(_groups);
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            PanningMode = PanningMode.VerticalOnly, Focusable = false, Content = content
+        };
+        // Showcase fits four banners to the row, so a change of width lays it out again.
         _groups.SizeChanged += (_, e) =>
         {
             if (Layout == "showcase" && e.WidthChanged && Math.Abs(e.NewSize.Width - _showcaseWidth) > 8) Dispatcher.BeginInvoke(new Action(Rebuild));
         };
 
-        // Sidebar on a slightly raised panel so the two halves read as separate areas. It can shrink to just icons.
-        var sidePanel = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 4, 4, 8), Child = Scroller(_sidebar), ClipToBounds = true };
-        sidePanel.SetResourceReference(Border.BackgroundProperty, "TileBrush");
-        _sidePanel = sidePanel;
-        BuildSearchBar();
+        // The letter you jumped to (LT / RT), shown big for a moment over the games.
+        _letterBadge.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+        _letterText.SetResourceReference(TextBlock.ForegroundProperty, "BgBrush");
+        _letterBadge.Child = _letterText;
 
-        var layout = new Grid();
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        layout.Children.Add(sidePanel);
-        var rightScroll = Scroller(right);
-        Grid.SetColumn(rightScroll, 1);
-        layout.Children.Add(rightScroll);
+        var body = new Grid();
+        body.Children.Add(scroll);
+        body.Children.Add(_letterBadge);
 
-        SetPage("Game library", layout,
-            "{Select}  Play      {Details}  Details      {Options}  Options      LT / RT  Jump by letter      {Back}  Back", wide: true);
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.Children.Add(header);
+        Grid.SetRow(body, 1);
+        root.Children.Add(body);
+
+        SetPage("Game library", root,
+            "{Select}  Play      {Details}  Details      {Options}  Options      LB / RB  Section      LT / RT  Jump by letter      {Back}  Back", wide: true);
     }
 
     // ---------------------------------------------------------------- search bar
@@ -2282,17 +2306,17 @@ public sealed class LibraryScreen : Screen
     /// </summary>
     private void BuildSearchBar()
     {
-        var grid = new Grid { Width = 380, Height = 46 };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
+        var grid = new Grid { Width = 260, Height = 34 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var glass = Ui.Text("\uE721", 17, "SubtleBrush");
+        var glass = Ui.Text("\uE721", 14, "SubtleBrush");
         glass.FontFamily = Ui.IconFont;
         glass.HorizontalAlignment = HorizontalAlignment.Center;
         glass.VerticalAlignment = VerticalAlignment.Center;
         grid.Children.Add(glass);
 
-        var placeholder = Ui.Text("Search your games", 17, "SubtleBrush");
+        var placeholder = Ui.Text("Search", 14, "SubtleBrush");
         placeholder.VerticalAlignment = VerticalAlignment.Center;
         placeholder.IsHitTestVisible = false;
         placeholder.Margin = new Thickness(3, 0, 0, 0);
@@ -2301,7 +2325,7 @@ public sealed class LibraryScreen : Screen
 
         _searchInput.Background = Brushes.Transparent;
         _searchInput.BorderThickness = new Thickness(0);
-        _searchInput.FontSize = 17;
+        _searchInput.FontSize = 14;
         _searchInput.VerticalContentAlignment = VerticalAlignment.Center;
         _searchInput.FocusVisualStyle = null;
         _searchInput.SetResourceReference(Control.ForegroundProperty, "FgBrush");
@@ -2318,8 +2342,8 @@ public sealed class LibraryScreen : Screen
         grid.Children.Add(clear);
 
         _searchBar.Child = grid;
-        _searchBar.Margin = new Thickness(0, 0, 10, 6);
-        _searchBar.BorderThickness = new Thickness(3);
+        _searchBar.Margin = new Thickness(0, 0, 10, 0);
+        _searchBar.BorderThickness = new Thickness(2);
         _searchBar.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
         _searchBar.SetResourceReference(Border.CornerRadiusProperty, "RowCorner");
         _searchBar.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
@@ -2368,48 +2392,11 @@ public sealed class LibraryScreen : Screen
         Rebuild();
     }
 
-    // ---------------------------------------------------------------- sidebar size
-
-    private bool Collapsed => Layout is "compact" or "spotlight" or "mini" or "focus" || Host.Settings.LibrarySidebarCollapsed;
-
-    /// <summary>Shrinks the sidebar to a blade of icons, or opens it back up.</summary>
-    private void ToggleSidebar()
-    {
-        // The compact and spotlight layouts always use the icons-only sidebar; opening it goes back to the usual one.
-        if (Layout is "compact" or "spotlight" or "mini" or "focus") { Host.Settings.LibraryLayout = "sidebar"; Host.Settings.LibrarySidebarCollapsed = true; }
-        Host.Settings.LibrarySidebarCollapsed = !Collapsed;
-        Host.Settings.Save();
-        _lastFocus = "side:toggle";
-        SizeSidebar(animate: true);
-        Rebuild();
-    }
-
-    private void SizeSidebar(bool animate)
-    {
-        _sidePanel.Visibility = SidebarHidden ? Visibility.Collapsed : Visibility.Visible;
-        if (_sidePanel.Parent is Grid layout && layout.Children.Count > 1 && layout.Children[1] is FrameworkElement rightSide)
-            rightSide.Margin = SidebarHidden ? new Thickness(-22, 0, 0, 0) : new Thickness(0);
-        _spotlight.Visibility = SpotlightLayout ? Visibility.Visible : Visibility.Collapsed;
-        double target = Collapsed ? 92 : 264;
-        _sidebar.Width = Collapsed ? 72 : 236;
-        _sidePanel.Padding = Collapsed ? new Thickness(6, 4, 6, 8) : new Thickness(10, 4, 4, 8);
-        if (!animate || Theme.ReduceMotion || double.IsNaN(_sidePanel.Width))
-        {
-            _sidePanel.BeginAnimation(WidthProperty, null);
-            _sidePanel.Width = target;
-            return;
-        }
-        var slide = new System.Windows.Media.Animation.DoubleAnimation(_sidePanel.ActualWidth > 0 ? _sidePanel.ActualWidth : target, target, TimeSpan.FromMilliseconds(220))
-        {
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
-        };
-        slide.Completed += (_, _) => { _sidePanel.BeginAnimation(WidthProperty, null); _sidePanel.Width = target; };
-        _sidePanel.BeginAnimation(WidthProperty, slide);
-    }
+    private void UpdateSpotlight() => _spotlight.Visibility = SpotlightLayout ? Visibility.Visible : Visibility.Collapsed;
 
     public override void OnShown()
     {
-        SizeSidebar(animate: false);
+        UpdateSpotlight();
         _groupBy = Groupings.Any(x => x.Id == Host.Settings.LibraryGroupBy) ? Host.Settings.LibraryGroupBy : "";
         GenreCache.Updated += OnGenres;
         Host.LibraryChanged += OnLibraryChanged;
@@ -2441,8 +2428,9 @@ public sealed class LibraryScreen : Screen
 
     private string FilterName(string filter) => filter switch
     {
-        "all" => "All games",
+        "all" => "Installed",
         "favorites" => "Favorites",
+        "recent" => "Recently played",
         "installed" => "Installed",
         "notinstalled" => "Not installed",
         "wishlist" => "Wishlist",
@@ -2458,6 +2446,7 @@ public sealed class LibraryScreen : Screen
     {
         "all" => g.IsInstalled,
         "favorites" => g.IsFavorite,
+        "recent" => g.IsInstalled && g.RecentAt > DateTime.Now.AddDays(-30) && g.RecentAt < DateTime.Now.AddDays(1),
         "installed" => g.IsInstalled,
         "notinstalled" => !g.IsInstalled && !g.OnWishlist,
         "wishlist" => g.OnWishlist,
@@ -2474,16 +2463,17 @@ public sealed class LibraryScreen : Screen
     {
         "name" => "Name",
         "size" => "Size",
-        "playtime" => "Time played",
-        "rating" => "My rating",
-        _ => "Recently played"
+        "playtime" => "Play time",
+        "rating" => "Rating",
+        _ => "Recent"
     };
 
     private void Rebuild()
     {
         var everything = Host.AllGames.Concat(Host.NotInstalledGames).Concat(Host.WishlistGames).ToList();
 
-        BuildSidebar(everything);
+        BuildTabs(everything);
+        BuildChips(everything);
         BuildToolbar();
         _groups.Children.Clear();
         // Art still on its way for the old tiles isn't wanted any more.
@@ -2494,7 +2484,7 @@ public sealed class LibraryScreen : Screen
         IEnumerable<Game> games = everything.Where(g => Matches(g, _filter));
         if (_search.Length > 0)
             games = games.Where(g => g.Name.Contains(_search, StringComparison.CurrentCultureIgnoreCase));
-        games = _sort switch
+        games = (_filter == "recent" ? "recent" : _sort) switch
         {
             "name" => games.OrderBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase),
             "size" => games.OrderByDescending(g => g.SizeOnDisk),
@@ -2508,14 +2498,12 @@ public sealed class LibraryScreen : Screen
         };
         bool online = _filter is "notinstalled" or "wishlist";
         var list = games.Take(online ? MaxNotInstalledShown : int.MaxValue).ToList();
-        _count.Text = list.Count == 1 ? "1 game" : list.Count + " games";
 
         if (_filter == "notinstalled") AddNotInstalledNotice();
         if (_filter == "wishlist") AddWishlistNotice();
 
         if (_filter == "collections")
         {
-            _count.Text = Host.Library.Collections.Count == 1 ? "1 collection" : Host.Library.Collections.Count + " collections";
             AddCollections(everything);
         }
         else if (_filter == "updates" && list.Count == 0)
@@ -2530,7 +2518,7 @@ public sealed class LibraryScreen : Screen
         else if (list.Count == 0)
         {
             if ((_filter != "notinstalled" || Host.OwnedGamesState == "ready") && (_filter != "wishlist" || Host.WishlistState == "ready"))
-                AddNote("Nothing to show here. Pick another section on the left, or clear the search.");
+                AddNote(_search.Length > 0 ? "No games match \u201C" + _search + "\u201D here. Try another section (LB / RB), or clear the search." : "Nothing here yet. Try another section with LB / RB.");
         }
         else if (Layout == "shelves" && _filter == "all" && _search.Length == 0)
         {
@@ -2841,150 +2829,150 @@ public sealed class LibraryScreen : Screen
         }
     }
 
-    // ---------------------------------------------------------------- sidebar and toolbar
+    // ---------------------------------------------------------------- tabs, chips and toolbar
 
-    private void BuildSidebar(List<Game> everything)
+    /// <summary>A pill with an optional icon, a name and a quieter count. Text takes the button's color, so it flips on the active one.</summary>
+    private static Button Chip(string? glyph, string label, int? count, bool active, double size = 13)
     {
-        _sidebar.Children.Clear();
-
-        bool blade = Collapsed;
-
-        // First row: shrink to icons / open back up.
-        var toggle = blade ? BladeRow("\uE76C", null, "Show the names") : Ui.Row("Show icons only", null, "\uE76B");
-        toggle.Margin = blade ? new Thickness(0, 6, 0, 0) : new Thickness(0, 8, 6, 2);
-        toggle.FontSize = 17;
-        toggle.DataContext = "side:toggle";
-        toggle.Click += (_, _) => ToggleSidebar();
-        toggle.GotKeyboardFocus += (_, _) => _lastFocus = "side:toggle";
-        _sidebar.Children.Add(toggle);
-
-        void Section(string title)
-        {
-            if (!blade) { _sidebar.Children.Add(Ui.Header(title)); return; }
-            var line = new System.Windows.Shapes.Rectangle { Height = 1, Margin = new Thickness(10, 12, 16, 10), Opacity = 0.2 };
-            line.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "FgBrush");
-            _sidebar.Children.Add(line);
-        }
-        void Item(string filter, string glyph, int? count = null)
-        {
-            string label = FilterName(filter);
-            // Stores, categories and your own lists all share one icon, so the blade shows their initials instead.
-            bool initials = filter.StartsWith("src:") || filter.StartsWith("cat:") || filter.StartsWith("status:");
-            // Stores with a logo show it instead.
-            var logo = filter.StartsWith("src:") ? StoreLogos.For(filter[4..]) : null;
-            if (logo != null) initials = false;
-            var row = blade ? BladeRow(initials ? null : glyph, initials ? Initials(label) : null, label + (count != null ? $"  ({count})" : ""), _filter == filter, logo)
-                            : logo != null ? Ui.Row(label, count?.ToString(), null, new Image { Source = logo })
-                            : Ui.Row(label, count?.ToString(), glyph);
-            row.Margin = blade ? new Thickness(0) : new Thickness(0, 2, 6, 2);
-            row.FontSize = 17;
-            string id = "side:" + filter;
-            if (_filter == filter) row.Tag = "selected"; // drawn with the highlight color so you can see where you are
-            row.Click += (_, _) =>
-            {
-                _filter = filter;
-                _lastFocus = id;
-                // Saved lists show at once and refresh in the background each time their section is picked.
-                if (filter == "notinstalled") _ = Host.LoadOwnedGamesAsync(refresh: true);
-                if (filter == "wishlist") _ = Host.LoadWishlistAsync(refresh: true);
-                Rebuild();
-            };
-            row.GotKeyboardFocus += (_, _) => _lastFocus = id;
-            row.DataContext = id;
-            _sidebar.Children.Add(row);
-        }
-
-        var installed = everything.Where(g => g.IsInstalled).ToList();
-
-        Section("Library");
-        Item("all", "", installed.Count);
-        Item("favorites", "", everything.Count(g => g.IsFavorite));
-        Item("notinstalled", "", Host.OwnedGamesState == "ready" ? Host.NotInstalledGames.Count : null);
-        Item("wishlist", "\uE7BF", Host.WishlistState == "ready" ? Host.WishlistGames.Count : null);
-        Item("updates", "\uE777", installed.Count(g => g.HasUpdate));
-        Item("collections", "\uE8F1", Host.Library.Collections.Count);
-
-        var sources = installed.Select(g => g.SourceName).Distinct().OrderBy(s => s).ToList();
-        if (sources.Count > 1)
-        {
-            Section("Stores");
-            foreach (var s in sources) Item("src:" + s, "", installed.Count(g => g.SourceName == s));
-        }
-
-        var categories = Host.Categories;
-        if (categories.Count > 0)
-        {
-            Section("Categories");
-            foreach (var c in categories) Item("cat:" + c, "", everything.Count(g => Matches(g, "cat:" + c)));
-        }
-
-        var statuses = GameNotesScreen.Statuses.Where(st => everything.Any(g => Matches(g, "status:" + st))).ToList();
-        bool anyRated = everything.Any(g => Matches(g, "rated"));
-        if (statuses.Count > 0 || anyRated)
-        {
-            Section("Yours");
-            foreach (var st in statuses) Item("status:" + st, "", everything.Count(g => Matches(g, "status:" + st)));
-            if (anyRated) Item("rated", "", everything.Count(g => Matches(g, "rated")));
-        }
-        Ui.GroupRows(_sidebar); // sections read as rounded groups
-    }
-
-    /// <summary>A sidebar row in the icon-only blade: just the icon (or initials), the name as a tooltip.</summary>
-    private static Button BladeRow(string? glyph, string? initials, string tip, bool selected = false, ImageSource? logo = null)
-    {
-        UIElement face;
-        if (logo != null)
-        {
-            face = new Image { Source = logo, Width = 36, Height = 36, Margin = new Thickness(2), Stretch = Stretch.Uniform };
-        }
-        else if (initials != null)
-        {
-            var badge = new Grid { Width = 40, Height = 40 };
-            var tint = new Border { CornerRadius = new CornerRadius(11), Opacity = selected ? 0.42 : 0.16 };
-            tint.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
-            badge.Children.Add(tint);
-            var text = Ui.Text(initials, 15, selected ? "FgBrush" : "AccentBrush", bold: true);
-            text.HorizontalAlignment = HorizontalAlignment.Center;
-            text.VerticalAlignment = VerticalAlignment.Center;
-            badge.Children.Add(text);
-            face = badge;
-        }
-        else
-        {
-            var badge = Ui.IconBadge(glyph ?? "\uE8A9", 40);
-            badge.Margin = new Thickness(0);
-            if (selected && badge.Children[0] is Border tint) tint.Opacity = 0.42; // where you are, at a glance
-            face = badge;
-        }
-        // A square icon button with a ring when highlighted (rows are built for text and squeezed the icon).
-        var button = new Button { Style = Ui.StyleOf("TileButton"), Content = face, ToolTip = tip, HorizontalAlignment = HorizontalAlignment.Center };
-        if (face is FrameworkElement fe) fe.HorizontalAlignment = HorizontalAlignment.Center;
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        if (glyph != null)
+            row.Children.Add(new TextBlock { Text = glyph, FontFamily = Ui.IconFont, FontSize = size - 1, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, label.Length > 0 ? 6 : 0, 0) });
+        if (label.Length > 0)
+            row.Children.Add(new TextBlock { Text = label, FontSize = size, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        if (count != null)
+            row.Children.Add(new TextBlock { Text = count.Value.ToString("N0"), FontSize = size - 2, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 1, 0, 0) });
+        var button = new Button { Style = Ui.StyleOf("ChipButton"), Content = row, Tag = active ? "active" : null, Padding = new Thickness(11, 4, 11, 4), Margin = new Thickness(0, 0, 4, 0) };
         return button;
     }
 
-    private static string Initials(string name)
+    /// <summary>The tab a filter belongs under (store, category and status chips refine Installed; a collection is under Collections).</summary>
+    private string TabOf(string filter) => filter switch
     {
-        var words = name.Split(new[] { ' ', '-', '_', '.' }, StringSplitOptions.RemoveEmptyEntries).Where(w => char.IsLetterOrDigit(w[0])).ToList();
-        if (words.Count == 0) return "?";
-        return words.Count == 1 ? words[0][..Math.Min(2, words[0].Length)].ToUpperInvariant()
-                                : (words[0][0].ToString() + words[1][0]).ToUpperInvariant();
+        _ when filter.StartsWith("src:") || filter.StartsWith("cat:") || filter.StartsWith("status:") || filter == "rated" || filter == "installed" => "all",
+        _ when filter.StartsWith("col:") => "collections",
+        _ => filter
+    };
+
+    /// <summary>Shows another section (a tab or a chip) and puts the highlight where it makes sense.</summary>
+    private void SelectFilter(string filter, string? focus)
+    {
+        _filter = filter;
+        _lastFocus = focus;
+        // Saved lists show at once and refresh in the background each time their section is picked.
+        if (filter == "notinstalled") _ = Host.LoadOwnedGamesAsync(refresh: true);
+        if (filter == "wishlist") _ = Host.LoadWishlistAsync(refresh: true);
+        Rebuild();
     }
+
+    /// <summary>The sections across the top, with how many games each has.</summary>
+    private void BuildTabs(List<Game> everything)
+    {
+        _tabs.Children.Clear();
+        _tabIds.Clear();
+        var installed = everything.Where(g => g.IsInstalled).ToList();
+        string current = TabOf(_filter);
+        void Tab(string filter, string glyph, int? count)
+        {
+            _tabIds.Add(filter);
+            var tab = Chip(glyph, filter == "recent" ? "Recent" : FilterName(filter), count, current == filter, 15);
+            tab.Padding = new Thickness(13, 5, 13, 5);
+            string id = "tab:" + filter;
+            tab.DataContext = id;
+            tab.Click += (_, _) => SelectFilter(filter, id);
+            tab.GotKeyboardFocus += (_, _) => _lastFocus = id;
+            _tabs.Children.Add(tab);
+        }
+        Tab("all", "", installed.Count);
+        Tab("favorites", "", everything.Count(g => g.IsFavorite));
+        int recent = installed.Count(g => Matches(g, "recent"));
+        if (recent > 0) Tab("recent", "", recent);
+        Tab("notinstalled", "", Host.OwnedGamesState == "ready" ? Host.NotInstalledGames.Count : null);
+        Tab("wishlist", "", Host.WishlistState == "ready" ? Host.WishlistGames.Count : null);
+        int updates = installed.Count(g => g.HasUpdate);
+        if (updates > 0 || _filter == "updates") Tab("updates", "", updates);
+        Tab("collections", "", Host.Library.Collections.Count);
+    }
+
+    /// <summary>
+    /// Under Installed: chips for each store, your categories, your own statuses and your top rated, to narrow it down.
+    /// Inside a collection: a way back to all collections.
+    /// </summary>
+    private void BuildChips(List<Game> everything)
+    {
+        _chips.Children.Clear();
+        void Add(string filter, string label, int? count, string? glyph = null, ImageSource? logo = null)
+        {
+            var chip = Chip(glyph, label, count, _filter == filter);
+            if (logo != null && chip.Content is StackPanel row)
+                row.Children.Insert(0, new Image { Source = logo, Width = 16, Height = 16, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
+            string id = "chip:" + filter;
+            chip.DataContext = id;
+            chip.Click += (_, _) => SelectFilter(filter, id);
+            chip.GotKeyboardFocus += (_, _) => _lastFocus = id;
+            _chips.Children.Add(chip);
+        }
+
+        if (_filter.StartsWith("col:"))
+        {
+            var back = Chip("", "All collections", null, false);
+            back.DataContext = "chip:collections";
+            back.Click += (_, _) => SelectFilter("collections", "col-tile:" + _filter[4..]);
+            back.GotKeyboardFocus += (_, _) => _lastFocus = "chip:collections";
+            _chips.Children.Add(back);
+            Add(_filter, FilterName(_filter), null, "");
+        }
+        else if (TabOf(_filter) == "all")
+        {
+            var installed = everything.Where(g => g.IsInstalled).ToList();
+            var sources = installed.Select(g => g.SourceName).Distinct().OrderBy(s => s).ToList();
+            var categories = Host.Categories;
+            var statuses = GameNotesScreen.Statuses.Where(st => everything.Any(g => Matches(g, "status:" + st))).ToList();
+            bool anyRated = everything.Any(g => Matches(g, "rated"));
+            if (sources.Count > 1 || categories.Count > 0 || statuses.Count > 0 || anyRated)
+            {
+                Add("all", "Everything", null);
+                if (sources.Count > 1)
+                    foreach (var s in sources) Add("src:" + s, s, installed.Count(g => g.SourceName == s), logo: StoreLogos.For(s));
+                foreach (var c in categories) Add("cat:" + c, c, everything.Count(g => Matches(g, "cat:" + c)), "");
+                foreach (var st in statuses) Add("status:" + st, st, everything.Count(g => Matches(g, "status:" + st)), "");
+                if (anyRated) Add("rated", "4 stars and up", everything.Count(g => Matches(g, "rated")), "");
+            }
+        }
+        _chipScroll.Visibility = _chips.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private string ViewName => Layouts.First(l => l.Id == Layout).Name;
 
     private void BuildToolbar()
     {
         _toolbar.Children.Clear();
-        _toolbar.Children.Add(_searchBar);
-        AddTool("Sort: " + SortLabel, ChooseSort);
-        AddTool("View: " + ViewLabel, ChooseView);
-        AddTool("Layout: " + Layouts.First(l => l.Id == Layout).Name, ChooseLayout);
-        if (SidebarHidden && !ShelfLayout) AddTool("Show: " + FilterName(_filter), ChooseSection);
-        AddTool("Group by: " + Groupings.First(x => x.Id == _groupBy).Name, ChooseGrouping);
-        AddTool("+  Add custom game", () => Host.Push(new AddCustomGameScreen()));
-        AddTool("Play time", () => Host.Push(new PlaytimeScreen()));
-        AddTool("Achievements", () => Host.Push(new UnlocksScreen()));
-        if (Host.InstallQueue.Count > 0) AddTool($"Install queue ({Host.InstallQueue.Count})", ShowQueue);
-        _count.Margin = new Thickness(6, 0, 0, 6);
-        _toolbar.Children.Add(_count);
+        // Small buttons with short labels: Sort shows the order in use, View the view, then the cover shape and More.
+        AddTool("\uE8CB", SortLabel, ChooseSort, "Sort");
+        AddTool("\uE8A9", ViewName, ChooseLayout, "View");
+        if (!ShelfLayout && !ListLayout && Layout is not ("posters" or "showcase" or "mini")) AddTool("\uE91B", ViewLabel, ChooseView, "Cover shape");
+        if (_groupBy.Length > 0) AddTool("\uE8FD", Groupings.First(x => x.Id == _groupBy).Name, ChooseGrouping, "Group by");
+        if (Host.InstallQueue.Count > 0) AddTool("\uE896", $"Queue ({Host.InstallQueue.Count})", ShowQueue, "Install queue");
+        AddTool("\uE712", "More", () => _ = MoreAsync(), "Add a game, group by, play time, achievements");
+    }
+
+    /// <summary>Everything else, in one place: add a game, group the list, play time, achievements.</summary>
+    private async Task MoreAsync()
+    {
+        int choice = await Host.AskWithIconsAsync("Library", null,
+            ("Add a custom game", ""), ("Group by: " + Groupings.First(x => x.Id == _groupBy).Name, ""),
+            ("Play time", ""), ("Achievements", ""), ("Clear the search and filters", ""));
+        switch (choice)
+        {
+            case 0: Host.Push(new AddCustomGameScreen()); break;
+            case 1: ChooseGrouping(); break;
+            case 2: Host.Push(new PlaytimeScreen()); break;
+            case 3: Host.Push(new UnlocksScreen()); break;
+            case 4:
+                _searchInput.Text = "";
+                _search = "";
+                SelectFilter("all", null);
+                break;
+        }
     }
 
     private async void ChooseGrouping()
@@ -2997,11 +2985,11 @@ public sealed class LibraryScreen : Screen
         Rebuild();
     }
 
-    private void AddTool(string label, Action click)
+    private void AddTool(string glyph, string label, Action click, string tip)
     {
-        var button = Ui.PanelButton(label);
-        button.FontSize = 16;
-        button.Margin = new Thickness(0, 0, 6, 6);
+        var button = Chip(glyph, label, null, false, 13);
+        button.Padding = label.Length > 0 ? new Thickness(11, 5, 11, 5) : new Thickness(9, 5, 9, 5);
+        button.ToolTip = tip;
         button.Click += (_, _) => click();
         string id = "tool:" + _toolbar.Children.Count;
         button.DataContext = id;
@@ -3175,8 +3163,15 @@ public sealed class LibraryScreen : Screen
         _groups.Children.OfType<WrapPanel>().SelectMany(p => p.Children.OfType<Button>()).ToList();
 
     private IEnumerable<Button> AllButtons() =>
-        Tiles().Concat(_toolbar.Children.OfType<Button>()).Concat(_sidebar.Children.OfType<Button>())
-            .Concat(_groups.Children.OfType<Button>());
+        Tiles().Concat(_toolbar.Children.OfType<Button>()).Concat(_tabs.Children.OfType<Button>()).Concat(_chips.Children.OfType<Button>())
+            .Concat(_groups.Children.OfType<Button>()).Concat(ShelfTiles());
+
+    /// <summary>Tiles in the sideways rows (Shelves, Timeline) and the list rows.</summary>
+    private IEnumerable<Button> ShelfTiles() =>
+        _groups.Children.OfType<ScrollViewer>().Select(s => s.Content).OfType<Panel>().SelectMany(p => p.Children.OfType<Button>())
+            .Concat(_groups.Children.OfType<StackPanel>().SelectMany(p => p.Children.OfType<Button>()));
+
+    private Button? FirstTab => _tabs.Children.OfType<Button>().FirstOrDefault(b => Equals(b.Tag, "active")) ?? _tabs.Children.OfType<Button>().FirstOrDefault();
 
     private void RestoreFocus()
     {
@@ -3185,11 +3180,11 @@ public sealed class LibraryScreen : Screen
         if (_lastFocus == "search") { FocusLater(_searchInput); return; }
         var target = AllButtons().FirstOrDefault(b =>
             b.Tag is Game g ? g.Key == _lastFocus : b.DataContext as string == _lastFocus);
-        FocusLater(target ?? Tiles().FirstOrDefault() ?? _sidebar.Children.OfType<Button>().FirstOrDefault());
+        FocusLater(target ?? Tiles().FirstOrDefault() ?? ShelfTiles().FirstOrDefault() ?? _groups.Children.OfType<Button>().FirstOrDefault() ?? FirstTab);
     }
 
     public override void FocusDefault() =>
-        (Tiles().FirstOrDefault() ?? _sidebar.Children.OfType<Button>().FirstOrDefault())?.Focus();
+        (Tiles().FirstOrDefault() ?? ShelfTiles().FirstOrDefault() ?? FirstTab)?.Focus();
 
     public override bool OnAction(NavAction action)
     {
@@ -3199,7 +3194,7 @@ public sealed class LibraryScreen : Screen
             {
                 case NavAction.Accept:
                     // Enter on a keyboard goes to the results; A on a controller opens the on-screen keyboard.
-                    if (Hints.Keyboard) (Tiles().FirstOrDefault() as UIElement ?? _sidebar.Children.OfType<Button>().FirstOrDefault())?.Focus();
+                    if (Hints.Keyboard) (Tiles().FirstOrDefault() as UIElement ?? ShelfTiles().FirstOrDefault() ?? FirstTab)?.Focus();
                     else _ = TypeSearchAsync();
                     return true;
                 case NavAction.Back when _searchInput.Text.Length > 0:
@@ -3209,7 +3204,16 @@ public sealed class LibraryScreen : Screen
         }
         if (action == NavAction.View)
         {
-            ToggleSidebar();
+            ChooseLayout();
+            return true;
+        }
+        // LB / RB: the section before or after, from anywhere on the page.
+        if (action is NavAction.LB or NavAction.RB && _tabIds.Count > 0)
+        {
+            int at = Math.Max(0, _tabIds.IndexOf(TabOf(_filter)));
+            int next = (at + (action == NavAction.RB ? 1 : -1) + _tabIds.Count) % _tabIds.Count;
+            UiSound.Page();
+            SelectFilter(_tabIds[next], null);
             return true;
         }
         if (action is NavAction.LT or NavAction.RT)
@@ -3220,9 +3224,13 @@ public sealed class LibraryScreen : Screen
         // Inside a collection, Back returns to the list of collections before leaving the library.
         if (action == NavAction.Back && _filter.StartsWith("col:"))
         {
-            _lastFocus = "col-tile:" + _filter[4..];
-            _filter = "collections";
-            Rebuild();
+            SelectFilter("collections", "col-tile:" + _filter[4..]);
+            return true;
+        }
+        // On a store, category or status chip's games, Back goes to everything installed first.
+        if (action == NavAction.Back && TabOf(_filter) == "all" && _filter != "all")
+        {
+            SelectFilter("all", "chip:all");
             return true;
         }
         if (action is not (NavAction.X or NavAction.Y)) return false;
@@ -3273,6 +3281,19 @@ public sealed class LibraryScreen : Screen
         }
         tiles[i].Focus();
         Host.Rumble();
+        ShowLetter(Initial((Game)tiles[i].Tag));
+    }
+
+    /// <summary>The letter just jumped to, large in the middle for a moment.</summary>
+    private void ShowLetter(char letter)
+    {
+        _letterText.Text = letter.ToString();
+        if (Theme.ReduceMotion) { _letterBadge.Opacity = 0; return; }
+        var fade = new System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames();
+        fade.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(0.92, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(80))));
+        fade.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(0.92, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(520))));
+        fade.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(0, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(820))));
+        _letterBadge.BeginAnimation(OpacityProperty, fade);
     }
 
     // ---------------------------------------------------------------- toolbar actions
@@ -3280,13 +3301,13 @@ public sealed class LibraryScreen : Screen
     /// <summary>Pick one of the six layouts (also in Settings > Games and library).</summary>
     private async void ChooseLayout()
     {
-        int choice = await Host.AskAsync("Library layout", null, Layouts.Select(l => l.Name).ToArray());
+        int choice = await Host.AskAsync("View", "How the games are laid out. Also in Settings > Games and library.", Layouts.Select(l => l.Name).ToArray());
         if (choice < 0 || Layouts[choice].Id == Layout) return;
         Host.Settings.LibraryLayout = Layouts[choice].Id;
         if (Layout == "showcase") Host.Settings.LibraryView = "header"; // Showcase is rectangles
         Host.Settings.Save();
         if (ShelfLayout) _filter = "all";
-        SizeSidebar(animate: false);
+        UpdateSpotlight();
         Rebuild();
     }
 

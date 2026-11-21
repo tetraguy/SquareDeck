@@ -216,7 +216,7 @@
                                                     </Rectangle>
                                                     <StackPanel VerticalAlignment="Bottom" Margin="24,0,24,18">
                                                         <TextBlock Text="CONTINUE WHERE YOU LEFT OFF" FontSize="14" FontWeight="Bold"
-                                                                   Foreground="{DynamicResource AccentBrush}"/>
+                                                                   Foreground="{DynamicResource AccentOnDarkBrush}"/>
                                                         <!-- The game's logo when SteamGridDB has one, else its name -->
                                                         <Image Source="{Binding ContinueLogo}" MaxHeight="92" MaxWidth="360" Stretch="Uniform"
                                                                HorizontalAlignment="Left" Margin="0,8,0,6" RenderOptions.BitmapScalingMode="HighQuality">

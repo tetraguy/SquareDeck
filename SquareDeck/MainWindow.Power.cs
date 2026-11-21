@@ -281,7 +281,7 @@ public partial class MainWindow
         string detail = $"{p}% left. Plug in the charger" + (p <= 5 ? " now, or save your game." : ".");
         if (AllGames.Any(g => g.IsRunning) && !IsActive) GameNotice.Show(title, detail, "\uEBA0"); // over the game
         else ShowToast("Battery", title, detail, "", "info");
-        UiSound.Error();
+        UiSound.Battery(critical: p <= 5);
     }
 
     private bool _focusPaused;

@@ -30,7 +30,9 @@ public static class UiSound
         Load(s.SoundSet, s.SoundFolder, s.NavSoundSet);
     }
 
-    private enum Wave { Sine, Square, Triangle }
+    private enum Wave { Sine, Square, Triangle, Saw, Bell, Noise }
+
+    private static readonly Random NoiseSource = new(7);
 
     /// <summary>
     /// One sound: its WAV bytes and a player that is kept for as long as the sound is in use.
@@ -71,6 +73,8 @@ public static class UiSound
     private static Clip MoveClip = new(Array.Empty<byte>()), SelectClip = MoveClip, BackClip = MoveClip, ErrorClip = MoveClip,
         StartupClip = MoveClip, ToastClip = MoveClip, PageClip = MoveClip;
     private static Clip? LaunchClip;
+    // Sound packs can bring their own low-battery alerts (battery_low.wav, battery_critical.wav).
+    private static Clip? BatteryLowClip, BatteryCriticalClip;
 
     static UiSound() => Load("classic", "");
 
@@ -78,7 +82,10 @@ public static class UiSound
     public static readonly (string Id, string Name)[] Sets =
     {
         ("classic", "Classic"), ("soft", "Soft"), ("retro", "Retro"), ("bubble", "Bubble"), ("glass", "Glass"),
-        ("arcade", "Arcade"), ("deep", "Deep"), ("chime", "Chime"), ("custom", "Custom folder")
+        ("arcade", "Arcade"), ("deep", "Deep"), ("chime", "Chime"),
+        // 6.25: five more, made for SquareDeck (good as navigation sounds on their own).
+        ("tick", "Tick"), ("marimba", "Marimba"), ("laser", "Laser"), ("droplet", "Droplet"), ("kalimba", "Kalimba"),
+        ("custom", "Custom folder")
     };
 
     /// <summary>File names looked for in a custom sound folder. Any that are missing use the Classic sound.</summary>
@@ -102,6 +109,17 @@ public static class UiSound
             StartupClip = new Clip(sounds.Startup);
             ToastClip = new Clip(sounds.Toast);
             PageClip = new Clip(sounds.Page);
+        }
+        byte[]? low = null, critical = null;
+        if (SoundPacks.Find(set) is { } pack)
+        {
+            low = SoundPacks.ReadSound(pack, "battery_low.wav");
+            critical = SoundPacks.ReadSound(pack, "battery_critical.wav") ?? low;
+        }
+        lock (Gate)
+        {
+            BatteryLowClip = low == null ? null : new Clip(low);
+            BatteryCriticalClip = critical == null ? null : new Clip(critical);
         }
         // The "from the sound pack" game-start chime follows whichever pack is now selected.
         if (_chimeId == "pack") SetLaunchChime(_chimeId, _chimeFile);
@@ -131,6 +149,11 @@ public static class UiSound
             "arcade" => (Wave.Square, 0.84, 0.36, 1.0),
             "deep" => (Wave.Sine, 0.45, 1.1, 1.4),
             "chime" => (Wave.Triangle, 1.25, 0.9, 1.6),
+            "tick" => (Wave.Triangle, 1.4, 0.6, 0.6),    // a dry mechanical click, like a clock or a keyboard
+            "marimba" => (Wave.Bell, 0.9, 1.0, 1.5),     // warm wooden notes
+            "laser" => (Wave.Saw, 1.3, 0.32, 0.9),       // sci-fi zaps that sweep down
+            "droplet" => (Wave.Sine, 1.2, 0.85, 0.8),    // water drops that plip upward
+            "kalimba" => (Wave.Bell, 1.6, 0.85, 1.3),    // bright plucked metal tines
             _ => (Wave.Sine, 1.0, 1.0, 1.0)
         };
         volume *= VolumePercent / 100.0;
@@ -143,6 +166,15 @@ public static class UiSound
 
         var move = One(880, chirpy ? 1100 : 0, 35, 0.18);
         var select = One(660, 990, 90, 0.22);
+        // The new sets each give moving around (and selecting) a shape of their own.
+        switch (set)
+        {
+            case "tick": move = Tone(new[] { (1.0, 1.0, 12) }, 0.3 * volume, Wave.Noise); select = Tone(new[] { (1.0, 1.0, 10), (1.0, 1.0, 26) }, 0.28 * volume, Wave.Noise); break;
+            case "laser": move = One(1700, 650, 48, 0.2); select = One(900, 1900, 110, 0.22); break;
+            case "droplet": move = One(520, 1450, 38, 0.22); select = One(700, 1900, 80, 0.24); break;
+            case "marimba": move = One(784, 0, 90, 0.2); break;
+            case "kalimba": move = One(987.77, 0, 80, 0.18); break;
+        }
         var back = One(520, 390, 80, 0.20);
         var error = One(220, 200, 140, 0.22);
         var startup = Notes(520, 0.22, 523.25, 659.25, 783.99, 1046.5);
@@ -213,6 +245,14 @@ public static class UiSound
 
     /// <summary>Achievement pop-up.</summary>
     public static void Toast() { if (ToastEnabled) Play(ToastClip); }
+
+    /// <summary>The low-battery alert: the sound pack's own when it has one, otherwise the error sound.</summary>
+    public static void Battery(bool critical)
+    {
+        var clip = critical ? BatteryCriticalClip : BatteryLowClip;
+        if (clip != null) Play(clip, force: true);
+        else Error();
+    }
 
     /// <summary>The boot chime. Has its own setting, so it ignores <see cref="Enabled"/>.</summary>
     public static void Startup() => Play(StartupClip, force: true);
@@ -320,6 +360,10 @@ public static class UiSound
                 {
                     Wave.Square => sine >= 0 ? 1 : -1,
                     Wave.Triangle => 2 / Math.PI * Math.Asin(sine),
+                    Wave.Saw => 2 * (phase / (2 * Math.PI) % 1) - 1,
+                    // A struck bar: the note plus the bright, quickly fading overtones of wood or metal.
+                    Wave.Bell => (sine + 0.5 * Math.Sin(phase * 2.76) * (1 - t) + 0.25 * Math.Sin(phase * 5.4) * Math.Pow(1 - t, 3)) / 1.75,
+                    Wave.Noise => NoiseSource.NextDouble() * 2 - 1,
                     _ => sine
                 };
                 w.Write((short)(sample * envelope * volume * short.MaxValue));

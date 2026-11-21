@@ -1,0 +1,32 @@
+{
+ "panel": [
+  3,
+  3,
+  3,
+  3
+ ],
+ "button": [
+  3,
+  3,
+  3,
+  3
+ ],
+ "dialog": [
+  5,
+  22,
+  5,
+  5
+ ],
+ "scale": 2,
+ "pixel": true,
+ "roundSlice": [
+  3,
+  3,
+  3,
+  3
+ ],
+ "roundCorner": 0,
+ "dialogPad": 20,
+ "iconPixel": true,
+ "titleText": "#FFFFFF"
+}

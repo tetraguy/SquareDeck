@@ -17,7 +17,7 @@ public sealed class SettingsScreen : ListScreen
     private static readonly (string Id, string Name, string Glyph, string About)[] Categories =
     {
         ("overview", "Home", "\uE80F", "Your profile, your device at a glance, and the settings people change most"),
-        ("looks", "Themes", "\uE771", "Pick one of 100 styles or create your own"),
+        ("looks", "Themes", "\uE771", "Pick one of {styles} ready-made styles or create your own"),
         ("look", "Look and feel", "\uE790", "Colors, wallpaper and themes, the top bar and home screen buttons"),
         ("home", "Home screen", "\uE8A9", "The games row, animations, screen saver, starting and closing"),
         ("sound", "Sound and music", "\uE767", "Interface sounds, menu music, the Multimedia page and sound output"),
@@ -40,9 +40,11 @@ public sealed class SettingsScreen : ListScreen
     {
         get
         {
-            if (!Handheld.IsHandheld) return Categories;
+            // "{styles}" is the number of ready-made styles, counted when shown (see UiStyles.ReadyMadeCount).
+            var all = Categories.Select(c => (c.Id, c.Name, c.Glyph, c.About.Replace("{styles}", UiStyles.ReadyMadeCount.ToString())));
+            if (!Handheld.IsHandheld) return all.ToArray();
             // The handheld's own settings live in Experimental for now.
-            return Categories.Select(c => c.Id == "experimental"
+            return all.Select(c => c.Id == "experimental"
                 ? (c.Id, c.Name, c.Glyph, Handheld.DisplayName + " Specific Settings, Adrenaline Hook and other features still being tried out")
                 : c).ToArray();
         }
@@ -733,10 +735,44 @@ public sealed class SettingsScreen : ListScreen
     /// </summary>
     private void BuildLooks(Settings s)
     {
-        // Switch is SquareDeck's look; these are its 100 ready-made styles (all with the Switch layout) and yours, each with a little picture of its home screen.
+        // Switch is SquareDeck's look; these are its ready-made styles (UiStyles.ReadyMadeCount counts them) (all with the Switch layout) and yours, each with a little picture of its home screen.
         AddRow("Match theme, wallpaper, sounds and music to the style", OnOff(s.StyleMatching), "\uE790",
             click: () => Toggle(() => s.StyleMatching = !s.StyleMatching),
             subtitle: "Off keeps your own theme, wallpaper, sounds, music and highlight color when you change style");
+        // Basic: the styles drawn by SquareDeck (and yours). Advanced: styles made from UI kits, with their own
+        // panels, buttons, switches, pointer and icons.
+        var tabs = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 2) };
+        foreach (var (id, label, glyph) in new[] { ("basic", "Basic", "\uE771"), ("advanced", "Advanced", "\uE7F4") })
+        {
+            var chip = new Button
+            {
+                Style = Ui.StyleOf("ChipButton"), Tag = _stylesTab == id ? "active" : null,
+                Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children =
+                    {
+                        new TextBlock { Text = glyph, FontFamily = Ui.IconFont, FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 8, 0) },
+                        new TextBlock { Text = label, FontSize = 16, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }
+                    }
+                }
+            };
+            string tab = id;
+            chip.Click += (_, _) =>
+            {
+                if (_stylesTab == tab) return;
+                _stylesTab = tab;
+                UiSound.Select();
+                Rebuild();
+                FocusLater(Rows.Children.OfType<StackPanel>().SelectMany(p => p.Children.OfType<Button>()).FirstOrDefault(b => b.Tag as string == "active"));
+            };
+            tabs.Children.Add(chip);
+        }
+        Rows.Children.Add(tabs);
+        const double W = 296;
+        if (_stylesTab == "advanced") { BuildAdvancedStyles(s, W); return; }
+
         AddRow("Surprise me", null, "\uE8B1", subtitle: "Switch to a random style you're not using now", click: () =>
         {
             var others = UiStyles.All.Where(x => x.Id != s.UiStyle).ToList();
@@ -745,7 +781,6 @@ public sealed class SettingsScreen : ListScreen
 
         // Your own styles: make one, import one, and the ones you've made.
         AddHeader("Your styles");
-        const double W = 296;
         var mine = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         mine.Children.Add(ActionCard("\uE710", "Create a style", "Pick a background, music, sounds, colors, font, buttons, an effect and animations", W, () => _ = CreateStyleAsync()));
         mine.Children.Add(ActionCard("\uE8B5", "Import a style", "Add a style someone shared with you (a " + MyStyles.Extension + " file)", W, () => _ = ImportStyleAsync()));
@@ -760,7 +795,7 @@ public sealed class SettingsScreen : ListScreen
         }
         Rows.Children.Add(mine);
 
-        AddHeader("Ready-made styles");
+        AddHeader("Ready-made styles  ·  " + UiStyles.All.Length);
         // Three to a row: the column is 1040 wide, and each card adds the tile's padding and ring plus a 10 gap.
         var shelf = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         foreach (var style in UiStyles.All)
@@ -768,8 +803,19 @@ public sealed class SettingsScreen : ListScreen
             var st = style;
             bool inUse = st.Id == UiStyles.Current.Id;
             var tile = StyleCard(st, inUse, W);
-            tile.Click += (_, _) =>
+            tile.Click += async (_, _) =>
             {
+                // A style that comes in several colors and asks first (Spectrum): pick the color, then it's applied.
+                if (st.Skin is { AskColor: true, Variants.Length: > 1 } colors)
+                {
+                    int pick = await Host.AskAsync(st.Name, "Which color would you like?", colors.Variants.Select(v => v.Name).ToArray());
+                    if (pick < 0) return;
+                    s.SkinVariants[st.Id] = colors.Variants[pick].Id;
+                    s.Save();
+                    if (inUse) { Host.ApplyLook(); Rebuild(); }
+                    else UseSwitchStyle(st);
+                    return;
+                }
                 if (inUse) { Host.ShowToast("Themes", st.Name + " is in use", "It's the style SquareDeck has now.", "", "info", remember: false); return; }
                 UseSwitchStyle(st);
             };
@@ -784,6 +830,111 @@ public sealed class SettingsScreen : ListScreen
             subtitle: "Light or dark, color themes, the highlight color, wallpaper and the moving background");
         AddRow("Sounds and music", null, "\uE767", click: () => Show("sound", focusContent: true),
             subtitle: "Interface sounds and menu music");
+    }
+
+    /// <summary>Which tab of Themes is showing: the Basic styles or the Advanced ones.</summary>
+    private static string _stylesTab = UiStyles.IsAdvanced(UiStyles.Current.Id) ? "advanced" : "basic";
+
+    /// <summary>The Advanced tab: styles made from UI kits, each with a color choice where the kit has several.</summary>
+    private void BuildAdvancedStyles(Settings s, double W)
+    {
+        var current = UiStyles.Current;
+        if (UiStyles.IsAdvanced(current.Id) && current.Skin is { Variants.Length: > 1 } skin)
+        {
+            AddHeader(current.Name);
+            string chosen = skin.Variants.FirstOrDefault(v => v.Id == current.SkinVariant).Name ?? skin.Variants[0].Name;
+            AddRow("Color", chosen, "\uE790", subtitle: "The kit's own color versions of its panels and buttons", click: async () =>
+            {
+                int pick = await Host.AskAsync("Color", null, skin.Variants.Select(v => v.Name).ToArray());
+                if (pick < 0) return;
+                s.SkinVariants[current.Id] = skin.Variants[pick].Id;
+                s.Save();
+                Host.ApplyLook();
+                Rebuild();
+            });
+        }
+
+        AddHeader("Advanced styles  ·  " + UiStyles.Advanced.Length);
+        var shelf = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+        foreach (var style in UiStyles.Advanced)
+        {
+            var st = style;
+            bool inUse = st.Id == current.Id;
+            s.SkinVariants.TryGetValue(st.Id, out var variant);
+            var tile = AdvancedCard(st, variant, inUse, W);
+            tile.Click += (_, _) =>
+            {
+                if (inUse) { Host.ShowToast("Themes", st.Name + " is in use", "It's the style SquareDeck has now.", "", "info", remember: false); return; }
+                UseSwitchStyle(st);
+            };
+            shelf.Children.Add(tile);
+        }
+        Rows.Children.Add(shelf);
+        AddNote("Advanced styles keep the Switch layout and dress it in a UI kit's own artwork: panels, buttons, dialogs, " +
+                "switches, the mouse pointer and, for some, the round buttons' icons. With matching on, each brings its own theme, " +
+                "background, interface sounds and music.");
+        AddRow("Credits", null, "\uE946", subtitle: "The artists behind these kits, sounds and fonts", click: () => Host.Push(new CreditsScreen()));
+    }
+
+    /// <summary>An Advanced style's card: a picture of its artwork, its name in its own font, and its colors.</summary>
+    private static Button AdvancedCard(UiStyle st, string? variant, bool inUse, double W)
+    {
+        var card = new StackPanel { Width = W };
+        var frame = new Grid { Width = W, Height = W * 191 / 340, ClipToBounds = true };
+        var back = new Border { CornerRadius = new CornerRadius(10) };
+        back.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        frame.Children.Add(back);
+        if (st.Skin is { } skin)
+        {
+            string path = System.IO.Path.Combine(Services.Skins.FolderFor(skin, variant), "preview.jpg");
+            try
+            {
+                if (System.IO.File.Exists(path))
+                {
+                    var picture = new System.Windows.Media.Imaging.BitmapImage();
+                    picture.BeginInit();
+                    picture.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    picture.DecodePixelWidth = 680;
+                    picture.UriSource = new Uri(path);
+                    picture.EndInit();
+                    picture.Freeze();
+                    frame.Children.Add(new Border
+                    {
+                        CornerRadius = new CornerRadius(10),
+                        Background = new ImageBrush(picture) { Stretch = Stretch.UniformToFill }
+                    });
+                }
+            }
+            catch (Exception) { }
+        }
+        if (inUse)
+        {
+            var badgeText = new StackPanel { Orientation = Orientation.Horizontal };
+            var tick = Ui.Glyph("\uE73E", 13, "BgBrush");
+            tick.Margin = new Thickness(0, 1, 6, 0);
+            badgeText.Children.Add(tick);
+            badgeText.Children.Add(Ui.Text("In use", 13, "BgBrush", bold: true));
+            var badge = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 4, 12, 5), Margin = new Thickness(0, 10, 10, 0),
+                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Child = badgeText };
+            badge.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+            frame.Children.Add(badge);
+        }
+        card.Children.Add(frame);
+        var name = Ui.Text(st.Name, 18, "FgBrush", bold: true);
+        name.Margin = new Thickness(4, 10, 0, 2);
+        try { name.FontFamily = Services.AppFonts.Family(st.Font); } catch (Exception) { }
+        card.Children.Add(name);
+        string about = st.Description;
+        if (st.Skin is { Variants.Length: > 1 } many) about += " · " + many.Variants.Length + " colors";
+        var text = Ui.Text(about, 13, "SubtleBrush");
+        text.TextWrapping = TextWrapping.Wrap;
+        text.TextTrimming = TextTrimming.None;
+        text.Margin = new Thickness(4, 0, 4, 4);
+        card.Children.Add(text);
+        var tile = Ui.Tile(card);
+        tile.Margin = new Thickness(0, 0, 10, 10);
+        tile.VerticalAlignment = VerticalAlignment.Top;
+        return tile;
     }
 
     /// <summary>A style's card: a little picture of its home screen, its name in its own font, and what it's like.</summary>
@@ -2122,6 +2273,7 @@ public sealed class SettingsScreen : ListScreen
         if (s.SkippedVersion.Length > 0)
             AddRow("Stop ignoring " + s.SkippedVersion, glyph: "", click: () => Toggle(() => s.SkippedVersion = ""));
         AddRow("Open the releases page", glyph: "", click: () => ProcessUtil.Open(Updater.ReleasesPage));
+        AddRow("Credits", null, "\uE946", subtitle: "The artists behind the Advanced styles' kits, sounds and fonts", click: () => Host.Push(new CreditsScreen()));
         AddRow("Update screen animation", SilentUpdate.Looks.FirstOrDefault(l => l.Id == s.UpdaterLook).Name ?? "A different one each time", "\uE768",
             click: () => Pick("Update screen animation", SilentUpdate.Looks.Select(l => (l.Id, l.Name, "")).ToArray(), id => s.UpdaterLook = id),
             subtitle: "What moves behind the progress while SquareDeck updates itself");
@@ -2495,6 +2647,14 @@ public sealed class SettingsScreen : ListScreen
         ("file:ForbiddenLove.otf#Forbidden Love", "Forbidden Love", "Thin, tall and elegant"),
         ("file:Sixrow-Thin.ttf#Sixrow#Sixrow Thin", "Sixrow", "Thin, square capitals like a dot-matrix display"),
         ("file:Tindamare.ttf#Tindamare", "Tindamare", "A clean, round geometric sans"),
+        ("file:BarlowCondensed-SemiBold.ttf#Barlow Condensed SemiBold#Barlow Condensed", "Barlow Condensed", "Tall, condensed and sporty"),
+        ("file:AfacadFlux-Regular.ttf#Afacad Flux", "Afacad Flux", "Friendly, rounded and easy to read"),
+        ("file:Windows2000XP.otf#windows 2000 and xp", "Windows 2000", "The crisp system type of old Windows"),
+        ("file:WindowsXPLike.otf#WindowsXPlike A", "Windows XP", "Friendly early-2000s desktop type"),
+        ("file:OpenDyslexic-Regular.otf#OpenDyslexic", "OpenDyslexic", "Weighted letters that some people with dyslexia find easier to read"),
+        ("file:VT323-Regular.ttf#VT323", "VT323", "An old computer terminal's pixel type"),
+        ("file:Jersey10-Regular.ttf#Jersey 10", "Jersey 10", "Tall, condensed pixel type like a team jersey"),
+        ("file:PixelOperator16-Regular.ttf#Pixel Operator", "Pixel Operator", "A tidy, readable pixel font"),
         ("file:orange_juice_2.0.ttf#orange juice", "Orange Juice", "Bold, bubbly hand lettering"),
         ("file:Aurely_Roliste_Demo.ttf#Aurely Roliste Demo", "Aurely Roliste", "Bold brush script (this demo has no numbers)"),
         ("file:Marching_Brush.otf#Marching Brush", "Marching Brush", "Rough brushed capitals (this demo's numbers are scribbles)"),
@@ -3116,6 +3276,7 @@ public sealed class QuickSettingsScreen : Screen
                 break;
         }
         LookChrome.StyleSheet(_sheet);
+        SkinSheet(_sheet);
         var backdrop = new Grid { Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x70, 0, 0, 0)) };
         backdrop.Children.Add(_sheet);
         Content = backdrop;
@@ -3129,7 +3290,22 @@ public sealed class QuickSettingsScreen : Screen
         row.Margin = new Thickness(0, 4, 0, 4);
         if (row.Child is Grid g && g.ColumnDefinitions.Count > 1) g.ColumnDefinitions[1].Width = new GridLength(112);
         LookChrome.PaintFace(row, Array.Empty<TextBlock>(), on: false, focused: false);
+        if (Ui.SkinBrush(row, "panel") is { } art) { row.Background = art; row.CornerRadius = new CornerRadius(0); } // an Advanced style's row artwork (it draws its own corners)
         return row;
+    }
+
+    /// <summary>
+    /// An Advanced style's pop-up artwork behind a sheet or card (quick settings, the power menu), with room under
+    /// a title bar when the artwork has one. Basic styles keep their plain background.
+    /// </summary>
+    internal static void SkinSheet(Border sheet)
+    {
+        if (Ui.SkinBrush(sheet, "dialog") is not { } art) return;
+        sheet.Background = art;
+        sheet.CornerRadius = new CornerRadius(0);
+        sheet.BorderThickness = new Thickness(0);
+        if (Skins.Current is { DialogPad: > 0 } titled)
+            sheet.Padding = new Thickness(sheet.Padding.Left, sheet.Padding.Top + titled.DialogPad, sheet.Padding.Right, sheet.Padding.Bottom);
     }
 
     public override void OnShown()
@@ -3259,6 +3435,8 @@ public sealed class QuickTile : Button
     /// <summary>Y on the tile (or a right click): its full settings page.</summary>
     public event Action? Hold;
 
+    private readonly System.Windows.Media.Brush? _art;
+
     public QuickTile(string glyph, string label)
     {
         Style = Ui.StyleOf("BareButton");
@@ -3281,6 +3459,7 @@ public sealed class QuickTile : Button
             RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = _scale
         };
         Content = _face;
+        _art = Ui.SkinBrush(_face, "button");
         Paint();
         GotKeyboardFocus += (_, _) => Highlight(true);
         LostKeyboardFocus += (_, _) => Highlight(false);
@@ -3303,7 +3482,8 @@ public sealed class QuickTile : Button
             _state.Opacity = 0.8;
             return;
         }
-        _face.SetResourceReference(Border.BackgroundProperty, _on ? "AccentBrush" : "CircleBrush");
+        if (_on) { Ui.SkinCorners(_face, false); _face.SetResourceReference(Border.BackgroundProperty, "AccentBrush"); }
+        else Ui.SkinFill(_face, _art, "CircleBrush"); // an Advanced style's button artwork when off
         string fore = _on ? "BgBrush" : "FgBrush";
         _glyph.SetResourceReference(TextBlock.ForegroundProperty, fore);
         _label.SetResourceReference(TextBlock.ForegroundProperty, fore);
@@ -3552,6 +3732,7 @@ public sealed class PowerMenuScreen : Screen
     private readonly TaskCompletionSource<int> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly List<(Button Button, Border Circle, TextBlock Label, string Name, bool Confirm)> _items = new();
     private readonly List<TextBlock> _glyphs = new();
+    private readonly List<System.Windows.Media.Brush?> _arts = new();
     /// <summary>How the look lays the options out: in a row (the usual) or as a list (drawers and console menus).</summary>
     private readonly bool _list = Looks.Current.Id is "ubiquity" or "deck" or "xdash";
     private readonly string _side = LookChrome.SheetSide(power: true);
@@ -3573,6 +3754,7 @@ public sealed class PowerMenuScreen : Screen
         var who = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 30) };
         var name = Ui.Text(UserName.Display, 26, "FgBrush", bold: true);
         name.VerticalAlignment = VerticalAlignment.Center;
+        if (Skins.Current?.TitleText is { } titleText) name.Foreground = titleText; // it sits on the pop-up art's title bar
         who.Children.Add(name);
         if (Battery.GetPercent() is int battery)
         {
@@ -3639,6 +3821,7 @@ public sealed class PowerMenuScreen : Screen
         card.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
         card.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
         LookChrome.StyleSheet(card);
+        QuickSettingsScreen.SkinSheet(card);
         switch (_side)
         {
             case "left":
@@ -3755,6 +3938,7 @@ public sealed class PowerMenuScreen : Screen
         };
         button.Click += (_, _) => Choose(index);
         row.Children.Add(button);
+        _arts.Add(Ui.SkinBrush(circle, _list ? "panel" : "button")); // an Advanced style's artwork for the tile
         _items.Add((button, circle, label, name, confirm));
         _glyphs.Add(glyphText);
         Paint(index, focused: false);
@@ -3778,6 +3962,7 @@ public sealed class PowerMenuScreen : Screen
         string shown = Looks.Current.Id == "solaris" && !_list ? name.ToUpperInvariant() : name;
         if (armed)
         {
+            Ui.SkinCorners(circle, false);
             circle.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD9, 0x3B, 0x3B));
             glyph.Foreground = System.Windows.Media.Brushes.White;
             label.Text = "Press again";
@@ -3793,7 +3978,8 @@ public sealed class PowerMenuScreen : Screen
             if (!_list) label.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
             return;
         }
-        circle.SetResourceReference(Border.BackgroundProperty, focused ? "AccentBrush" : "CircleBrush");
+        if (focused) { Ui.SkinCorners(circle, false); circle.SetResourceReference(Border.BackgroundProperty, "AccentBrush"); }
+        else Ui.SkinFill(circle, index < _arts.Count ? _arts[index] : null, "CircleBrush");
         glyph.SetResourceReference(TextBlock.ForegroundProperty, focused ? "BgBrush" : "FgBrush");
         if (focused) circle.SetResourceReference(Border.BorderBrushProperty, "FgBrush");
         else circle.BorderBrush = System.Windows.Media.Brushes.Transparent;

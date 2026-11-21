@@ -1,0 +1,25 @@
+{
+ "panel": [
+  40,
+  40,
+  40,
+  40
+ ],
+ "button": [
+  24,
+  24,
+  24,
+  24
+ ],
+ "dialog": [
+  100,
+  30,
+  30,
+  60
+ ],
+ "scale": 0.6,
+ "pixel": false,
+ "iconPixel": false,
+ "cursorScale": 0.5,
+ "glyphColor": "#FFFFFF"
+}

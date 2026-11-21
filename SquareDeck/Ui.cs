@@ -147,9 +147,111 @@ public static class Ui
         return new Button { Style = StyleOf("TileButton"), Content = face, ToolTip = tip, HorizontalAlignment = HorizontalAlignment.Center };
     }
 
-    /// <summary>A switch drawing: a pill with a knob, filled with the highlight color when on.</summary>
-    public static Grid Toggle(bool on)
+    /// <summary>
+    /// Puts an Advanced style's dialog artwork behind a dialog box (the box's own fill goes see-through then).
+    /// Returns what to add to the screen in place of the box; with a Basic style it looks exactly as before.
+    /// </summary>
+    public static FrameworkElement SkinBox(Border box)
     {
+        var holder = new Grid
+        {
+            Width = box.Width, HorizontalAlignment = box.HorizontalAlignment, VerticalAlignment = box.VerticalAlignment,
+            Margin = box.Margin, Effect = box.Effect
+        };
+        box.Width = double.NaN;
+        box.Margin = new Thickness(0);
+        box.Effect = null;
+        box.HorizontalAlignment = HorizontalAlignment.Stretch;
+        box.VerticalAlignment = VerticalAlignment.Stretch;
+        var art = new NineSlice();
+        art.SetResourceReference(NineSlice.SourceProperty, "SkinDialog");
+        art.SetResourceReference(NineSlice.SliceProperty, "SkinDialogSlice");
+        art.SetResourceReference(NineSlice.ScaleProperty, "SkinScale");
+        art.SetResourceReference(NineSlice.PixelProperty, "SkinPixel");
+        holder.Children.Add(art);
+        box.SetResourceReference(Border.BackgroundProperty, "SkinDialogFill");
+        // Artwork with a title bar (Retro Windows, Luna XP): the text starts below it.
+        if (Services.Skins.Current is { Dialog: not null, DialogPad: > 0 } titled)
+            box.Padding = new Thickness(box.Padding.Left, box.Padding.Top + titled.DialogPad, box.Padding.Right, box.Padding.Bottom);
+        holder.Children.Add(box);
+        return holder;
+    }
+
+    /// <summary>
+    /// An Advanced style's artwork ("panel", "button", "dialog" or "round") as a brush for a border's background,
+    /// stretched to the border the nine-slice way; null with a Basic style or when the kit has no such picture.
+    /// Used where a screen builds its own boxes instead of the shared button templates (power menu, quick settings).
+    /// </summary>
+    public static Brush? SkinBrush(FrameworkElement owner, string part)
+    {
+        if (Services.Skins.Current is not { } skin) return null;
+        var (source, slice) = part switch
+        {
+            "panel" => (skin.Panel, skin.PanelSlice),
+            "button" => (skin.Button, skin.ButtonSlice),
+            "dialog" => (skin.Dialog, skin.DialogSlice),
+            "round" => (skin.Round, new Thickness(0)),
+            _ => (null, new Thickness(0))
+        };
+        if (source is not System.Windows.Media.Imaging.BitmapSource bitmap) return null;
+        // A drawing the exact size of the area it fills, redrawn when the border changes size: no stretching, nothing cut off.
+        // A Border paints its background inside its border lines, so the drawing is fitted to that inner area; fitted to
+        // the outside it lost a few pixels on every edge (the art's own outline, on the Power menu and Quick Settings buttons).
+        var brush = new DrawingBrush { Stretch = Stretch.Fill, ViewboxUnits = BrushMappingMode.Absolute,
+                                       ViewportUnits = BrushMappingMode.RelativeToBoundingBox, Viewport = new Rect(0, 0, 1, 1) };
+        void Fit()
+        {
+            var edge = owner is Border b ? b.BorderThickness : new Thickness(0);
+            double w = Math.Max(1, owner.ActualWidth - edge.Left - edge.Right), h = Math.Max(1, owner.ActualHeight - edge.Top - edge.Bottom);
+            if (part == "round")
+            {
+                var group = new DrawingGroup();
+                RenderOptions.SetBitmapScalingMode(group, skin.Pixel ? BitmapScalingMode.NearestNeighbor : BitmapScalingMode.HighQuality);
+                group.Children.Add(new ImageDrawing(bitmap, new Rect(0, 0, w, h)));
+                brush.Drawing = group;
+            }
+            else brush.Drawing = NineSlice.Drawing(bitmap, slice, skin.Scale, w, h, skin.Pixel);
+            brush.Viewbox = new Rect(0, 0, w, h);
+        }
+        owner.SizeChanged += (_, _) => Fit();
+        Fit();
+        return brush;
+    }
+
+    /// <summary>A border's resting background: the style's artwork when it has some, otherwise the given brush resource.</summary>
+    public static void SkinFill(Border border, Brush? art, string fallback)
+    {
+        SkinCorners(border, art != null);
+        if (art != null) border.Background = art;
+        else border.SetResourceReference(Border.BackgroundProperty, fallback);
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Border, object> _usualCorners = new();
+
+    /// <summary>
+    /// The artwork draws its own shape, so while it's shown the border's rounding is turned off: rounded for the style
+    /// (a circle on the Power menu) it cut the corners off the art. Back to the usual rounding for the highlight color.
+    /// </summary>
+    public static void SkinCorners(Border border, bool artShown)
+    {
+        if (!_usualCorners.TryGetValue(border, out var usual)) { usual = border.CornerRadius; _usualCorners.Add(border, usual); }
+        border.CornerRadius = artShown ? new CornerRadius(0) : (CornerRadius)usual;
+    }
+
+    /// <summary>A switch drawing: a pill with a knob, filled with the highlight color when on.</summary>
+    public static FrameworkElement Toggle(bool on)
+    {
+        // Advanced styles bring their own switch pictures.
+        if (Services.Skins.Current is { } skin && (on ? skin.ToggleOn : skin.ToggleOff) is ImageSource picture)
+        {
+            var image = new Image
+            {
+                Source = picture, Height = 30, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = on ? "On" : "Off"
+            };
+            RenderOptions.SetBitmapScalingMode(image, skin.Pixel ? BitmapScalingMode.NearestNeighbor : BitmapScalingMode.HighQuality);
+            return image;
+        }
         var grid = new Grid { Width = 50, Height = 28, VerticalAlignment = VerticalAlignment.Center, ToolTip = on ? "On" : "Off" };
         var track = new Border { CornerRadius = new CornerRadius(14) };
         if (on) track.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
@@ -702,11 +804,17 @@ public static class Motion
     public static readonly (string Id, string Name)[] TileHighlights =
     {
         ("pulse", "Pulsing ring"), ("steady", "Steady ring"), ("grow", "Tile grows"), ("bounce", "Bounce"),
-        ("lift", "Lift"), ("wobble", "Wobble"), ("breathe", "Breathe"), ("tilt", "Tilt"), ("glow", "Glow pulse"), ("shake", "Shake")
+        ("lift", "Lift"), ("wobble", "Wobble"), ("breathe", "Breathe"), ("tilt", "Tilt"), ("glow", "Glow pulse"), ("shake", "Shake"),
+        // 6.25: five more, made for SquareDeck.
+        ("lockon", "Lock-on"), ("jelly", "Jelly"), ("float", "Float"), ("heartbeat", "Heartbeat"), ("rainbow", "Rainbow ring")
     };
 
     /// <summary>How much the highlight animation alone grows the tile (when the UI style doesn't).</summary>
-    public static double HighlightGrow => TileStyle switch { "grow" => 1.05, "bounce" => 1.07, "lift" => 1.03, "wobble" => 1.04, "breathe" => 1.05, "tilt" => 1.05, "shake" => 1.03, _ => 1 };
+    public static double HighlightGrow => TileStyle switch
+    {
+        "grow" => 1.05, "bounce" => 1.07, "lift" => 1.03, "wobble" => 1.04, "breathe" => 1.05, "tilt" => 1.05, "shake" => 1.03,
+        "jelly" => 1.05, "float" => 1.03, "heartbeat" => 1.04, _ => 1
+    };
 
     public static void GrowTile(UIElement? tile, bool on)
     {
@@ -756,6 +864,43 @@ public static class Motion
                     shake.KeyFrames.Add(new LinearDoubleKeyFrame(x, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ms))));
                 parts.Move.BeginAnimation(TranslateTransform.XProperty, shake);
                 break;
+            }
+            case "jelly":
+            {
+                // Squash and stretch: wide and short, then tall and narrow, wobbling to rest like jelly.
+                var x = new DoubleAnimationUsingKeyFrames();
+                var y = new DoubleAnimationUsingKeyFrames();
+                foreach (var (ms, sx, sy) in new[] { (0, 1.0, 1.0), (110, 1.14, 0.88), (220, 0.93, 1.08), (330, 1.05, 0.97), (430, 0.99, 1.01), (520, 1.0, 1.0) })
+                {
+                    var kt = KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ms));
+                    x.KeyFrames.Add(new EasingDoubleKeyFrame(target * sx, kt, new SineEase()));
+                    y.KeyFrames.Add(new EasingDoubleKeyFrame(target * sy, kt, new SineEase()));
+                }
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, x);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, y);
+                return;
+            }
+            case "float":
+            {
+                // Lifts off and bobs gently up and down while it stays selected, like it's floating on water.
+                var bob = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever };
+                bob.KeyFrames.Add(new EasingDoubleKeyFrame(-12, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(260)), new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut }));
+                bob.KeyFrames.Add(new EasingDoubleKeyFrame(-5, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1260)), new SineEase { EasingMode = EasingMode.EaseInOut }));
+                bob.KeyFrames.Add(new EasingDoubleKeyFrame(-12, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2260)), new SineEase { EasingMode = EasingMode.EaseInOut }));
+                if (Perf.Active) parts.Move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-10, TimeSpan.FromMilliseconds(240)) { EasingFunction = ease });
+                else parts.Move.BeginAnimation(TranslateTransform.YProperty, bob);
+                break;
+            }
+            case "heartbeat":
+            {
+                // Two quick beats, a rest, and again: lub-dub.
+                var beat = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever };
+                foreach (var (ms, k) in new[] { (0, 1.0), (110, 1.045), (220, 1.0), (330, 1.03), (470, 1.0), (1400, 1.0) })
+                    beat.KeyFrames.Add(new EasingDoubleKeyFrame(target * k, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ms)), new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+                if (Perf.Active) break;
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, beat);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, beat);
+                return;
             }
             case "breathe":
             {
@@ -834,6 +979,31 @@ public static class Motion
                 new DoubleAnimation(8, 34, TimeSpan.FromSeconds(1)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
             return;
         }
+        if (TileStyle == "lockon" && !Theme.ReduceMotion && ring is FrameworkElement lockRing)
+        {
+            // The ring zooms in from wide, like a target locking on, overshoots a touch and holds steady.
+            StopPulse(ring);
+            var zoom = new ScaleTransform(1, 1);
+            lockRing.RenderTransformOrigin = new Point(0.5, 0.5);
+            lockRing.RenderTransform = zoom;
+            var inward = new DoubleAnimation(1.4, 1, TimeSpan.FromMilliseconds(280)) { EasingFunction = new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut } };
+            zoom.BeginAnimation(ScaleTransform.ScaleXProperty, inward);
+            zoom.BeginAnimation(ScaleTransform.ScaleYProperty, inward);
+            ring.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+            return;
+        }
+        if (TileStyle == "rainbow" && !Theme.ReduceMotion && !Perf.Active && ring is Border rainbowRing)
+        {
+            // The ring slowly cycles through the colors of the rainbow.
+            var brush = new SolidColorBrush(Colors.Red);
+            rainbowRing.BorderBrush = brush;
+            var hues = new ColorAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever };
+            var colors = new[] { "#FF3B3B", "#FF9F1C", "#FFE53B", "#3BFF6E", "#2FE0FF", "#4B6BFF", "#C04BFF", "#FF3B3B" };
+            for (int i = 0; i < colors.Length; i++)
+                hues.KeyFrames.Add(new LinearColorKeyFrame((Color)ColorConverter.ConvertFromString(colors[i]), KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(i * 500))));
+            brush.BeginAnimation(SolidColorBrush.ColorProperty, hues);
+            return;
+        }
         if (Theme.ReduceMotion || TileStyle != "pulse" || Perf.Active) { StopPulse(ring); return; }
         ring.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.3, TimeSpan.FromSeconds(1.2))
         {
@@ -854,6 +1024,9 @@ public static class Motion
         }
         ring.BeginAnimation(UIElement.OpacityProperty, null);
         ring.Opacity = 1;
+        // Undo a lock-on zoom and a rainbow ring.
+        if (ring.RenderTransform is ScaleTransform) ring.RenderTransform = Transform.Identity;
+        if (ring is Border b && b.ReadLocalValue(Border.BorderBrushProperty) != DependencyProperty.UnsetValue) b.ClearValue(Border.BorderBrushProperty);
     }
 
     private static bool _registered;

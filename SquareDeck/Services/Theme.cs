@@ -28,7 +28,7 @@ public static class Theme
         ("Crimson", "Crimson.jpg"), ("Gold Dust", "Gold Dust.jpg"), ("Lavender", "Lavender.jpg"), ("Next Door", "Next Door.jpg"),
         ("Nostalgia", "Nostalgia.jpg"), ("Jewels", "Jewels.jpg"), ("Terra", "Terra.jpg"),
         ("Me o Tu", "Me o Tu.jpg"), ("The View", "The View.jpg"), ("Tu Reflexion", "Tu Reflexion.jpg"), ("Cloud Pool", "Cloud Pool.jpg"),
-        ("Viborl", "Viborl.jpg"), ("Dorado Obscur", "Dorado Obscur.jpg"), ("Windows 95", "Windows 95.jpg"),
+        ("Viborl", "Viborl.jpg"), ("Dorado Obscur", "Dorado Obscur.jpg"), ("Windows 95", "Windows 95.jpg"), ("Bliss", "Bliss.jpg"), ("Fatanzia", "Fatanzia.jpg"),
         ("Bad Trip", "Bad Trip.jpg"), ("Chased", "Chased.jpg"), ("Too Much Acid", "Too Much Acid.jpg"), ("Your Fault", "Your Fault.jpg"),
         ("Silver Lining", "Silver Lining.jpg"), ("Waivy Web", "Waivy Web.jpg")
     };
@@ -353,8 +353,12 @@ public static class Theme
     }
 
     /// <summary>Puts the highlight color back to the user's choice (or the theme's own).</summary>
+    /// <summary>Whether the highlight color is one the user picked (not the style's own), which also replaces a gradient ring.</summary>
+    public static bool UserAccent { get; private set; }
+
     public static void ApplyAccent(Settings settings)
     {
+        UserAccent = settings.ThemeMode is not ("hc-dark" or "hc-light") && !string.IsNullOrEmpty(settings.AccentColor);
         if (settings.ThemeMode is "hc-dark" or "hc-light")
         {
             Set("AccentBrush", settings.ThemeMode == "hc-dark" ? "#FFE600" : "#0033CC");
@@ -365,6 +369,7 @@ public static class Theme
         else if (UiStyles.PaletteFor(UiStyles.Current, CurrentIsDark) is { } palette && palette[5].Length > 0) Set("AccentBrush", palette[5]);
         else if (Palettes.TryGetValue(settings.ThemePalette ?? "", out var theme)) Set("AccentBrush", (CurrentIsDark ? theme.Dark : theme.Light)[5]);
         else Set("AccentBrush", CurrentIsDark ? "#20E0D0" : "#0AB9C9");
+        UiStyles.RefreshRing(gradient: true);
     }
 
     /// <summary>The accent color chosen in Windows' own Personalization settings, if it can be read.</summary>
@@ -398,6 +403,7 @@ public static class Theme
             color = Color.FromRgb((byte)(color.R * keep), (byte)(color.G * keep), (byte)(color.B * keep));
         }
         Set("AccentBrush", color);
+        UiStyles.RefreshRing(gradient: false); // a color from the game or from Windows replaces a gradient ring
     }
 
     private static void Set(string key, string hex) => Set(key, (Color)ColorConverter.ConvertFromString(hex));
@@ -407,6 +413,22 @@ public static class Theme
         var brush = new SolidColorBrush(color);
         brush.Freeze();
         Application.Current.Resources[key] = brush;
-        if (key == "AccentBrush") AllyControl.AccentChanged(); // the Ally's lights, when they follow the accent
+        if (key == "AccentBrush")
+        {
+            AllyControl.AccentChanged(); // the Ally's lights, when they follow the accent
+            // The accent as text over dark game art (the "Continue where you left off" heading): a dark accent such as
+            // Retro Windows' navy is lifted toward white, keeping its hue, so it can still be read.
+            double lum = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255;
+            var onDark = color;
+            if (lum < 0.7)
+            {
+                double lift = (0.7 - lum) / (1 - lum);
+                onDark = Color.FromRgb((byte)(color.R + (255 - color.R) * lift), (byte)(color.G + (255 - color.G) * lift),
+                    (byte)(color.B + (255 - color.B) * lift));
+            }
+            var light = new SolidColorBrush(onDark);
+            light.Freeze();
+            Application.Current.Resources["AccentOnDarkBrush"] = light;
+        }
     }
 }

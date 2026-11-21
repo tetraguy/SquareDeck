@@ -28,6 +28,9 @@ public sealed record UiStyle
     public double RingThickness { get; init; } = 4;
     public string Shadow { get; init; } = "soft"; // soft, hard (comic offset), none
     public bool Glow { get; init; }            // a soft glow in the highlight color around the selection
+    public string[]? RingColors { get; init; }  // the highlight ring as a gradient (Switch); null = the highlight color
+    public AdvancedSkin? Skin { get; init; }      // Advanced styles: their artwork (Skins\), drawn over the Switch layout
+    public string? SkinVariant { get; init; }     // the color variant of that artwork in use (set from settings)
     public bool Glass { get; init; }           // frosted panels with a bright rim over blurred art
     public bool DarkGlass { get; init; }       // with Glass: smoked dark glass instead of white frost
     public bool LightGlass { get; init; }      // with Glass: bright milky glass with dark text
@@ -37,6 +40,8 @@ public sealed record UiStyle
     public string? Mode { get; init; }              // Windows-style theme it comes with: "light", "dark" or "oled" (null = worked out from its colors)
     public string Sounds { get; init; } = "classic";  // a built-in sound set, or "pack:(folder)" for a sound pack
     public string Music { get; init; } = "";          // menu music: "track:(name)", "pack:(folder)", or "" for none
+    public string? NavSounds { get; init; }           // a sound set for moving the highlight (null = the same as Sounds)
+    public string? TileAnimation { get; init; }       // how the selected game stands out (Motion.TileHighlights), or null to leave yours
     /// <summary>The game-start chime the style brings (an id from UiSound.LaunchChimes), or null to leave yours.</summary>
     public string? LaunchChime { get; init; }
     public string? Glyphs { get; init; }            // button pictures it comes with: "pixel" or "default" (null = your own choice)
@@ -114,7 +119,8 @@ public static class UiStyles
         new()
         {
             Id = "switch", Name = "Switch", Sounds = "classic", Music = "track:Sweetness", Moving = "",
-            Description = "The original: round buttons and square tiles on a clean background."
+            Description = "The original: round buttons and square tiles on a clean background, with a soft blue-to-pink gradient ring around what's highlighted.",
+            RingColors = new[] { "#3F7CFF", "#7B6CFF", "#C46BE6", "#FF7FB5", "#55C8FF" }
         },
         new()
         {
@@ -411,7 +417,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "pocket-pals", Name = "Pocket Pals", Sounds = "pack:Switch 2 Sounds", Music = "track:Jumps", Moving = "Pokee", Wallpaper = "",
+            Id = "pocket-pals", Name = "Pocket Pals", Sounds = "pack:Switch 2 Sounds", Music = "track:Jumps", TileAnimation = "jelly", Moving = "Pokee", Wallpaper = "",
             Description = "A cheerful creature adventure: sunny cream, cherry-red highlights, chunky round corners with a cartoon shadow and playful console sounds.",
             Light = new[] { "#FFF8E6", "#2A2140", "#6E6488", "#FFFFFF", "#FCEFC8", "#FF5A5F" }, ForceLight = true,
             Font = "file:pixel-it-5x4.ttf#Pixel It! 5x4", TileCorner = 22, RowCorner = 22, RingThickness = 3, Buttons = "circle",
@@ -667,7 +673,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "blossom-night", Name = "Blossom Night", Sounds = "pack:Dreamy SFX", Music = "track:Sun Rays", Moving = "Fall Blossom", Wallpaper = "",
+            Id = "blossom-night", Name = "Blossom Night", Sounds = "pack:Dreamy SFX", Music = "track:Sun Rays", TileAnimation = "heartbeat", Moving = "Fall Blossom", Wallpaper = "",
             Description = "Blossoms drifting under a starry sky: midnight blue and twilight violet, a petal-pink glow, an elegant serif, dreamy sounds and warm music.",
             Dark = new[] { "#0E1030", "#FDEFFF", "#B9A6D9", "#CC1C1A48", "#CC16163E", "#FF7AD9" },
             Font = "file:Against_Perfection_Serif_Personal_Use.ttf#Against Perfection Personal Use#Against Perfection Personal Use Serif", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
@@ -691,7 +697,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "nap-time", Name = "Nap Time", Sounds = "soft", Music = "track:Meditation", Moving = "Sleepy", Wallpaper = "",
+            Id = "nap-time", Name = "Nap Time", Sounds = "soft", Music = "track:Meditation", NavSounds = "marimba", TileAnimation = "float", Moving = "Sleepy", Wallpaper = "",
             Description = "A sleepy pixel friend dozing under a big summer cloud: sky blue and cloud white, a sunflower-yellow highlight, hand-drawn lettering, soft sounds and calm music.",
             Light = new[] { "#EAF5FF", "#1B2A3A", "#5A7088", "#FFFFFF", "#DCEBF7", "#E8A21C" }, ForceLight = true,
             Font = "file:Dreamink_Cream_Ginger.ttf#Dreamink Cream Ginger", TileCorner = 22, RowCorner = 22, RingThickness = 3, Buttons = "circle",
@@ -739,7 +745,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "kaleidoscope", Name = "Kaleidoscope", Sounds = "pack:Dreamy SFX", Music = "track:Jewels", Moving = "", Wallpaper = "image:Your Fault.jpg",
+            Id = "kaleidoscope", Name = "Kaleidoscope", Sounds = "pack:Dreamy SFX", Music = "track:Jewels", TileAnimation = "rainbow", Moving = "", Wallpaper = "image:Your Fault.jpg",
             Description = "Rainbow spirals staring back out of the dark: smoky black panels, an electric-cyan highlight that pops against the fire, tall poster lettering and dreamy sounds.",
             Dark = new[] { "#0A0505", "#FFF3E6", "#D1B49A", "#EB201010", "#EB1A0C0C", "#2FE0FF" },
             Font = "file:Amazing_Midnight_Personal_Use.ttf#Amazing Midnight Personal Use", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
@@ -771,7 +777,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "arcade-cabinet", Name = "Arcade Cabinet", Sounds = "arcade", Music = "track:Gaming Vibes", Moving = "", Wallpaper = "",
+            Id = "arcade-cabinet", Name = "Arcade Cabinet", Sounds = "arcade", Music = "track:Gaming Vibes", NavSounds = "laser", TileAnimation = "lockon", Moving = "", Wallpaper = "",
             Description = "Insert coin: a dark cabinet with chasing marquee bulbs top and bottom, scan lines, neon-magenta highlights, pixel lettering and arcade blips.",
             Dark = new[] { "#120A1E", "#FFF0FF", "#C3A6D6", "#241638", "#1D112E", "#FF2BD6" },
             Font = "file:pixel-it-5x4.ttf#Pixel It! 5x4", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
@@ -779,7 +785,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "lullaby", Name = "Lullaby", Sounds = "soft", Music = "track:Meditation", Moving = "", Wallpaper = "",
+            Id = "lullaby", Name = "Lullaby", Sounds = "soft", Music = "track:Meditation", NavSounds = "marimba", TileAnimation = "float", Moving = "", Wallpaper = "",
             Description = "Bedtime under a pixel sky: deep indigo, blinking square stars, a moon-yellow highlight, soft hand lettering and calm music.",
             Dark = new[] { "#0C1030", "#EEF0FF", "#A6ADD9", "#1A2050", "#151A44", "#FFD866" },
             Font = "file:Dreamink_Cream_Ginger.ttf#Dreamink Cream Ginger", TileCorner = 22, RowCorner = 22, RingThickness = 3, Buttons = "circle",
@@ -795,7 +801,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "mission-control", Name = "Mission Control", Sounds = "deep", Music = "track:Fraxsu", Moving = "", Wallpaper = "preset:0",
+            Id = "mission-control", Name = "Mission Control", Sounds = "deep", Music = "track:Fraxsu", NavSounds = "tick", TileAnimation = "lockon", Moving = "", Wallpaper = "preset:0",
             Description = "Houston, we have a library: slate panels in cockpit framing, a radar sweeping the corner, a signal-green highlight and deep, steady sounds.",
             Dark = new[] { "#141A1F", "#E8F4EE", "#93A9A0", "#1E2A30", "#19232A", "#38F28C" },
             Font = "Bahnschrift, Segoe UI", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
@@ -803,7 +809,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "glitch-pop", Name = "Glitch Pop", Sounds = "retro", Music = "track:Es Vapour", Moving = "", Wallpaper = "",
+            Id = "glitch-pop", Name = "Glitch Pop", Sounds = "retro", Music = "track:Es Vapour", NavSounds = "laser", TileAnimation = "jelly", Moving = "", Wallpaper = "",
             Description = "A bad signal that looks good: black to magenta, slices that flash cyan and pink, scan lines, VHS lettering and retro blips.",
             Dark = new[] { "#0A0410", "#FFFFFF", "#C9A6D6", "#1C0B26", "#16081F", "#00F0FF" },
             Font = "file:HomeVideo-Regular.ttf#Home Video", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
@@ -811,7 +817,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "party-time", Name = "Party Time", Sounds = "bubble", Music = "track:Jumps", Moving = "", Wallpaper = "",
+            Id = "party-time", Name = "Party Time", Sounds = "bubble", Music = "track:Jumps", NavSounds = "kalimba", TileAnimation = "jelly", Moving = "", Wallpaper = "",
             Description = "Balloons out: a bright lemonade backdrop, chunky confetti bobbing around the edges, polka dots, a cherry highlight and bubbly pops.",
             Light = new[] { "#FFF7DB", "#2B1E3A", "#6E5E86", "#FFFFFF", "#FFEDB0", "#FF4D6D" }, ForceLight = true,
             Font = "file:orange_juice_2.0.ttf#orange juice", TileCorner = 24, RowCorner = 24, RingThickness = 3, Buttons = "circle",
@@ -819,7 +825,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "scrapbook", Name = "Scrapbook", Sounds = "chime", Music = "track:Sweetness", Moving = "", Wallpaper = "",
+            Id = "scrapbook", Name = "Scrapbook", Sounds = "chime", Music = "track:Sweetness", NavSounds = "tick", Moving = "", Wallpaper = "",
             Description = "Notebook pages full of memories: lined paper, stickers and washi tape stuck at odd angles, a marker-blue highlight, neat handwriting and chimes.",
             Light = new[] { "#FBF8F1", "#2A2A33", "#6B6A78", "#FFFFFF", "#F1ECDF", "#2F6FEB" }, ForceLight = true,
             Font = "file:Always_be_honest.otf#Always be honest", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
@@ -827,7 +833,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "treasure-map", Name = "Treasure Map", Sounds = "classic", Music = "track:Recuerdos", Moving = "", Wallpaper = "",
+            Id = "treasure-map", Name = "Treasure Map", Sounds = "classic", Music = "track:Recuerdos", NavSounds = "marimba", Moving = "", Wallpaper = "",
             Description = "X marks the spot: aged parchment, an inked compass rose swaying in the corner, a sealing-wax red highlight and an elegant serif.",
             Light = new[] { "#F3E6C8", "#3A2614", "#7A5C3E", "#FBF2DD", "#E9D7AF", "#B23A2A" }, ForceLight = true,
             Font = "file:Against_Perfection_Serif_Personal_Use.ttf#Against Perfection Personal Use#Against Perfection Personal Use Serif", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
@@ -835,7 +841,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "neon-highway", Name = "Neon Highway", Sounds = "arcade", Music = "track:Es Vapour", Moving = "", Wallpaper = "",
+            Id = "neon-highway", Name = "Neon Highway", Sounds = "arcade", Music = "track:Es Vapour", NavSounds = "laser", TileAnimation = "rainbow", Moving = "", Wallpaper = "",
             Description = "Racing into the sunset grid: a purple sky, a neon floor rushing toward you, a hot-pink highlight, thin 80s lettering and a vaporwave track.",
             Dark = new[] { "#14062A", "#FFEFFF", "#D6A8E6", "#250D44", "#1E0A3A", "#FF2E97" },
             Font = "file:Synth2-Thin.ttf#Synth#Synth Thin", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
@@ -843,7 +849,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "cozy-cabin", Name = "Cozy Cabin", Sounds = "soft", Music = "track:Coffee Shop", Moving = "", Wallpaper = "",
+            Id = "cozy-cabin", Name = "Cozy Cabin", Sounds = "soft", Music = "track:Coffee Shop", NavSounds = "marimba", TileAnimation = "heartbeat", Moving = "", Wallpaper = "",
             Description = "Snowed in by the fire: warm walnut panels, soft lights drifting like embers, paper grain, a candle-gold highlight and café music.",
             Dark = new[] { "#1E140F", "#FFF3E6", "#D2B7A2", "#2E1F17", "#271A13", "#FFB648" },
             Font = "Constantia, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
@@ -859,7 +865,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "starship-bridge", Name = "Starship Bridge", Sounds = "deep", Music = "track:Fraxsu", Moving = "", Wallpaper = "",
+            Id = "starship-bridge", Name = "Starship Bridge", Sounds = "deep", Music = "track:Fraxsu", NavSounds = "laser", TileAnimation = "lockon", Moving = "", Wallpaper = "",
             Description = "On the bridge at warp: a heads-up display, status lights pulsing along the edge, deep space blues, a cyan highlight and deep sounds.",
             Dark = new[] { "#050B18", "#E6F6FF", "#8FB2C9", "#0E1A2E", "#0A1526", "#2FD8FF" },
             Font = "file:Cyber_Gaming.ttf#Cyber Gaming", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
@@ -867,7 +873,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "sparkle-club", Name = "Sparkle Club", Sounds = "bubble", Music = "track:Jewels", Moving = "", Wallpaper = "",
+            Id = "sparkle-club", Name = "Sparkle Club", Sounds = "bubble", Music = "track:Jewels", NavSounds = "kalimba", TileAnimation = "rainbow", Moving = "", Wallpaper = "",
             Description = "Glitter and gloss: pink chrome, twinkling sparkles, glossy bubble buttons, a sheen across the screen and a candy-pink highlight.",
             Light = new[] { "#FFF0F7", "#3A1630", "#8A5A7C", "#FFFFFF", "#FFDDEE", "#FF3FA4" }, ForceLight = true,
             Font = "file:Vislar-Thin.otf#Vislar#Vislar Thin", TileCorner = 24, RowCorner = 24, RingThickness = 3, Buttons = "circle",
@@ -891,7 +897,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "ocean-breeze", Name = "Ocean Breeze", Sounds = "glass", Music = "track:Waves", Moving = "", Wallpaper = "preset:2",
+            Id = "ocean-breeze", Name = "Ocean Breeze", Sounds = "glass", Music = "track:Waves", NavSounds = "droplet", TileAnimation = "float", Moving = "", Wallpaper = "preset:2",
             Description = "A salty breeze off the water: deep teal to turquoise, glassy shapes drifting like bubbles, a sea-foam highlight and the sound of waves.",
             Dark = new[] { "#06303A", "#E8FBFF", "#93C9D2", "#0C4250", "#093846", "#5FF2D9" },
             Font = "file:Tindamare.ttf#Tindamare", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
@@ -915,7 +921,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "rainy-window", Name = "Rainy Window", Sounds = "soft", Music = "track:Coffee Shop", Moving = "Cyberpunk Rain", Wallpaper = "",
+            Id = "rainy-window", Name = "Rainy Window", Sounds = "soft", Music = "track:Coffee Shop", NavSounds = "droplet", Moving = "Cyberpunk Rain", Wallpaper = "",
             Description = "Watching the rain from inside: the city blurred through wet glass, smoky panels, a lamp-amber highlight, handwritten notes and café music.",
             Dark = new[] { "#0C0E14", "#EEF0F6", "#9AA0B4", "#CC161A24", "#CC12151E", "#FFB547" },
             Font = "file:Always_be_honest.otf#Always be honest", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
@@ -923,7 +929,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "matcha", Name = "Matcha", Sounds = "soft", Music = "track:Relaxing", Moving = "", Wallpaper = "",
+            Id = "matcha", Name = "Matcha", Sounds = "soft", Music = "track:Relaxing", NavSounds = "kalimba", TileAnimation = "float", Moving = "", Wallpaper = "",
             Description = "A slow afternoon tea: whisked-green and oat-milk cream, paper grain, a matcha highlight, a friendly humanist font and relaxing music.",
             Light = new[] { "#F3F1E4", "#2A3324", "#66705A", "#FFFFFF", "#E4E8D0", "#5E9B3A" }, ForceLight = true,
             Font = "Candara, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
@@ -931,7 +937,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "bubblegum", Name = "Bubblegum", Sounds = "bubble", Music = "track:Sweetness", Moving = "", Wallpaper = "",
+            Id = "bubblegum", Name = "Bubblegum", Sounds = "bubble", Music = "track:Sweetness", NavSounds = "droplet", TileAnimation = "jelly", Moving = "", Wallpaper = "",
             Description = "Pop! Pastel pink and sky blue, glossy bubble buttons with a shine, a hot-pink highlight, bubbly hand lettering and bubbly sounds.",
             Light = new[] { "#FFF0F6", "#3A1A34", "#86607E", "#FFFFFF", "#FFDCEB", "#FF4FA0" }, ForceLight = true,
             Font = "file:orange_juice_2.0.ttf#orange juice", TileCorner = 26, RowCorner = 26, RingThickness = 3, Buttons = "circle",
@@ -939,11 +945,181 @@ public static class UiStyles
         },
         new()
         {
-            Id = "phosphor", Name = "Phosphor", Sounds = "retro", Music = "track:Fraxsu", Moving = "", Wallpaper = "",
+            Id = "phosphor", Name = "Phosphor", Sounds = "retro", Music = "track:Fraxsu", NavSounds = "tick", TileAnimation = "lockon", Moving = "", Wallpaper = "",
             Description = "An old green-screen terminal: true black, glowing phosphor green, scan lines, thin dot-matrix capitals and retro blips.",
             Dark = new[] { "#000000", "#7CFF8A", "#3FAE4E", "#0A140C", "#071009", "#39FF6A" },
             Font = "file:Sixrow-Thin.ttf#Sixrow#Sixrow Thin", TileCorner = 2, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Mode = "oled", Overlay = "scanlines", Glow = true, Footer = "none", Shadow = "none", Stroke = "#1C4A24", PageScrim = 0.55
+        },
+    };
+
+    /// <summary>
+    /// Advanced styles (Settings > Themes > Advanced): the Switch layout dressed in a whole UI kit's artwork. Rows,
+    /// buttons, chips, dialogs, the round buttons, switches, the mouse pointer and (in some) the home button icons are
+    /// drawn with the kit's own pictures, with its own sounds and font. Some come in color variants.
+    /// </summary>
+    public static readonly UiStyle[] Advanced =
+    {
+        new()
+        {
+            Id = "adv-neon-grid", Name = "Neon Grid", Sounds = "pack:Essential UI", Music = "track:Fraxsu", Moving = "", Wallpaper = "",
+            Description = "A cyberpunk control panel: glowing framed panels with header strips, neon switches and checkboxes, a grid over deep navy and a pointer of its own.",
+            Dark = new[] { "#060B1A", "#E6F4FF", "#8EA8C8", "#0C1630", "#0A1228", "#22D3EE" },
+            Font = "file:Cyber_Gaming.ttf#Cyber Gaming", TileCorner = 10, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Overlay = "grid", Footer = "line", Backdrop = new[] { "#0A1530", "#04070F" },
+            Skin = new AdvancedSkin("neon"), TileAnimation = "lockon", NavSounds = "laser"
+        },
+        new()
+        {
+            Id = "adv-hologram", Name = "Hologram", Sounds = "pack:Essential UI", Music = "track:Ripples", Moving = "", Wallpaper = "",
+            Description = "A starship's holographic interface: translucent teal cards that shimmer, holo bars for switches and pixel hologram icons on the home buttons.",
+            Dark = new[] { "#02110F", "#D9FFF7", "#7FC9BD", "#06201C", "#051A17", "#5BF2D6" },
+            Font = "file:Vislar-Thin.otf#Vislar#Vislar Thin", TileCorner = 8, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Overlay = "hud", Ambient = "status", Footer = "line", Backdrop = new[] { "#03201C", "#010807" },
+            Skin = new AdvancedSkin("hologram"), TileAnimation = "float"
+        },
+        new()
+        {
+            Id = "adv-glow", Name = "Glow", Sounds = "pack:Essential UI Soft", Music = "track:Meditation", Moving = "", Wallpaper = "",
+            Description = "Thin neon outlines glowing on true black: outlined rows, pill buttons, ring buttons and glowing line icons. Choose blue, green, red or yellow.",
+            Dark = new[] { "#020204", "#EEF2FF", "#8C93AA", "#0B0D14", "#090A10", "#7FB2FF" }, Mode = "oled",
+            Font = "file:Tindamare.ttf#Tindamare", TileCorner = 16, RowCorner = 16, RingThickness = 2, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "none",
+            Skin = new AdvancedSkin("glow", new[] { ("Blue", "Blue", "#7FB2FF"), ("Green", "Green", "#6CFF9E"), ("Red", "Red", "#FF6B7A"), ("Yellow", "Yellow", "#FFE36B") }),
+            TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "adv-cozy-pixel", Name = "Cozy Pixel", Sounds = "pack:Northleaf UI", Music = "track:Coffee Shop", Moving = "", Wallpaper = "",
+            Description = "A cozy pixel-art game menu: striped paper rows, chunky wooden buttons, ON / OFF switches, a framed pop-up and a pixel pointer. Five colors.",
+            Light = new[] { "#FBF1DE", "#4A2E1F", "#8A6A55", "#FFF8EC", "#F3E2C4", "#C8734A" }, ForceLight = true,
+            Font = "file:PixelOperator16-Regular.ttf#Pixel Operator", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "pill", Shadow = "hard", Backdrop = new[] { "#FCE9C8", "#F6D7A8" }, PageScrim = 0.4, Glyphs = "pixel",
+            Skin = new AdvancedSkin("cozy", new[] { ("cream", "Cream", "#C8734A"), ("blue", "Blue", "#3B9BE0"), ("green", "Green", "#5FA834"), ("pink", "Pink", "#E85A92"), ("purple", "Purple", "#8B6BD6") }),
+            TileAnimation = "jelly", NavSounds = "pack:Northleaf UI"
+        },
+        new()
+        {
+            Id = "adv-tropical-night", Name = "Tropical Night", Sounds = "pack:Northleaf UI", Music = "track:Relaxing", Moving = "Pixel Forest", Wallpaper = "",
+            Description = "Gold on near-black under a jungle moon: leaf-cornered panels with 1-pixel gold outlines, moss-green switches and gold checkboxes, in its own pixel font.",
+            Dark = new[] { "#0B120E", "#F2E6C4", "#A9B39A", "#13201A", "#101A15", "#E2B653" },
+            Font = "file:Jersey10-Regular.ttf#Jersey 10", TileCorner = 4, RowCorner = 6, RingThickness = 2, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "leaves", Overlay = "vignette", Footer = "line", Backdrop = new[] { "#0F1C16", "#060B08" },
+            Skin = new AdvancedSkin("tropical"), TileAnimation = "steady"
+        },
+        new()
+        {
+            Id = "adv-retro-windows", Name = "Retro Windows", Sounds = "pack:Windows 2000", Music = "track:Recuerdos", Moving = "", Wallpaper = "",
+            Description = "Like a 90s desktop: beveled gray windows and buttons, a navy title bar on pop-ups, square checkboxes for switches and a gray taskbar, on a teal desktop seen through an old CRT.",
+            Light = new[] { "#C0C0C0", "#000000", "#3A3A3A", "#D4D0C8", "#BDBDBD", "#000080" }, ForceLight = true,
+            Font = "file:Windows2000XP.otf#windows 2000 and xp", TileCorner = 0, RowCorner = 0, RingThickness = 2, Buttons = "circle",
+            HeroOpacity = 0, Footer = "taskbar", Shadow = "none", Backdrop = new[] { "#008080", "#008080" }, PageScrim = 0.2,
+            Ambient = "vhs", Overlay = "scanlines",
+            Skin = new AdvancedSkin("retrowin"), TileAnimation = "steady", NavSounds = "pack:Windows 2000"
+        },
+        new()
+        {
+            Id = "adv-arcade", Name = "Arcade", Sounds = "pack:Northleaf UI", Music = "track:Gaming Vibes", Moving = "", Wallpaper = "",
+            Description = "Insert coin: neon pixel frames, segmented bars, scan lines and chasing marquee bulbs, in VT323. Choose cyan, magenta or amber.",
+            Dark = new[] { "#0A0E1F", "#F2F6FF", "#9AA6C8", "#121A33", "#0E152B", "#4DE8FF" },
+            Font = "file:VT323-Regular.ttf#VT323", TileCorner = 2, RowCorner = 2, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, ButtonLook = "neon", Stroke = "accent", StrokeWidth = 2, Overlay = "scanlines", Ambient = "marquee", Footer = "line",
+            Backdrop = new[] { "#0A0E1F", "#05070F" }, Glyphs = "pixel",
+            Skin = new AdvancedSkin("arcade", new[] { ("cyan", "Cyan", "#4DE8FF"), ("magenta", "Magenta", "#FF5FD2"), ("amber", "Amber", "#FFC94A") }),
+            TileAnimation = "lockon", NavSounds = "pack:Northleaf UI"
+        },
+        new()
+        {
+            Id = "adv-softline", Name = "Softline", Sounds = "pack:Essential UI Soft", Music = "track:Coffee Shop", Moving = "", Wallpaper = "",
+            Description = "Clean and flat after dark: soft charcoal panels and buttons, coral switches and checkboxes, nothing extra. A calm, modern app look.",
+            Dark = new[] { "#16171B", "#ECEEF2", "#9198A6", "#202228", "#1C1E23", "#FF7A45" },
+            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "pill", Shadow = "none", Backdrop = new[] { "#1A1B20", "#121317" },
+            Skin = new AdvancedSkin("softline"), TileAnimation = "grow"
+        },
+        new()
+        {
+            Id = "adv-fern-brass", Name = "Fern & Brass", Sounds = "pack:Essential UI Soft", Music = "track:Recuerdos", Moving = "", Wallpaper = "",
+            Description = "A cosy shop counter: cream card panels with brass rims, pine-green ink, brass checkboxes and a paper grain, in a bookish serif.",
+            Light = new[] { "#F6EDD6", "#173C35", "#5E6F62", "#FAF4E4", "#EFE2C2", "#355D4F" }, ForceLight = true,
+            Font = "Constantia, Georgia, Segoe UI", TileCorner = 12, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "paper", Footer = "line", Backdrop = new[] { "#F6EDD6", "#E9DBB6" }, PageScrim = 0.35,
+            Skin = new AdvancedSkin("fern"), TileAnimation = "breathe"
+        },
+        new()
+        {
+            Id = "adv-nebula", Name = "Nebula", Sounds = "pack:Essential UI", Music = "track:Aero", Moving = "", Wallpaper = "",
+            Description = "Glossy space-age controls: navy glass panels, bright blue pill buttons, a green switch and a soft pointer, drifting through a starry nebula.",
+            Dark = new[] { "#0B1024", "#EAF0FF", "#98A4CC", "#151C3A", "#111733", "#5C8DFF" },
+            Font = "file:Tindamare.ttf#Tindamare", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Gloss = true, Ambient = "pixelstars", Footer = "pill", Backdrop = new[] { "#141B3E", "#070A18" },
+            Skin = new AdvancedSkin("nebula"), TileAnimation = "float"
+        },
+        new()
+        {
+            Id = "adv-luna", Name = "Luna XP", Sounds = "pack:Windows XP", Music = "track:Windows XP Installation", Moving = "", Wallpaper = "image:Bliss.jpg",
+            Description = "Early-2000s desktop: cream XP buttons with blue edges, blue title bars on pop-ups, glossy blue round buttons with classic icons, green check boxes for switches and that green hill.",
+            Light = new[] { "#ECE9D8", "#000000", "#3D3D3D", "#FFFFFF", "#D6DFF7", "#316AC5" }, ForceLight = true,
+            Font = "file:WindowsXPLike.otf#WindowsXPlike A", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "bar", Shadow = "soft", Backdrop = new[] { "#5A8DE8", "#2E63C9" }, PageScrim = 0.35,
+            Skin = new AdvancedSkin("luna"), TileAnimation = "steady", NavSounds = "pack:Windows XP"
+        },
+        new()
+        {
+            Id = "adv-cozy-place", Name = "Cozy Place", Sounds = "pack:Essential UI Soft", Music = "track:Sweetness", Moving = "Gamer Den", Wallpaper = "",
+            Description = "A pixel travel journal in a cozy room: cream note-card buttons with a folded corner, tan rows, pop-ups on a book page, dark leather home buttons with little pixel icons, and a pixel pointer.",
+            Light = new[] { "#F6E3C4", "#432828", "#7A5A4A", "#FFE7C2", "#E8B778", "#B55C60" }, ForceLight = true,
+            Font = "file:PixelOperator16-Regular.ttf#Pixel Operator", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "bar", Shadow = "hard", Backdrop = new[] { "#B55C60", "#8E3F45" }, PageScrim = 0.35, Glyphs = "pixel",
+            Overlay = "paper", Skin = new AdvancedSkin("cozyplace"), TileAnimation = "jelly", NavSounds = "pack:Essential UI Soft"
+        },
+        new()
+        {
+            Id = "adv-fatanzia", Name = "Fatanzia", Sounds = "pack:Essential UI", Music = "track:Meditation", Moving = "", Wallpaper = "image:Fatanzia.jpg",
+            Description = "A sci-fi colony command screen: dark navy rows with corner brackets, pop-ups with an amber top line, bracketed home buttons with white colony icons, over a sunrise on an alien ridge.",
+            Dark = new[] { "#0E151B", "#E6EDF3", "#8A9BAA", "#16212A", "#1B2733", "#E89A2E" }, Mode = "dark",
+            Font = "Bahnschrift, Segoe UI", TileCorner = 2, RowCorner = 2, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "bar", Shadow = "none", Backdrop = new[] { "#101820", "#0A1016" }, PageScrim = 0.55,
+            Overlay = "hud", Skin = new AdvancedSkin("fatanzia"), TileAnimation = "steady", NavSounds = "pack:Essential UI"
+        },
+        new()
+        {
+            Id = "adv-spectrum", Name = "Spectrum", Sounds = "glass", Music = "track:Jewels", Moving = "", Wallpaper = "",
+            Description = "Clean and bright, five ways: white cards with a bold colored edge, pop-ups with a glossy colored header, diamond home buttons and soft outlined rows. Choose violet, red, purple, gold or blue when you pick it.",
+            Light = new[] { "#F4F2FA", "#1E1B2E", "#6B6880", "#FFFFFF", "#ECE8F6", "#5C22D0" }, ForceLight = true,
+            Font = "Segoe UI Variable Text, Segoe UI", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "bar", Shadow = "soft", Backdrop = new[] { "#F6F4FB", "#E7E3F2" }, PageScrim = 0.25,
+            Skin = new AdvancedSkin("spectrum", new[] { ("violet", "Violet", "#5C22D0"), ("red", "Red", "#D02230"), ("purple", "Purple", "#A722D0"), ("gold", "Gold", "#D09C22"), ("blue", "Blue", "#2578CC") }) { AskColor = true },
+            TileAnimation = "lift", NavSounds = "glass"
+        },
+        new()
+        {
+            Id = "adv-sapphire", Name = "Sapphire", Sounds = "bubble", Music = "track:Sweetness", Moving = "", Wallpaper = "",
+            Description = "A dreamy visual-novel look: pastel gradient cards with little hearts, glossy gradient buttons, round candy home buttons with white symbols and condensed type. Choose green, orange or pink when you pick it.",
+            Light = new[] { "#F6F3FA", "#2A2238", "#6F6680", "#FFFFFF", "#EFEAF6", "#D64FD0" }, ForceLight = true,
+            Font = "file:BarlowCondensed-SemiBold.ttf#Barlow Condensed SemiBold#Barlow Condensed", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "bar", Shadow = "soft", Backdrop = new[] { "#FAF7FD", "#EEE8F6" }, PageScrim = 0.25,
+            Skin = new AdvancedSkin("sapphire", new[] { ("green", "Green", "#5DB82E"), ("orange", "Orange", "#F26B4F"), ("pink", "Pink", "#D64FD0") }) { AskColor = true },
+            TileAnimation = "float", NavSounds = "bubble"
+        },
+        new()
+        {
+            Id = "adv-scholar", Name = "Scholar", Sounds = "soft", Music = "track:Daybreak", Moving = "", Wallpaper = "",
+            Description = "A tidy study desk: soft white cards on warm paper with notebook lines, pale blue buttons with an ink-blue edge, pop-ups in speech bubbles, round ink-blue home buttons, check-box switches and calm piano.",
+            Light = new[] { "#F4F1EA", "#22252B", "#666B73", "#FFFFFF", "#E9E5DC", "#2F5DA8" }, ForceLight = true,
+            Font = "file:AfacadFlux-Regular.ttf#Afacad Flux", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "bar", Shadow = "soft", Backdrop = new[] { "#F7F4EE", "#ECE7DC" }, PageScrim = 0.25,
+            Overlay = "notebook", Skin = new AdvancedSkin("scholar"), TileAnimation = "lift", NavSounds = "soft"
+        },
+        new()
+        {
+            Id = "adv-indivial", Name = "Indivial", Sounds = "tick", Music = "track:Gaming Vibes", Moving = "", Wallpaper = "",
+            Description = "Bold flat game UI: chunky buttons with a raised lip, dark rows, pop-ups with a colored top edge, square home buttons with crisp white icons and pill switches. Choose red, yellow or black when you pick it.",
+            Dark = new[] { "#1C1C1F", "#F2F2F4", "#A3A3AB", "#2C2C30", "#2A2A2E", "#C62526" }, Mode = "dark",
+            Font = "Bahnschrift SemiBold, Bahnschrift, Segoe UI", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "bar", Shadow = "hard", Backdrop = new[] { "#1C1C1F", "#121214" }, PageScrim = 0.5,
+            Skin = new AdvancedSkin("indivial", new[] { ("red", "Red", "#C62526"), ("yellow", "Yellow", "#E0C21A"), ("black", "Black", "#BFBFC6") }) { AskColor = true },
+            TileAnimation = "bounce", NavSounds = "tick"
         },
     };
 
@@ -956,11 +1132,21 @@ public static class UiStyles
 
     /// <summary>The style with this id (yours too). Styles from older versions map to their nearest replacement.</summary>
     public static UiStyle Find(string? id) =>
-        MyStyles.IsCustom(id) ? Custom.FirstOrDefault(s => s.Id == id) ?? All[0] : All.FirstOrDefault(s => s.Id == Upgrade(id)) ?? All[0];
+        MyStyles.IsCustom(id) ? Custom.FirstOrDefault(s => s.Id == id) ?? All[0]
+        : All.FirstOrDefault(s => s.Id == Upgrade(id)) ?? Advanced.FirstOrDefault(s => s.Id == id) ?? All[0];
 
     /// <summary>Whether there's a style with this id (a style of yours that was deleted isn't).</summary>
     public static bool Exists(string? id) =>
-        MyStyles.IsCustom(id) ? Custom.Any(s => s.Id == id) : All.Any(s => s.Id == Upgrade(id));
+        MyStyles.IsCustom(id) ? Custom.Any(s => s.Id == id) : All.Any(s => s.Id == Upgrade(id)) || Advanced.Any(s => s.Id == id);
+
+    /// <summary>Whether a style is one of the Advanced ones (Settings > Themes > Advanced).</summary>
+    public static bool IsAdvanced(string? id) => Advanced.Any(s => s.Id == id);
+
+    /// <summary>
+    /// How many styles come with SquareDeck (Basic plus Advanced), counted from the lists themselves, so text that
+    /// mentions the number (Settings, the Themes page) stays right as styles are added. Your own styles aren't counted.
+    /// </summary>
+    public static int ReadyMadeCount => All.Length + Advanced.Length;
 
     public static string Upgrade(string? id) => id switch
     {
@@ -996,6 +1182,16 @@ public static class UiStyles
     public static void ApplyOverrides(Settings settings)
     {
         var s = Current;
+        // An Advanced style's color variant, and the highlight color that goes with it.
+        if (s.Skin is { Variants.Length: > 0 } skin)
+        {
+            settings.SkinVariants.TryGetValue(s.Id, out var chosen);
+            var variant = skin.Variants.FirstOrDefault(v => v.Id == chosen);
+            if (variant.Id == null) variant = skin.Variants[0];
+            s = s with { SkinVariant = variant.Id };
+            if (s.Dark is { } dark) { var d = (string[])dark.Clone(); d[5] = variant.Accent; s = s with { Dark = d }; }
+            if (s.Light is { } light) { var l = (string[])light.Clone(); l[5] = variant.Accent; s = s with { Light = l }; }
+        }
         if (settings.UiFont is { Length: > 0 } font && font != "style") s = s with { Font = font };
         s = settings.TileArt switch
         {
@@ -1096,6 +1292,7 @@ public static class UiStyles
         var s = Current;
         var res = Application.Current.Resources;
         Color accent = (res["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.White;
+        res["RingBrush"] = RingBrush(s, accent);
         Brush bg = res["BgBrush"] as Brush ?? Brushes.Black;
 
         // Frosted panels catch the light at the top edge.
@@ -1200,6 +1397,18 @@ public static class UiStyles
             res["ButtonShadow"] = Perf.Active ? null : Frozen(new DropShadowEffect { Color = accent, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.95 });
         }
 
+        // Advanced styles: their artwork for rows, buttons, dialogs and the round buttons.
+        Skins.Apply(s, res, circle);
+        if (Skins.Current?.Round != null) { res["RoundFill"] = Brushes.Transparent; res["ButtonShadow"] = null; }
+        // A square (or slightly rounded) button picture gets a highlight ring of the same shape, not a circle around it.
+        if (Skins.Current is { Round: not null, RoundCorner: >= 0 } shaped)
+        {
+            double picture = w - 18;
+            double ring = shaped.RoundCorner <= 0 ? 2 : shaped.RoundCorner * picture + 7;
+            res["RoundCorner"] = new CornerRadius(ring);
+            res["RoundInnerCorner"] = new CornerRadius(Math.Max(0, ring - 9));
+        }
+
         // Glossy buttons: a bright shine over the top half that ends in a crisp line, like polished plastic.
         res["GlossVisibility"] = s.Gloss ? Visibility.Visible : Visibility.Collapsed;
         if (s.Gloss)
@@ -1212,6 +1421,34 @@ public static class UiStyles
             shine.GradientStops.Add(new GradientStop(Color.FromArgb(0x40, accent.R, accent.G, accent.B), 1));
             res["GlossBrush"] = Frozen(shine);
         }
+    }
+
+    /// <summary>
+    /// The highlight ring: a gradient that slowly turns (Switch, like the Switch 2's), or the plain highlight color.
+    /// A highlight color you picked yourself replaces the gradient.
+    /// </summary>
+    /// <summary>Puts the ring back in step with the highlight color (after it changes on its own, such as the game's color).</summary>
+    public static void RefreshRing(bool gradient)
+    {
+        var res = Application.Current.Resources;
+        Color accent = (res["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.White;
+        res["RingBrush"] = RingBrush(Current, accent, gradient);
+        (Application.Current.MainWindow as MainWindow)?.RefreshHomeRing();
+    }
+
+    private static Brush RingBrush(UiStyle s, Color accent, bool gradient = true)
+    {
+        if (!gradient || s.RingColors is not { Length: > 1 } colors || Theme.UserAccent) return Frozen(new SolidColorBrush(accent));
+        var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
+        for (int i = 0; i < colors.Length; i++)
+            if (Theme.TryParseArgb(colors[i], out var c)) brush.GradientStops.Add(new GradientStop(c, (double)i / (colors.Length - 1)));
+        if (Theme.ReduceMotion || Perf.Active) return Frozen(brush);
+        // The colors drift around the ring.
+        var turn = new RotateTransform(0, 0.5, 0.5);
+        brush.RelativeTransform = turn;
+        turn.BeginAnimation(RotateTransform.AngleProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromSeconds(6))
+        { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
+        return brush;
     }
 
     private static T Frozen<T>(T freezable) where T : Freezable

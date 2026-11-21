@@ -3,6 +3,231 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 6.36.10
+
+- Luna XP: your name in the Power menu is black again. In Luna XP it sits below the blue title bar, not on it. Retro Windows keeps it white on its navy bar.
+
+## 6.36.9
+
+- Luna XP: the buttons' blue outline is complete again, including the bottom edge. The button picture had been cut from the Windows XP kit one row short. The check boxes, switches and the round button's highlight had the same problem and were re-cut too.
+
+## 6.36.8
+
+- Advanced styles: buttons in the Power menu and Quick Settings no longer look cut off. Their artwork used to be drawn a few pixels too big on every side, which hid the outline, and in styles with rounded corners the corners were clipped too (the Power buttons were cut into circles). Now the artwork fits inside the button and draws its own corners. The highlight keeps the style's usual rounding.
+
+## 6.36.7
+
+- Retro Windows and Luna XP: your name at the top of the Power menu is now white, so it shows up on the pop-up's blue title bar. Skins can set this with "titleText" in skin.json.
+
+## 6.36.6
+
+- The "Continue where you left off" heading is readable again in styles with a dark highlight color, such as Retro Windows' navy. Over the dark game art it now uses a lighter shade of the highlight color.
+
+## 6.36.5
+
+- Retro Windows: the round Home buttons now use Windows 2000 icons. Home is the Desktop, Favorites the Favorites folder, Apps a program group, Captures a picture, Music an audio CD, Friends Network Neighborhood, News a text document, Browser the Internet, Explorer an open folder, Stores a CD-ROM drive, Device My Computer, Settings the Control Panel and Power Shut Down. They're drawn sharp, like pixel art.
+
+## 6.36.4
+
+- Settings: Themes now says how many ready-made styles there really are (117 today: 100 Basic and 17 Advanced). The number is counted from the styles themselves, so it stays right as new styles are added.
+- The Themes page shows the count beside each heading: "Ready-made styles · 100" in Basic and "Advanced styles · 17" in Advanced.
+
+## 6.36.3
+
+- **New sound pack: Windows 2000.** Retro Windows now uses it:
+  - **Moving:** the Windows start click. **Choosing:** a soft blip. **Back:** a short ring. **Can't go further:** Ding. **LB / RB:** Chimes.
+  - **Notifications:** Notify. **A game starting:** Tada, with the game-start chime set to "From the sound pack". **SquareDeck starting:** the Windows 2000 startup sound, with the boot chime on.
+  - **Low battery:** Chord.
+
+## 6.36.2
+
+- Luna XP now uses the "WindowsXPlike A" font for its early-2000s desktop look (it was Tahoma). It's also in the Font list as Windows XP.
+
+## 6.36.1
+
+- Retro Windows now uses the "Windows 2000 and XP" font, the crisp system type of old Windows. It's also in the Font list as Windows 2000.
+
+## 6.36.0
+
+- **New Advanced style: Indivial, three styles in one.** When you choose it, a pop-up asks which color you want: **Red, Yellow or Black**. Choosing it again (or the Color row in the Advanced tab) changes it.
+  - Chunky flat buttons with a raised lip in your color, on dark rows.
+  - Pop-ups with a colored top edge, also used by the power menu and quick settings.
+  - The kit's square home buttons, with its crisp white icons on all thirteen: house, star, app grid, film, note, people, chat, share, list, cart, sliders, gear and exit for power.
+  - The kit's pill switches, with the knob in your color when on.
+  - A dark look with Bahnschrift type, the Tick sounds and the "Gaming Vibes" music.
+
+## 6.35.0
+
+- **New Advanced style: Scholar.** A tidy study desk:
+  - Rows on soft white cards over warm paper with notebook lines.
+  - Pale blue buttons and chips with an ink-blue edge.
+  - Pop-ups in a speech bubble with a little tail, also used by the power menu and quick settings.
+  - Round ink-blue home buttons with white symbols.
+  - Check boxes as the on/off switches, and the kit's arrow pointer with a dark outline.
+  - Afacad Flux type, the Soft sounds and the "Daybreak" music.
+- **Three new music tracks by Kevin MacLeod:** At Rest, Daybreak and Thinking of You (Creative Commons: By Attribution 4.0).
+- **Two new fonts:** Afacad Flux, and OpenDyslexic, whose weighted letters some people with dyslexia find easier to read. Both are in the Font list.
+
+## 6.34.0
+
+- **New Advanced style: Sapphire, three styles in one.** When you choose it, a pop-up asks which color you want: **Green, Orange or Pink**. Choosing it again (or the Color row in the Advanced tab) changes it.
+  - Rows on pastel gradient cards with little hearts, and glossy gradient pill buttons and chips.
+  - Pop-ups on the same gradient card (without the hearts, so tall ones don't stretch them), also used by the power menu and quick settings.
+  - Round candy-colored home buttons with white symbols, like the kit's own.
+  - A light, dreamy look with Barlow Condensed type, the Bubble sounds and the "Sweetness" music.
+  - The highlight color follows the color you choose.
+- **New font: Barlow Condensed.** It's also in the Font list.
+
+## 6.33.1
+
+- Fixed: in the power menu and quick settings, an Advanced style's button artwork was drawn too big, so its right and bottom edges were cut off. It's now drawn at exactly the button's size.
+- Fatanzia: the home buttons the kit has no icon for (Captures, Music, Friends, Browser) now show their symbol in white, like the kit's own icons, instead of in their usual color. Kits can set this color in their skin.json ("glyphColor").
+
+## 6.33.0
+
+- **New Advanced style: Spectrum, five styles in one.** When you choose it, a pop-up asks which color you want: **Violet, Red, Purple, Gold or Blue**. Choosing it again (or the Color row at the top of the Advanced tab) changes the color.
+  - White buttons and chips with a bold colored edge, and rows in soft outlined cards.
+  - Pop-ups with a glossy colored header (the text starts below it), also used by the power menu and quick settings.
+  - Diamond-shaped home-screen buttons.
+  - The highlight color follows the color you choose.
+  - A light, clean look with Segoe UI Variable type, the Glass sounds and the "Jewels" music.
+
+## 6.32.0
+
+- **Advanced styles now dress the power menu and quick settings too.**
+  - **Power menu:** the card is drawn with the style's pop-up artwork, such as the Cozy Place book page, the Luna XP window, the Retro Windows window or the Fatanzia panel. Lock, Sleep, Hibernate, Restart, Shut down and Exit sit on the style's own buttons.
+  - **Quick settings:** the sheet uses the pop-up artwork. The Wi-Fi, Bluetooth, Airplane, Night light, Mute and Settings tiles use the style's buttons, and the volume, brightness and TDP sliders sit on its rows.
+  - The highlighted option still fills with the highlight color, and a tile that's on (Wi-Fi on, say) still shows in the highlight color. Restart and Shut down still turn red when they ask you to press again.
+  - Styles with a title bar on their pop-ups (Retro Windows, Luna XP) start the content below it. Basic styles look the same as before.
+
+## 6.31.0
+
+- **New Advanced style: Fatanzia.** A sci-fi colony command screen, made from the Fatanzia UI kit:
+  - Dark navy rows framed by thin corner brackets, and rounded dark cells for buttons and chips.
+  - Pop-ups on the kit's navy panel, with its amber line across the top.
+  - Bracketed home-screen buttons with square highlights. Nine carry the kit's white colony icons: dome house, star badge, crate, colony bot, crossed tools, satellite dish, supply bag, wind turbine for power and a sprout for files.
+  - Bahnschrift type (built into Windows), an amber highlight, a HUD overlay, the "Meditation" music and the Essential UI sounds.
+  - The kit's sunrise over an alien ridge as the wallpaper.
+- **New picture wallpaper: Fatanzia.**
+
+## 6.30.0
+
+- **New Advanced style: Cozy Place.** A pixel travel journal in a cozy room, made from the Travel Book UI (Lite) kit:
+  - Tan rows, and cream note-card buttons and chips with a folded corner.
+  - Pop-ups drawn on a book page, with the stacked page edge at the bottom.
+  - Dark leather home-screen buttons with a square highlight. Seven of them carry the kit's pixel icons: house, star, play, heart, coin, gear and a lightning bolt for power.
+  - The kit's little pixel switches and orange pixel pointer.
+  - Pixel Operator type, paper texture, pixel button hints, the Gamer Den moving background, "Sweetness" music and the Essential UI Soft sounds.
+
+## 6.29.4
+
+- Fixed: an Advanced style didn't survive a restart. SquareDeck went back to Switch, and with matching on, to Switch's sounds, music and background too. A check left over from when old styles were removed took Advanced styles for removed ones. Your Advanced style now stays chosen.
+
+## 6.29.3
+
+- Tropical Night now uses the Pixel Forest moving background (with matching on).
+
+## 6.29.2
+
+- The Windows XP sound pack (Luna XP) is rebuilt from the full set of XP sounds, and every sound now plays. Before, only the move sound did, because the other files had the wrong names.
+  - **Moving:** the XP click. **Choosing:** the menu click. **Back:** Minimize. **LB / RB:** Restore.
+  - **Can't go further:** the classic XP beep. **Notifications:** the balloon pop.
+  - **SquareDeck starting:** the XP startup sound, with the boot chime on. **A game starting:** the logon sound, with the game-start chime set to "From the sound pack".
+  - **Low battery:** XP's own Battery Low and Battery Critical alerts.
+- Sound packs can now bring their own low-battery alerts (battery_low.wav and battery_critical.wav). Packs without them keep using the error sound.
+
+## 6.29.1
+
+- New background music track: **Windows XP Installation**. It's Luna XP's music now (it was "Sun Rays"), and you can pick it for any style in Sounds and music.
+
+## 6.29.0
+
+- **New Advanced style: Luna XP.** An early-2000s desktop made from the Windows XP UI pack packed by NullTale:
+  - Cream XP buttons with blue edges behind rows, buttons and chips.
+  - Pop-ups in an XP window, with a blue title bar and a red close button.
+  - Glossy blue square buttons on the home screen, with classic XP icons (house, star, camera, Internet Explorer, folder, My Computer, gear, power and more).
+  - Green XP check boxes as the on/off switches, and the XP mouse pointer.
+  - Tahoma (already on Windows), the Bliss wallpaper, and the "Sun Rays" music.
+- **New sound pack: Windows XP.** The Internet Explorer click for moving around, the XP menu click, Ding, the balloon pop and the logon sound when a game starts.
+- **New picture wallpaper: Bliss.**
+- Pop-ups in styles whose dialog art has a title bar (Retro Windows and Luna XP) now start their text below the bar instead of on it.
+- The Credits page lists the Windows XP pack and sounds.
+
+## 6.28.1
+
+- Cozy Pixel now plays the "Coffee Shop" track as its background music (it was "Sweetness").
+- Advanced styles with square home-screen buttons (Tropical Night, Retro Windows, Softline and Fern & Brass) now get a highlight ring of the same shape: square, or with the button's own slight rounding, instead of a circle around a square.
+- Retro Windows: the footer is now a gray 90s taskbar, so its button hints and text can be read (it was black text on a near-black bar).
+- Retro Windows now has a retro filter: CRT scan lines and a worn VHS tape rolling by.
+- Any light style with a full-width footer bar now gets a light bar, so dark text never sits on black.
+
+## 6.28.0
+
+- **Themes now has two tabs: Basic and Advanced.** Basic is every style so far: the 100 ready-made styles, your own styles, Create a style, Import and Surprise me. Advanced is a new kind of style.
+- **10 Advanced styles**, each made from a real UI kit. They keep the Switch layout and dress it in the kit's own artwork: panels behind every row, framed buttons and chips, dialog boxes, on/off switches, the round buttons' frames and the mouse pointer.
+  - **Neon Grid:** NEONIX neon frames on a grid, in Cyber Gaming.
+  - **Hologram:** see-through sci-fi cards with a HUD and its own glowing icons on the round buttons.
+  - **Glow:** glowing pill buttons and icons on true black. Choose blue, green, red or yellow.
+  - **Cozy Pixel:** soft pixel-art panels and buttons in Pixel Operator. Choose cream, blue, green, pink or purple.
+  - **Tropical Night:** a pixel beach at night with drifting leaves, in Jersey 10.
+  - **Retro Windows:** gray 90s windows and bevelled buttons on teal.
+  - **Arcade:** neon pixel frames, scan lines and marquee bulbs, in VT323. Choose cyan, magenta or amber.
+  - **Softline:** flat, rounded night-blue controls.
+  - **Fern & Brass:** a cozy shop with brass frames and paper texture.
+  - **Nebula:** soft modern panels under the stars.
+- Styles with color versions have a **Color** row at the top of the Advanced tab. The highlight color follows the version you pick.
+- **Three new interface sound packs** come with the Advanced styles: Essential UI, Essential UI Soft and Northleaf UI.
+- **Three new fonts:** VT323, Jersey 10 and Pixel Operator. They're in the Font list too.
+- **Credits:** a new page lists every UI kit, sound pack and font the Advanced styles use, with who made them and their terms. Open it from the Advanced tab or from Settings > Updates and data.
+
+## 6.27.0
+
+- The Switch style's highlight is now a gradient ring like the Switch 2's: blue, violet, pink and cyan, slowly turning around whatever is highlighted. It's on the home screen's games and round buttons, tiles, rows, chips and buttons on every page.
+- The ring keeps still with Reduce motion or Performance mode on.
+- A highlight color you pick yourself, the game's own color, or a style of your own with its own highlight color, uses a plain ring as before.
+- Every highlight ring now draws from one shared "ring" color, so styles can give it a gradient.
+
+## 6.26.2
+
+- The Game library no longer shows the game count ("7 games") beside the chips. The section tabs already show how many games each has.
+
+## 6.26.1
+
+- The Game library's header takes much less room. It's down to two slim rows, so more games fit on screen:
+  - **Row 1:** smaller section tabs. Recently played is now "Recent".
+  - **Row 2:** a compact search box, the store, category and status chips, and the game count on the left; small Sort, View, Cover shape and More buttons on the right.
+- Chips, tabs and buttons use smaller text and slimmer outlines, with shorter labels (for example Sort shows "Recent" or "Name").
+
+## 6.26.0
+
+- The Game library is redesigned to be quicker to get around with a controller.
+- **Section tabs across the top:** Installed, Favorites, Recently played, Not installed, Wishlist, Updates and Collections. Each shows how many games it has. **LB / RB** moves between them from anywhere on the page. Recently played (the last 30 days) and Updates only show when they have something.
+- **Chips instead of a sidebar:** under Installed, a row of chips narrows it down by store (with the store's logo), category, your own status or "4 stars and up". Back returns to everything. Inside a collection, a chip leads back to all collections.
+- **A slim toolbar:** the search, Sort, View and the cover shape, with Add a custom game, Group by, Play time, Achievements and "Clear the search and filters" gathered under More. The old row of nine buttons is gone. Group by and the install queue only show here while they're in use.
+- **The header stays put:** the tabs, chips and toolbar stay at the top while the games scroll under them.
+- **Jump by letter (LT / RT)** now shows the letter large on screen for a moment.
+- **Layouts are now called views:** Grid, Compact grid, Large grid, Mini grid, Posters, Banners, List, Spotlight, Spotlight list, Shelves and Timeline. The View button on a controller opens the choice. Your saved choice carries over.
+- When nothing matches, the message says so and suggests another section or clearing the search.
+
+## 6.25.0
+
+- Five new navigation sounds, made for SquareDeck:
+  - **Tick:** a dry click, like a clock or a keyboard.
+  - **Marimba:** warm wooden notes.
+  - **Laser:** sci-fi zaps that sweep down.
+  - **Droplet:** water drops that plip upward.
+  - **Kalimba:** bright plucked metal tines.
+- They work as whole sound sets too.
+- New "Navigation sound" setting in Settings > Sound > Interface sounds: moving the highlight can use a different set from everything else. It plays as you pick it. The style builder has the same choice.
+- Five new ways for the selected game to stand out (Settings > Home screen > Selected game, and in the style builder):
+  - **Lock-on:** the ring zooms in like a target locking on.
+  - **Jelly:** a squash-and-stretch wobble.
+  - **Float:** the tile lifts and bobs gently.
+  - **Heartbeat:** a lub-dub pulse.
+  - **Rainbow ring:** the ring slowly cycles through the colors.
+- 20 ready-made styles now bring their own navigation sound, selected-game animation, or both. For example: Phosphor and Mission Control tick and lock on, Neon Highway zaps with a rainbow ring, Ocean Breeze plips and floats, Bubblegum and Party Time wobble like jelly, Cozy Cabin and Blossom Night beat like a heart, and Lullaby and Nap Time play marimba and float.
+- Fixed: choosing a style didn't apply its animations and button pictures until SquareDeck was restarted.
+
 ## 6.24.0
 
 - 11 more fonts in the font picker, for 37 in total: Cyber Gaming, Forbidden Love, Sixrow, Tindamare, Orange Juice, Aurely Roliste, Marching Brush, Foliager Warmth, Frostpop, Jhendela and Prixma.

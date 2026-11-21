@@ -729,7 +729,7 @@ public sealed class MenuScreen : Screen
         {
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0xA0, 0, 0, 0))
         };
-        backdrop.Children.Add(box);
+        backdrop.Children.Add(Ui.SkinBox(box));
         Content = backdrop;
     }
 
@@ -880,7 +880,7 @@ public sealed class BusyScreen : Screen
         {
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0xC0, 0, 0, 0))
         };
-        backdrop.Children.Add(box);
+        backdrop.Children.Add(Ui.SkinBox(box));
         Content = backdrop;
 
         _timer.Tick += (_, _) => _dots.Text = new string('●', _step = _step % 3 + 1);

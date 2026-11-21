@@ -1,0 +1,26 @@
+{
+ "panel": [
+  14,
+  14,
+  14,
+  16
+ ],
+ "button": [
+  14,
+  14,
+  14,
+  16
+ ],
+ "dialog": [
+  16,
+  20,
+  16,
+  18
+ ],
+ "scale": 1,
+ "pixel": false,
+ "iconPixel": false,
+ "cursorScale": 1,
+ "roundCorner": 0.12,
+ "glyphColor": "#FFFFFF"
+}

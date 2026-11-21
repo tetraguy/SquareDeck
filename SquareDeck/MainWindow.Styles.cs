@@ -14,6 +14,34 @@ public partial class MainWindow
     private bool _tallLayout;
     private bool _styleHooked;
 
+    /// <summary>Advanced styles with icons of their own (Glow, Hologram) draw them on the round buttons in place of the symbols.</summary>
+    private void ApplySkinIcons()
+    {
+        var skin = Skins.Current;
+        var scaling = skin?.IconPixel == true ? BitmapScalingMode.NearestNeighbor : BitmapScalingMode.HighQuality;
+        foreach (var (button, name) in new (Button, string)[]
+        {
+            (HomeBtn, "home"), (FavBtn, "favorites"), (AppsBtn, "apps"), (CapturesBtn, "captures"), (MusicBtn, "music"),
+            (FriendsBtn, "friends"), (NewsBtn, "news"), (BrowserBtn, "browser"), (ExplorerBtn, "explorer"),
+            (StoresBtn, "stores"), (MyDeviceBtn, "device"), (SettingsBtn, "settings"), (PowerBtn, "power")
+        })
+        {
+            SkinParts.SetIconScaling(button, scaling);
+            bool has = skin != null && skin.Icons.TryGetValue(name, out var icon) && SetIcon(button, icon);
+            if (!has) SkinParts.SetIcon(button, null);
+            // A symbol the kit has no icon for takes the kit's icon color (Fatanzia's white), then goes back to its own.
+            _glyphColors.TryAdd(button, button.ReadLocalValue(Button.ForegroundProperty));
+            var own = _glyphColors[button];
+            if (!has && skin?.GlyphColor is { } white) button.Foreground = white;
+            else if (own is Brush brush) button.Foreground = brush;
+            else button.SetResourceReference(Button.ForegroundProperty, "SubtleBrush"); // Stores, Settings and Power
+        }
+
+        static bool SetIcon(Button b, ImageSource icon) { SkinParts.SetIcon(b, icon); return true; }
+    }
+
+    private readonly Dictionary<Button, object> _glyphColors = new();
+
     /// <summary>Lays the home screen out for <see cref="UiStyles.Current"/>. Colors and shared resources are set by Theme.Apply.</summary>
     public void ApplyUiStyle()
     {
@@ -55,6 +83,7 @@ public partial class MainWindow
         ButtonLabel.HorizontalAlignment = s.ButtonsAlign;
         ButtonLabel.Margin = new Thickness(left ? 104 : 0, 0, 0, 2);
         ButtonLabel.Visibility = s.Buttons is "card" or "tab" or "wide" ? Visibility.Collapsed : Visibility.Visible;
+        ApplySkinIcons();
 
         // Where the game's name goes.
         bool big = s.Title == "big", beside = s.Title == "row";
@@ -218,7 +247,8 @@ public partial class MainWindow
                           : floating ? new Thickness(40, 8, 40, 12) : new Thickness(30, 0, 30, 0);
         FooterGrid.Background = s.Footer switch
         {
-            "bar" => new SolidColorBrush(Color.FromArgb(0xF2, 0x0A, 0x0D, 0x12)),
+            // Dark text on a light style needs a light bar to be read.
+            "bar" => Theme.CurrentIsDark ? new SolidColorBrush(Color.FromArgb(0xF2, 0x0A, 0x0D, 0x12)) : new SolidColorBrush(Color.FromArgb(0xF2, 0xEE, 0xEE, 0xEE)),
             "glassbar" => UiStyles.ShelfBrush(s),
             "taskbar" => Taskbar(),
             "accentbar" => new SolidColorBrush(Color.FromArgb(0xE0, accent.R, accent.G, accent.B)),
@@ -493,7 +523,13 @@ public partial class MainWindow
         // A style of your own always brings everything you chose for it.
         var mine = s.CustomStyles.FirstOrDefault(c => c.Id == style.Id);
         if (mine != null) MyStyles.ApplyExtras(s, mine);
-        else if (s.StyleMatching || MyStyles.IsCustom(leaving.Id)) s.NavSoundSet = ""; // ready-made styles use one set for everything
+        else if (s.StyleMatching || MyStyles.IsCustom(leaving.Id))
+        {
+            // Its own sound for moving around (most ready-made styles use one set for everything), and how its selected game stands out.
+            s.NavSoundSet = style.NavSounds ?? "";
+            if (style.TileAnimation != null) s.TileHighlight = style.TileAnimation;
+            else if (leaving.TileAnimation != null && s.TileHighlight == leaving.TileAnimation) s.TileHighlight = "pulse";
+        }
         if (s.StyleMatching || mine != null)
         {
             // Its button pictures (the pixel styles bring pixel-art buttons); leaving such a style goes back to plain.
@@ -520,7 +556,8 @@ public partial class MainWindow
         if (style.WantsHero && s.DynamicBackground.Length == 0) s.HeroBackgrounds = true;
         s.Save();
         ApplyLook();
-        UpdateMenuMusic();
+        // Animations, button pictures and music the style may have changed take effect now, not at the next start.
+        ApplySettings();
         if (mine != null) _ = ApplyStyleLockScreenAsync(mine);
     }
 

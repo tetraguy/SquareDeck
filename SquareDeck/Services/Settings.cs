@@ -260,6 +260,9 @@ public sealed class Settings
     /// <summary>The sound set for moving around ("" = the same as <see cref="SoundSet"/>). Styles of your own can choose their own.</summary>
     public string NavSoundSet { get; set; } = "";
 
+    /// <summary>The color variant chosen for each Advanced style that has some (style id → variant id).</summary>
+    public Dictionary<string, string> SkinVariants { get; set; } = new();
+
     /// <summary>Loudness of the menu music, in percent.</summary>
     public int MenuMusicVolume { get; set; } = 30;
 
@@ -579,7 +582,7 @@ public sealed class Settings
                     // 6.4: the old UI styles were removed (theming is being rebuilt; the looks have their own styles now).
                     // Someone on a removed style is moved to Switch once; when their style had brought its own colors, wallpaper, sounds, music,
                     // moving background and button pictures (style matching), those go back to Switch's too.
-                    if (!string.IsNullOrEmpty(s.UiStyle) && !MyStyles.IsCustom(s.UiStyle) && UiStyles.All.All(x => x.Id != s.UiStyle))
+                    if (!string.IsNullOrEmpty(s.UiStyle) && !MyStyles.IsCustom(s.UiStyle) && !UiStyles.IsAdvanced(s.UiStyle) && UiStyles.All.All(x => x.Id != s.UiStyle))
                     {
                         if (s.StyleMatching)
                         {
@@ -641,6 +644,7 @@ public sealed class Settings
                     s.SoundFolder ??= "";
                     if (!Hints.IsValidMap(s.ButtonMap)) s.ButtonMap = "ABXY";
                     s.NavSoundSet ??= "";
+                    s.SkinVariants ??= new();
                     s.CustomStyles ??= new();
                     s.CustomStyles.RemoveAll(c => c == null);
                     MyStyles.Load(s);

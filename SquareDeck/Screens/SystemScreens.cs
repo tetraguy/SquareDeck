@@ -374,6 +374,7 @@ public sealed class SoundsScreen : ListScreen
             AddNote("Custom sounds come from " + (s.SoundFolder.Length > 0 ? s.SoundFolder : "(no folder chosen)") +
                     ". Put WAV files there named " + string.Join(", ", UiSound.CustomFiles) +
                     ". Any that are missing use the Classic sound.");
+        AddRow("Navigation sound", s.NavSoundSet.Length == 0 ? "Same as the sound set" : UiSound.SetName(s.NavSoundSet), "\uE7C9", click: () => _ = ChooseNavAsync());
         AddRow("Loudness", s.SoundVolume + "%", "\uE995", click: () =>
             Change(() => s.SoundVolume = Volumes[(Array.IndexOf(Volumes, s.SoundVolume) + 1) % Volumes.Length]));
         if (s.SoundSet == "custom" || s.SoundSet.StartsWith("pack:"))
@@ -415,6 +416,22 @@ public sealed class SoundsScreen : ListScreen
         Host.Settings.Save();
         UiSound.Configure(Host.Settings);
         UiSound.Select();
+        Rebuild();
+    }
+
+    /// <summary>A sound of its own for moving the highlight (Tick, Marimba, Laser, Droplet, Kalimba... or any set).</summary>
+    private async Task ChooseNavAsync()
+    {
+        var sets = UiSound.AllSets().Where(x => x.Id != "custom").ToList();
+        var names = new List<string> { "Same as the sound set" };
+        names.AddRange(sets.Select(x => x.Name));
+        int choice = await Host.AskAsync("Navigation sound", "The sound as the highlight moves. Tick, Marimba, Laser, Droplet and Kalimba were made for this.", names.ToArray());
+        if (choice < 0) return;
+        var s = Host.Settings;
+        s.NavSoundSet = choice == 0 ? "" : sets[choice - 1].Id;
+        s.Save();
+        UiSound.Configure(s);
+        UiSound.Preview(s.NavSoundSet.Length > 0 ? s.NavSoundSet : s.SoundSet, move: true);
         Rebuild();
     }
 

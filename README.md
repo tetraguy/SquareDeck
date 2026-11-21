@@ -43,10 +43,12 @@ one home screen in front of all of it: pick it up, press A, play.
   games come from the Steam store when the game is sold there, or Wikipedia)
 - Pick any game's square cover, icon, tall grid, header capsule, hero image and logo from SteamGridDB (one tab each), or
   use your own, with a progress card while it downloads
-- Library views: Square (the cover as it is), Grid (tall poster art) or Rectangle (the wide store header), in eleven
-  layouts: Sidebar, Compact, Large tiles, List, Shelves, Spotlight, Poster wall, Showcase, Mini grid, Focus list and Timeline, grouped
-  by category, main genre, or played and never played
-- Home row art as Square, Tall grid or Rectangle, in Small, Medium or Large, with ten highlight animations
+- Library: section tabs (Installed, Favorites, Recently played, Not installed, Wishlist, Updates, Collections) switched
+  with LB / RB, chips for each store, category and status, and a slim toolbar (search, sort, view, More). Covers as
+  Square, Grid (tall poster art) or Rectangle (the wide store header), in eleven views: Grid, Compact, Large, Mini,
+  Posters, Banners, List, Spotlight, Spotlight list, Shelves and Timeline, grouped by category, main genre, or played
+  and never played
+- Home row art as Square, Tall grid or Rectangle, in Small, Medium or Large, with fifteen highlight animations
 - **Wishlist and sales:** your Steam wishlist and games you watch, with prices, discounts and the lowest price seen, a
   notification when one goes on sale, and a month-view **release calendar**
 - Install stores from SquareDeck, including RecompLauncher (PC recomps) straight from its GitHub releases
@@ -91,13 +93,16 @@ one home screen in front of all of it: pick it up, press A, play.
 - Performance mode, low-battery notice and Do not disturb while playing
 
 ### Look and feel
-- Themes: 100 styles of the Switch design, each with its own colors, type, corners, buttons, wallpaper or moving
-  background, sounds and music
+- Themes, in two tabs:
+  - **Basic:** 100 styles of the Switch design, each with its own colors, type, corners, buttons, wallpaper or moving
+    background, sounds and music
+  - **Advanced:** 17 styles made from UI kits, with the kit's own panels, buttons, dialogs, switches, mouse pointer and
+    (for some) icons. Several come in more than one color
 - Create your own styles: background, music, interface and navigation sounds, colors, font, button shape and look,
   shelf, effects (halftone, comic book, synthwave, Y2K, dreamcore and more), game art, animations and the Windows lock
   screen picture. Save them with your own name, and export or import them as .sdstyle files
 - 22 color themes, plus your choice of font and game art shape and size
-- 37 moving backgrounds (or add your own videos), 24 picture wallpapers, 15 music tracks and 3 interface sound packs
+- 37 moving backgrounds (or add your own videos), 26 picture wallpapers, 19 music tracks and 8 interface sound packs
 - Controller button pictures for Xbox, PlayStation and Switch, in two art styles, plus keyboard keys
 - Light, dark, OLED and high-contrast themes, larger text and reduced motion
 - 16 startup animations, and a "Good morning" greeting by your profile picture
@@ -162,6 +167,7 @@ one home screen in front of all of it: pick it up, press A, play.
 | Game options | Y | Y |
 | Next / previous page | RB / LB | Page Down / Page Up |
 | Jump by letter (library) | RT / LT | |
+| Library section | RB / LB | |
 | Scroll a long page | Right stick | Mouse wheel |
 | Search everything | Start / Menu | F3 or / |
 | Quick settings | View | Q |
@@ -226,6 +232,22 @@ More notes on individual features are in the [changelog](CHANGELOG.md).
   Intel commands (`Services/DeviceHelper.cs`, `Services/HandheldVendors.cs`), which follow it too. Intel power limits
   use KX.exe from your own HandheldCompanion install; SquareDeck doesn't include it
 - Adrenaline Hook (Settings > Experimental) is rebuilt from [Adrenaline Hook](https://github.com/tetraguy/Adrenaline-Hook) by tetraguy
+- The Advanced styles use these UI kits (in `SquareDeck/Skins`), each under its own terms:
+  NEONIX UI assets by GONKEN Games — https://gonkengames.itch.io/ ; Free Hologram Interface by Wenrexa; Glowing UI icons;
+  Mega Cozy UI Pack and Cozy UI Pack demos by dobo_ui; Pixel UI Kit by Northleaf Studio; Tropical Night UI Lite by Brunka
+  Games; Retro Windows GUI; Retro Arcade UI Mini Pack (CC0); Softline UI Kit – Flat Night by The Cooked Works; Fern & Brass
+  by Kaliopa Studio; Nebula UI by kama-labs; Soft Modern UI Lite. The full list is in the app under Settings > Updates and data > Credits
+- Indivial uses the Indivial UI kit (three colors)
+- Scholar uses the Scholar GUI kit, Afacad Flux by Kristian Möller and OpenDyslexic by Abbie Gonzalez (SIL Open Font License)
+- Music "At Rest", "Daybreak" and "Thinking of You" by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0
+- Sapphire uses the Sapphire GUI kit (three colors) and Barlow Condensed by Jeremy Tribby (SIL Open Font License)
+- Spectrum uses the Spectrum UI kit (five colors)
+- Fatanzia uses the Fatanzia UI kit
+- Cozy Place uses the Travel Book UI (Lite) kit
+- Luna XP uses the Windows XP UI pack packed by NullTale (https://nulltale.itch.io/). The Windows XP look, icons,
+  sounds and the Bliss wallpaper belong to Microsoft
+- Interface sounds: UI SFX by CAPTNPHANTOM (Essential UI packs) and UI & Menu SFX by Northleaf Studio
+- Fonts: VT323 by Peter Hull and Jersey 10 by Sarah Cadigan-Fried (SIL Open Font License), Pixel Operator by Jayvee Enaguas (CC0)
 - Sound packs, music, moving backgrounds and controller glyphs belong to their respective creators
 
 SquareDeck is an independent project. It isn't affiliated with or endorsed by Valve, Microsoft, Nintendo, Sony,

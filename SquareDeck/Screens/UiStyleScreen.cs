@@ -203,6 +203,14 @@ public sealed class UiStyleScreen : GridScreen
                     Width = (size + inner * 2 - gap * 2) * K, Height = (size + inner * 2 - gap * 2) * K,
                     Stroke = accent, StrokeThickness = Math.Max(1, ring * K * 1.4), RadiusX = corner + 1.5, RadiusY = corner + 1.5
                 };
+                // A gradient ring (Switch).
+                if (s.RingColors is { Length: > 1 } ringColors)
+                {
+                    var g = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
+                    for (int j = 0; j < ringColors.Length; j++)
+                        if (Theme.TryParseArgb(ringColors[j], out var rc)) g.GradientStops.Add(new GradientStop(rc, (double)j / (ringColors.Length - 1)));
+                    outline.Stroke = g;
+                }
                 if (s.Glow) outline.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = s.Glass ? Colors.White : accentColor, BlurRadius = 8, ShadowDepth = 0 };
                 Add(c, outline, (tx - inner + gap) * K, (ty - inner + gap) * K);
                 if (s.Title == "inside")

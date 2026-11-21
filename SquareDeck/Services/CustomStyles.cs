@@ -92,6 +92,8 @@ public sealed class CustomStyle
             Layout = "classic", NavTabs = false,
         };
         if (Corners >= 0) s = s with { TileCorner = Corners, RowCorner = Math.Max(4, Corners) };
+        // Your own highlight color replaces a gradient ring.
+        if (Accent.Length > 0) s = s with { RingColors = null };
 
         // The buttons' fill.
         s = s with
