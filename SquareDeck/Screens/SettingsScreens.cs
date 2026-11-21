@@ -17,7 +17,8 @@ public sealed class SettingsScreen : ListScreen
     private static readonly (string Id, string Name, string Glyph, string About)[] Categories =
     {
         ("overview", "Home", "\uE80F", "Your profile, your device at a glance, and the settings people change most"),
-        ("look", "Look and feel", "\uE790", "UI style, colors, wallpaper and themes, the top bar and home screen buttons"),
+        ("looks", "Themes", "\uE771", "Pick one of 100 styles or create your own"),
+        ("look", "Look and feel", "\uE790", "Colors, wallpaper and themes, the top bar and home screen buttons"),
         ("home", "Home screen", "\uE8A9", "The games row, animations, screen saver, starting and closing"),
         ("sound", "Sound and music", "\uE767", "Interface sounds, menu music, the Multimedia page and sound output"),
         ("gaming", "Gaming", "\uE768", "Launching games, while you play, Performance Boost, the overlay, cloud gaming"),
@@ -53,7 +54,8 @@ public sealed class SettingsScreen : ListScreen
     /// </summary>
     private static readonly Dictionary<string, (string Part, string[]? Groups)[]> Sections = new()
     {
-        ["look"] = new[] { ("look", (string[]?)new[] { "Style", "Colors", "Your looks", "Artwork" }), ("home", new[] { "Home screen buttons" }), ("look", new[] { "Top bar", "Display" }) },
+        ["looks"] = new[] { ("looks", (string[]?)null) },
+        ["look"] = new[] { ("look", (string[]?)new[] { "Background", "Colors", "Font", "Your looks", "Profile", "Artwork" }), ("look", new[] { "Top bar", "Display" }) },
         ["home"] = new[] { ("home", (string[]?)new[] { "Home row and buttons", "Buttons under the games", "Animations", "Screen saver", "Starting and closing" }) },
         ["sound"] = new[] { ("sound", (string[]?)null) },
         ["gaming"] = new[] { ("games", (string[]?)new[] { "Launching games", "While playing" }), ("power", new[] { "Performance Boost", "Performance overlay" }), ("games", new[] { "Cloud gaming" }) },
@@ -109,8 +111,11 @@ public sealed class SettingsScreen : ListScreen
     /// the right. Your profile and a search box sit at the top of the left side.
     /// </summary>
     internal SettingsScreen(string? category)
-        : base("Settings", "{Select}  Select      {Back}  Back", null)
+        : base("Settings", "{Select}  Select      {Back}  Back", PanesLayout())
     {
+        _panes = _panesHost != null;
+        if (_panes) BuildPanes(_panesHost!);
+        _panesHost = null;
         _category = Upgrade(category ?? "overview"); // Settings opens on its home page
         // A light tick on the controller each time the highlight moves to another row (if vibration is on).
         AddHandler(UIElement.GotKeyboardFocusEvent, new System.Windows.Input.KeyboardFocusChangedEventHandler((_, e) =>
@@ -126,16 +131,99 @@ public sealed class SettingsScreen : ListScreen
         BuildLayout();
     }
 
-    /// <summary>One wide, centered column: no sidebar. Home lists the sections; each opens on its own.</summary>
+    /// <summary>
+    /// The look decides the layout (PageDesign.Settings): one centered column (Home lists the sections; each opens
+    /// on its own), a column on the left over the artwork (drawer), a wider column, or two panes with the sections
+    /// on the left and their settings on the right (panes).
+    /// </summary>
     private void BuildLayout()
     {
-        Rows.Width = 1040;
-        Rows.HorizontalAlignment = HorizontalAlignment.Center;
-        Rows.Margin = new Thickness(0, 0, 0, 24);
+        switch (LookChrome.Design.Settings)
+        {
+            case "drawer":
+                Rows.Width = 880;
+                Rows.HorizontalAlignment = HorizontalAlignment.Left;
+                Rows.Margin = new Thickness(70, 0, 0, 24);
+                break;
+            case "wide":
+                Rows.Width = 1180;
+                Rows.HorizontalAlignment = HorizontalAlignment.Center;
+                Rows.Margin = new Thickness(0, 0, 0, 24);
+                break;
+            case "panes":
+                Rows.Width = double.NaN;
+                Rows.MaxWidth = 1100;
+                Rows.HorizontalAlignment = HorizontalAlignment.Stretch;
+                Rows.Margin = new Thickness(0, 0, 36, 24);
+                break;
+            default:
+                Rows.Width = 1040;
+                Rows.HorizontalAlignment = HorizontalAlignment.Center;
+                Rows.Margin = new Thickness(0, 0, 0, 24);
+                break;
+        }
+    }
+
+    // ---------------------------------------------------------------- two panes (console-style looks)
+
+    [ThreadStatic] private static Grid? _panesHost;
+    private readonly bool _panes;
+
+    /// <summary>For looks with two panes: a grid with room on the left for the sections and the settings on the right.</summary>
+    private static Func<ScrollViewer, UIElement>? PanesLayout()
+    {
+        if (LookChrome.Design.Settings != "panes") return null;
+        return scroll =>
+        {
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            Grid.SetColumn(scroll, 1);
+            grid.Children.Add(scroll);
+            _panesHost = grid;
+            return grid;
+        };
+    }
+
+    private void BuildPanes(Grid host)
+    {
+        var navScroll = new ScrollViewer
+        {
+            Content = _nav, Focusable = false, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, PanningMode = PanningMode.VerticalOnly
+        };
+        _navPanel = new Border { Child = navScroll, Margin = new Thickness(0, 0, 30, 12), Width = 300 };
+        // Each console draws its list of sections its own way.
+        switch (Looks.Current.Id)
+        {
+            case "deck":
+                _navPanel.Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x14, 0x16, 0x1B));
+                _navPanel.CornerRadius = new CornerRadius(4);
+                break;
+            case "xdash":
+                _navPanel.Background = new SolidColorBrush(Color.FromArgb(0xB3, 0x10, 0x12, 0x14));
+                _navPanel.BorderBrush = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF));
+                _navPanel.BorderThickness = new Thickness(0, 0, 1, 0);
+                break;
+            default:
+                _navPanel.Background = Brushes.Transparent;
+                break;
+        }
+        host.Children.Add(_navPanel);
+    }
+
+    /// <summary>Marks the section you're in on the left pane.</summary>
+    private void MarkNav()
+    {
+        if (!_panes) return;
+        foreach (var b in _nav.Children.OfType<Button>())
+            if (b.DataContext is string tag && tag.StartsWith("nav:") && tag is not ("nav:toggle" or "nav:profile" or "nav:search"))
+                b.Tag = tag == "nav:" + _category ? "selected" : null;
     }
 
     public override void OnShown()
     {
+        if (_panes) { SizeNav(animate: false); BuildNav(); }
         if (FocusLabel != null) { Rebuild(); return; } // opened from Search: land on that row
         ForgetRow();
         Rebuild();
@@ -145,13 +233,23 @@ public sealed class SettingsScreen : ListScreen
 
     public override void OnClosed() => _switchSoon.Stop();
 
-    public override void FocusDefault() => Rows.Children.OfType<Button>().FirstOrDefault()?.Focus();
+    public override void FocusDefault()
+    {
+        if (_panes && NavRow(_category) is { } nav) { nav.Focus(); return; }
+        Rows.Children.OfType<Button>().FirstOrDefault()?.Focus();
+    }
 
     public override bool OnAction(NavAction action)
     {
         if (action != NavAction.Back) return false;
         // B steps back: a group to its section, a section to Settings home, then out of Settings.
         if (_group != null) { LeaveGroup(); return true; }
+        // Two panes: from the settings back to the list of sections, then out.
+        if (_panes)
+        {
+            if (Rows.IsKeyboardFocusWithin && NavRow(_category) is { } nav) { nav.Focus(); return true; }
+            return false;
+        }
         if (_category != "overview")
         {
             var from = _category;
@@ -295,8 +393,10 @@ public sealed class SettingsScreen : ListScreen
         Rebuild();
         SuppressAutoFocus = false;
         RowsScroll.ScrollToTop();
+        MarkNav();
+        if (_panes && !focusContent) return; // moving through the sections: the highlight stays on the left
         // The first setting (past the way back), or the first card on Settings home.
-        FocusLater(Rows.Children.OfType<Button>().Skip(id == "overview" ? 0 : 1).FirstOrDefault() ?? Rows.Children.OfType<Button>().FirstOrDefault());
+        FocusLater(Rows.Children.OfType<Button>().Skip(id == "overview" || _panes ? 0 : 1).FirstOrDefault() ?? Rows.Children.OfType<Button>().FirstOrDefault());
     }
 
     protected override void Build()
@@ -307,20 +407,24 @@ public sealed class SettingsScreen : ListScreen
         if (cat.Id == null) { _category = "overview"; cat = Categories[0]; }
 
         // The section's banner: its icon, name and what's in it (and where you are, inside a group).
+        // Settings home has no banner: the page is already titled "Settings".
+        if (_category == "overview") { Rows.Children.Add(new Border { Height = 6 }); BuildOverview(s); return; }
         Rows.Children.Add(Banner(cat.Glyph, cat.Name, _group == null ? cat.About : null));
 
-        if (_category == "overview") { BuildOverview(s); return; }
+        if (_panes) goto sections; // the sections are on the left; no way back needed
         var back = Ui.Row("Settings", null, "\uE72B", subtitle: "Back to all settings");
         back.Click += (_, _) => OnAction(NavAction.Back);
         back.Margin = new Thickness(0, 8, 0, 4);
         back.Tag = "back";
         Rows.Children.Add(back);
         Rows.Children.Add(new Border { Height = 4 });
+        sections:
         foreach (var (part, groups) in Sections[_category])
         {
             int start = Rows.Children.Count;
             switch (part)
             {
+                case "looks": BuildLooks(s); break;
                 case "look": BuildLook(s); break;
                 case "home": BuildHome(s); break;
                 case "sound": BuildSound(s); break;
@@ -364,7 +468,7 @@ public sealed class SettingsScreen : ListScreen
         me.Children.Add(face);
         var who = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         who.Children.Add(Ui.Text(UserName.Display, 24, "FgBrush", bold: true));
-        var facts = new List<string> { "SquareDeck " + Updater.Current, UiStyles.Find(s.UiStyle).Name };
+        var facts = new List<string> { "SquareDeck " + Updater.Current };
         if (Battery.GetPercent() is int battery) facts.Add(battery + "% battery");
         if (TdpControl.Ready) facts.Add(TdpControl.EffectiveWatts + " W TDP");
         who.Children.Add(Ui.Text(string.Join("   \u00B7   ", facts), 14, "SubtleBrush"));
@@ -380,7 +484,8 @@ public sealed class SettingsScreen : ListScreen
         Rows.Children.Add(search);
         Rows.Children.Add(new Border { Height = 4 });
 
-        // Every section, as a card.
+        // Every section, as a card (two panes list them on the left already).
+        if (_panes) return;
         AddHeader("All settings");
         foreach (var c in VisibleCategories.Skip(1))
         {
@@ -432,7 +537,7 @@ public sealed class SettingsScreen : ListScreen
         var backRow = Rows.Children.OfType<Button>().FirstOrDefault(b => b.Tag as string == "back");
         var all = Rows.Children.Cast<UIElement>().Skip(1).ToList();
         int backAt = backRow != null ? all.IndexOf(backRow) : -1;
-        var body = all.Where((e, i) => i != backAt && i != backAt + 1).ToList();
+        var body = backAt < 0 ? all : all.Where((e, i) => i != backAt && i != backAt + 1).ToList();
         var groups = new List<(string Name, List<UIElement> Items)>();
         foreach (var e in body)
         {
@@ -547,6 +652,7 @@ public sealed class SettingsScreen : ListScreen
     /// <summary>The section's banner: a big icon in a highlight-colored badge, its name, and what it covers.</summary>
     private static UIElement Banner(string glyph, string name, string? about)
     {
+        if (LookChrome.Design.Banner != "badge") return LookChrome.Banner(glyph, name, about);
         var a = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.DeepSkyBlue;
         var panel = new Border
         {
@@ -621,16 +727,259 @@ public sealed class SettingsScreen : ListScreen
     private static string _lastCategory = "overview";
 
 
+    /// <summary>
+    /// Themes: the looks to choose from, each a complete design for SquareDeck (its home screen and every
+    /// page). Switch is the only one for now; the theme engine is being built up a step at a time.
+    /// </summary>
+    private void BuildLooks(Settings s)
+    {
+        // Switch is SquareDeck's look; these are its 100 ready-made styles (all with the Switch layout) and yours, each with a little picture of its home screen.
+        AddRow("Match theme, wallpaper, sounds and music to the style", OnOff(s.StyleMatching), "\uE790",
+            click: () => Toggle(() => s.StyleMatching = !s.StyleMatching),
+            subtitle: "Off keeps your own theme, wallpaper, sounds, music and highlight color when you change style");
+        AddRow("Surprise me", null, "\uE8B1", subtitle: "Switch to a random style you're not using now", click: () =>
+        {
+            var others = UiStyles.All.Where(x => x.Id != s.UiStyle).ToList();
+            if (others.Count > 0) UseSwitchStyle(others[Random.Shared.Next(others.Count)]);
+        });
+
+        // Your own styles: make one, import one, and the ones you've made.
+        AddHeader("Your styles");
+        const double W = 296;
+        var mine = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+        mine.Children.Add(ActionCard("\uE710", "Create a style", "Pick a background, music, sounds, colors, font, buttons, an effect and animations", W, () => _ = CreateStyleAsync()));
+        mine.Children.Add(ActionCard("\uE8B5", "Import a style", "Add a style someone shared with you (a " + MyStyles.Extension + " file)", W, () => _ = ImportStyleAsync()));
+        foreach (var custom in s.CustomStyles.ToList())
+        {
+            var c = custom;
+            var st = UiStyles.Find(c.Id);
+            if (st.Id != c.Id) continue;
+            var tile = StyleCard(st, st.Id == UiStyles.Current.Id || s.UiStyle == st.Id, W);
+            tile.Click += (_, _) => _ = MyStyleMenuAsync(c);
+            mine.Children.Add(tile);
+        }
+        Rows.Children.Add(mine);
+
+        AddHeader("Ready-made styles");
+        // Three to a row: the column is 1040 wide, and each card adds the tile's padding and ring plus a 10 gap.
+        var shelf = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+        foreach (var style in UiStyles.All)
+        {
+            var st = style;
+            bool inUse = st.Id == UiStyles.Current.Id;
+            var tile = StyleCard(st, inUse, W);
+            tile.Click += (_, _) =>
+            {
+                if (inUse) { Host.ShowToast("Themes", st.Name + " is in use", "It's the style SquareDeck has now.", "", "info", remember: false); return; }
+                UseSwitchStyle(st);
+            };
+            shelf.Children.Add(tile);
+        }
+        Rows.Children.Add(shelf);
+        AddNote("Each style keeps the Switch layout and changes its colors, font, corners, buttons and artwork. With matching " +
+                "on, it also brings its own theme (light, dark or OLED), wallpaper or moving background, interface sounds and music.");
+
+        AddHeader("More");
+        AddRow("Colors, wallpaper and more", null, "\uE790", click: () => Show("look", focusContent: true),
+            subtitle: "Light or dark, color themes, the highlight color, wallpaper and the moving background");
+        AddRow("Sounds and music", null, "\uE767", click: () => Show("sound", focusContent: true),
+            subtitle: "Interface sounds and menu music");
+    }
+
+    /// <summary>A style's card: a little picture of its home screen, its name in its own font, and what it's like.</summary>
+    private static Button StyleCard(UiStyle st, bool inUse, double W)
+    {
+        var card = new StackPanel { Width = W };
+        var frame = new Grid();
+        frame.Children.Add(new Viewbox { Width = W, Stretch = Stretch.Uniform, Child = UiStyleScreen.Preview(st) });
+        if (inUse)
+        {
+            // "In use" badge in the corner.
+            var badgeText = new StackPanel { Orientation = Orientation.Horizontal };
+            var tick = Ui.Glyph("\uE73E", 13, "BgBrush");
+            tick.Margin = new Thickness(0, 1, 6, 0);
+            badgeText.Children.Add(tick);
+            badgeText.Children.Add(Ui.Text("In use", 13, "BgBrush", bold: true));
+            var badge = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 4, 12, 5), Margin = new Thickness(0, 10, 10, 0),
+                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Child = badgeText };
+            badge.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+            frame.Children.Add(badge);
+        }
+        card.Children.Add(frame);
+        var name = Ui.Text(st.Name, 18, "FgBrush", bold: true);
+        name.Margin = new Thickness(4, 10, 0, 2);
+        // The name is set in the style's own font, so the type is part of the preview.
+        try { name.FontFamily = Services.AppFonts.Family(st.Font); } catch (Exception) { }
+        card.Children.Add(name);
+        var about = Ui.Text(st.Description, 13, "SubtleBrush");
+        about.TextWrapping = TextWrapping.Wrap;
+        about.TextTrimming = TextTrimming.None;
+        about.Margin = new Thickness(4, 0, 4, 4);
+        card.Children.Add(about);
+        var tile = Ui.Tile(card);
+        tile.Margin = new Thickness(0, 0, 10, 10);
+        tile.VerticalAlignment = VerticalAlignment.Top;
+        return tile;
+    }
+
+    /// <summary>A card that does something (Create a style, Import a style): an icon where the picture would be.</summary>
+    private static Button ActionCard(string glyph, string title, string about, double W, Action click)
+    {
+        var card = new StackPanel { Width = W };
+        var face = new Grid { Width = W, Height = W * 9 / 16 };
+        var back = new Border { CornerRadius = new CornerRadius(12), BorderThickness = new Thickness(2) };
+        back.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        back.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+        face.Children.Add(back);
+        var icon = Ui.Glyph(glyph, 46, "AccentBrush");
+        icon.HorizontalAlignment = HorizontalAlignment.Center;
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        face.Children.Add(icon);
+        card.Children.Add(face);
+        var name = Ui.Text(title, 18, "FgBrush", bold: true);
+        name.Margin = new Thickness(4, 10, 0, 2);
+        card.Children.Add(name);
+        var text = Ui.Text(about, 13, "SubtleBrush");
+        text.TextWrapping = TextWrapping.Wrap;
+        text.TextTrimming = TextTrimming.None;
+        text.Margin = new Thickness(4, 0, 4, 4);
+        card.Children.Add(text);
+        var tile = Ui.Tile(card);
+        tile.Margin = new Thickness(0, 0, 10, 10);
+        tile.VerticalAlignment = VerticalAlignment.Top;
+        tile.Click += (_, _) => click();
+        return tile;
+    }
+
+    /// <summary>Create a style: start from Switch, the style in use, or any ready-made style, then the builder opens.</summary>
+    private async Task CreateStyleAsync()
+    {
+        var s = Host.Settings;
+        var current = UiStyles.Find(s.UiStyle);
+        // A style of yours in use: start from what it was built on, with its choices.
+        var currentMine = s.CustomStyles.FirstOrDefault(c => c.Id == current.Id);
+        // With Switch in use, "Start from Switch" and "the style in use" would be the same choice: offered once.
+        bool switchInUse = current.Id == UiStyles.All[0].Id;
+        var options = new List<string> { switchInUse ? "Start from Switch (in use now)" : "Start from Switch" };
+        if (!switchInUse) options.Add("Start from " + current.Name + " (in use now)");
+        options.Add("Choose a ready-made style to start from…");
+        options.Add("Cancel");
+        int choice = await Host.AskAsync("Create a style", "Start from a ready-made style, then change anything you like. The picture of the home screen follows every change.",
+            options.ToArray());
+        if (choice < 0) return;
+        if (switchInUse && choice >= 1) choice++; // the same numbering as with both offered
+        string name = MyStyles.UniqueName(s, "My style");
+        void Open(CustomStyle draft)
+        {
+            try { Host.Push(new StyleBuilderScreen(draft, isNew: true, saved: Rebuild)); }
+            catch (Exception ex) { _ = Host.AskAsync("Couldn't open the style builder", ex.Message, "OK"); }
+        }
+        switch (choice)
+        {
+            case 0: Open(CustomStyle.From(UiStyles.All[0], s, name)); break;
+            case 1:
+                if (currentMine != null) { var copy = MyStyles.Duplicate(currentMine, name); Open(copy); }
+                else Open(CustomStyle.From(current, s, name));
+                break;
+            case 2:
+                var styles = UiStyles.All.Select(x => (x.Id, x.Name, x.Description)).ToArray();
+                PreviewPickerScreen? picker = null;
+                picker = new PreviewPickerScreen("Start from", "Choose the ready-made style to build yours on.", styles, () => "",
+                    id => new Viewbox { Width = PreviewPickerScreen.W, Height = PreviewPickerScreen.H, Stretch = Stretch.UniformToFill, Child = UiStyleScreen.Preview(UiStyles.Find(id)) },
+                    id =>
+                    {
+                        Host.Pop(picker!);
+                        Open(CustomStyle.From(UiStyles.Find(id), s, name));
+                    });
+                Host.Push(picker);
+                break;
+        }
+    }
+
+    private async Task ImportStyleAsync()
+    {
+        var file = await Host.PickFileAsync("Choose a SquareDeck style", new[] { MyStyles.Extension });
+        if (file == null) return;
+        try
+        {
+            var s = Host.Settings;
+            var style = MyStyles.Import(file, s);
+            s.CustomStyles.Insert(0, style);
+            s.Save();
+            MyStyles.Load(s);
+            Rebuild();
+            if (await Host.AskAsync(style.Name + " imported", "It's in Your styles now.", "Use it now", "Edit it first", "Later") is int c && c == 0)
+                UseSwitchStyle(UiStyles.Find(style.Id));
+            else if (c == 1) Host.Push(new StyleBuilderScreen(style.Copy(), isNew: false, saved: Rebuild));
+        }
+        catch (Exception ex)
+        {
+            await Host.AskAsync("Couldn't import the style", ex.Message, "OK");
+        }
+    }
+
+    private async Task MyStyleMenuAsync(CustomStyle c)
+    {
+        var s = Host.Settings;
+        bool inUse = s.UiStyle == c.Id;
+        int choice = await Host.AskAsync(c.Name, "Your style, saved " + c.Saved.ToString("MMMM d, yyyy"),
+            inUse ? "Use it again (reapply)" : "Use this style", "Edit", "Duplicate", "Export", "Rename", "Delete", "Cancel");
+        switch (choice)
+        {
+            case 0: UseSwitchStyle(UiStyles.Find(c.Id)); break;
+            case 1:
+                try { Host.Push(new StyleBuilderScreen(c.Copy(), isNew: false, saved: Rebuild)); }
+                catch (Exception ex) { await Host.AskAsync("Couldn't open the style builder", ex.Message, "OK"); }
+                break;
+            case 2:
+                var copy = MyStyles.Duplicate(c, MyStyles.UniqueName(s, c.Name + " copy"));
+                s.CustomStyles.Insert(s.CustomStyles.IndexOf(c) + 1, copy);
+                s.Save();
+                MyStyles.Load(s);
+                Rebuild();
+                break;
+            case 3: await StyleBuilderScreen.ExportStyleAsync(Host, c); break;
+            case 4:
+                var name = await Host.PromptAsync("Rename", null, c.Name);
+                if (string.IsNullOrWhiteSpace(name)) return;
+                c.Name = MyStyles.UniqueName(s, name, c.Id);
+                s.Save();
+                MyStyles.Load(s);
+                if (inUse) Host.ApplyLook();
+                Rebuild();
+                break;
+            case 5:
+                if (await Host.AskAsync("Delete " + c.Name + "?", "This can't be undone. Export it first if you might want it again.", "Delete", "Cancel") != 0) return;
+                MyStyles.Delete(s, c);
+                s.Save();
+                MyStyles.Load(s);
+                if (inUse) UseSwitchStyle(UiStyles.All[0]);
+                else Rebuild();
+                break;
+        }
+    }
+
+    /// <summary>Uses a style and redraws this page in it.</summary>
+    private void UseSwitchStyle(UiStyle style)
+    {
+        Host.UseStyle(style);
+        UiSound.Select();
+        Host.ShowToast("Themes", style.Name + " applied", Host.Settings.StyleMatching ? "With its colors, wallpaper, sounds and music" : "Your colors, wallpaper and sounds are kept", "", "info", remember: false);
+        var fresh = new SettingsScreen("looks");
+        Host.Push(fresh);
+        Host.RemoveBelow(this);
+    }
+
     private void BuildLook(Settings s)
     {
-        AddHeader("Style");
-        AddRow("UI style", UiStyles.Find(s.UiStyle).Name, "\uE771", click: () => Host.Push(new UiStyleScreen()),
-            subtitle: "Switch, Xbox, PlayStation 5, Steam Big Picture, Neon, Minimal, Retro or Glass");
+        AddHeader("Background");
         AddRow("Moving background", s.DynamicBackground.Length == 0 ? "Off" : System.IO.Path.GetFileNameWithoutExtension(s.DynamicBackground),
             "\uE714", click: () => Host.Push(new DynamicBackgroundScreen()), subtitle: "Waves or blades in motion, with a blur level");
         AddRow("Windows lock screen", glyph: "\uEE3F", click: () => Host.Push(new LockScreenScreen()),
             subtitle: "Use one of SquareDeck's wallpapers, or a picture of your own, when the device is locked");
         AddHeader("Colors");
+        // Light, dark, OLED or following Windows: only the Switch style lets you choose; the others bring their own.
+        if (UiStyles.Current.Id == "switch")
         AddRow("Theme", ThemeLabel(s.ThemeMode), "", click: () =>
         {
             // Light -> Dark -> OLED black -> Follow system -> Light
@@ -644,8 +993,13 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Tint the highlight with the game's colors", OnOff(s.GameAccent), "", click: () =>
             Toggle(() => s.GameAccent = !s.GameAccent));
 
-        AddHeader("Your looks");
-        AddRow("My themes, looks and wallpaper", glyph: "", click: () => Host.Push(new ThemeScreen()));
+        // Your own themes, ready-made looks and wallpaper: only for the Switch style (the others bring their own).
+        if (UiStyles.Current.Id == "switch")
+        {
+            AddHeader("Your looks");
+            AddRow("My themes, looks and wallpaper", glyph: "", click: () => Host.Push(new ThemeScreen()));
+        }
+        else AddHeader("Profile"); // just your picture with the other styles
         AddRow("Profile picture", glyph: "", click: () => Host.Push(new AvatarScreen()));
 
         AddHeader("Artwork");
@@ -657,11 +1011,15 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Color the game details page from the cover art", OnOff(s.DetailsGradient), "", click: () =>
             Toggle(() => s.DetailsGradient = !s.DetailsGradient));
 
+        AddHeader("Font");
+        AddRow("Font", UiFonts.FirstOrDefault(f => f.Id == s.UiFont).Name ?? "Match the style", "\uE8D2",
+            click: () => Preview("Font", "Used everywhere in SquareDeck. Each is shown in its own type; choose one to use it.", UiFonts, () => s.UiFont, PreviewPickerScreen.Font, id => s.UiFont = id),
+            subtitle: $"Every UI style comes with its own font. Or pick one of {UiFonts.Length - 1} to use with every style");
+        // A sample of the font in use, right here.
+        Rows.Children.Add(PreviewPickerScreen.Font(s.UiFont));
+
         AddHeader("Top bar");
         AddRow("Show the clock", OnOff(s.ShowClock), "\uE823", click: () => Toggle(() => s.ShowClock = !s.ShowClock));
-        AddRow("Font", UiFonts.FirstOrDefault(f => f.Id == s.UiFont).Name ?? "From the UI style", "\uE8D2",
-            click: () => Preview("Font", "Used everywhere in SquareDeck. Choose one to use it.", UiFonts, () => s.UiFont, PreviewPickerScreen.Font, id => s.UiFont = id),
-            subtitle: "The typeface for the whole app: ten to choose from");
         AddRow("Clock", (s.Clock24Hour ? "24-hour" : "12-hour") + (s.ClockSeconds ? ", seconds" : "") + (s.ClockDate ? ", date" : ""),
             "", click: ClockOptions);
         AddRow("Show battery percentage", OnOff(s.ShowBatteryPercent), "", click: () =>
@@ -685,9 +1043,9 @@ public sealed class SettingsScreen : ListScreen
                 "instead of leaving bars at the top and bottom.");
     }
 
-    private static readonly (string Id, string Name)[] ButtonStyles =
+    internal static readonly (string Id, string Name)[] ButtonStyles =
         { ("grow", "Grow and glow"), ("lift", "Lift"), ("bounce", "Bounce"), ("pulse", "Pulse"), ("wiggle", "Wiggle") };
-    private static readonly (string Id, string Name)[] PageStyles =
+    internal static readonly (string Id, string Name)[] PageStyles =
         {
             ("slide", "Slide up"), ("slide-left", "Slide in from the side"), ("slide-down", "Drop down"), ("rise", "Rise"),
             ("fade", "Fade"), ("zoom", "Zoom"), ("pop", "Pop"), ("spring", "Spring"), ("drop", "Bounce"), ("flip", "Card flip"),
@@ -704,11 +1062,11 @@ public sealed class SettingsScreen : ListScreen
     private void BuildHome(Settings s)
     {
         AddHeader("Home row and buttons");
-        AddRow("Game art", UiStyles.TileArts.FirstOrDefault(x => x.Id == s.TileArt).Name ?? "From the UI style", "\uE91B",
+        AddRow("Game art", UiStyles.TileArts.FirstOrDefault(x => x.Id == s.TileArt).Name ?? "Default", "\uE91B",
             click: () => Preview("Game art", "How games and apps look on the home row, in Favorites and in Apps. Choose one to use it.", UiStyles.TileArts,
                 () => s.TileArt, id => PreviewPickerScreen.Art(id, s.TileSize), id => s.TileArt = id),
             subtitle: "Square, tall grid, or rectangle (header capsule)");
-        AddRow("Game art size", UiStyles.TileSizes.FirstOrDefault(x => x.Id == s.TileSize).Name ?? "From the UI style", "\uE740",
+        AddRow("Game art size", UiStyles.TileSizes.FirstOrDefault(x => x.Id == s.TileSize).Name ?? "Default", "\uE740",
             click: () => Preview("Game art size", "How big the tiles are on the home row. Choose one to use it.", UiStyles.TileSizes,
                 () => s.TileSize, id => PreviewPickerScreen.Art(s.TileArt == "style" ? "square" : s.TileArt, id), id => s.TileSize = id));
         AddRow("Continue where you left off", OnOff(s.ContinueTile), "\uE768", click: () =>
@@ -781,19 +1139,6 @@ public sealed class SettingsScreen : ListScreen
             Toggle(() => s.StartupIntro = !s.StartupIntro));
         AddRow("Startup animation", MainWindow.BootAnimations.FirstOrDefault(b => b.Id == s.BootAnimation).Name ?? "Logo pop", "",
             click: ChooseBootAnimation);
-        AddHeader("Home screen buttons");
-        AddRow("Button style", UiStyles.NavButtonStyles.FirstOrDefault(x => x.Id == s.NavButtonStyle).Name ?? "From the UI style", "\uE8A9",
-            click: () => Preview("Home screen buttons", "How the Home, Favorites, Apps, Social… buttons look. Choose one to use it.", UiStyles.NavButtonStyles,
-                () => s.NavButtonStyle, PreviewPickerScreen.Buttons, id => s.NavButtonStyle = id),
-            subtitle: "The Home, Favorites, Apps, Social… buttons under your games");
-        AddRow("Button shelf", UiStyles.DockStyles.FirstOrDefault(x => x.Id == s.DockStyle).Name ?? "From the UI style", "\uE7F4",
-            click: () => Preview("Button shelf", "The deck the home screen buttons sit on. Choose one to use it.", UiStyles.DockStyles,
-                () => s.DockStyle, PreviewPickerScreen.Shelf, id => s.DockStyle = id),
-            subtitle: "The deck the buttons sit on");
-        AddRow("Footer", UiStyles.FooterStyles.FirstOrDefault(x => x.Id == s.FooterStyle).Name ?? "From the UI style", "\uE8A1",
-            click: () => Preview("Footer", "The strip along the bottom of the home screen, with the button hints. Choose one to use it.", UiStyles.FooterStyles,
-                () => s.FooterStyle, PreviewPickerScreen.Footer, id => s.FooterStyle = id),
-            subtitle: "The strip along the bottom with the button hints");
         AddRow("Welcome message", OnOff(s.WelcomeMessage), "\uE8BD",
             click: () => Toggle(() => s.WelcomeMessage = !s.WelcomeMessage),
             subtitle: $"\"{MainWindow.Greeting(DateTime.Now)}, {MainWindow.FirstName()}\" slides out next to your profile picture at startup");
@@ -2118,7 +2463,7 @@ public sealed class SettingsScreen : ListScreen
 
     public static readonly (string Id, string Name, string About)[] UiFonts =
     {
-        ("style", "From the UI style", "Each UI style's own font"),
+        ("style", "Match the style", "Each UI style comes with a font picked to go with it"),
         ("Segoe UI", "Segoe UI", "Windows' clean everyday font"),
         ("Segoe UI Variable Display", "Segoe UI Variable", "Windows 11's rounder, modern take"),
         ("Bahnschrift", "Bahnschrift", "Condensed and technical, like signage"),
@@ -2129,6 +2474,34 @@ public sealed class SettingsScreen : ListScreen
         ("Cascadia Mono, Consolas", "Cascadia Mono", "Monospaced, like a terminal"),
         ("Ink Free", "Ink Free", "Handwritten marker"),
         ("Comic Sans MS", "Comic Sans", "Casual and cartoony"),
+        // Fonts that come with SquareDeck (its Fonts folder)
+        ("file:Modesans-FreeDemo.otf#Modesans#Modesans Free Demo", "Modesans", "Clean geometric sans (this demo has no numbers)"),
+        ("file:Vislar-Thin.otf#Vislar#Vislar Thin", "Vislar", "Thin, airy and futuristic"),
+        ("file:Synth2-Thin.ttf#Synth#Synth Thin", "Synth", "Thin retro-future lines, very 80s"),
+        ("file:ESSENTIALO.ttf#ESSENTIALO", "Essentialo", "Scratchy, hand-drawn and a little eerie"),
+        ("file:Glafort-Regular.ttf#Glafort Demo#Glafort", "Glafort", "Light, stylish display type (this demo has no numbers)"),
+        ("file:Against_Perfection_Serif_Personal_Use.ttf#Against Perfection Personal Use#Against Perfection Personal Use Serif", "Against Perfection", "Rough, imperfect serif with charm"),
+        ("file:Amazing_Midnight_Personal_Use.ttf#Amazing Midnight Personal Use", "Amazing Midnight", "Tall, condensed poster lettering"),
+        ("file:SoulSeashell-Regular.ttf#Soul Seashell", "Soul Seashell", "Soft, flowing beach-day script"),
+        ("file:Dreamink_Cream_Ginger.ttf#Dreamink Cream Ginger", "Dreamink", "Sweet, rounded hand lettering"),
+        ("file:Jotbrisk_Demo.otf#Jotbrisk Demo", "Jotbrisk", "Quick, brisk handwriting (this demo has no numbers)"),
+        ("file:Always_be_honest.otf#Always be honest", "Always Be Honest", "Neat, friendly handwriting"),
+        ("file:ChildnotesHandwriting-Demo.otf#Childnotes Handwriting#Childnotes Handwriting Demo", "Childnotes", "Notes from a school notebook (demo: numbers show as DEMO)"),
+        ("file:Aboli-DemoVersion-Regular.ttf#Aboli - Demo Version", "Aboli", "Chunky, playful and bouncy (demo: numbers show as DEMO)"),
+        ("file:Happy_Chicken.ttf#Happy Chicken", "Happy Chicken", "Goofy, cartoony and fun"),
+        ("file:HomeVideo-Regular.ttf#Home Video", "Home Video", "A VHS camcorder date stamp"),
+        ("file:pixel-it-5x4.ttf#Pixel It! 5x4", "Pixel It", "Tiny blocky pixels, like an old handheld"),
+        ("file:Cyber_Gaming.ttf#Cyber Gaming", "Cyber Gaming", "Wide, techy gamer lettering"),
+        ("file:ForbiddenLove.otf#Forbidden Love", "Forbidden Love", "Thin, tall and elegant"),
+        ("file:Sixrow-Thin.ttf#Sixrow#Sixrow Thin", "Sixrow", "Thin, square capitals like a dot-matrix display"),
+        ("file:Tindamare.ttf#Tindamare", "Tindamare", "A clean, round geometric sans"),
+        ("file:orange_juice_2.0.ttf#orange juice", "Orange Juice", "Bold, bubbly hand lettering"),
+        ("file:Aurely_Roliste_Demo.ttf#Aurely Roliste Demo", "Aurely Roliste", "Bold brush script (this demo has no numbers)"),
+        ("file:Marching_Brush.otf#Marching Brush", "Marching Brush", "Rough brushed capitals (this demo's numbers are scribbles)"),
+        ("file:Foliager_Warmth.otf#Foliager Warmth", "Foliager Warmth", "Curly, warm handwriting (demo: numbers show a logo)"),
+        ("file:Frostpop.otf#Frostpop", "Frostpop", "Tall, narrow and playful (demo: numbers show a logo)"),
+        ("file:Jhendela.otf#Jhendela", "Jhendela", "Bold, flowing marker script (demo: numbers show a logo)"),
+        ("file:Prixma-Regular.otf#Prixma", "Prixma", "Light and modern (numbers are pictures in this version)"),
     };
 
     /// <summary>A list of choices for a setting; the chosen id is stored and applied straight away.</summary>
@@ -2574,6 +2947,7 @@ public sealed class QuickSettingsScreen : Screen
     private readonly System.Windows.Threading.DispatcherTimer _tick = new() { Interval = TimeSpan.FromSeconds(15) };
     private readonly QuickTile _wifiTile, _bluetoothTile, _airplaneTile, _nightTile, _muteTile;
     private readonly Border _sheet;
+    private readonly string _side = "center";
     private bool? _wifi, _bluetooth;
     private bool _syncing;           // true while we set a slider ourselves, so that isn't treated as the user
     private bool _brightnessReady;
@@ -2721,6 +3095,27 @@ public sealed class QuickSettingsScreen : Screen
         _sheet.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
         _sheet.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
         _sheet.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
+        // Where the sheet sits and how it's drawn follow the look: a drawer from the left (ubiquity), a panel down the
+        // right like a console's guide (SquareDeck, X Dash), a sheet along the bottom (Orbit), or floating (the rest).
+        _side = LookChrome.SheetSide(power: false);
+        switch (_side)
+        {
+            case "left":
+            case "right":
+                _sheet.Margin = new Thickness(0);
+                _sheet.VerticalAlignment = VerticalAlignment.Stretch;
+                _sheet.HorizontalAlignment = _side == "left" ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+                _sheet.Padding = new Thickness(34, 40, 30, 28);
+                break;
+            case "bottom":
+                _sheet.Margin = new Thickness(0);
+                _sheet.Width = 620;
+                _sheet.HorizontalAlignment = HorizontalAlignment.Center;
+                _sheet.VerticalAlignment = VerticalAlignment.Bottom;
+                _sheet.Padding = new Thickness(36, 30, 36, 30);
+                break;
+        }
+        LookChrome.StyleSheet(_sheet);
         var backdrop = new Grid { Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x70, 0, 0, 0)) };
         backdrop.Children.Add(_sheet);
         Content = backdrop;
@@ -2733,6 +3128,7 @@ public sealed class QuickSettingsScreen : Screen
         row.Padding = new Thickness(14, 8, 14, 8);
         row.Margin = new Thickness(0, 4, 0, 4);
         if (row.Child is Grid g && g.ColumnDefinitions.Count > 1) g.ColumnDefinitions[1].Width = new GridLength(112);
+        LookChrome.PaintFace(row, Array.Empty<TextBlock>(), on: false, focused: false);
         return row;
     }
 
@@ -2746,8 +3142,10 @@ public sealed class QuickSettingsScreen : Screen
         if (!Theme.ReduceMotion && _sheet.RenderTransform is System.Windows.Media.TranslateTransform slide)
         {
             var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
-            slide.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty,
-                new System.Windows.Media.Animation.DoubleAnimation(-80, 0, TimeSpan.FromMilliseconds(220)) { EasingFunction = ease });
+            bool edge = _side is "left" or "right" or "bottom";
+            double from = _side switch { "left" => -(_sheet.Width + 20), "right" => _sheet.Width + 20, "bottom" => 420, _ => -80 };
+            slide.BeginAnimation(_side == "bottom" ? System.Windows.Media.TranslateTransform.YProperty : System.Windows.Media.TranslateTransform.XProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(from, 0, TimeSpan.FromMilliseconds(edge ? 260 : 220)) { EasingFunction = ease });
             _sheet.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
         }
     }
@@ -2900,6 +3298,11 @@ public sealed class QuickTile : Button
 
     private void Paint()
     {
+        if (LookChrome.PaintFace(_face, new[] { _glyph, _label, _state }, _on, IsKeyboardFocused))
+        {
+            _state.Opacity = 0.8;
+            return;
+        }
         _face.SetResourceReference(Border.BackgroundProperty, _on ? "AccentBrush" : "CircleBrush");
         string fore = _on ? "BgBrush" : "FgBrush";
         _glyph.SetResourceReference(TextBlock.ForegroundProperty, fore);
@@ -2910,7 +3313,8 @@ public sealed class QuickTile : Button
 
     private void Highlight(bool on)
     {
-        if (on) _face.SetResourceReference(Border.BorderBrushProperty, _on ? "FgBrush" : "AccentBrush");
+        if (LookChrome.Design.Rows != "card") Paint();
+        else if (on) _face.SetResourceReference(Border.BorderBrushProperty, _on ? "FgBrush" : "AccentBrush");
         else _face.BorderBrush = System.Windows.Media.Brushes.Transparent;
         double to = on && !Theme.ReduceMotion ? 1.04 : 1;
         _scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(to, TimeSpan.FromMilliseconds(120)));
@@ -3147,6 +3551,10 @@ public sealed class PowerMenuScreen : Screen
 {
     private readonly TaskCompletionSource<int> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly List<(Button Button, Border Circle, TextBlock Label, string Name, bool Confirm)> _items = new();
+    private readonly List<TextBlock> _glyphs = new();
+    /// <summary>How the look lays the options out: in a row (the usual) or as a list (drawers and console menus).</summary>
+    private readonly bool _list = Looks.Current.Id is "ubiquity" or "deck" or "xdash";
+    private readonly string _side = LookChrome.SheetSide(power: true);
     private readonly TextBlock _hint = Ui.Text("", 15, "SubtleBrush");
     private int _armed = -1;
     private int _choice = -1;
@@ -3180,7 +3588,18 @@ public sealed class PowerMenuScreen : Screen
         }
         panel.Children.Add(who);
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+        // A heading in the look's way for the drawers and console menus.
+        if (_list)
+        {
+            var heading = Looks.Current.Id == "ubiquity" ? Ui.Text(LookChrome.Spaced("Power"), 26, "FgBrush") : Ui.Text("Power", 30, "FgBrush");
+            heading.FontWeight = FontWeights.Light;
+            heading.Margin = new Thickness(4, 0, 0, 22);
+            panel.Children.Insert(0, heading);
+            panel.HorizontalAlignment = HorizontalAlignment.Stretch;
+            who.HorizontalAlignment = HorizontalAlignment.Left;
+            who.Margin = new Thickness(4, 0, 0, 22);
+        }
+        var buttons = new StackPanel { Orientation = _list ? Orientation.Vertical : Orientation.Horizontal, HorizontalAlignment = _list ? HorizontalAlignment.Stretch : HorizontalAlignment.Center };
         Add(buttons, "", "Lock", false);
         Add(buttons, "", "Sleep", false);
         Add(buttons, "", "Hibernate", false);
@@ -3189,9 +3608,10 @@ public sealed class PowerMenuScreen : Screen
         Add(buttons, "", "Exit", false);
         panel.Children.Add(buttons);
 
-        _hint.HorizontalAlignment = HorizontalAlignment.Center;
-        _hint.Margin = new Thickness(0, 26, 0, 0);
-        _hint.TextAlignment = TextAlignment.Center;
+        _hint.HorizontalAlignment = _list ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+        _hint.Margin = new Thickness(_list ? 4 : 0, 26, 0, 0);
+        _hint.TextAlignment = _list ? TextAlignment.Left : TextAlignment.Center;
+        if (_list) _hint.MaxWidth = 420;
         _hint.TextWrapping = TextWrapping.Wrap;
         _hint.MaxWidth = 760;
         panel.Children.Add(_hint);
@@ -3218,7 +3638,29 @@ public sealed class PowerMenuScreen : Screen
         card.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
         card.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
         card.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
-        if (!Theme.ReduceMotion)
+        LookChrome.StyleSheet(card);
+        switch (_side)
+        {
+            case "left":
+            case "right":
+                // A drawer the full height of the screen, in from its edge.
+                card.HorizontalAlignment = _side == "left" ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+                card.VerticalAlignment = VerticalAlignment.Stretch;
+                card.Width = 520;
+                card.Padding = new Thickness(40, 70, 36, 40);
+                if (!Theme.ReduceMotion) SlideIn(card, _side == "left" ? -540 : 540, vertical: false);
+                break;
+            case "bottom":
+                // A sheet along the bottom with the options in a row.
+                card.HorizontalAlignment = HorizontalAlignment.Stretch;
+                card.VerticalAlignment = VerticalAlignment.Bottom;
+                card.Margin = new Thickness(60, 0, 60, 0);
+                card.Padding = new Thickness(48, 34, 48, 40);
+                if (!Theme.ReduceMotion) SlideIn(card, 460, vertical: true);
+                break;
+        }
+        if (_list && _side == "center") card.Width = 560;
+        if (!Theme.ReduceMotion && _side == "center")
         {
             var scale = new System.Windows.Media.ScaleTransform(0.94, 0.94);
             card.RenderTransform = scale;
@@ -3232,28 +3674,66 @@ public sealed class PowerMenuScreen : Screen
         Content = backdrop;
     }
 
+    private static void SlideIn(Border card, double from, bool vertical)
+    {
+        var move = new System.Windows.Media.TranslateTransform();
+        card.RenderTransform = move;
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        move.BeginAnimation(vertical ? System.Windows.Media.TranslateTransform.YProperty : System.Windows.Media.TranslateTransform.XProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(from, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+        card.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+    }
+
     private void Add(Panel row, string glyph, string name, bool confirm)
     {
         int index = _items.Count;
-        double size = 96;
-        var circle = new Border
+        string look = Looks.Current.Id;
+        var glyphText = new TextBlock { Text = glyph, FontFamily = Ui.IconFont, FontSize = _list ? 24 : 34, VerticalAlignment = VerticalAlignment.Center };
+        glyphText.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+        TextBlock label;
+        Border circle;
+        FrameworkElement content;
+        if (_list)
         {
-            Width = size, Height = size, CornerRadius = new CornerRadius(QuickSettingsScreen.Round(size / 2)),
-            BorderThickness = new Thickness(3), BorderBrush = System.Windows.Media.Brushes.Transparent,
-            Child = new TextBlock { Text = glyph, FontFamily = Ui.IconFont, FontSize = 34, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
-        };
-        circle.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-        ((TextBlock)circle.Child).SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
-        var label = Ui.Text(name, 15, "FgBrush", bold: true);
-        label.HorizontalAlignment = HorizontalAlignment.Center;
-        label.Margin = new Thickness(0, 12, 0, 0);
-        var stack = new StackPanel { Width = 128 };
-        stack.Children.Add(circle);
-        stack.Children.Add(label);
+            // A row: the symbol, then the name.
+            label = Ui.Text(name, 20, "FgBrush");
+            label.VerticalAlignment = VerticalAlignment.Center;
+            var line = new StackPanel { Orientation = Orientation.Horizontal };
+            glyphText.Width = 34;
+            glyphText.Margin = new Thickness(0, 0, 18, 0);
+            line.Children.Add(glyphText);
+            line.Children.Add(label);
+            circle = new Border { Height = 62, Padding = new Thickness(20, 0, 20, 0), BorderThickness = new Thickness(3), BorderBrush = System.Windows.Media.Brushes.Transparent, Child = line };
+            content = circle;
+        }
+        else
+        {
+            // A round button (the usual), or a square tile in the looks with square shapes.
+            double size = look is "orbit" ? 88 : 96;
+            glyphText.HorizontalAlignment = HorizontalAlignment.Center;
+            circle = new Border
+            {
+                Width = look is "aniki" or "solaris" ? 108 : size, Height = look is "aniki" or "solaris" ? 108 : size,
+                CornerRadius = new CornerRadius(QuickSettingsScreen.Round(size / 2)),
+                BorderThickness = new Thickness(3), BorderBrush = System.Windows.Media.Brushes.Transparent, Child = glyphText
+            };
+            circle.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+            label = Ui.Text(name, 15, "FgBrush", bold: look is not ("orbit" or "aniki"));
+            label.HorizontalAlignment = HorizontalAlignment.Center;
+            label.Margin = new Thickness(0, 12, 0, 0);
+            if (look == "solaris") label.Text = name.ToUpperInvariant();
+            var stack = new StackPanel { Width = look is "aniki" or "solaris" ? 132 : 128 };
+            stack.Children.Add(circle);
+            stack.Children.Add(label);
+            content = stack;
+        }
+        double grow = _list ? 1.02 : 1.08;
         var scale = new System.Windows.Media.ScaleTransform(1, 1);
         var button = new Button
         {
-            Style = Ui.StyleOf("BareButton"), Focusable = true, Content = stack, FocusVisualStyle = null, Margin = new Thickness(6, 0, 6, 0),
+            Style = Ui.StyleOf("BareButton"), Focusable = true, Content = content, FocusVisualStyle = null,
+            Margin = _list ? new Thickness(0, 4, 0, 4) : new Thickness(6, 0, 6, 0),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch, HorizontalAlignment = _list ? HorizontalAlignment.Stretch : HorizontalAlignment.Center,
             RenderTransformOrigin = new Point(0.5, 0.4), RenderTransform = scale
         };
         button.GotKeyboardFocus += (_, _) =>
@@ -3263,8 +3743,8 @@ public sealed class PowerMenuScreen : Screen
             _hint.Text = Describe(index);
             if (!Theme.ReduceMotion)
             {
-                scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(1.08, TimeSpan.FromMilliseconds(120)));
-                scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, new System.Windows.Media.Animation.DoubleAnimation(1.08, TimeSpan.FromMilliseconds(120)));
+                scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(grow, TimeSpan.FromMilliseconds(120)));
+                scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, new System.Windows.Media.Animation.DoubleAnimation(grow, TimeSpan.FromMilliseconds(120)));
             }
         };
         button.LostKeyboardFocus += (_, _) =>
@@ -3276,6 +3756,8 @@ public sealed class PowerMenuScreen : Screen
         button.Click += (_, _) => Choose(index);
         row.Children.Add(button);
         _items.Add((button, circle, label, name, confirm));
+        _glyphs.Add(glyphText);
+        Paint(index, focused: false);
     }
 
     private static string Describe(int index) => index switch
@@ -3291,19 +3773,28 @@ public sealed class PowerMenuScreen : Screen
     private void Paint(int index, bool focused)
     {
         var (_, circle, label, name, _) = _items[index];
+        var glyph = _glyphs[index];
         bool armed = index == _armed;
+        string shown = Looks.Current.Id == "solaris" && !_list ? name.ToUpperInvariant() : name;
         if (armed)
         {
             circle.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD9, 0x3B, 0x3B));
-            ((TextBlock)circle.Child).Foreground = System.Windows.Media.Brushes.White;
+            glyph.Foreground = System.Windows.Media.Brushes.White;
             label.Text = "Press again";
+            if (_list) label.Foreground = System.Windows.Media.Brushes.White;
+            return;
         }
-        else
+        label.Text = shown;
+        bool round = !_list && Looks.Current.Id is not ("aniki" or "solaris");
+        // The look's own way: in a list the highlight paints the whole row; in a row of buttons it lights the button.
+        var texts = _list ? new[] { glyph, label } : new[] { glyph };
+        if (LookChrome.PaintFace(circle, texts, on: focused && Looks.Current.Id is "orbit" or "solaris" && !_list, focused, round))
         {
-            circle.SetResourceReference(Border.BackgroundProperty, focused ? "AccentBrush" : "CircleBrush");
-            ((TextBlock)circle.Child).SetResourceReference(TextBlock.ForegroundProperty, focused ? "BgBrush" : "FgBrush");
-            label.Text = name;
+            if (!_list) label.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+            return;
         }
+        circle.SetResourceReference(Border.BackgroundProperty, focused ? "AccentBrush" : "CircleBrush");
+        glyph.SetResourceReference(TextBlock.ForegroundProperty, focused ? "BgBrush" : "FgBrush");
         if (focused) circle.SetResourceReference(Border.BorderBrushProperty, "FgBrush");
         else circle.BorderBrush = System.Windows.Media.Brushes.Transparent;
     }

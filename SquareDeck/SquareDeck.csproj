@@ -11,7 +11,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>SquareDeck</AssemblyName>
     <RootNamespace>SquareDeck</RootNamespace>
-    <Version>6.3.0</Version>
+    <Version>6.24.0</Version>
     <ApplicationIcon>Assets\SquareDeck.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -26,6 +26,7 @@
     <None Update="Music\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Backgrounds\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Wallpapers\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fonts\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="StoreLogos\**\*" CopyToOutputDirectory="PreserveNewest" />
     <!-- Streaming service logos for the Multimedia page: Streaming\<id>.png -->
     <None Update="Streaming\**\*" CopyToOutputDirectory="PreserveNewest" />

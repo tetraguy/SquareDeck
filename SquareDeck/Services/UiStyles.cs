@@ -37,6 +37,8 @@ public sealed record UiStyle
     public string? Mode { get; init; }              // Windows-style theme it comes with: "light", "dark" or "oled" (null = worked out from its colors)
     public string Sounds { get; init; } = "classic";  // a built-in sound set, or "pack:(folder)" for a sound pack
     public string Music { get; init; } = "";          // menu music: "track:(name)", "pack:(folder)", or "" for none
+    /// <summary>The game-start chime the style brings (an id from UiSound.LaunchChimes), or null to leave yours.</summary>
+    public string? LaunchChime { get; init; }
     public string? Glyphs { get; init; }            // button pictures it comes with: "pixel" or "default" (null = your own choice)
     public string Moving { get; init; } = "";         // a moving background (a video in Backgrounds), or "" for none  // a built-in picture behind everything (shown sharp, even with Glass) unless you pick your own
     public string[]? Backdrop { get; init; }   // gradient colors (top to bottom) behind everything when there's no wallpaper
@@ -102,23 +104,17 @@ public sealed record UiStyle
 
 public static class UiStyles
 {
+    /// <summary>
+    /// The styles of the Switch look (Settings > Themes): Switch itself and 99 more, all keeping Switch's layout. Each draws the home
+    /// screen, colors, corners, tiles and buttons its own way, and brings its own wallpaper, sounds and music. An id
+    /// that's no longer here (the separate looks removed in 6.15) falls back to Switch.
+    /// </summary>
     public static readonly UiStyle[] All =
     {
         new()
         {
             Id = "switch", Name = "Switch", Sounds = "classic", Music = "track:Sweetness", Moving = "",
             Description = "The original: round buttons and square tiles on a clean background."
-        },
-        new()
-        {
-            Id = "steam", Name = "Steam Big Picture", Font = "Segoe UI Variable Display, Segoe UI", Sounds = "soft", Music = "pack:Steam Big Picture Ambience", Moving = "",
-            Description = "Artwork across the screen, a \"Recent games\" row, tabs underneath, and a bar of button hints.",
-            Dark = new[] { "#0E1218", "#FFFFFF", "#8F98A0", "#1F2630", "#171C24", "#1A9FFF" },
-            TileCorner = 6, RowCorner = 8, RingThickness = 3, Glow = true, Buttons = "tab",
-            Rows = new double[] { 78, 476, 52, 58, 0, 0, 46 },
-            TileScale = 0.7, TileGap = 2, SelectGrow = 1.06, GamesAlign = VerticalAlignment.Bottom, Title = "row",
-            RowHeader = "Recent games",
-            HeroOpacity = 1, HeroBlur = 0, HeroScrim = "bottom", PageHero = true, Footer = "bar", PageScrim = 0.85
         },
         new()
         {
@@ -135,7 +131,7 @@ public static class UiStyles
             Id = "frosted-dark", Name = "Frosted Dark", Sounds = "deep", Music = "track:Waves", Moving = "Black Wave",
             Description = "Smoked glass: dark see-through panels with a thin bright rim, a floating shelf of buttons, cool white highlights.",
             Dark = new[] { "#06070A", "#F2F4F8", "#B3FFFFFF", "#80000000", "#66000000", "#BFE8FF" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 26, RowCorner = 20, RingThickness = 3, Glow = true,
+            Font = "file:Vislar-Thin.otf#Vislar#Vislar Thin", TileCorner = 26, RowCorner = 20, RingThickness = 3, Glow = true,
             Glass = true, DarkGlass = true, Buttons = "circle", ButtonDock = true, TileGap = 6, SelectGrow = 1.06,
             Rows = new double[] { 112, 330, 36, 112, 26, 0, 76 },
             HeroOpacity = 1, HeroBlur = 60, PageHero = true, Footer = "pill", PageScrim = 0.4
@@ -145,7 +141,7 @@ public static class UiStyles
             Id = "frosted-light", Name = "Frosted Light", Sounds = "chime", Music = "track:Sun Rays", Moving = "", Wallpaper = "preset:6",
             Description = "Bright milky glass with dark text over soft pastel light: airy panels, a white shelf of buttons and a hint pill.",
             Light = new[] { "#E9EEF6", "#1B2233", "#556079", "#C8FFFFFF", "#A8FFFFFF", "#2F6BFF" }, ForceLight = true,
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 26, RowCorner = 20, RingThickness = 3, Glow = true,
+            Font = "file:Tindamare.ttf#Tindamare", TileCorner = 26, RowCorner = 20, RingThickness = 3, Glow = true,
             Glass = true, LightGlass = true, Buttons = "circle", ButtonDock = true, TileGap = 6, SelectGrow = 1.06,
             Rows = new double[] { 112, 330, 36, 112, 26, 0, 76 },
             HeroOpacity = 0.75, HeroBlur = 60, PageHero = true, Footer = "pill", PageScrim = 0.3
@@ -156,17 +152,17 @@ public static class UiStyles
             Description = "Synthwave dusk: a purple-to-orange sky, coral highlights with a soft glow and rounded shapes.",
             Dark = new[] { "#1A0B2E", "#FFF1F8", "#E0B4DD", "#33194F", "#2A1442", "#FF8A5B" },
             Backdrop = new[] { "#140726", "#3D1460", "#A12B6A", "#FF8C42" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 14, RowCorner = 14, RingThickness = 3, Glow = true,
+            Font = "file:Synth2-Thin.ttf#Synth#Synth Thin", TileCorner = 14, RowCorner = 14, RingThickness = 3, Glow = true,
             Buttons = "circle", TileGap = 6, SelectGrow = 1.08, HeroOpacity = 0.3, HeroBlur = 36, HeroScrim = "bottom", Footer = "none",
             Overlay = "vignette", Title = "row", Rows = new double[] { 104, 380, 46, 104, 0, 0, 52 }, TileScale = 0.82, GamesAlign = VerticalAlignment.Bottom
         },
         new()
         {
-            Id = "blueprint", Name = "Blueprint", Sounds = "pack:Dreamcast UI SFX", Music = "track:Jumps", Moving = "",
+            Id = "blueprint", Name = "Blueprint", Sounds = "glass", Music = "track:Jumps", Moving = "",
             Description = "Technical drawing: white lines on blueprint blue, a measuring grid, outline buttons and no shadows.",
             Dark = new[] { "#0B3D91", "#F2F7FF", "#A9C4F2", "#0F4BAA", "#0D45A0", "#FFFFFF" },
-            Font = "Cascadia Code, Consolas", TileCorner = 4, RowCorner = 4, RingThickness = 2, Shadow = "none", Stroke = "#80FFFFFF",
-            Buttons = "square", SquareCorner = 0, OutlineButtons = true, TileGap = 8, HeroOpacity = 0, Overlay = "blueprint"
+            Font = "file:Sixrow-Thin.ttf#Sixrow#Sixrow Thin", TileCorner = 4, RowCorner = 4, RingThickness = 2, Shadow = "none", Stroke = "#80FFFFFF",
+            Buttons = "circle", OutlineButtons = true, TileGap = 8, HeroOpacity = 0, Overlay = "blueprint"
         },
         new()
         {
@@ -174,8 +170,8 @@ public static class UiStyles
             Description = "Deep woods at dusk: moss greens, a warm amber highlight, rounded tiles with names on them.",
             Dark = new[] { "#0F1A12", "#EEF3E8", "#A3B59A", "#1C2C1F", "#172519", "#E0A84A" },
             Backdrop = new[] { "#0B140D", "#16291A", "#264A2B" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 16, RowCorner = 14, RingThickness = 3,
-            Buttons = "small", Rows = new double[] { 104, 400, 40, 90, 34, 0, 52 },
+            Font = "Sitka Subheading, Georgia, Segoe UI", TileCorner = 16, RowCorner = 14, RingThickness = 3,
+            Buttons = "circle", Rows = new double[] { 104, 400, 40, 90, 34, 0, 52 },
             TileScale = 0.74, TileGap = 6, SelectGrow = 1.08, GamesAlign = VerticalAlignment.Bottom, Title = "inside",
             HeroOpacity = 0.35, HeroBlur = 24, HeroScrim = "bottom", PageHero = true, Footer = "none", PageScrim = 0.72
         },
@@ -185,7 +181,7 @@ public static class UiStyles
             Description = "The morning paper: cream paper, black ink, the game's logo as the headline and red ink for highlights.",
             Light = new[] { "#F4F0E6", "#111111", "#5C574C", "#FBF8F1", "#E6E0D2", "#B3261E" }, ForceLight = true,
             Font = "Georgia", TileCorner = 0, RowCorner = 0, RingThickness = 3, Shadow = "none", Stroke = "#111111",
-            Buttons = "tab", ButtonsAlign = HorizontalAlignment.Left,
+            Buttons = "circle",
             Rows = new double[] { 70, 196, 260, 70, 0, 0, 56 },
             TileScale = 0.46, TileGap = 6, SelectGrow = 1.12, GamesAlign = VerticalAlignment.Top, Title = "big", TitleLogo = true,
             HeroOpacity = 0, Footer = "line"
@@ -195,8 +191,8 @@ public static class UiStyles
             Id = "ocean", Name = "Deep Ocean", Sounds = "bubble", Music = "track:Waves", Moving = "Blue Wave",
             Description = "Deep blue water with aqua highlights, soft round shapes and your games resting along the bottom.",
             Dark = new[] { "#04131F", "#E6F7FF", "#8FB3C7", "#0B2638", "#08202F", "#2ED3C6" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 22, RowCorner = 18, RingThickness = 3, Glow = true, ButtonDock = true,
-            Buttons = "small", Rows = new double[] { 104, 410, 52, 94, 0, 0, 56 },
+            Font = "Corbel, Segoe UI", TileCorner = 22, RowCorner = 18, RingThickness = 3, Glow = true, ButtonDock = true,
+            Buttons = "circle", Rows = new double[] { 104, 410, 52, 94, 0, 0, 56 },
             TileScale = 0.78, TileGap = 6, SelectGrow = 1.08, GamesAlign = VerticalAlignment.Bottom, Title = "row",
             HeroOpacity = 0.5, HeroBlur = 30, HeroScrim = "bottom", PageHero = true, Footer = "none", PageScrim = 0.7
         },
@@ -206,7 +202,7 @@ public static class UiStyles
             Description = "Cherry-blossom pink, soft and light, with rounded cards. Dark with the theme turns it into a night bloom.",
             Light = new[] { "#FFF1F4", "#3B2230", "#8E6A7A", "#FFFFFF", "#FADCE4", "#E0457B" },
             Dark = new[] { "#1F1418", "#FBE9EF", "#C2A0AE", "#2E1F25", "#28191F", "#FF7AA8" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 24, RowCorner = 20, RingThickness = 3, Glow = true,
+            Font = "file:Dreamink_Cream_Ginger.ttf#Dreamink Cream Ginger", TileCorner = 24, RowCorner = 20, RingThickness = 3, Glow = true,
             Buttons = "circle", TileGap = 8, SelectGrow = 1.06, HeroOpacity = 0.2, HeroBlur = 44, Footer = "pill", ButtonDock = true
         },
         new()
@@ -215,7 +211,7 @@ public static class UiStyles
             Description = "A green phosphor console: glowing text, scan lines, square edges and buttons as labelled commands.",
             Dark = new[] { "#020A04", "#7CFF9B", "#3FA35A", "#08190D", "#061309", "#39FF6A" },
             Font = "Cascadia Mono, Consolas", TileCorner = 2, RowCorner = 2, RingThickness = 2, Glow = true, Shadow = "none", Stroke = "accent",
-            Buttons = "tab", ButtonsAlign = HorizontalAlignment.Left, Rows = new double[] { 118, 326, 34, 70, 0, 0, 60 },
+            Buttons = "circle", Rows = new double[] { 118, 326, 34, 70, 0, 0, 60 },
             HeroOpacity = 0.12, HeroBlur = 4, Overlay = "scanlines", PageScrim = 0.75
         },
         new()
@@ -223,18 +219,18 @@ public static class UiStyles
             Id = "cinema", Name = "Cinema", Sounds = "deep", Music = "track:Ripples", Moving = "",
             Description = "Your games as movie posters: sharp artwork, the game's own logo large, a gold Play button and darkened edges.",
             Dark = new[] { "#0A0908", "#F5EFE6", "#B3A99A", "#1C1A17", "#141210", "#E8B04B" },
-            Font = "Georgia", TileCorner = 6, RowCorner = 8, RingThickness = 3, Buttons = "square", SquareCorner = 14,
-            ButtonsAlign = HorizontalAlignment.Left,
+            Font = "file:Amazing_Midnight_Personal_Use.ttf#Amazing Midnight Personal Use", TileCorner = 6, RowCorner = 8, RingThickness = 3, Buttons = "circle", 
+           
             Rows = new double[] { 70, 196, 276, 92, 40, 0, 46 },
             TileScale = 0.46, TileGap = 4, SelectGrow = 1.18, GamesAlign = VerticalAlignment.Top, Title = "big", PlayPill = true, TitleLogo = true,
             HeroOpacity = 1, HeroBlur = 0, HeroScrim = "left", PageHero = true, Footer = "none", Overlay = "vignette", PageScrim = 0.82
         },
         new()
         {
-            Id = "carbon", Name = "Carbon", Sounds = "pack:Xbox One Sound Pack", Music = "track:Jumps", Moving = "Black Blades",
+            Id = "carbon", Name = "Carbon", Sounds = "deep", Music = "track:Jumps", Moving = "Black Blades",
             Description = "Race-car dashboard: carbon-fiber weave, red highlights, tight corners, button cards and names on the tiles.",
             Dark = new[] { "#111214", "#F2F2F2", "#9A9DA3", "#202226", "#1A1B1E", "#FF3B30" },
-            Font = "Bahnschrift SemiBold, Segoe UI Semibold", TileCorner = 8, RowCorner = 8, RingThickness = 3, Glow = true, Buttons = "card",
+            Font = "Bahnschrift SemiBold, Segoe UI Semibold", TileCorner = 8, RowCorner = 8, RingThickness = 3, Glow = true, Buttons = "circle",
             Stroke = "#33FFFFFF", Rows = new double[] { 104, 330, 40, 116, 0, 0, 52 },
             TileScale = 0.68, TileGap = 4, SelectGrow = 1.12, GamesAlign = VerticalAlignment.Bottom, Title = "inside",
             HeroOpacity = 0.42, HeroBlur = 10, HeroScrim = "bottom", PageHero = true, Footer = "bar", Overlay = "carbon", PageScrim = 0.75
@@ -245,7 +241,7 @@ public static class UiStyles
             Description = "Soft and friendly: lilac and mint, very round corners, gentle shadows. Light or dark with the theme.",
             Light = new[] { "#F3EEFF", "#2E2A44", "#7D7799", "#FFFFFF", "#E4DCFA", "#7B61FF" },
             Dark = new[] { "#1D1A2C", "#F1EEFF", "#A9A3C8", "#2B2742", "#25213A", "#9DF2D0" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 30, RowCorner = 24, RingThickness = 3,
+            Font = "Trebuchet MS, Segoe UI", TileCorner = 30, RowCorner = 24, RingThickness = 3,
             Buttons = "circle", TileGap = 8, SelectGrow = 1.06, HeroOpacity = 0.2, HeroBlur = 44, Footer = "pill", ButtonDock = true
         },
         new()
@@ -254,26 +250,16 @@ public static class UiStyles
             Description = "Comic-book bold: sunny yellow, thick black outlines, hard drop shadows and a halftone dot pattern.",
             Light = new[] { "#FFE24A", "#111111", "#3A3A3A", "#FFFFFF", "#FF6F91", "#1E4BFF" },
             ForceLight = true, Font = "Segoe UI Black, Segoe UI", TileCorner = 14, RowCorner = 14, RingThickness = 5,
-            Shadow = "hard", Stroke = "#111111", StrokeWidth = 3, Buttons = "square", SquareCorner = 18, TileGap = 8,
+            Shadow = "hard", Stroke = "#111111", StrokeWidth = 3, Buttons = "circle", TileGap = 8,
             HeroOpacity = 0, Overlay = "halftone"
-        },
-        new()
-        {
-            Id = "dot", Name = "Dot Matrix", Sounds = "soft", Music = "", Moving = "",
-            Description = "Black, white and one red dot: a faint dot grid, outline buttons, light type and nothing extra.",
-            Dark = new[] { "#000000", "#FFFFFF", "#8A8A8A", "#141414", "#0E0E0E", "#D71921" },
-            Font = "Segoe UI Variable Display Light, Segoe UI Light, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 2,
-            Shadow = "none", Stroke = "#3DFFFFFF", Buttons = "small", OutlineButtons = true, TileScale = 0.82, TileGap = 10,
-            Rows = new double[] { 118, 300, 40, 90, 34, 0, 64 }, GamesAlign = VerticalAlignment.Center,
-            HeroOpacity = 0, Footer = "none", Overlay = "dots"
         },
         new()
         {
             Id = "neon", Name = "Neon", Sounds = "arcade", Music = "track:Jumps", Moving = "",
             Description = "After-dark arcade: glowing magenta edges, a faint grid, sharp corners and squared type.",
             Dark = new[] { "#07060D", "#F4F1FF", "#A59CD3", "#16132B", "#100E21", "#FF2BD6" },
-            Font = "Bahnschrift", TileCorner = 10, RowCorner = 10, RingThickness = 3, Glow = true, Shadow = "none", Stroke = "accent",
-            Buttons = "square", SquareCorner = 14, TileGap = 6, SelectGrow = 1.08, HeroOpacity = 0.36, HeroBlur = 22, PageHero = true, Footer = "pill",
+            Font = "file:Synth2-Thin.ttf#Synth#Synth Thin", TileCorner = 10, RowCorner = 10, RingThickness = 3, Glow = true, Shadow = "none", Stroke = "accent",
+            Buttons = "circle", TileGap = 6, SelectGrow = 1.08, HeroOpacity = 0.36, HeroBlur = 22, PageHero = true, Footer = "pill",
             Overlay = "grid", PageScrim = 0.7
         },
         new()
@@ -282,146 +268,9 @@ public static class UiStyles
             Description = "Quiet and flat: no shadows, small buttons, plenty of space and one warm highlight color.",
             Dark = new[] { "#111111", "#F2F2F2", "#8C8C8C", "#1E1E1E", "#1A1A1A", "#FF6A3D" },
             Light = new[] { "#F6F5F2", "#111111", "#77756F", "#FFFFFF", "#E7E5E0", "#E8501F" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 10, RowCorner = 10, RingThickness = 2, Shadow = "none",
-            Buttons = "small", Rows = new double[] { 118, 300, 40, 90, 34, 0, 64 }, TileScale = 0.86, TileGap = 10,
+            Font = "file:Vislar-Thin.otf#Vislar#Vislar Thin", TileCorner = 10, RowCorner = 10, RingThickness = 2, Shadow = "none",
+            Buttons = "circle", Rows = new double[] { 118, 300, 40, 90, 34, 0, 64 }, TileScale = 0.86, TileGap = 10,
             GamesAlign = VerticalAlignment.Center, HeroOpacity = 0, Footer = "none"
-        },
-        new()
-        {
-            Id = "leonida", Name = "Leonida", Sounds = "pack:Dreamy SFX", Music = "track:Sun Rays", Moving = "",
-            Description = "Sunset over Ocean Drive: milky glass and deep violet text on a pastel beach skyline, hot-pink highlights, a floating shelf of buttons.",
-            Light = new[] { "#FFE6D9", "#2A1846", "#6E4A86", "#C8FFFFFF", "#A8FFFFFF", "#FF3F8E" }, ForceLight = true,
-            Wallpaper = Theme.LeonidaWallpaper,
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 24, RowCorner = 20, RingThickness = 3, Glow = true,
-            Glass = true, LightGlass = true, Buttons = "circle", ButtonDock = true, TileGap = 6, SelectGrow = 1.06,
-            Rows = new double[] { 112, 330, 36, 112, 26, 0, 76 },
-            HeroOpacity = 0, HeroBlur = 0, Footer = "pill", PageScrim = 0.35
-        },
-        new()
-        {
-            Id = "waves", Name = "Waves", Sounds = "pack:Xbox One Sound Pack", Music = "track:Waves", Moving = "",
-            Description = "A console dashboard: the game's logo and Play button big over its artwork, tabs along the top, a row of posters underneath, soft waves.",
-            Dark = new[] { "#0D1324", "#FFFFFF", "#AEB8D4", "#1B2440", "#151C33", "#3B82F6" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 14, RowCorner = 14, RingThickness = 4, Glow = true,
-            Layout = "hero", NavTabs = true, Portrait = true, Actions = "icons", KeyHint = true, TopBarFill = true,
-            Buttons = "circle", Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
-            TileScale = 0.78, TileGap = 6, SelectGrow = 1.04, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Your library", HeroOpacity = 1, HeroBlur = 0, HeroScrim = "bottom", PageHero = true, Footer = "none",
-            Overlay = "waves", PageScrim = 0.8
-        },
-        new()
-        {
-            Id = "xenon", Name = "Xenon", Sounds = "pack:Xbox 360 UI", Music = "track:Ripples", Moving = "",
-            Description = "Bright and electric: cyan highlights with a glow over the game's artwork, its logo large, tabs on top and posters below.",
-            Dark = new[] { "#061018", "#F2FDFF", "#9CC7D6", "#10232E", "#0C1B24", "#22D3EE" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 20, RowCorner = 18, RingThickness = 3, Glow = true,
-            Layout = "hero", NavTabs = true, Portrait = true, Actions = "icons", KeyHint = true, TopBarFill = true,
-            PlayColors = new[] { "#06B6D4", "#3B82F6" },
-            Buttons = "circle", Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
-            TileScale = 0.78, TileGap = 6, SelectGrow = 1.05, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Your library", HeroOpacity = 1, HeroBlur = 0, HeroScrim = "bottom", PageHero = true, Footer = "none",
-            Overlay = "vignette", PageScrim = 0.8
-        },
-        new()
-        {
-            Id = "grids", Name = "Grids", Sounds = "pack:PS5_Sounds", Music = "track:Jumps", Moving = "",
-            Description = "The console dashboard on graph paper: square-cut posters, a fine grid over the artwork, lime highlights and tabs on top.",
-            Dark = new[] { "#0B0F0A", "#F4FFF0", "#A9B8A3", "#182016", "#121810", "#A3E635" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 4, RowCorner = 4, RingThickness = 3,
-            Layout = "hero", NavTabs = true, Portrait = true, Actions = "icons", KeyHint = true, TopBarFill = true,
-            Buttons = "square", Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
-            TileScale = 0.78, TileGap = 6, SelectGrow = 1.04, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Your library", HeroOpacity = 1, HeroBlur = 0, HeroScrim = "bottom", PageHero = true, Footer = "none",
-            Overlay = "grid", PageScrim = 0.8
-        },
-        new()
-        {
-            Id = "sphere", Name = "Sphere", Sounds = "pack:PS5_Sounds", Music = "track:Ripples", Moving = "",
-            Description = "A media console: small tiles right under the tabs, the highlighted game's artwork filling the screen, its name and Play large at the bottom.",
-            Dark = new[] { "#0A0A0E", "#FFFFFF", "#C9C9D2", "#2A2A33", "#1A1A20", "#FFFFFF" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 16, RowCorner = 24, RingThickness = 5,
-            Layout = "toprow", NavTabs = true, Actions = "icons", PlayColors = new[] { "#E6202028" },
-            Buttons = "circle", Rows = new double[] { 64, 196, 40, 0, 0, 0, 40 },
-            TileScale = 0.5, TileGap = 10, SelectGrow = 1.32, GrowOrigin = new Point(0.5, 0.1), GamesAlign = VerticalAlignment.Top,
-            Title = "big", TitleLogo = true, HeroOpacity = 1, HeroBlur = 0, HeroScrim = "bottom", PageHero = true, Footer = "none", PageScrim = 0.82
-        },
-        new()
-        {
-            Id = "desktop", Name = "Desktop", Sounds = "soft", Music = "pack:Steam Big Picture Ambience", Moving = "",
-            Description = "A PC game launcher: a sidebar with every section, the game's artwork and details up top, Play with a glow and a row of posters.",
-            Dark = new[] { "#0C0E22", "#FFFFFF", "#A6AAC8", "#1B1E3C", "#151833", "#7C5CFF" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 12, RowCorner = 14, RingThickness = 3, Glow = true,
-            Layout = "sidebar", Portrait = true, Actions = "icons", Brand = "SQUAREDECK", PlayColors = new[] { "#5B5BFF", "#8B5CF6" },
-            Buttons = "circle", Rows = new double[] { 64, 296, 0, 0, 0, 0, 40 },
-            TileScale = 0.74, TileGap = 8, SelectGrow = 1.04, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Recently played", HeroOpacity = 1, HeroBlur = 0, HeroScrim = "left", PageHero = true, Footer = "none", PageScrim = 0.85
-        },
-        new()
-        {
-            Id = "stage", Name = "Stage", Sounds = "pack:Switch 2 Sounds", Music = "track:Sun Rays", Moving = "",
-            Description = "The spotlight: the highlighted game large in the middle over its blurred artwork, its name, buttons and details centered underneath.",
-            Dark = new[] { "#1B2533", "#FFFFFF", "#C6CDD8", "#E6202A38", "#1A2230", "#3B82F6" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 16, RowCorner = 12, RingThickness = 4, Glow = true,
-            Layout = "stage", NavTabs = true, TabPill = true, Portrait = true, Actions = "words",
-            Buttons = "circle", Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 },
-            TileScale = 1.06, TileGap = 8, SelectGrow = 1.26, GrowOrigin = new Point(0.5, 0.62), GamesAlign = VerticalAlignment.Center,
-            Title = "big", TitleLogo = true, HeroOpacity = 1, HeroBlur = 70, PageHero = true, Footer = "none", PageScrim = 0.6
-        },
-        new()
-        {
-            Id = "aurora", Name = "Aurora", Sounds = "glass", Music = "track:Ripples", Moving = "",
-            Description = "Northern lights: green, teal and violet light behind frosted glass, white type and a soft glow on everything you pick.",
-            Dark = new[] { "#071018", "#F2FFFB", "#BFE6DE", "#33FFFFFF", "#22FFFFFF", "#5CFFC8" },
-            Backdrop = new[] { "#050B14", "#0B3B4A", "#19866F", "#5E3AA8" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 24, RowCorner = 20, RingThickness = 3, Glow = true,
-            Glass = true, Buttons = "circle", ButtonDock = true, TileGap = 6, SelectGrow = 1.07,
-            Rows = new double[] { 108, 334, 40, 112, 26, 0, 74 }, Title = "row",
-            HeroOpacity = 0.35, HeroBlur = 60, Footer = "pill", PageScrim = 0.25
-        },
-        new()
-        {
-            Id = "mono", Name = "Mono",
-            Sounds = "soft", Music = "", Moving = "",
-            Description = "A magazine cover in black and white: the game's name huge, thin lines, flat tiles and one bold white highlight.",
-            Dark = new[] { "#0A0A0A", "#FFFFFF", "#9A9A9A", "#161616", "#121212", "#FFFFFF" },
-            Font = "Segoe UI Variable Display Semibold, Segoe UI Semibold", TileCorner = 6, RowCorner = 6, RingThickness = 3, Shadow = "none",
-            Stroke = "#26FFFFFF", Buttons = "tab", ButtonsAlign = HorizontalAlignment.Left,
-            Rows = new double[] { 70, 196, 262, 70, 0, 0, 52 }, TileScale = 0.48, TileGap = 6, SelectGrow = 1.1,
-            GamesAlign = VerticalAlignment.Top, Title = "big", TitleLogo = true,
-            HeroOpacity = 0.5, HeroBlur = 0, HeroScrim = "left", PageHero = true, Footer = "line", PageScrim = 0.85
-        },
-        new()
-        {
-            Id = "velvet", Name = "Velvet", Sounds = "deep", Music = "track:Sweetness", Moving = "Gold Wave",
-            Description = "A private lounge: deep wine and plum, gold highlights with a warm glow, rounded tiles and a soft spotlight.",
-            Dark = new[] { "#1A0A12", "#FBEFE7", "#C9A9AE", "#2C121F", "#24101A", "#E7B85C" },
-            Backdrop = new[] { "#12060C", "#2E0E1E", "#4A1530" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 18, RowCorner = 16, RingThickness = 3, Glow = true,
-            Buttons = "circle", ButtonDock = true, TileGap = 6, SelectGrow = 1.07, Title = "row",
-            Rows = new double[] { 104, 390, 46, 104, 0, 0, 52 }, TileScale = 0.84, GamesAlign = VerticalAlignment.Bottom,
-            HeroOpacity = 0.3, HeroBlur = 40, HeroScrim = "bottom", Footer = "pill", Overlay = "vignette", PageScrim = 0.7
-        },
-        new()
-        {
-            Id = "tokyo", Name = "Tokyo Night", Sounds = "arcade", Music = "track:Jumps", Moving = "Black Blades",
-            Description = "Neon signs after rain: small tiles under the tabs, the game's art across the screen, magenta and cyan glow.",
-            Dark = new[] { "#0B0716", "#F6F1FF", "#B5A8D9", "#E61A1430", "#140F24", "#FF3DB8" },
-            Font = "Bahnschrift, Segoe UI", TileCorner = 12, RowCorner = 20, RingThickness = 4, Glow = true,
-            Layout = "toprow", NavTabs = true, Actions = "icons", PlayColors = new[] { "#FF3DB8", "#7C4DFF" },
-            Buttons = "circle", Rows = new double[] { 64, 196, 40, 0, 0, 0, 40 },
-            TileScale = 0.5, TileGap = 10, SelectGrow = 1.3, GrowOrigin = new Point(0.5, 0.1), GamesAlign = VerticalAlignment.Top,
-            Title = "big", TitleLogo = true, HeroOpacity = 1, HeroBlur = 0, HeroScrim = "bottom", PageHero = true, Footer = "none", Overlay = "grid", PageScrim = 0.82
-        },
-        new()
-        {
-            Id = "slate", Name = "Slate", Sounds = "chime", Music = "", Moving = "",
-            Description = "Clean and bright like a phone's settings: light grey, white cards, a sidebar of sections and blue highlights.",
-            Light = new[] { "#EEF0F4", "#14161B", "#6B7080", "#FFFFFF", "#FFFFFF", "#2F6BFF" }, ForceLight = true,
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 14, RowCorner = 14, RingThickness = 3,
-            Layout = "sidebar", Portrait = true, Actions = "icons", Brand = "SQUAREDECK",
-            Buttons = "circle", Rows = new double[] { 64, 296, 0, 0, 0, 0, 40 },
-            TileScale = 0.74, TileGap = 8, SelectGrow = 1.04, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Recently played", HeroOpacity = 0.55, HeroBlur = 0, HeroScrim = "left", PageHero = true, Footer = "none", PageScrim = 0.9
         },
         new()
         {
@@ -429,7 +278,7 @@ public static class UiStyles
             Description = "True black for OLED screens: unlit background, thin grey outlines, no glow or artwork behind, crisp white type. Easiest on the battery.",
             Dark = new[] { "#000000", "#FFFFFF", "#8A8A8A", "#000000", "#000000", "#3DDCFF" },
             Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 14, RowCorner = 14, RingThickness = 3, Shadow = "none",
-            Stroke = "#2A2A2A", OutlineButtons = true, Buttons = "small", TileGap = 6, SelectGrow = 1.04,
+            Stroke = "#2A2A2A", OutlineButtons = true, Buttons = "circle", TileGap = 6, SelectGrow = 1.04,
             Rows = new double[] { 104, 360, 60, 96, 30, 0, 52 }, Title = "row", TileScale = 0.9, GamesAlign = VerticalAlignment.Bottom,
             HeroOpacity = 0, HeroBlur = 0, PageHero = false, Footer = "line", PageScrim = 1
         },
@@ -438,588 +287,680 @@ public static class UiStyles
             Id = "pixel-city", Name = "Pixel City", Sounds = "retro", Music = "track:Coffee Shop", Moving = "Lofi City", Glyphs = "pixel",
             Description = "A lo-fi evening in a pixel-art city: square tiles with hard shadows, pixel buttons and coffee-shop music.",
             Dark = new[] { "#140F26", "#FFF4E6", "#C9B6E4", "#E6201838", "#1E1734", "#FF8FB1" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 4, Shadow = "hard", Stroke = "accent",
-            Buttons = "square", SquareCorner = 0, ButtonsAlign = HorizontalAlignment.Left,
+            Font = "file:pixel-it-5x4.ttf#Pixel It! 5x4", TileCorner = 0, RowCorner = 0, RingThickness = 4, Shadow = "hard", Stroke = "accent",
+            Buttons = "circle", 
             Rows = new double[] { 70, 196, 222, 108, 0, 0, 56 }, // a row tall enough for the square buttons
             TileScale = 0.46, TileGap = 6, SelectGrow = 1.1, GamesAlign = VerticalAlignment.Top, Title = "big", TitleLogo = true,
             HeroOpacity = 0, Footer = "line", PageScrim = 0.72
         },
         new()
         {
-            Id = "pixel-rain", Name = "Pixel Rain", Sounds = "arcade", Music = "track:Gaming Vibes", Moving = "Cyberpunk Rain", Glyphs = "pixel",
-            Description = "A pixel-art cyberpunk street in the rain: the game's logo big, tabs on top, posters below, cyan neon and scan lines.",
-            Dark = new[] { "#07090F", "#E8FBFF", "#8FB3C7", "#E60C1622", "#0E1A26", "#00F0FF" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 4, Glow = true, Shadow = "none",
-            Layout = "hero", NavTabs = true, Portrait = true, Actions = "icons", KeyHint = true, TopBarFill = true,
-            PlayColors = new[] { "#00F0FF", "#FF2E88" },
-            Buttons = "square", SquareCorner = 0, Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
-            TileScale = 0.78, TileGap = 6, SelectGrow = 1.04, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Your games", HeroOpacity = 0, Footer = "none", Overlay = "scanlines", PageScrim = 0.8
-        },
-        new()
-        {
-            Id = "pixel-forest", Name = "Pixel Forest", Sounds = "retro", Music = "track:Meditation", Moving = "Mushroom Forest", Glyphs = "pixel",
-            Description = "Glowing mushrooms in a pixel-art forest at night: small tiles under the tabs, soft green glow and calm music.",
-            Dark = new[] { "#08130F", "#EAFFF2", "#9CC9B0", "#E60F2219", "#11241C", "#7CFFB2" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 4, Glow = true, Shadow = "none",
-            Layout = "toprow", NavTabs = true, Actions = "icons", PlayColors = new[] { "#7CFFB2", "#2BB673" },
-            Buttons = "square", SquareCorner = 0, Rows = new double[] { 64, 196, 40, 0, 0, 0, 40 },
-            TileScale = 0.5, TileGap = 10, SelectGrow = 1.2, GrowOrigin = new Point(0.5, 0.1), GamesAlign = VerticalAlignment.Top,
-            Title = "big", TitleLogo = true, HeroOpacity = 0, Footer = "none", PageScrim = 0.8
-        },
-        new()
-        {
-            Id = "pixel-dawn", Name = "Pixel Dawn", Sounds = "arcade", Music = "track:Relaxing", Moving = "City Dawn", Glyphs = "pixel",
-            Description = "Sunrise over a pixel-art skyline: the highlighted game large in the middle, warm orange light and relaxing music.",
-            Dark = new[] { "#1A0F14", "#FFF1E0", "#E0B79C", "#E6261821", "#2A1A22", "#FFB347" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 4, Glow = true, Shadow = "none",
-            Layout = "stage", NavTabs = true, TabPill = true, Portrait = true, Actions = "words",
-            Buttons = "square", SquareCorner = 0, Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 },
-            TileScale = 1.06, TileGap = 8, SelectGrow = 1.2, GrowOrigin = new Point(0.5, 0.62), GamesAlign = VerticalAlignment.Center,
-            Title = "big", TitleLogo = true, HeroOpacity = 0, Footer = "none", PageScrim = 0.7
-        },
-        new()
-        {
             Id = "retro", Name = "Retro", Sounds = "retro", Music = "track:Jumps", Moving = "",
             Description = "An old amber monitor: scan lines, chunky square edges and typewriter type.",
             Dark = new[] { "#0B0A06", "#FFE7A8", "#B89C5C", "#1E1A0D", "#16130A", "#FFB000" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 2, RowCorner = 2, RingThickness = 4, Glow = true, Shadow = "none", Stroke = "accent", Buttons = "square",
+            Font = "file:HomeVideo-Regular.ttf#Home Video", TileCorner = 2, RowCorner = 2, RingThickness = 4, Glow = true, Shadow = "none", Stroke = "accent", Buttons = "circle",
             HeroOpacity = 0.18, HeroBlur = 6, Overlay = "scanlines", PageScrim = 0.7
         },
-
-        // ---- Wallpaper styles: each one built around one of the picture wallpapers, its colors taken from the picture.
-        new()
-        {
-            Id = "lookout", Name = "Lookout", Sounds = "glass", Music = "track:Meditation", Moving = "",
-            Description = "A lone figure over violet mountains: smoky purple glass, lilac highlights with a soft glow and a floating shelf of buttons.",
-            Dark = new[] { "#1C1238", "#FFF6FF", "#D6C5F2", "#55301C5C", "#40261848", "#F4B8FF" },
-            Wallpaper = "image:Alone.jpg",
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 22, RowCorner = 18, RingThickness = 3, Glow = true,
-            Glass = true, DarkGlass = true, Buttons = "circle", ButtonDock = true, TileGap = 6, SelectGrow = 1.07,
-            Rows = new double[] { 108, 334, 40, 112, 26, 0, 74 }, Title = "row",
-            HeroOpacity = 0, HeroBlur = 0, Footer = "pill", PageScrim = 0.4
-        },
-        new()
-        {
-            Id = "moonlit", Name = "Moonlit", Mode = "oled", Sounds = "soft", Music = "track:Ripples", Moving = "",
-            Description = "A blue moon over a black lake: true black, small tiles under the tabs, the game's name large, and one cool blue glow.",
-            Dark = new[] { "#000000", "#F2F6FF", "#8EA3B8", "#E60A0E14", "#0A0D12", "#3D8BFF" },
-            Wallpaper = "image:Blue Moon.jpg",
-            Font = "Segoe UI Variable Display Light, Segoe UI Light, Segoe UI", TileCorner = 14, RowCorner = 20, RingThickness = 3, Glow = true, Shadow = "none",
-            Layout = "toprow", NavTabs = true, Actions = "icons", PlayColors = new[] { "#3D8BFF", "#1E4FD6" },
-            Buttons = "circle", Rows = new double[] { 64, 196, 40, 0, 0, 0, 40 },
-            TileScale = 0.5, TileGap = 10, SelectGrow = 1.3, GrowOrigin = new Point(0.5, 0.1), GamesAlign = VerticalAlignment.Top,
-            Title = "big", TitleLogo = true, HeroOpacity = 0, HeroBlur = 0, Footer = "none", PageScrim = 0.85
-        },
-        new()
-        {
-            Id = "night-cafe", Name = "Night Café", Sounds = "soft", Music = "track:Coffee Shop", Moving = "",
-            Description = "A coffee shop in falling snow: warm neon yellow on deep blue glass, rounded tiles, cozy lo-fi music.",
-            Dark = new[] { "#0E1B2A", "#FFF8E8", "#C4D3DC", "#5A0E1B2A", "#460E1B2A", "#FFD166" },
-            Wallpaper = "image:Cafe.jpg",
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 18, RowCorner = 16, RingThickness = 3, Glow = true,
-            Glass = true, DarkGlass = true, Buttons = "circle", ButtonDock = true, TileGap = 6, SelectGrow = 1.07,
-            Rows = new double[] { 104, 390, 46, 104, 0, 0, 52 }, TileScale = 0.84, GamesAlign = VerticalAlignment.Bottom, Title = "row",
-            HeroOpacity = 0, HeroBlur = 0, Footer = "pill", PageScrim = 0.45
-        },
-        new()
-        {
-            Id = "crimson", Name = "Crimson", Sounds = "deep", Music = "track:Ripples", Moving = "",
-            Description = "Red light rippling through black: the game's logo and Play big at the top, posters along the bottom, a scarlet glow.",
-            Dark = new[] { "#050103", "#FFF1F3", "#C99AA4", "#1C070D", "#12050A", "#FF2D55" },
-            Wallpaper = "image:Crimson.jpg",
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 10, RowCorner = 12, RingThickness = 3, Glow = true,
-            Layout = "hero", NavTabs = true, Portrait = true, Actions = "icons", KeyHint = true,
-            PlayColors = new[] { "#FF2D55", "#B3002D" },
-            Buttons = "circle", Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
-            TileScale = 0.78, TileGap = 6, SelectGrow = 1.05, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Your library", HeroOpacity = 0.35, HeroBlur = 0, HeroScrim = "bottom", Footer = "none", Overlay = "vignette", PageScrim = 0.85
-        },
-        new()
-        {
-            Id = "gold-dust", Name = "Gold Dust", Sounds = "chime", Music = "track:Relaxing", Moving = "",
-            Description = "Golden particles drifting in the dark: the highlighted game large in the middle, amber light and a warm glow.",
-            Dark = new[] { "#070402", "#FFF5E6", "#D2B28C", "#E6160D07", "#120B06", "#FFB547" },
-            Wallpaper = "image:Gold Dust.jpg",
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 14, RowCorner = 12, RingThickness = 4, Glow = true,
-            Layout = "stage", NavTabs = true, TabPill = true, Portrait = true, Actions = "words",
-            PlayColors = new[] { "#FFC86B", "#F59E0B" },
-            Buttons = "circle", Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 },
-            TileScale = 1.06, TileGap = 8, SelectGrow = 1.26, GrowOrigin = new Point(0.5, 0.62), GamesAlign = VerticalAlignment.Center,
-            Title = "big", TitleLogo = true, HeroOpacity = 0, HeroBlur = 0, Footer = "none", PageScrim = 0.7
-        },
-        new()
-        {
-            Id = "lavender", Name = "Lavender Fields", Mode = "light", Sounds = "chime", Music = "track:Sweetness", Moving = "",
-            Description = "Sunset over lavender hills: bright milky glass, deep indigo type, violet highlights and soft round tiles.",
-            Light = new[] { "#E8E0F6", "#1D1840", "#55508A", "#C8FFFFFF", "#A8FFFFFF", "#7B5CFF" }, ForceLight = true,
-            Wallpaper = "image:Lavender.jpg",
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 26, RowCorner = 22, RingThickness = 3, Glow = true,
-            Glass = true, LightGlass = true, Buttons = "circle", ButtonDock = true, TileGap = 6, SelectGrow = 1.06,
-            Rows = new double[] { 112, 330, 36, 112, 26, 0, 76 },
-            HeroOpacity = 0, HeroBlur = 0, Footer = "pill", PageScrim = 0.35
-        },
-        new()
-        {
-            Id = "rooftops", Name = "Rooftops", Sounds = "pack:Dreamy SFX", Music = "track:Coffee Shop", Moving = "",
-            Description = "Evening over a quiet street: a sidebar of sections on dusky blue glass, pink and violet light, lo-fi beats.",
-            Dark = new[] { "#16123A", "#FFF4FC", "#C9BEE6", "#E6211C4C", "#1B1742", "#FF6EC7" },
-            Wallpaper = "image:Next Door.jpg",
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 12, RowCorner = 14, RingThickness = 3, Glow = true,
-            Layout = "sidebar", Portrait = true, Actions = "icons", Brand = "SQUAREDECK", PlayColors = new[] { "#FF6EC7", "#8B5CF6" },
-            Buttons = "circle", Rows = new double[] { 64, 296, 0, 0, 0, 0, 40 },
-            TileScale = 0.74, TileGap = 8, SelectGrow = 1.04, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Recently played", HeroOpacity = 0, HeroBlur = 0, Footer = "none", PageScrim = 0.8
-        },
-        new()
-        {
-            Id = "nostalgia", Name = "Nostalgia", Sounds = "arcade", Music = "track:Jumps", Moving = "",
-            Description = "A kid's bedroom in the '80s: posters, toys and a glowing TV. Chunky square buttons, warm orange neon and CRT scan lines.",
-            Dark = new[] { "#140F1C", "#FFF1E2", "#CDB3A6", "#E6241A2C", "#1D1524", "#FF9F43" },
-            Wallpaper = "image:Nostalgia.jpg",
-            Font = "Bahnschrift SemiBold, Segoe UI Semibold", TileCorner = 8, RowCorner = 8, RingThickness = 4, Glow = true, Shadow = "hard",
-            Stroke = "accent", Buttons = "square", SquareCorner = 10, TileGap = 8, SelectGrow = 1.08,
-            Rows = new double[] { 104, 360, 50, 100, 30, 0, 52 }, TileScale = 0.9, GamesAlign = VerticalAlignment.Bottom, Title = "row",
-            HeroOpacity = 0, HeroBlur = 0, Footer = "bar", Overlay = "scanlines", PageScrim = 0.7
-        },
-        // ---- Styles built around the live backgrounds and wallpapers added in 5.17.
         new()
         {
             Id = "aero", Name = "Aero", Mode = "light", Sounds = "bubble", Music = "track:Aero", Moving = "Aero",
             Description = "Frutiger Aero: glossy bubble buttons, milky glass, aqua highlights and a glowing aurora over water, with a bright, hopeful soundtrack.",
             Light = new[] { "#DDF3FF", "#06263F", "#2F6585", "#C4FFFFFF", "#9CFFFFFF", "#00A8E8" }, ForceLight = true,
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Glow = true,
+            Font = "Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Glow = true,
             Glass = true, LightGlass = true, Gloss = true, Buttons = "circle", ButtonDock = true, TileGap = 6, SelectGrow = 1.07,
             Rows = new double[] { 108, 334, 40, 112, 26, 0, 74 }, Title = "row",
             HeroOpacity = 0, HeroBlur = 0, Footer = "pill", PageScrim = 0.35
         },
-        new()
-        {
-            Id = "rolling-hills", Name = "Rolling Hills", Mode = "light", Sounds = "bubble", Music = "track:Sun Rays", Moving = "Pasture",
-            Description = "Green hills under a blue sky, early-2000s desktop optimism: glossy pill tabs, milky glass and leaf-green highlights.",
-            Light = new[] { "#E7F6E2", "#10301A", "#3E6B48", "#C8FFFFFF", "#A0FFFFFF", "#2FA84F" }, ForceLight = true,
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 14, RowCorner = 16, RingThickness = 3, Glow = true,
-            Glass = true, LightGlass = true, Gloss = true, Buttons = "tab", ButtonDock = true, TileGap = 6, SelectGrow = 1.06,
-            Rows = new double[] { 104, 360, 50, 84, 0, 0, 60 }, TileScale = 0.9, GamesAlign = VerticalAlignment.Bottom, Title = "row",
-            HeroOpacity = 0, HeroBlur = 0, Footer = "pill", PageScrim = 0.35
-        },
-        new()
-        {
-            Id = "daydream", Name = "Daydream", Mode = "light", Sounds = "chime", Music = "track:Sweetness", Moving = "Heaven",
-            Description = "Clouds drifting over a field of grass: small tiles under the tabs, the game's name large, white glass and sky blue.",
-            Light = new[] { "#E6F2FF", "#0E2340", "#46618A", "#D0FFFFFF", "#B0FFFFFF", "#2E7BFF" }, ForceLight = true,
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 16, RowCorner = 18, RingThickness = 3, Glow = true,
-            Glass = true, LightGlass = true, Layout = "toprow", NavTabs = true, TabPill = true, Actions = "icons", PlayColors = new[] { "#4C9BFF", "#1F5FE0" },
-            Buttons = "circle", Rows = new double[] { 64, 196, 40, 0, 0, 0, 40 },
-            TileScale = 0.5, TileGap = 10, SelectGrow = 1.24, GrowOrigin = new Point(0.5, 0.1), GamesAlign = VerticalAlignment.Top,
-            Title = "big", TitleLogo = true, HeroOpacity = 0, HeroBlur = 0, Footer = "none", PageScrim = 0.4
-        },
-        new()
-        {
-            Id = "terra", Name = "Terra", Mode = "light", Sounds = "glass", Music = "track:Ripples", Moving = "",
-            Description = "A ringed planet over a far-off beach: a sidebar of sections on bright glass, ocean blue and sandy warmth.",
-            Light = new[] { "#E4F0FA", "#0D2236", "#4A6680", "#D8FFFFFF", "#B8FFFFFF", "#0F7BD8" }, ForceLight = true,
-            Wallpaper = "image:Terra.jpg",
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 14, RowCorner = 16, RingThickness = 3, Glow = true,
-            Glass = true, LightGlass = true, Layout = "sidebar", Portrait = true, Actions = "icons", Brand = "SQUAREDECK",
-            PlayColors = new[] { "#2B95F0", "#E0A060" },
-            Buttons = "circle", Rows = new double[] { 64, 296, 0, 0, 0, 0, 40 },
-            TileScale = 0.74, TileGap = 8, SelectGrow = 1.04, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Recently played", HeroOpacity = 0, HeroBlur = 0, Footer = "none", PageScrim = 0.45
-        },
-        new()
-        {
-            Id = "jewels", Name = "Jewels", Mode = "oled", Sounds = "deep", Music = "track:Jewels", Moving = "",
-            Description = "A distant sun rising over frozen dunes, two moons above: the game large in the middle, smoked glass and pale gold light.",
-            Dark = new[] { "#05070C", "#FFF8EE", "#B9B2A6", "#7A0B0E16", "#5C0B0E16", "#FFCF8A" },
-            Wallpaper = "image:Jewels.jpg",
-            Font = "Segoe UI Variable Display Light, Segoe UI Light, Segoe UI", TileCorner = 16, RowCorner = 14, RingThickness = 3, Glow = true,
-            Glass = true, DarkGlass = true, Layout = "stage", NavTabs = true, TabPill = true, Portrait = true, Actions = "words",
-            PlayColors = new[] { "#FFE0B0", "#E8A55A" },
-            Buttons = "circle", Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 },
-            TileScale = 1.06, TileGap = 8, SelectGrow = 1.24, GrowOrigin = new Point(0.5, 0.62), GamesAlign = VerticalAlignment.Center,
-            Title = "big", TitleLogo = true, HeroOpacity = 0, HeroBlur = 0, Footer = "none", PageScrim = 0.75
-        },
-        new()
-        {
-            Id = "contour", Name = "Contour", Mode = "oled", Sounds = "deep", Music = "track:Waves", Moving = "Plague",
-            Description = "Dithered contour lines shifting in black and white: pure monochrome, thin outlines, typewriter type and no color at all.",
-            Dark = new[] { "#000000", "#FFFFFF", "#9A9A9A", "#E6000000", "#000000", "#FFFFFF" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 3, Shadow = "none",
-            Stroke = "#5A5A5A", OutlineButtons = true, Buttons = "square", SquareCorner = 0, TileGap = 6, SelectGrow = 1.05,
-            Rows = new double[] { 104, 360, 60, 96, 30, 0, 52 }, Title = "row", TileScale = 0.9, GamesAlign = VerticalAlignment.Bottom,
-            HeroOpacity = 0, HeroBlur = 0, Footer = "line", Overlay = "dots", PageScrim = 0.85
-        },
-        new()
-        {
-            Id = "sacred-grove", Name = "Sacred Grove", Sounds = "retro", Music = "track:Meditation", Moving = "Ocarina", Glyphs = "pixel",
-            Description = "A pixel-art waterfall deep in the woods: the game's logo big, posters below, emerald and gold light.",
-            Dark = new[] { "#06140F", "#F4FFE8", "#A9CDB4", "#E60A1F18", "#0E2A20", "#FFD34D" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 4, Glow = true, Shadow = "none",
-            Layout = "hero", NavTabs = true, Portrait = true, Actions = "icons", KeyHint = true, TopBarFill = true,
-            PlayColors = new[] { "#FFD34D", "#3DDC84" },
-            Buttons = "square", SquareCorner = 0, Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
-            TileScale = 0.78, TileGap = 6, SelectGrow = 1.04, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Your games", HeroOpacity = 0, Footer = "none", PageScrim = 0.8
-        },
-        new()
-        {
-            Id = "treehouse", Name = "Treehouse", Sounds = "retro", Music = "track:Relaxing", Moving = "Pokee", Glyphs = "pixel",
-            Description = "A hideout in a pixel-art forest with light pouring through: square tiles, hard shadows, mossy green and calm music.",
-            Dark = new[] { "#0B1A12", "#F1FFE9", "#AFCBA8", "#E6132A1C", "#122818", "#9BE15D" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 4, Shadow = "hard", Stroke = "accent",
-            Buttons = "square", SquareCorner = 0, TileGap = 8, SelectGrow = 1.08,
-            Rows = new double[] { 104, 360, 50, 100, 30, 0, 52 }, TileScale = 0.9, GamesAlign = VerticalAlignment.Bottom, Title = "row",
-            HeroOpacity = 0, Footer = "bar", PageScrim = 0.75
-        },
-        new()
-        {
-            Id = "stargazer", Name = "Stargazer", Sounds = "soft", Music = "track:Ripples", Moving = "Stars and Me", Glyphs = "pixel",
-            Description = "Sitting on a car under a sky full of pixel stars: a sidebar of sections, deep night blue and a star-yellow glow.",
-            Dark = new[] { "#070B1A", "#F2F4FF", "#9AA6CC", "#E60D1430", "#0E1530", "#FFE27A" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 4, Glow = true, Shadow = "none",
-            Layout = "sidebar", Portrait = true, Actions = "icons", Brand = "SQUAREDECK", PlayColors = new[] { "#FFE27A", "#F5A623" },
-            Buttons = "square", SquareCorner = 0, Rows = new double[] { 64, 296, 0, 0, 0, 0, 40 },
-            TileScale = 0.74, TileGap = 8, SelectGrow = 1.04, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Recently played", HeroOpacity = 0, Footer = "none", PageScrim = 0.8
-        },
-        new()
-        {
-            Id = "campfire", Name = "Campfire", Sounds = "arcade", Music = "track:Gaming Vibes", Moving = "Witcher", Glyphs = "pixel",
-            Description = "Resting by a fire at sunset, mountains on fire with color: the game large in the middle, ember-orange light.",
-            Dark = new[] { "#140B10", "#FFF1E6", "#DDB7A4", "#E6241418", "#2A1820", "#FF8A3D" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 4, Glow = true, Shadow = "none",
-            Layout = "stage", NavTabs = true, TabPill = true, Portrait = true, Actions = "words", PlayColors = new[] { "#FFB347", "#FF5E3A" },
-            Buttons = "square", SquareCorner = 0, Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 },
-            TileScale = 1.06, TileGap = 8, SelectGrow = 1.2, GrowOrigin = new Point(0.5, 0.62), GamesAlign = VerticalAlignment.Center,
-            Title = "big", TitleLogo = true, HeroOpacity = 0, Footer = "none", PageScrim = 0.7
-        },
-        // ---- 5.19: ten more, each with its own idea.
-        new()
-        {
-            Id = "synthwave", Name = "Synthwave", Mode = "dark", Sounds = "arcade", Music = "track:Gaming Vibes",
-            Description = "1986 forever: a hot-pink to violet sky over a neon grid, chrome-cyan Play, the game huge in the middle and a pulsing glow.",
-            Dark = new[] { "#12002B", "#FFF0FF", "#D9A6F2", "#B81A0638", "#2A0A4A", "#FF2E97" },
-            Backdrop = new[] { "#FF5FA2", "#7A1FA2", "#2A0845", "#12002B" },
-            Font = "Bahnschrift SemiBold, Bahnschrift, Segoe UI", TileCorner = 6, RowCorner = 6, RingThickness = 3, Glow = true, Shadow = "none",
-            Layout = "stage", NavTabs = true, TabPill = true, Portrait = true, Actions = "words", PlayColors = new[] { "#3DF5FF", "#FF2E97" },
-            Buttons = "circle", Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 },
-            TileScale = 1.06, TileGap = 8, SelectGrow = 1.24, GrowOrigin = new Point(0.5, 0.62), GamesAlign = VerticalAlignment.Center,
-            Title = "big", TitleLogo = true, HeroOpacity = 0, Footer = "line", Overlay = "grid", PageScrim = 0.75
-        },
-        new()
-        {
-            Id = "draftsman", Name = "Draftsman", Mode = "dark", Sounds = "soft", Music = "track:Meditation",
-            Description = "Drawn on blueprint paper: white ink on engineering blue, a measuring grid, outlined buttons and a typewriter hand.",
-            Dark = new[] { "#0B3D91", "#F4F8FF", "#B7CBEE", "#000B3D91", "#0E4AA8", "#FFFFFF" },
-            Backdrop = new[] { "#1150B8", "#0B3D91" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 2, RowCorner = 2, RingThickness = 2, Shadow = "none",
-            Stroke = "#80FFFFFF", OutlineButtons = true, Buttons = "square", SquareCorner = 2,
-            Layout = "sidebar", Portrait = true, Actions = "words", Brand = "SQUAREDECK  //  REV. 5.19", PlayColors = new[] { "#FFFFFF", "#CFE0FF" },
-            Rows = new double[] { 64, 296, 0, 0, 0, 0, 40 },
-            TileScale = 0.74, TileGap = 10, SelectGrow = 1.03, GamesAlign = VerticalAlignment.Bottom, Title = "big",
-            RowHeader = "SHEET 01 — RECENTLY PLAYED", HeroOpacity = 0, Footer = "line", Overlay = "blueprint", PageScrim = 0.85
-        },
-        new()
-        {
-            Id = "comic-pop", Name = "Comic Pop", Mode = "light", Sounds = "bubble", Music = "track:Jumps",
-            Description = "Straight off the comic rack: sunshine yellow, halftone dots, thick black ink lines, hard drop shadows and a bang-red highlight.",
-            Light = new[] { "#FFE14D", "#111111", "#4A3B00", "#FFFFFFFF", "#FFFFFF", "#E8173B" }, ForceLight = true,
-            Font = "Bahnschrift SemiBold, Segoe UI Black, Segoe UI", TileCorner = 4, RowCorner = 4, RingThickness = 5, Shadow = "hard",
-            Stroke = "#111111", StrokeWidth = 3, Buttons = "square", SquareCorner = 4,
-            Layout = "hero", NavTabs = true, Portrait = true, Actions = "words", TopBarFill = true, PlayColors = new[] { "#E8173B", "#1E5BFF" },
-            Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
-            TileScale = 0.78, TileGap = 10, SelectGrow = 1.06, GamesAlign = VerticalAlignment.Bottom, Title = "big",
-            RowHeader = "MEANWHILE, IN YOUR LIBRARY…", HeroOpacity = 0, Footer = "bar", Overlay = "halftone", PageScrim = 0.6
-        },
-        new()
-        {
-            Id = "riverlight", Name = "Riverlight", Mode = "dark", Sounds = "soft", Music = "track:Waves", Moving = "Night River",
-            Description = "Lanterns on a river at night: small tiles under the tabs, the game's name large, smoked glass and a soft lantern teal.",
-            Dark = new[] { "#061217", "#EAFBFF", "#9CC4CC", "#8C0A1C24", "#6C0A1C24", "#5FE1D0" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 14, RowCorner = 16, RingThickness = 3, Glow = true,
-            Glass = true, DarkGlass = true, Layout = "toprow", NavTabs = true, TabPill = true, Actions = "icons", PlayColors = new[] { "#7FF0E0", "#2BB5A5" },
-            Buttons = "circle", Rows = new double[] { 64, 196, 40, 0, 0, 0, 40 },
-            TileScale = 0.5, TileGap = 10, SelectGrow = 1.24, GrowOrigin = new Point(0.5, 0.1), GamesAlign = VerticalAlignment.Top,
-            Title = "big", TitleLogo = true, HeroOpacity = 0, Footer = "none", PageScrim = 0.6
-        },
-        new()
-        {
-            Id = "geyser", Name = "Geyser Basin", Mode = "dark", Sounds = "soft", Music = "track:Relaxing", Moving = "Yellowstone",
-            Description = "Steam rising from hot springs: mineral orange and sulfur gold on smoked glass, the buttons together on one shelf.",
-            Dark = new[] { "#120C06", "#FFF6EA", "#D8BFA0", "#8C1E140A", "#6C1E140A", "#FFAA3D" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 16, RowCorner = 16, RingThickness = 3, Glow = true,
-            Glass = true, DarkGlass = true, Buttons = "circle", ButtonDock = true, TileGap = 6, SelectGrow = 1.07,
-            Rows = new double[] { 108, 334, 40, 112, 26, 0, 74 }, Title = "row",
-            HeroOpacity = 0, Footer = "pill", PageScrim = 0.5
-        },
-        new()
-        {
-            Id = "chrome", Name = "Chrome", Mode = "light", Sounds = "glass", Music = "track:Ripples", Moving = "Silver Wave",
-            Description = "Liquid metal: brushed silver waves, glossy gunmetal buttons, the game large in the middle and not a single color but steel blue.",
-            Light = new[] { "#DADDE2", "#15181D", "#555B66", "#C8F4F6F8", "#A8F4F6F8", "#3A5A80" }, ForceLight = true,
-            Font = "Segoe UI Variable Display Semibold, Segoe UI Semibold, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Glow = true,
-            Glass = true, LightGlass = true, Gloss = true, Layout = "stage", NavTabs = true, TabPill = true, Portrait = true, Actions = "words",
-            PlayColors = new[] { "#5A7DA8", "#2A3E58" }, Buttons = "circle", Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 },
-            TileScale = 1.06, TileGap = 8, SelectGrow = 1.24, GrowOrigin = new Point(0.5, 0.62), GamesAlign = VerticalAlignment.Center,
-            Title = "big", TitleLogo = true, HeroOpacity = 0, Footer = "none", PageScrim = 0.5
-        },
-        new()
-        {
-            Id = "velvet", Name = "Velvet", Mode = "dark", Sounds = "pack:Dreamy SFX", Music = "track:Sweetness", Moving = "Fuzzy Blades",
-            Description = "A late-night lounge: soft-focus velvet in wine and rose, the game's logo big with its art glowing behind, gentle chimes.",
-            Dark = new[] { "#16060C", "#FFEFF4", "#D9A9B8", "#E62A0C18", "#2A0C18", "#FF6F91" },
-            Font = "Segoe UI Variable Display Light, Segoe UI Light, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Glow = true, Shadow = "none",
-            Layout = "hero", NavTabs = true, Portrait = true, Actions = "icons", PlayColors = new[] { "#FF8FAB", "#C9184A" },
-            Buttons = "circle", Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
-            TileScale = 0.78, TileGap = 8, SelectGrow = 1.05, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Tonight", HeroOpacity = 0.4, HeroBlur = 40, HeroScrim = "bottom", Footer = "none", Overlay = "vignette", PageScrim = 0.7
-        },
-        new()
-        {
-            Id = "pit-lane", Name = "Pit Lane", Mode = "oled", Sounds = "deep", Music = "track:Gaming Vibes",
-            Description = "Race day: carbon fibre, racing red and a yellow flag for Play, condensed type and a timing strip along the bottom.",
-            Dark = new[] { "#050505", "#FFFFFF", "#A8A8A8", "#E6141414", "#141414", "#E10600" },
-            Font = "Bahnschrift Condensed, Bahnschrift, Segoe UI", TileCorner = 4, RowCorner = 4, RingThickness = 4, Shadow = "none",
-            Stroke = "#2A2A2A", Layout = "toprow", NavTabs = true, Actions = "icons", PlayColors = new[] { "#FFD100", "#E10600" },
-            Buttons = "square", SquareCorner = 4, Rows = new double[] { 64, 196, 40, 0, 0, 0, 40 },
-            TileScale = 0.5, TileGap = 8, SelectGrow = 1.24, GrowOrigin = new Point(0.5, 0.1), GamesAlign = VerticalAlignment.Top,
-            Title = "big", TitleLogo = true, HeroOpacity = 0.32, HeroBlur = 0, HeroScrim = "left", Footer = "bar", Overlay = "carbon", PageScrim = 0.85
-        },
-        new()
-        {
-            Id = "pocket-green", Name = "Pocket Green", Mode = "dark", Sounds = "pack:PSP Sounds", Music = "track:Jumps", Glyphs = "pixel",
-            Description = "A 1989 pocket console: four shades of pea green, an LCD dot screen, chunky square buttons and pixel button pictures.",
-            Dark = new[] { "#0F380F", "#E0F8D0", "#9BBC0F", "#E6306230", "#306230", "#9BBC0F" },
-            Backdrop = new[] { "#306230", "#0F380F" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 4, Shadow = "hard", Stroke = "#8BAC0F",
-            Buttons = "square", SquareCorner = 0, TileGap = 8, SelectGrow = 1.08,
-            Rows = new double[] { 104, 360, 50, 100, 30, 0, 52 }, TileScale = 0.9, GamesAlign = VerticalAlignment.Bottom, Title = "row",
-            HeroOpacity = 0, Footer = "bar", Overlay = "dots", PageScrim = 0.85
-        },
-        new()
-        {
-            Id = "living-room", Name = "Living Room", Mode = "dark", Sounds = "pack:Xbox One Sound Pack", Music = "pack:Steam Big Picture Ambience",
-            Description = "Couch gaming on a big TV: the highlighted game's art fills the room, deep navy, a bright blue highlight and a calm ambient soundtrack.",
-            Dark = new[] { "#0B1220", "#F2F6FF", "#A3B1CC", "#CC16213A", "#16213A", "#1A9FFF" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 8, RowCorner = 10, RingThickness = 3, Glow = true,
-            Layout = "hero", NavTabs = true, Portrait = true, Actions = "words", PlayColors = new[] { "#47BFFF", "#1A6FFF" },
-            Buttons = "circle", Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
-            TileScale = 0.78, TileGap = 8, SelectGrow = 1.05, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Up next", HeroOpacity = 0.55, HeroBlur = 0, HeroScrim = "bottom", PageHero = true, Footer = "none", PageScrim = 0.6
-        },
 
-        // ---------------------------------------------------------------- 5.22: fifteen more
-
+        // ---- 6.16: fifty more, each a wallpaper or moving background with matching colors, sounds and music
         new()
         {
-            Id = "pixel-arcade", Name = "Retro Pixel Arcade", Mode = "dark", Sounds = "arcade", Music = "track:Jumps", Glyphs = "pixel",
-            Description = "Chunky pixel type, a four-color palette, scan lines and bold button prompts, with pixel stars blinking overhead.",
-            Dark = new[] { "#0D0221", "#FFFFFF", "#9AA0FF", "#E61A0B3D", "#22104F", "#FFD400" },
-            Backdrop = new[] { "#0D0221", "#1A0B3D", "#0D0221" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 4, Shadow = "hard", Stroke = "accent", StrokeWidth = 2,
-            Buttons = "square", SquareCorner = 0, PlayColors = new[] { "#FFD400", "#FF3864" },
-            TileScale = 0.9, TileGap = 8, SelectGrow = 1.08, Title = "big", TitleLogo = true, Rows = new double[] { 96, 300, 60, 100, 30, 0, 56 },
-            HeroOpacity = 0, Footer = "bar", Overlay = "scanlines", Ambient = "pixelstars", PageScrim = 0.8
+            Id = "moonlit-river", Name = "Moonlit River", Sounds = "soft", Music = "track:Ripples", Moving = "Night River", Wallpaper = "",
+            Description = "A slow river under the moon: ink-blue panels, pale moonlight text, a soft glow on the tile you're on and gentle ripples in the music.",
+            Dark = new[] { "#0B1220", "#EAF2FF", "#8FA3BF", "#18233A", "#141D30", "#7FB8FF" },
+            Font = "file:Against_Perfection_Serif_Personal_Use.ttf#Against Perfection Personal Use#Against Perfection Personal Use Serif", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "pill"
         },
         new()
         {
-            Id = "minimal-oled", Name = "Minimal OLED", Mode = "oled", Sounds = "soft", Music = "",
-            Description = "Pure black, crisp white text and a single bright accent. No panels, no shadows, nothing that isn't needed.",
-            Dark = new[] { "#000000", "#FFFFFF", "#8A8A8A", "#FF0A0A0A", "#111111", "#00E5A0" },
-            Font = "Segoe UI Variable Display Light, Segoe UI Light, Segoe UI", TileCorner = 14, RowCorner = 12, RingThickness = 2, Shadow = "none",
-            Buttons = "small", OutlineButtons = true, Stroke = "#262626",
-            TileScale = 0.92, TileGap = 14, SelectGrow = 1.08, Title = "row", HeroOpacity = 0, Footer = "none", PageScrim = 0.92
+            Id = "first-light", Name = "First Light", Sounds = "chime", Music = "track:Sun Rays", Moving = "City Dawn", Wallpaper = "",
+            Description = "The city waking up: dusky plum shadows, warm apricot highlights and bright little chimes, like the first coffee of the day.",
+            Dark = new[] { "#1A1420", "#FFF4EC", "#C9A99A", "#2A1E2B", "#251A26", "#FF9E6B" },
+            Font = "Corbel, Segoe UI", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line"
         },
         new()
         {
-            Id = "y2k", Name = "Y2K Techno", Mode = "light", Sounds = "pack:Dreamcast UI SFX", Music = "track:Aero", Moving = "Silver Wave",
-            Description = "Millennium chrome: glossy gradients, see-through bubble panels, chrome rims, futuristic type and twinkling sparkles.",
-            Light = new[] { "#DCE8FF", "#0A1A3A", "#4A5D86", "#C0FFFFFF", "#FFFFFF", "#2E6BFF" },
-            ForceLight = true, Backdrop = new[] { "#F2F7FF", "#B9D3FF", "#8F9BFF", "#D6C2FF" },
-            Font = "Trebuchet MS, Segoe UI", TileCorner = 22, RowCorner = 18, RingThickness = 3, Glass = true, LightGlass = true, Gloss = true, Glow = true,
-            Buttons = "circle", ButtonDock = true, DockLook = "glass", Stroke = "#80FFFFFF", PlayColors = new[] { "#7FB2FF", "#2E6BFF" },
-            TileScale = 0.95, TileGap = 10, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above", HeroOpacity = 0, Footer = "pill", Ambient = "sparkle", PageScrim = 0.35
+            Id = "rain-circuit", Name = "Rain Circuit", Sounds = "arcade", Music = "track:Gaming Vibes", Moving = "Cyberpunk Rain", Wallpaper = "",
+            Description = "Neon rain on a megacity: hot-pink highlights, scanlines over violet steel, arcade blips and a driving beat.",
+            Dark = new[] { "#07060F", "#F0EAFF", "#9C8FC4", "#16122A", "#120E22", "#FF2E97" },
+            Font = "file:Cyber_Gaming.ttf#Cyber Gaming", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Overlay = "scanlines", Footer = "line"
         },
         new()
         {
-            Id = "tactical", Name = "Tactical Dashboard", Mode = "dark", Sounds = "soft", Music = "track:Ripples",
-            Description = "A compact command grid: sharp condensed type, small tiles, status lights, corner brackets and muted field colors.",
-            Dark = new[] { "#0E1210", "#D7E3D2", "#7E8C7A", "#F2141A16", "#18201B", "#B5C94A" },
-            Font = "Bahnschrift SemiCondensed, Bahnschrift, Consolas", TileCorner = 2, RowCorner = 2, RingThickness = 2, Shadow = "none",
-            Stroke = "#3A4A3C", Buttons = "square", SquareCorner = 2, OutlineButtons = true, ButtonsAlign = HorizontalAlignment.Left,
-            Layout = "toprow", NavTabs = true, Actions = "words", KeyHint = true, PlayColors = new[] { "#B5C94A" }, TopBarFill = true,
-            Rows = new double[] { 64, 196, 40, 0, 0, 0, 40 }, TileScale = 0.52, TileGap = 6, SelectGrow = 1.06, GrowOrigin = new Point(0.5, 0.1),
-            GamesAlign = VerticalAlignment.Top, Title = "big", HeroOpacity = 0.18, HeroBlur = 12, Footer = "bar", Overlay = "hud", Ambient = "status", PageScrim = 0.85
+            Id = "cloud-nine", Name = "Cloud Nine", Sounds = "pack:Dreamy SFX", Music = "track:Relaxing", Moving = "Heaven", Wallpaper = "",
+            Description = "Floating above the clouds: milky glass, periwinkle highlights, dreamy sound effects and music to drift off to.",
+            Light = new[] { "#EEF4FF", "#1B2340", "#5D6A8C", "#C8FFFFFF", "#B0FFFFFF", "#6C8CFF" }, ForceLight = true,
+            Font = "file:Dreamink_Cream_Ginger.ttf#Dreamink Cream Ginger", TileCorner = 20, RowCorner = 20, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glass = true, LightGlass = true, Glow = true, Footer = "pill", PageScrim = 0.35
         },
         new()
         {
-            Id = "cozy", Name = "Cozy Collector", Mode = "light", Sounds = "bubble", Music = "track:Coffee Shop", Wallpaper = "image:Cafe.jpg",
-            Description = "Warm and soft: rounded cards, cream and terracotta, gentle bouncy motion and warm lights drifting by.",
-            Light = new[] { "#FBF3EA", "#4A3428", "#9A7B68", "#F2FFFFFF", "#F3E3D3", "#E8836B" },
-            Dark = new[] { "#2A211C", "#FBEFE4", "#C9AE9A", "#E6382C25", "#3A2E27", "#F19A7F" },
-            Font = "Segoe UI Variable Display Semibold, Segoe UI Semibold, Segoe UI", TileCorner = 26, RowCorner = 22, RingThickness = 4,
-            Buttons = "circle", ButtonDock = true, DockLook = "solid", PlayColors = new[] { "#F2A07B", "#E8836B" },
-            TileScale = 0.96, TileGap = 12, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above", HeroOpacity = 0, Footer = "pill", Ambient = "bokeh", PageScrim = 0.55
+            Id = "stargazer", Name = "Stargazer", Sounds = "pack:Dreamy SFX", Music = "track:Meditation", Moving = "Stars and Me", Wallpaper = "",
+            Description = "A night under a sky full of stars: deep space panels, lilac starlight on the selection and a calm, spacious soundtrack.",
+            Dark = new[] { "#05070F", "#E8ECFF", "#8C95BD", "#11162B", "#0D1224", "#B69CFF" },
+            Font = "file:Vislar-Thin.otf#Vislar#Vislar Thin", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "none"
         },
         new()
         {
-            Id = "storybook", Name = "Hand-Drawn Adventure", Mode = "light", Sounds = "chime", Music = "track:Meditation", Wallpaper = "image:Terra.jpg",
-            Description = "A storybook on parchment: inked outlines, handwritten labels, sketched borders and a map's compass rose.",
-            Light = new[] { "#F3E7CF", "#3B2A1A", "#7A6248", "#E6FFF8EA", "#EFE0C2", "#B4532A" },
-            ForceLight = true, Backdrop = new[] { "#F6ECD6", "#EADBB9" },
-            Font = "Ink Free, Segoe Print, Segoe UI", TileCorner = 6, RowCorner = 8, RingThickness = 3, Shadow = "hard", Stroke = "#3B2A1A", StrokeWidth = 2,
-            Buttons = "square", SquareCorner = 10, OutlineButtons = true, PlayColors = new[] { "#B4532A" },
-            Layout = "stage", Portrait = true, Actions = "words", Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 },
-            TileScale = 1.0, TileGap = 10, SelectGrow = 1.18, GrowOrigin = new Point(0.5, 0.62), GamesAlign = VerticalAlignment.Center,
-            Title = "big", HeroOpacity = 0, Footer = "line", Overlay = "paper", Ambient = "compass", PageScrim = 0.6
+            Id = "spore-grove", Name = "Spore Grove", Sounds = "bubble", Music = "track:Jumps", Moving = "Mushroom Forest", Wallpaper = "",
+            Description = "A glowing mushroom forest: mossy greens, bioluminescent lime highlights, bubbly sounds and a bouncy tune.",
+            Dark = new[] { "#0E1410", "#F0F7E8", "#9DB394", "#1A241B", "#152018", "#9BE15D" },
+            Font = "Ink Free, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "pill"
         },
         new()
         {
-            Id = "cyberpunk", Name = "Neon Cyberpunk", Mode = "dark", Sounds = "pack:Xbox 360 UI", Music = "track:Gaming Vibes", Moving = "Cyberpunk Rain",
-            Description = "Rain-slick dark streets: electric pink and blue, dense city graphics, glitching slices and a humming neon glow.",
-            Dark = new[] { "#07060D", "#F4F0FF", "#9C95C9", "#E60F0B1E", "#130E26", "#FF2BD6" },
-            Font = "Bahnschrift SemiBold, Bahnschrift, Segoe UI", TileCorner = 0, RowCorner = 0, RingThickness = 3, Glow = true, Shadow = "none", Stroke = "#3300E5FF",
-            Layout = "hero", NavTabs = true, TabPill = true, Portrait = true, Actions = "icons", KeyHint = true, TopBarFill = true,
-            PlayColors = new[] { "#00E5FF", "#FF2BD6" }, Buttons = "square", SquareCorner = 0, Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
-            TileScale = 0.78, TileGap = 6, SelectGrow = 1.05, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "Jack in", HeroOpacity = 0, Footer = "none", Overlay = "scanlines", Ambient = "glitch", PageScrim = 0.82
+            Id = "meadow", Name = "Meadow", Sounds = "soft", Music = "track:Sweetness", Moving = "Pasture", Wallpaper = "",
+            Description = "Rolling green fields on a breezy afternoon: cream paper, grass-green highlights, soft taps and a sweet, easy melody.",
+            Light = new[] { "#F4F7EC", "#1F2A16", "#5E6B4E", "#FFFFFF", "#E3EAD2", "#5C9E31" }, ForceLight = true,
+            Font = "Candara, Segoe UI", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "pill", PageScrim = 0.4
         },
         new()
         {
-            Id = "toy-tech", Name = "90s Toy-Tech", Mode = "light", Sounds = "bubble", Music = "track:Jumps",
-            Description = "Bright plastic in primary colors: chunky glossy buttons, playful shapes, a gadget-like shell and bouncing confetti.",
-            Light = new[] { "#FFE14D", "#1A1A2E", "#4D4D6B", "#F2FFFFFF", "#FFFFFF", "#FF3B6B" },
-            ForceLight = true, Backdrop = new[] { "#FFE14D", "#FFC93C" },
-            Font = "Arial Rounded MT Bold, Segoe UI Black, Segoe UI", TileCorner = 20, RowCorner = 20, RingThickness = 6, Shadow = "hard", Stroke = "#1A1A2E", StrokeWidth = 3,
-            Buttons = "circle", Gloss = true, ButtonDock = true, DockLook = "solid", PlayColors = new[] { "#3BC7FF", "#2E6BFF" },
-            TileScale = 0.9, TileGap = 14, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above", HeroOpacity = 0, Footer = "bar", Overlay = "dots", Ambient = "confetti", PageScrim = 0.4
+            Id = "geyser-steam", Name = "Geyser Steam", Sounds = "glass", Music = "track:Waves", Moving = "Yellowstone", Wallpaper = "",
+            Description = "Steam rising over hot springs: mineral blues and stone greys, a turquoise spring highlight and clear glassy sounds.",
+            Dark = new[] { "#10171A", "#EFF7F6", "#96ABA9", "#1B2629", "#172124", "#3FD0C9" },
+            Font = "Sitka Heading, Georgia, Segoe UI", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line"
         },
         new()
         {
-            Id = "lcd-pocket", Name = "Monochrome LCD", Mode = "light", Sounds = "retro", Music = "", Glyphs = "pixel",
-            Description = "A pocket game's tiny screen: four shades of grey-green, a visible pixel grid, segmented digits and simple icons.",
-            Light = new[] { "#B9C3A4", "#232A1C", "#4C5A3E", "#E6A9B394", "#A3AD8E", "#232A1C" },
-            ForceLight = true, Backdrop = new[] { "#C4CEAE", "#AEB896" },
-            Font = "Cascadia Mono, Consolas", TileCorner = 0, RowCorner = 0, RingThickness = 3, Shadow = "none", Stroke = "#232A1C", StrokeWidth = 2,
-            Buttons = "square", SquareCorner = 0, OutlineButtons = true,
-            TileScale = 0.72, TileGap = 8, SelectGrow = 1.0, Title = "row", HeroOpacity = 0, Footer = "line", Overlay = "lcd", PageScrim = 0.85
+            Id = "fountain-plaza", Name = "Fountain Plaza", Sounds = "chime", Music = "track:Recuerdos", Moving = "La Fuente", Wallpaper = "",
+            Description = "An old plaza at golden hour: warm stone, brass highlights, elegant serif type, a little chime and a nostalgic guitar.",
+            Dark = new[] { "#12100D", "#FBF4E9", "#B9A88E", "#221D16", "#1C1812", "#E8B35A" },
+            Font = "Palatino Linotype, Segoe UI", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "vignette", Footer = "line"
         },
         new()
         {
-            Id = "arcade-cabinet", Name = "Arcade Cabinet", Mode = "dark", Sounds = "arcade", Music = "track:Gaming Vibes", Glyphs = "pixel",
-            Description = "Insert coin: marquee lettering, a high-score table feel, high-contrast red and gold, and chasing marquee lights.",
-            Dark = new[] { "#0A0505", "#FFF6E0", "#E0B98A", "#E61A0A0A", "#220C0C", "#FFC700" },
-            Backdrop = new[] { "#2A0505", "#0A0505" },
-            Font = "Impact, Bahnschrift Condensed, Segoe UI Black", TileCorner = 4, RowCorner = 4, RingThickness = 4, Glow = true, Shadow = "none", Stroke = "#66FFC700",
-            Layout = "stage", NavTabs = true, TabPill = true, Portrait = true, Actions = "words", PlayColors = new[] { "#FF2A2A", "#FFC700" },
-            Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 }, TileScale = 1.04, TileGap = 8, SelectGrow = 1.22, GrowOrigin = new Point(0.5, 0.62),
-            GamesAlign = VerticalAlignment.Center, Title = "big", TitleLogo = true, HeroOpacity = 0, Footer = "line", Overlay = "vignette", Ambient = "marquee", PageScrim = 0.8
+            Id = "silver-blade", Name = "Silver Blade", Sounds = "deep", Music = "track:Fraxsu", Moving = "Witcher", Wallpaper = "",
+            Description = "Monster-hunter grit: forged steel, a blood-red highlight, sharp corners, heavy serif type and deep, weighty sounds.",
+            Dark = new[] { "#0D0E10", "#EDEDE8", "#9C9A92", "#1C1D20", "#17181A", "#C9302C" },
+            Font = "Cambria, Segoe UI", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "vignette", Footer = "bar", Shadow = "none"
         },
         new()
         {
-            Id = "field-guide", Name = "Nature Field Guide", Mode = "light", Sounds = "chime", Music = "track:Relaxing", Moving = "Yellowstone",
-            Description = "A naturalist's journal: earthy greens and ochre, specimen-card tiles, ruled pages and leaves drifting past.",
-            Light = new[] { "#EEE8D8", "#2F3A24", "#6B7458", "#E6FBF7EC", "#E2DBC4", "#6F8F3A" },
-            Dark = new[] { "#1E2318", "#ECE8D8", "#A9AE92", "#E62A3122", "#2A3122", "#A3C35E" },
-            Font = "Georgia, Sitka Text, Segoe UI", TileCorner = 4, RowCorner = 6, RingThickness = 3, Stroke = "#806F8F3A",
-            Buttons = "card", Layout = "sidebar", Brand = "Field Guide", Actions = "words", PlayColors = new[] { "#6F8F3A" },
-            TileScale = 0.82, TileGap = 10, SelectGrow = 1.06, Title = "big", HeroOpacity = 0, Footer = "none", Overlay = "notebook", Ambient = "leaves", PageScrim = 0.5
+            Id = "temple-of-time", Name = "Temple of Time", Sounds = "chime", Music = "track:Jewels", Moving = "Ocarina", Wallpaper = "",
+            Description = "A hero's sanctuary: forest-green stone, an emerald glow, storybook serif type and sparkling chimes.",
+            Dark = new[] { "#0B1410", "#F2F6E9", "#A3B496", "#17241C", "#132018", "#4FC27A" },
+            Font = "Palatino Linotype, Georgia, Segoe UI", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "vignette", Glow = true, Footer = "line"
         },
         new()
         {
-            Id = "cockpit", Name = "Spacecraft Cockpit", Mode = "dark", Sounds = "deep", Music = "track:Waves", Moving = "Stars and Me",
-            Description = "Flight deck at night: instrument rings, a sweeping radar, orbital paths and cool, controlled cyan lighting.",
-            Dark = new[] { "#050A12", "#DDF4FF", "#7FA6BF", "#E60A1624", "#0C1A2A", "#3FE0FF" },
-            Font = "Bahnschrift, Segoe UI", TileCorner = 10, RowCorner = 10, RingThickness = 2, Glow = true, Shadow = "none", Stroke = "#403FE0FF",
-            Buttons = "circle", OutlineButtons = true, ButtonDock = true, DockLook = "glow", PlayColors = new[] { "#3FE0FF", "#1A7FFF" },
-            TileScale = 0.88, TileGap = 10, SelectGrow = 1.1, Title = "big", HeroOpacity = 0, Footer = "line", Overlay = "cockpit", Ambient = "radar", PageScrim = 0.75
+            Id = "plague-doctor", Name = "Plague Doctor", Sounds = "deep", Music = "track:Es Vapour", Moving = "Plague", Wallpaper = "",
+            Description = "A candlelit apothecary: soot and parchment, tarnished-brass highlights, old-world type and low, eerie sounds.",
+            Dark = new[] { "#0E0D0B", "#EDE6D6", "#A39A86", "#1E1C18", "#191714", "#C49A3A" },
+            Font = "file:ESSENTIALO.ttf#ESSENTIALO", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "vignette", Footer = "line", Shadow = "none"
         },
         new()
         {
-            Id = "scrapbook", Name = "Sticker Scrapbook", Mode = "light", Sounds = "bubble", Music = "track:Sweetness",
-            Description = "Layered stickers and doodles on kraft paper: handwritten labels, washi-tape corners and a slightly wonky, cut-out feel.",
-            Light = new[] { "#E8D5B5", "#2B2118", "#6B5640", "#F2FFFDF7", "#FFFDF7", "#FF5C8A" },
-            ForceLight = true, Backdrop = new[] { "#EAD8BA", "#DCC5A0" },
-            Font = "Segoe Print, Ink Free, Comic Sans MS", TileCorner = 8, RowCorner = 12, RingThickness = 5, Shadow = "hard", Stroke = "#FFFFFF", StrokeWidth = 4,
-            Buttons = "card", PlayColors = new[] { "#FF5C8A", "#FFB443" },
-            TileScale = 0.9, TileGap = 18, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above", HeroOpacity = 0, Footer = "pill", Overlay = "paper", Ambient = "stickers", PageScrim = 0.5
+            Id = "pocket-pals", Name = "Pocket Pals", Sounds = "pack:Switch 2 Sounds", Music = "track:Jumps", Moving = "Pokee", Wallpaper = "",
+            Description = "A cheerful creature adventure: sunny cream, cherry-red highlights, chunky round corners with a cartoon shadow and playful console sounds.",
+            Light = new[] { "#FFF8E6", "#2A2140", "#6E6488", "#FFFFFF", "#FCEFC8", "#FF5A5F" }, ForceLight = true,
+            Font = "file:pixel-it-5x4.ttf#Pixel It! 5x4", TileCorner = 22, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Shadow = "hard", Footer = "pill", PageScrim = 0.4
         },
         new()
         {
-            Id = "boutique", Name = "Premium Boutique", Mode = "dark", Sounds = "soft", Music = "track:Ripples",
-            Description = "Quiet luxury: refined serif type, restrained ivory and charcoal with a thin gold line, generous spacing and slow, subtle motion.",
-            Dark = new[] { "#121110", "#F4EFE6", "#A69F93", "#F21A1917", "#1E1C1A", "#C9A96E" },
-            Light = new[] { "#F7F3EC", "#1C1A17", "#7C766C", "#F2FFFFFF", "#EDE6DA", "#9C7A3C" },
-            Font = "Palatino Linotype, Georgia, Segoe UI", TileCorner = 2, RowCorner = 2, RingThickness = 1.5, Shadow = "soft", Stroke = "#40C9A96E",
-            Buttons = "tab", Layout = "hero", NavTabs = true, Portrait = true, Actions = "words", PlayColors = new[] { "#C9A96E" },
-            Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 }, TileScale = 0.74, TileGap = 22, SelectGrow = 1.03, GamesAlign = VerticalAlignment.Bottom,
-            Title = "big", TitleLogo = true, RowHeader = "The collection", HeroOpacity = 0.45, HeroBlur = 0, HeroScrim = "left", PageHero = true, Footer = "line", PageScrim = 0.7
+            Id = "plumbers-holiday", Name = "Plumber's Holiday", Sounds = "arcade", Music = "track:Sweetness", Moving = "Chill Mario", Wallpaper = "",
+            Description = "A lazy day off for a famous plumber: night-sky navy, a bright red cap highlight, arcade coins and a sweet, relaxed tune.",
+            Dark = new[] { "#0F1A33", "#FFF6E6", "#A9B5D4", "#1C2A4A", "#18243F", "#E52521" },
+            Font = "file:Happy_Chicken.ttf#Happy Chicken", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "pill"
         },
         new()
         {
-            Id = "holo-dream", Name = "Holographic Dreamscape", Mode = "dark", Sounds = "pack:Dreamy SFX", Music = "track:Sun Rays", Moving = "Heaven",
-            Description = "Iridescent gradients and soft glow: floating glass shapes drift slowly, colors shift like a soap bubble, everything flows.",
-            Dark = new[] { "#120F24", "#FFFFFF", "#C9C2F0", "#80FFFFFF", "#33FFFFFF", "#B98CFF" },
-            Backdrop = new[] { "#7FD6FF", "#B98CFF", "#FF9AD5", "#FFE3A3" },
-            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 28, RowCorner = 24, RingThickness = 3, Glass = true, Glow = true,
-            Buttons = "circle", ButtonDock = true, DockLook = "glass", PlayColors = new[] { "#7FD6FF", "#FF9AD5" },
-            TileScale = 0.94, TileGap = 12, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above", HeroOpacity = 0, Footer = "pill", Overlay = "sheen", Ambient = "float", PageScrim = 0.3
-        },
-
-        // ---------------------------------------------------------------- 5.23: vaporwave and a 90s desktop
-
-        new()
-        {
-            Id = "vapor-pool", Name = "Vaporwave Pool", Mode = "dark", Sounds = "pack:Dreamy SFX", Music = "track:Es Vapour", Moving = "La Fuente",
-            Wallpaper = "image:Viborl.jpg",
-            Description = "A marble fountain at dusk: pastel pink and pool cyan, smoked glass panels, VHS tracking lines and a slowed-down soundtrack.",
-            Dark = new[] { "#1A1030", "#FFF0FB", "#D9C2F0", "#A62A1A4A", "#3A2462", "#FF71CE" },
-            Font = "Yu Gothic UI Light, Yu Gothic UI, Segoe UI Light, Segoe UI", TileCorner = 6, RowCorner = 8, RingThickness = 3, Glass = true, DarkGlass = true, Glow = true,
-            Layout = "stage", NavTabs = true, TabPill = true, Portrait = true, Actions = "words", PlayColors = new[] { "#01CDFE", "#FF71CE" },
-            Rows = new double[] { 64, 404, 0, 0, 0, 0, 36 }, TileScale = 1.04, TileGap = 10, SelectGrow = 1.18, GrowOrigin = new Point(0.5, 0.62),
-            GamesAlign = VerticalAlignment.Center, Title = "big", TitleLogo = true, HeroOpacity = 0, Footer = "line", Overlay = "scanlines", Ambient = "vhs", PageScrim = 0.45
+            Id = "analog-signal", Name = "Analog Signal", Sounds = "retro", Music = "track:Es Vapour", Moving = "Analog", Wallpaper = "",
+            Description = "A late-night broadcast on an old tube TV: amber phosphor highlights, monospaced type, scanlines and retro bleeps.",
+            Dark = new[] { "#0C0C0C", "#F2EFE6", "#A8A397", "#1C1B19", "#171614", "#FFB000" },
+            Font = "file:HomeVideo-Regular.ttf#Home Video", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "scanlines", Footer = "bar", Shadow = "none"
         },
         new()
         {
-            Id = "vapor-sunset", Name = "Marble Sunset", Mode = "dark", Sounds = "pack:Dreamy SFX", Music = "track:Recuerdos",
-            Wallpaper = "image:Tu Reflexion.jpg",
-            Description = "A pink sun sinking into a wireframe sea: deep plum, hot pink and gold, a scrolling neon horizon and black-and-gold marble pages.",
-            Dark = new[] { "#221A2E", "#FFF2F8", "#C7A9C9", "#CC2C2140", "#33264A", "#FF2E7E" },
-            Font = "Bahnschrift Light, Bahnschrift, Segoe UI", TileCorner = 2, RowCorner = 4, RingThickness = 2, Glow = true, Shadow = "none", Stroke = "#40FFD54A",
-            Layout = "hero", NavTabs = true, Portrait = true, Actions = "words", KeyHint = true, PlayColors = new[] { "#FFD54A", "#FF2E7E" },
-            Buttons = "circle", Rows = new double[] { 70, 290, 0, 0, 0, 0, 40 },
-            TileScale = 0.78, TileGap = 8, SelectGrow = 1.05, GamesAlign = VerticalAlignment.Bottom, Title = "big", TitleLogo = true,
-            RowHeader = "A E S T H E T I C", HeroOpacity = 0, Footer = "none", Ambient = "horizon", PageScrim = 0.7
+            Id = "gilded", Name = "Gilded", Sounds = "glass", Music = "track:Jewels", Moving = "Gold Wave", Wallpaper = "",
+            Description = "Liquid gold in slow motion: black lacquer, gold-leaf highlights with a glossy shine and crystal-clear sounds.",
+            Dark = new[] { "#110E07", "#FFF7E3", "#C2AE80", "#241D0E", "#1D170B", "#E7B84B" },
+            Font = "file:Against_Perfection_Serif_Personal_Use.ttf#Against Perfection Personal Use#Against Perfection Personal Use Serif", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Gloss = true, Footer = "pill"
         },
         new()
         {
-            Id = "city-pop", Name = "City Pop '84", Mode = "dark", Sounds = "bubble", Music = "track:Fraxsu",
-            Wallpaper = "image:The View.jpg",
-            Description = "A seaside parking lot in endless summer: flat cobalt sky, coral and mint stripes, white convertibles and clean, sunny type.",
-            Dark = new[] { "#0B3A8C", "#FFFFFF", "#BFD6FF", "#B30A2E70", "#124AA8", "#FF6F8E" },
-            Font = "Trebuchet MS, Segoe UI", TileCorner = 4, RowCorner = 6, RingThickness = 4, Shadow = "hard", Stroke = "#FFFFFF", StrokeWidth = 2,
-            Buttons = "square", SquareCorner = 6, ButtonDock = true, DockLook = "solid", PlayColors = new[] { "#2ED3A0", "#FF6F8E" },
-            TileScale = 0.9, TileGap = 14, SelectGrow = 1.08, GrowOrigin = new Point(0.5, 0.15), Title = "above",
-            HeroOpacity = 0, Footer = "bar", PageScrim = 0.5
+            Id = "quicksilver", Name = "Quicksilver", Sounds = "glass", Music = "pack:Steam Big Picture Ambience", Moving = "Silver Wave", Wallpaper = "",
+            Description = "Molten chrome: brushed steel greys, a polished silver highlight, glassy sounds and a cool ambient hum.",
+            Dark = new[] { "#101215", "#F4F6F9", "#A5ACB6", "#1E2227", "#191C20", "#C9D3E0" },
+            Font = "file:Vislar-Thin.otf#Vislar#Vislar Thin", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Gloss = true, Footer = "line"
         },
         new()
         {
-            Id = "desktop-95", Name = "Desktop 95", Mode = "light", Sounds = "classic", Music = "", Moving = "Analog",
-            Wallpaper = "image:Windows 95.jpg",
-            Description = "A mid-90s desktop: teal and battleship grey, raised 3D buttons with white and black edges, a navy title bar and a taskbar along the bottom.",
-            Light = new[] { "#008080", "#000000", "#3A3A3A", "#FFC0C0C0", "#C0C0C0", "#000080" },
-            ForceLight = true, Backdrop = new[] { "#008080", "#008080" },
-            Font = "Microsoft Sans Serif, Tahoma, Segoe UI", TileCorner = 0, RowCorner = 0, RingThickness = 3, Shadow = "hard", Stroke = "#FFFFFF", StrokeWidth = 2,
-            Buttons = "square", SquareCorner = 0, TopBarFill = true, PlayColors = new[] { "#000080", "#1084D0" },
-            TileScale = 0.86, TileGap = 10, SelectGrow = 1.0, Title = "row", HeroOpacity = 0, Footer = "taskbar", PageScrim = 0.6
-        }
+            Id = "velvet-static", Name = "Velvet Static", Sounds = "soft", Music = "track:Fraxsu", Moving = "Fuzzy Blades", Wallpaper = "",
+            Description = "Plush and fuzzy: crushed-velvet purples, an orchid glow, soft taps and a hazy, dreamy beat.",
+            Dark = new[] { "#120D17", "#F5EEF7", "#B39BB9", "#23192A", "#1D1523", "#D46BFF" },
+            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "pill"
+        },
+        new()
+        {
+            Id = "soft-focus", Name = "Soft Focus", Sounds = "soft", Music = "track:Meditation", Moving = "Blurry Blades", Wallpaper = "",
+            Description = "Everything gently out of focus: hushed blue-greys, a calm sky-blue highlight and quiet, unhurried sounds.",
+            Dark = new[] { "#0F1218", "#EEF2F8", "#9AA3B3", "#1B202A", "#171B23", "#8AB4F8" },
+            Font = "Corbel, Segoe UI", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "none"
+        },
+        new()
+        {
+            Id = "gamer-den", Name = "Gamer Den", Sounds = "arcade", Music = "track:Gaming Vibes", Moving = "Gamer Den", Wallpaper = "",
+            Description = "A pixel-art bedroom built for gaming: posters, consoles and a glowing monitor, sky-blue panels, a bubblegum-pink highlight, pixel button pictures, arcade blips and a gaming beat.",
+            Light = new[] { "#EAF2FF", "#1C2140", "#5B6488", "#FFFFFF", "#DCE8FA", "#FF4FA0" }, ForceLight = true,
+            Font = "file:pixel-it-5x4.ttf#Pixel It! 5x4", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glyphs = "pixel", Shadow = "hard", Footer = "pill", PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "emerald-skies", Name = "Emerald Skies", Sounds = "pack:Switch 2 Sounds", Music = "track:Jumps", Moving = "Emerald", Wallpaper = "",
+            Description = "A pixel adventure by the sea: a great green dragon in a summer sky, crisp white and sky blue, an emerald highlight, cheerful console sounds and a bouncy tune.",
+            Light = new[] { "#EEF7FF", "#10283A", "#4F6E84", "#FFFFFF", "#DDEBF7", "#1FA35A" }, ForceLight = true,
+            Font = "file:Happy_Chicken.ttf#Happy Chicken", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glyphs = "pixel", Footer = "pill", PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "ember-horizon", Name = "Ember Horizon", Sounds = "deep", Music = "track:Fraxsu", Moving = "Dark Sunset", Wallpaper = "",
+            Description = "A pixel sun sinking into a red sea: smoky charcoal, an ember-orange highlight, scanlines, VHS-style lettering, deep sounds and a slow beat.",
+            Dark = new[] { "#141212", "#FFF1EA", "#C9A79A", "#CC261C1A", "#CC1E1614", "#FF5A1F" },
+            Font = "file:HomeVideo-Regular.ttf#Home Video", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Overlay = "scanlines", Footer = "line", Shadow = "none", PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "pixel-woods", Name = "Pixel Woods", Sounds = "retro", Music = "track:Ripples", Moving = "Pixel Forest", Wallpaper = "",
+            Description = "Deep in a pixel forest: mossy greens and bark browns, a fern-green highlight, pixel lettering and button pictures, soft retro blips and gentle rippling music.",
+            Dark = new[] { "#0C140C", "#EAF3E2", "#9DB28E", "#CC172416", "#CC121D12", "#8CD65A" },
+            Font = "file:pixel-it-5x4.ttf#Pixel It! 5x4", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glyphs = "pixel", Footer = "line", PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "late-night-study", Name = "Late Night Study", Sounds = "soft", Music = "track:Coffee Shop", Moving = "Lofi City", Wallpaper = "",
+            Description = "Lo-fi beats to play games to: violet night, a warm desk-lamp highlight, soft clicks and coffee-shop music.",
+            Dark = new[] { "#141020", "#F3ECFF", "#A89CC4", "#221B33", "#1C162B", "#FFB86B" },
+            Font = "file:Always_be_honest.otf#Always be honest", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "pill"
+        },
+        new()
+        {
+            Id = "midnight-valley", Name = "Midnight Valley", Sounds = "soft", Music = "track:Relaxing", Moving = "Midnight", Wallpaper = "",
+            Description = "A valley town after dark, seen from the hills: deep navy and starlight, a firefly-green highlight, tall poster lettering, soft sounds and relaxing music.",
+            Dark = new[] { "#050A1E", "#E8F0FF", "#8FA0C8", "#CC0E1838", "#CC0A1430", "#3DFFB0" },
+            Font = "file:Amazing_Midnight_Personal_Use.ttf#Amazing Midnight Personal Use", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "none", PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "coastline-cruise", Name = "Coastline Cruise", Sounds = "arcade", Music = "track:Es Vapour", Moving = "Pixel Ride", Wallpaper = "",
+            Description = "A hot-pink coupe parked on the coast road at sunset: violet dusk, a neon-pink highlight, thin 80s lettering, arcade sounds and a vaporwave track.",
+            Dark = new[] { "#1A0F2A", "#FFF0FA", "#D3A8D6", "#CC2A1640", "#CC221236", "#FF3FB4" },
+            Font = "file:Synth2-Thin.ttf#Synth#Synth Thin", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "solitude", Name = "Solitude", Sounds = "soft", Music = "track:Meditation", Moving = "", Wallpaper = "image:Alone.jpg",
+            Description = "A quiet moment alone: muted slate, a pale blue highlight, nothing extra, just calm sounds and meditative music.",
+            Dark = new[] { "#0E1116", "#E9EEF5", "#94A0B2", "#1A1F27", "#151A21", "#9DB7D5" },
+            Font = "file:ForbiddenLove.otf#Forbidden Love", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "none", Overlay = "vignette"
+        },
+        new()
+        {
+            Id = "blue-moon", Name = "Blue Moon", Sounds = "chime", Music = "track:Ripples", Moving = "", Wallpaper = "image:Blue Moon.jpg",
+            Description = "Once in a blue moon: midnight navy, a luminous blue glow, chimes and gentle, rippling music.",
+            Dark = new[] { "#070B1A", "#E6ECFF", "#8E9AC6", "#121A33", "#0E152B", "#5DA9FF" },
+            Font = "file:Amazing_Midnight_Personal_Use.ttf#Amazing Midnight Personal Use", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "pill"
+        },
+        new()
+        {
+            Id = "corner-cafe", Name = "Corner Café", Sounds = "soft", Music = "track:Coffee Shop", Moving = "", Wallpaper = "image:Cafe.jpg",
+            Description = "Your favorite table by the window: espresso browns, a caramel highlight, cozy serif type and café music.",
+            Dark = new[] { "#17110D", "#F8EFE6", "#BCA592", "#2A1F18", "#231A14", "#D98C4A" },
+            Font = "file:Dreamink_Cream_Ginger.ttf#Dreamink Cream Ginger", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "paper", Footer = "line"
+        },
+        new()
+        {
+            Id = "cloud-pool", Name = "Cloud Pool", Sounds = "bubble", Music = "track:Relaxing", Moving = "", Wallpaper = "image:Cloud Pool.jpg",
+            Description = "A pool in the sky: airy white glass, pool-blue highlights, bubbly sounds and a laid-back soundtrack.",
+            Light = new[] { "#EEF6FB", "#16303F", "#577487", "#C8FFFFFF", "#B0FFFFFF", "#2FA4D9" }, ForceLight = true,
+            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 20, RowCorner = 20, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glass = true, LightGlass = true, Footer = "pill", PageScrim = 0.35
+        },
+        new()
+        {
+            Id = "crimson-hour", Name = "Crimson Hour", Sounds = "deep", Music = "track:Fraxsu", Moving = "", Wallpaper = "image:Crimson.jpg",
+            Description = "The sky turning red: wine-dark panels, a scarlet glow, deep sounds and a moody beat.",
+            Dark = new[] { "#140709", "#FFECEF", "#C9959D", "#2A1014", "#220C10", "#FF3355" },
+            Font = "Franklin Gothic Medium, Segoe UI", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line"
+        },
+        new()
+        {
+            Id = "dorado", Name = "Dorado", Sounds = "glass", Music = "track:Jewels", Moving = "", Wallpaper = "image:Dorado Obscur.jpg",
+            Description = "Dark gold and old masters: shadowy umber, antique-gold highlights, classical serif type and crystal sounds.",
+            Dark = new[] { "#0D0A06", "#FBF1DC", "#BDA47A", "#211A10", "#1A140B", "#D4A24C" },
+            Font = "file:Against_Perfection_Serif_Personal_Use.ttf#Against Perfection Personal Use#Against Perfection Personal Use Serif", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "vignette", Footer = "line"
+        },
+        new()
+        {
+            Id = "gold-dust", Name = "Gold Dust", Sounds = "chime", Music = "track:Sun Rays", Moving = "", Wallpaper = "image:Gold Dust.jpg",
+            Description = "Glitter in the sunlight: warm black, a sparkling gold glow, bright chimes and sunny music.",
+            Dark = new[] { "#120F0A", "#FFF6E2", "#C6B08A", "#251F15", "#1E1910", "#F2C14E" },
+            Font = "Constantia, Segoe UI", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "pill"
+        },
+        new()
+        {
+            Id = "jewel-box", Name = "Jewel Box", Sounds = "glass", Music = "track:Jewels", Moving = "", Wallpaper = "image:Jewels.jpg",
+            Description = "Gems on velvet: amethyst panels, a glossy magenta-violet highlight, glassy clinks and the Jewels theme.",
+            Dark = new[] { "#0C0814", "#F5EEFF", "#B09CCB", "#1D1430", "#170F27", "#E05BFF" },
+            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Gloss = true, Footer = "pill"
+        },
+        new()
+        {
+            Id = "lavender-fields", Name = "Lavender Fields", Sounds = "chime", Music = "track:Sweetness", Moving = "", Wallpaper = "image:Lavender.jpg",
+            Description = "Rows of lavender in Provence: soft lilac and white, a violet highlight, light chimes and a sweet melody.",
+            Light = new[] { "#F5F0FB", "#2B2140", "#6F6488", "#FFFFFF", "#E9E0F5", "#8E6CEF" }, ForceLight = true,
+            Font = "file:ForbiddenLove.otf#Forbidden Love", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "pill", PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "vice-beach", Name = "Vice Beach", Sounds = "arcade", Music = "track:Gaming Vibes", Moving = "", Wallpaper = "image:Leonida.jpg",
+            Description = "Sunset on the boulevard: palm-shadow purples, a flamingo-pink glow, bold type, arcade sounds and a cruising beat.",
+            Dark = new[] { "#1A0E1C", "#FFF0F6", "#D7A6C0", "#2D1730", "#261328", "#FF5FA2" },
+            Font = "file:Synth2-Thin.ttf#Synth#Synth Thin", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line"
+        },
+        new()
+        {
+            Id = "me-o-tu", Name = "Me o Tú", Sounds = "soft", Music = "track:Recuerdos", Moving = "", Wallpaper = "image:Me o Tu.jpg",
+            Description = "A little love letter: soft charcoal, a warm golden highlight, gentle taps and a tender guitar.",
+            Dark = new[] { "#12141A", "#F3F1EC", "#A6A39B", "#1F222A", "#1A1D24", "#FFC46B" },
+            Font = "file:Always_be_honest.otf#Always be honest", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line"
+        },
+        new()
+        {
+            Id = "next-door", Name = "Next Door", Sounds = "classic", Music = "track:Sweetness", Moving = "", Wallpaper = "image:Next Door.jpg",
+            Description = "The friendly neighborhood: plain and comfortable greys, a leafy green highlight, the classic sounds and a sweet tune.",
+            Dark = new[] { "#121417", "#F1F3F5", "#9CA3AB", "#1F2328", "#1A1D21", "#6BCB77" },
+            Font = "Trebuchet MS, Segoe UI", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line"
+        },
+        new()
+        {
+            Id = "nostalgia", Name = "Nostalgia", Sounds = "retro", Music = "track:Recuerdos", Moving = "", Wallpaper = "image:Nostalgia.jpg",
+            Description = "Old photos in a shoebox: sepia browns, a faded-orange highlight, paper grain, retro bleeps and memories in the music.",
+            Dark = new[] { "#1B1410", "#FCEFDC", "#C7AB8E", "#2D221B", "#261D17", "#E9965A" },
+            Font = "Georgia, Segoe UI", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "paper", Footer = "line"
+        },
+        new()
+        {
+            Id = "terra", Name = "Terra", Sounds = "deep", Music = "track:Es Vapour", Moving = "", Wallpaper = "image:Terra.jpg",
+            Description = "Earth and clay: sandstone and terracotta, a burnt-orange highlight, grounded sounds and a warm, hazy track.",
+            Dark = new[] { "#14110C", "#F5EFE3", "#B3A68C", "#262016", "#201B12", "#C97B3D" },
+            Font = "Corbel, Segoe UI", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line"
+        },
+        new()
+        {
+            Id = "the-view", Name = "The View", Sounds = "glass", Music = "track:Waves", Moving = "", Wallpaper = "image:The View.jpg",
+            Description = "From the top of the hill: open-sky blues, a clear highlight, glassy sounds and waves in the distance.",
+            Dark = new[] { "#0D1218", "#EEF3F8", "#96A5B5", "#19212B", "#151C25", "#6FC3FF" },
+            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "pill"
+        },
+        new()
+        {
+            Id = "reflections", Name = "Reflections", Sounds = "chime", Music = "track:Ripples", Moving = "", Wallpaper = "image:Tu Reflexion.jpg",
+            Description = "Your reflection in still water: ink indigo, a soft violet glow, chimes and rippling music.",
+            Dark = new[] { "#0B0D14", "#EDEFFA", "#959BBB", "#181C2B", "#141725", "#A78BFA" },
+            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "none"
+        },
+        new()
+        {
+            Id = "viborl", Name = "Viborl", Sounds = "bubble", Music = "track:Fraxsu", Moving = "", Wallpaper = "image:Viborl.jpg",
+            Description = "Vivid and alive: deep teal panels, a jade-green glow, bubbly pops and a groovy track.",
+            Dark = new[] { "#0A1210", "#E9F6F1", "#8DB1A6", "#13241F", "#0F1E1A", "#2FD3A3" },
+            Font = "Segoe UI Variable Display, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "pill"
+        },
+        new()
+        {
+            Id = "start-menu", Name = "Start Menu", Sounds = "retro", Music = "track:Es Vapour", Moving = "", Wallpaper = "image:Windows 95.jpg",
+            Description = "It's 1995: grey bevelled windows, a navy highlight, square corners, chunky shadows, retro beeps and a vaporwave haze.",
+            Light = new[] { "#D4D0C8", "#000000", "#404040", "#FFFFFF", "#C0C0C0", "#000080" }, ForceLight = true,
+            Font = "Microsoft Sans Serif, Tahoma, Segoe UI", TileCorner = 0, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, RowCorner = 0, Shadow = "hard", Footer = "bar", PageScrim = 0.5
+        },
+        new()
+        {
+            Id = "blossom-night", Name = "Blossom Night", Sounds = "pack:Dreamy SFX", Music = "track:Sun Rays", Moving = "Fall Blossom", Wallpaper = "",
+            Description = "Blossoms drifting under a starry sky: midnight blue and twilight violet, a petal-pink glow, an elegant serif, dreamy sounds and warm music.",
+            Dark = new[] { "#0E1030", "#FDEFFF", "#B9A6D9", "#CC1C1A48", "#CC16163E", "#FF7AD9" },
+            Font = "file:Against_Perfection_Serif_Personal_Use.ttf#Against Perfection Personal Use#Against Perfection Personal Use Serif", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "pill", PageScrim = 0.5
+        },
+        new()
+        {
+            Id = "grape-soda", Name = "Grape Soda", Sounds = "bubble", Music = "track:Jumps", Moving = "", Wallpaper = "preset:5",
+            Description = "Fizzy and sweet: grape-purple gradient, a bubblegum highlight, glossy buttons, bubbly pops and a bouncy tune.",
+            Dark = new[] { "#1E0E33", "#F7EEFF", "#BFA2DB", "#2E1A4B", "#271541", "#FF8BD1" },
+            Font = "file:Happy_Chicken.ttf#Happy Chicken", TileCorner = 20, RowCorner = 20, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Gloss = true, Footer = "pill"
+        },
+        new()
+        {
+            Id = "sandstone", Name = "Sandstone", Sounds = "soft", Music = "track:Coffee Shop", Moving = "", Wallpaper = "preset:7",
+            Description = "Warm desert sand: oatmeal and linen, a caramel highlight, a gentle humanist font, soft taps and café music.",
+            Light = new[] { "#F5EFE6", "#2E2418", "#75664F", "#FFFFFF", "#EBE2D3", "#C8873A" }, ForceLight = true,
+            Font = "Candara, Segoe UI", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "nap-time", Name = "Nap Time", Sounds = "soft", Music = "track:Meditation", Moving = "Sleepy", Wallpaper = "",
+            Description = "A sleepy pixel friend dozing under a big summer cloud: sky blue and cloud white, a sunflower-yellow highlight, hand-drawn lettering, soft sounds and calm music.",
+            Light = new[] { "#EAF5FF", "#1B2A3A", "#5A7088", "#FFFFFF", "#DCEBF7", "#E8A21C" }, ForceLight = true,
+            Font = "file:Dreamink_Cream_Ginger.ttf#Dreamink Cream Ginger", TileCorner = 22, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glyphs = "pixel", Footer = "pill", PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "seaside-summer", Name = "Seaside Summer", Sounds = "bubble", Music = "track:Waves", Moving = "Summer Steam", Wallpaper = "",
+            Description = "A summer ride along the beach path: sand, sea-glass blue and white, a scooter-red highlight, bubbly sounds and the sound of the waves.",
+            Light = new[] { "#F1FAFB", "#173040", "#557684", "#FFFFFF", "#DFEFF2", "#F25C54" }, ForceLight = true,
+            Font = "Trebuchet MS, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "pill", PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "pine-lodge", Name = "Pine Lodge", Sounds = "deep", Music = "track:Meditation", Moving = "", Wallpaper = "preset:3",
+            Description = "A cabin in the pines: forest greens, a lantern-gold highlight, rustic serif type, deep sounds and calm music.",
+            Dark = new[] { "#0F1E16", "#EFF6EE", "#9EB7A2", "#1A2E22", "#15271C", "#E2B04A" },
+            Font = "Georgia, Segoe UI", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "vignette", Footer = "line"
+        },
+        new()
+        {
+            Id = "dreamcore", Name = "Dreamcore", Sounds = "pack:Dreamy SFX", Music = "track:Dreamcore", Moving = "Dreamcore", Wallpaper = "",
+            Description = "Liminal and half-remembered: an endless tiled hall over open water, ultramarine panels with a faint tile grid, a warm amber highlight like the lone sign in the distance, dreamy sounds and a hazy track. Somewhere you've been before, but never quite.",
+            Dark = new[] { "#081640", "#F5F1E8", "#A9B6D9", "#B3132A6A", "#B30F2259", "#F07A2A" },
+            Font = "file:Dreamink_Cream_Ginger.ttf#Dreamink Cream Ginger", TileCorner = 4, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Overlay = "grid", Footer = "pill", PageScrim = 0.6
+        },
+        new()
+        {
+            Id = "acid-garden", Name = "Acid Garden", Sounds = "deep", Music = "track:Gaming Vibes", Moving = "", Wallpaper = "image:Bad Trip.jpg",
+            Description = "A blacklight poster come to life: neon doodles crawling over black, near-black panels so it stays readable, an acid-green highlight, scratchy lettering and a pounding beat.",
+            Dark = new[] { "#0B0712", "#F6F0FF", "#B9A4D9", "#EB180F28", "#EB140C22", "#39FF88" },
+            Font = "file:ESSENTIALO.ttf#ESSENTIALO", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", PageScrim = 0.7
+        },
+        new()
+        {
+            Id = "melt", Name = "Melt", Sounds = "bubble", Music = "track:Es Vapour", Moving = "", Wallpaper = "image:Too Much Acid.jpg",
+            Description = "Everything's melting: 60s swirls of cobalt, tangerine and gold, deep-blue panels, a marigold highlight, bouncy lettering, bubbly pops and a woozy vaporwave track.",
+            Dark = new[] { "#0E1340", "#FFF6E0", "#CFC6A8", "#EB1A2266", "#EB151C58", "#FFB020" },
+            Font = "file:Happy_Chicken.ttf#Happy Chicken", TileCorner = 24, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "pill", PageScrim = 0.7
+        },
+        new()
+        {
+            Id = "kaleidoscope", Name = "Kaleidoscope", Sounds = "pack:Dreamy SFX", Music = "track:Jewels", Moving = "", Wallpaper = "image:Your Fault.jpg",
+            Description = "Rainbow spirals staring back out of the dark: smoky black panels, an electric-cyan highlight that pops against the fire, tall poster lettering and dreamy sounds.",
+            Dark = new[] { "#0A0505", "#FFF3E6", "#D1B49A", "#EB201010", "#EB1A0C0C", "#2FE0FF" },
+            Font = "file:Amazing_Midnight_Personal_Use.ttf#Amazing Midnight Personal Use", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Overlay = "vignette", Footer = "pill", PageScrim = 0.7
+        },
+        new()
+        {
+            Id = "black-bug", Name = "Black Bug", Mode = "oled", Sounds = "retro", Music = "track:Fraxsu", Moving = "Black Bug", Wallpaper = "",
+            Description = "A Y2K desktop that never sleeps: blinking windows, logs and world clocks in pure black and white, true black for OLED screens, a white highlight, scanlines, VHS lettering and retro blips.",
+            Dark = new[] { "#000000", "#F2F2F2", "#8C8C8C", "#E6111111", "#E60A0A0A", "#F2F2F2" },
+            Font = "file:HomeVideo-Regular.ttf#Home Video", TileCorner = 2, RowCorner = 2, RingThickness = 2, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "scanlines", Footer = "bar", Shadow = "none", Stroke = "#3A3A3A", PageScrim = 0.6
+        },
+        new()
+        {
+            Id = "silver-lining", Name = "Silver Lining", Mode = "light", Sounds = "glass", Music = "track:Aero", Moving = "", Wallpaper = "image:Silver Lining.jpg",
+            Description = "Chrome bubbles floating over a pink-lilac sea: milky glass panels, glossy bubble buttons, a candy-pink highlight, airy futuristic lettering, glassy sounds and the Aero soundtrack.",
+            Light = new[] { "#F1EEFA", "#231E3A", "#6A6488", "#C8FFFFFF", "#A8FFFFFF", "#F04FB8" }, ForceLight = true,
+            Font = "file:Vislar-Thin.otf#Vislar#Vislar Thin", TileCorner = 22, RowCorner = 20, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Glass = true, LightGlass = true, Gloss = true, Footer = "pill", PageScrim = 0.35
+        },
+        new()
+        {
+            Id = "waivy-web", Name = "Waivy Web", Sounds = "glass", Music = "track:Ripples", Moving = "", Wallpaper = "image:Waivy Web.jpg",
+            Description = "A warped wireframe grid straight off a 2000s screensaver: graphite panels with a thin outline, a lilac highlight, thin retro-future lettering, glassy sounds and rippling music.",
+            Dark = new[] { "#141416", "#F5F5F7", "#A0A0A8", "#E6222226", "#E61B1B1F", "#C9A8FF" },
+            Font = "file:Synth2-Thin.ttf#Synth#Synth Thin", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Stroke = "accent", Footer = "line", PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "arcade-cabinet", Name = "Arcade Cabinet", Sounds = "arcade", Music = "track:Gaming Vibes", Moving = "", Wallpaper = "",
+            Description = "Insert coin: a dark cabinet with chasing marquee bulbs top and bottom, scan lines, neon-magenta highlights, pixel lettering and arcade blips.",
+            Dark = new[] { "#120A1E", "#FFF0FF", "#C3A6D6", "#241638", "#1D112E", "#FF2BD6" },
+            Font = "file:pixel-it-5x4.ttf#Pixel It! 5x4", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glyphs = "pixel", Ambient = "marquee", Overlay = "scanlines", Glow = true, Footer = "bar", Backdrop = new[] { "#1B0C2E", "#0A0614" }, PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "lullaby", Name = "Lullaby", Sounds = "soft", Music = "track:Meditation", Moving = "", Wallpaper = "",
+            Description = "Bedtime under a pixel sky: deep indigo, blinking square stars, a moon-yellow highlight, soft hand lettering and calm music.",
+            Dark = new[] { "#0C1030", "#EEF0FF", "#A6ADD9", "#1A2050", "#151A44", "#FFD866" },
+            Font = "file:Dreamink_Cream_Ginger.ttf#Dreamink Cream Ginger", TileCorner = 22, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "pixelstars", Footer = "pill", Backdrop = new[] { "#141A4A", "#070A20" }, PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "autumn-walk", Name = "Autumn Walk", Sounds = "soft", Music = "track:Coffee Shop", Moving = "", Wallpaper = "",
+            Description = "A walk through the park in October: rust, amber and cream, leaves drifting down the screen, a pumpkin-orange highlight and café music.",
+            Dark = new[] { "#2A160C", "#FFF1E2", "#D9B49A", "#3D2214", "#341D11", "#FF8A2B" },
+            Font = "Sitka Subheading, Georgia, Segoe UI", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "leaves", Overlay = "vignette", Footer = "pill", Backdrop = new[] { "#5A2A12", "#1E0F07" }, PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "mission-control", Name = "Mission Control", Sounds = "deep", Music = "track:Fraxsu", Moving = "", Wallpaper = "preset:0",
+            Description = "Houston, we have a library: slate panels in cockpit framing, a radar sweeping the corner, a signal-green highlight and deep, steady sounds.",
+            Dark = new[] { "#141A1F", "#E8F4EE", "#93A9A0", "#1E2A30", "#19232A", "#38F28C" },
+            Font = "Bahnschrift, Segoe UI", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "radar", Overlay = "cockpit", Glow = true, Footer = "line", Shadow = "none", PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "glitch-pop", Name = "Glitch Pop", Sounds = "retro", Music = "track:Es Vapour", Moving = "", Wallpaper = "",
+            Description = "A bad signal that looks good: black to magenta, slices that flash cyan and pink, scan lines, VHS lettering and retro blips.",
+            Dark = new[] { "#0A0410", "#FFFFFF", "#C9A6D6", "#1C0B26", "#16081F", "#00F0FF" },
+            Font = "file:HomeVideo-Regular.ttf#Home Video", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "glitch", Overlay = "scanlines", Glow = true, Footer = "line", Backdrop = new[] { "#3A0A4A", "#05020A" }, PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "party-time", Name = "Party Time", Sounds = "bubble", Music = "track:Jumps", Moving = "", Wallpaper = "",
+            Description = "Balloons out: a bright lemonade backdrop, chunky confetti bobbing around the edges, polka dots, a cherry highlight and bubbly pops.",
+            Light = new[] { "#FFF7DB", "#2B1E3A", "#6E5E86", "#FFFFFF", "#FFEDB0", "#FF4D6D" }, ForceLight = true,
+            Font = "file:orange_juice_2.0.ttf#orange juice", TileCorner = 24, RowCorner = 24, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "confetti", Overlay = "dots", Shadow = "hard", Footer = "pill", Backdrop = new[] { "#FFF3B8", "#FFD6E7" }, PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "scrapbook", Name = "Scrapbook", Sounds = "chime", Music = "track:Sweetness", Moving = "", Wallpaper = "",
+            Description = "Notebook pages full of memories: lined paper, stickers and washi tape stuck at odd angles, a marker-blue highlight, neat handwriting and chimes.",
+            Light = new[] { "#FBF8F1", "#2A2A33", "#6B6A78", "#FFFFFF", "#F1ECDF", "#2F6FEB" }, ForceLight = true,
+            Font = "file:Always_be_honest.otf#Always be honest", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "stickers", Overlay = "notebook", Footer = "line", Shadow = "hard", PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "treasure-map", Name = "Treasure Map", Sounds = "classic", Music = "track:Recuerdos", Moving = "", Wallpaper = "",
+            Description = "X marks the spot: aged parchment, an inked compass rose swaying in the corner, a sealing-wax red highlight and an elegant serif.",
+            Light = new[] { "#F3E6C8", "#3A2614", "#7A5C3E", "#FBF2DD", "#E9D7AF", "#B23A2A" }, ForceLight = true,
+            Font = "file:Against_Perfection_Serif_Personal_Use.ttf#Against Perfection Personal Use#Against Perfection Personal Use Serif", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "compass", Overlay = "paper", Footer = "line", Backdrop = new[] { "#F6E9CB", "#E2CC9C" }, PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "neon-highway", Name = "Neon Highway", Sounds = "arcade", Music = "track:Es Vapour", Moving = "", Wallpaper = "",
+            Description = "Racing into the sunset grid: a purple sky, a neon floor rushing toward you, a hot-pink highlight, thin 80s lettering and a vaporwave track.",
+            Dark = new[] { "#14062A", "#FFEFFF", "#D6A8E6", "#250D44", "#1E0A3A", "#FF2E97" },
+            Font = "file:Synth2-Thin.ttf#Synth#Synth Thin", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "horizon", Glow = true, Footer = "line", Backdrop = new[] { "#3B0B5E", "#FF5E8A", "#14062A" }, PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "cozy-cabin", Name = "Cozy Cabin", Sounds = "soft", Music = "track:Coffee Shop", Moving = "", Wallpaper = "",
+            Description = "Snowed in by the fire: warm walnut panels, soft lights drifting like embers, paper grain, a candle-gold highlight and café music.",
+            Dark = new[] { "#1E140F", "#FFF3E6", "#D2B7A2", "#2E1F17", "#271A13", "#FFB648" },
+            Font = "Constantia, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "bokeh", Overlay = "paper", Footer = "pill", Backdrop = new[] { "#3A2216", "#140C08" }, PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "hologram", Name = "Hologram", Sounds = "glass", Music = "track:Aero", Moving = "", Wallpaper = "",
+            Description = "Iridescent and see-through: milky glass over a pearly gradient, glassy shapes floating by, a lilac highlight and airy lettering.",
+            Light = new[] { "#F2F0FF", "#221E3C", "#6A6490", "#C8FFFFFF", "#A8FFFFFF", "#8A5CFF" }, ForceLight = true,
+            Font = "file:Vislar-Thin.otf#Vislar#Vislar Thin", TileCorner = 22, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "float", Glass = true, LightGlass = true, Glow = true, Footer = "pill", PageScrim = 0.35, Backdrop = new[] { "#CFE6FF", "#F4D8FF", "#FFE3EC" }
+        },
+        new()
+        {
+            Id = "starship-bridge", Name = "Starship Bridge", Sounds = "deep", Music = "track:Fraxsu", Moving = "", Wallpaper = "",
+            Description = "On the bridge at warp: a heads-up display, status lights pulsing along the edge, deep space blues, a cyan highlight and deep sounds.",
+            Dark = new[] { "#050B18", "#E6F6FF", "#8FB2C9", "#0E1A2E", "#0A1526", "#2FD8FF" },
+            Font = "file:Cyber_Gaming.ttf#Cyber Gaming", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "status", Overlay = "hud", Glow = true, Footer = "bar", Shadow = "none", Backdrop = new[] { "#0B1B36", "#02050C" }, PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "sparkle-club", Name = "Sparkle Club", Sounds = "bubble", Music = "track:Jewels", Moving = "", Wallpaper = "",
+            Description = "Glitter and gloss: pink chrome, twinkling sparkles, glossy bubble buttons, a sheen across the screen and a candy-pink highlight.",
+            Light = new[] { "#FFF0F7", "#3A1630", "#8A5A7C", "#FFFFFF", "#FFDDEE", "#FF3FA4" }, ForceLight = true,
+            Font = "file:Vislar-Thin.otf#Vislar#Vislar Thin", TileCorner = 24, RowCorner = 24, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "sparkle", Overlay = "sheen", Gloss = true, Glow = true, Footer = "pill", Backdrop = new[] { "#FFD6EC", "#F3E1FF" }, PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "third-eye", Name = "Third Eye", Sounds = "deep", Music = "track:Fraxsu", Moving = "", Wallpaper = "image:Chased.jpg",
+            Description = "Wide awake and seeing everything: a wild psychedelic poster, near-black panels so it stays readable, a lime highlight, tall poster lettering and deep sounds.",
+            Dark = new[] { "#0A0806", "#FFF4E6", "#D6B99A", "#EB1A1410", "#EB140F0C", "#B6F23D" },
+            Font = "file:Amazing_Midnight_Personal_Use.ttf#Amazing Midnight Personal Use", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Overlay = "vignette", Footer = "pill", PageScrim = 0.7
+        },
+        new()
+        {
+            Id = "rewind", Name = "Rewind", Sounds = "retro", Music = "track:Recuerdos", Moving = "", Wallpaper = "",
+            Description = "Press play: the deep blue of a VCR's screen, a worn tape rolling by with its counter running, scan lines, a white highlight and camcorder lettering.",
+            Dark = new[] { "#0018A8", "#FFFFFF", "#B8C4FF", "#0A26C4", "#0820B8", "#FFFFFF" },
+            Font = "file:HomeVideo-Regular.ttf#Home Video", TileCorner = 2, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "vhs", Overlay = "scanlines", Footer = "none", Shadow = "none", Backdrop = new[] { "#0022C8", "#000E78" }, PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "ocean-breeze", Name = "Ocean Breeze", Sounds = "glass", Music = "track:Waves", Moving = "", Wallpaper = "preset:2",
+            Description = "A salty breeze off the water: deep teal to turquoise, glassy shapes drifting like bubbles, a sea-foam highlight and the sound of waves.",
+            Dark = new[] { "#06303A", "#E8FBFF", "#93C9D2", "#0C4250", "#093846", "#5FF2D9" },
+            Font = "file:Tindamare.ttf#Tindamare", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "float", Glow = true, Footer = "pill", PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "desert-dusk", Name = "Desert Dusk", Sounds = "soft", Music = "track:Sun Rays", Moving = "", Wallpaper = "preset:4",
+            Description = "The last light over the dunes: a red-to-amber sky, sand-colored panels, a soft dark edge, a turquoise highlight like desert stone and warm music.",
+            Dark = new[] { "#2A120C", "#FFF2E6", "#E0B8A0", "#3E1C12", "#34170F", "#3FD6C6" },
+            Font = "Sitka Heading, Georgia, Segoe UI", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "vignette", Footer = "line", PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "starfall", Name = "Starfall", Sounds = "pack:Dreamy SFX", Music = "track:Dreamcore", Moving = "", Wallpaper = "preset:1",
+            Description = "Wishing on falling stars: plum dusk to rose, twinkling sparkles, a starlight highlight, sweet hand lettering and dreamy sounds.",
+            Dark = new[] { "#1E1030", "#FFF0FA", "#D8A8CC", "#2E1A46", "#26153C", "#FFE38A" },
+            Font = "file:Dreamink_Cream_Ginger.ttf#Dreamink Cream Ginger", TileCorner = 20, RowCorner = 20, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Ambient = "sparkle", Glow = true, Footer = "pill", PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "rainy-window", Name = "Rainy Window", Sounds = "soft", Music = "track:Coffee Shop", Moving = "Cyberpunk Rain", Wallpaper = "",
+            Description = "Watching the rain from inside: the city blurred through wet glass, smoky panels, a lamp-amber highlight, handwritten notes and café music.",
+            Dark = new[] { "#0C0E14", "#EEF0F6", "#9AA0B4", "#CC161A24", "#CC12151E", "#FFB547" },
+            Font = "file:Always_be_honest.otf#Always be honest", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, DarkGlass = true, Footer = "pill", PageScrim = 0.55
+        },
+        new()
+        {
+            Id = "matcha", Name = "Matcha", Sounds = "soft", Music = "track:Relaxing", Moving = "", Wallpaper = "",
+            Description = "A slow afternoon tea: whisked-green and oat-milk cream, paper grain, a matcha highlight, a friendly humanist font and relaxing music.",
+            Light = new[] { "#F3F1E4", "#2A3324", "#66705A", "#FFFFFF", "#E4E8D0", "#5E9B3A" }, ForceLight = true,
+            Font = "Candara, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Overlay = "paper", Footer = "pill", Backdrop = new[] { "#F4F1E2", "#DCE6C4" }, PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "bubblegum", Name = "Bubblegum", Sounds = "bubble", Music = "track:Sweetness", Moving = "", Wallpaper = "",
+            Description = "Pop! Pastel pink and sky blue, glossy bubble buttons with a shine, a hot-pink highlight, bubbly hand lettering and bubbly sounds.",
+            Light = new[] { "#FFF0F6", "#3A1A34", "#86607E", "#FFFFFF", "#FFDCEB", "#FF4FA0" }, ForceLight = true,
+            Font = "file:orange_juice_2.0.ttf#orange juice", TileCorner = 26, RowCorner = 26, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Gloss = true, Footer = "pill", Shadow = "hard", Backdrop = new[] { "#FFD3E8", "#CDEBFF" }, PageScrim = 0.4
+        },
+        new()
+        {
+            Id = "phosphor", Name = "Phosphor", Sounds = "retro", Music = "track:Fraxsu", Moving = "", Wallpaper = "",
+            Description = "An old green-screen terminal: true black, glowing phosphor green, scan lines, thin dot-matrix capitals and retro blips.",
+            Dark = new[] { "#000000", "#7CFF8A", "#3FAE4E", "#0A140C", "#071009", "#39FF6A" },
+            Font = "file:Sixrow-Thin.ttf#Sixrow#Sixrow Thin", TileCorner = 2, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Mode = "oled", Overlay = "scanlines", Glow = true, Footer = "none", Shadow = "none", Stroke = "#1C4A24", PageScrim = 0.55
+        },
     };
 
     public static UiStyle Current { get; private set; } = All[0];
 
-    /// <summary>The style with this id. Styles from older versions map to their nearest replacement.</summary>
-    public static UiStyle Find(string? id) => All.FirstOrDefault(s => s.Id == Upgrade(id)) ?? All[0];
+    /// <summary>Styles you made yourself (Settings > Themes > Your styles), built from settings by MyStyles.Load.</summary>
+    public static IReadOnlyList<UiStyle> Custom { get; private set; } = Array.Empty<UiStyle>();
+
+    public static void SetCustom(IReadOnlyList<UiStyle> styles) => Custom = styles;
+
+    /// <summary>The style with this id (yours too). Styles from older versions map to their nearest replacement.</summary>
+    public static UiStyle Find(string? id) =>
+        MyStyles.IsCustom(id) ? Custom.FirstOrDefault(s => s.Id == id) ?? All[0] : All.FirstOrDefault(s => s.Id == Upgrade(id)) ?? All[0];
+
+    /// <summary>Whether there's a style with this id (a style of yours that was deleted isn't).</summary>
+    public static bool Exists(string? id) =>
+        MyStyles.IsCustom(id) ? Custom.Any(s => s.Id == id) : All.Any(s => s.Id == Upgrade(id));
 
     public static string Upgrade(string? id) => id switch
     {
@@ -1032,42 +973,9 @@ public static class UiStyles
 
     public static void Select(string? id) => Current = Find(id);
 
-    public static readonly (string Id, string Name, string About)[] NavButtonStyles =
-    {
-        ("style", "From the UI style", "Whatever the chosen UI style uses"),
-        ("circle", "Circles", "Round buttons, name underneath"),
-        ("square", "Squares", "Rounded squares"),
-        ("small", "Small circles", "Compact round buttons"),
-        ("outline", "Outline", "See-through rings with just an edge"),
-        ("glossy", "Glossy", "Bubbly buttons with a shine across the top"),
-        ("card", "Cards", "Icon with its name on each button"),
-        ("tab", "Pills", "Wide pills with icon and name"),
-        ("large", "Big circles", "Larger round buttons, easy to hit on a touchscreen"),
-        ("soft", "Soft squares", "Squares with very round corners, like phone app icons"),
-        ("wide", "Wide tiles", "Wide rectangles with the name under the icon"),
-        ("accent", "Accent circles", "Round buttons filled with the highlight color"),
-        ("neon", "Neon rings", "Glowing rings in the highlight color"),
-    };
-
-    public static readonly (string Id, string Name, string About)[] FooterStyles =
-    {
-        ("style", "From the UI style", "Whatever the chosen UI style uses"),
-        ("line", "Line", "A thin line above the hints"),
-        ("bar", "Solid bar", "A dark bar across the bottom"),
-        ("glassbar", "Glass bar", "A frosted bar across the bottom"),
-        ("pill", "Floating pill", "A frosted pill floating above the bottom edge"),
-        ("taskbar", "Taskbar", "A grey 90s taskbar with a raised edge"),
-        ("fade", "Fade", "The bottom of the screen darkens softly behind the hints"),
-        ("accentbar", "Color bar", "A bar in the highlight color"),
-        ("outlinepill", "Outline pill", "A floating pill drawn as just an outline"),
-        ("floatbar", "Floating bar", "A solid rounded bar that floats above the edge"),
-        ("neonline", "Neon line", "A glowing line in the highlight color"),
-        ("none", "None", "Just the hints"),
-    };
-
     public static readonly (string Id, string Name, string About)[] TileArts =
     {
-        ("style", "From the UI style", "Whatever the chosen UI style uses"),
+        ("style", "Default", "SquareDeck's standard look"),
         ("square", "Square", "The square cover"),
         ("tall", "Tall grid", "Tall 2:3 poster art"),
         ("wide", "Rectangle", "The wide header capsule (460×215)"),
@@ -1075,44 +983,19 @@ public static class UiStyles
 
     public static readonly (string Id, string Name, string About)[] TileSizes =
     {
-        ("style", "From the UI style", "The size the UI style uses"),
+        ("style", "Default", "SquareDeck's standard size"),
         ("small", "Small", "More games on screen"),
         ("medium", "Medium", "The usual size"),
         ("large", "Large", "Bigger art, fewer on screen"),
     };
 
-    public static readonly (string Id, string Name, string About)[] DockStyles =
-    {
-        ("style", "From the UI style", "Whatever the chosen UI style uses"),
-        ("none", "None", "Buttons stand on their own"),
-        ("glass", "Frosted shelf", "A frosted glass shelf behind the buttons"),
-        ("solid", "Solid shelf", "A solid panel in the theme's colors"),
-        ("outline", "Outline", "Just an outline around the buttons"),
-        ("glow", "Neon glow", "A dark shelf with a glowing highlight-color edge"),
-        ("smoke", "Smoked glass", "A dark, tinted shelf"),
-        ("gradient", "Color fade", "A shelf that fades from the highlight color"),
-        ("bevel", "Raised (90s)", "A grey shelf with a raised 3D edge"),
-        ("underline", "Underline", "No shelf, just a bold line under the buttons"),
-        ("sticker", "Sticker", "A light card with a hard shadow, like a sticker"),
-    };
-
     /// <summary>
-    /// Your own choices for the home screen's buttons, footer and the shelf (dock) the buttons sit on, laid over the
-    /// UI style (Settings > Appearance > Home screen). "style" keeps the style's own.
+    /// Your own choices laid over the UI style: the font, and the game art's shape and size. "style" keeps the
+    /// style's own. (Choices for the home buttons, their shelf and the footer were removed in 6.4.1.)
     /// </summary>
     public static void ApplyOverrides(Settings settings)
     {
         var s = Current;
-        s = settings.NavButtonStyle switch
-        {
-            "circle" or "square" or "small" or "card" or "tab" => s with { Buttons = settings.NavButtonStyle, OutlineButtons = false, Gloss = false },
-            "outline" => s with { Buttons = "circle", OutlineButtons = true, Gloss = false },
-            "glossy" => s with { Buttons = "circle", OutlineButtons = false, Gloss = true },
-            "large" or "soft" or "wide" => s with { Buttons = settings.NavButtonStyle, OutlineButtons = false, Gloss = false, ButtonLook = "" },
-            "accent" => s with { Buttons = "circle", OutlineButtons = false, Gloss = false, ButtonLook = "accent" },
-            "neon" => s with { Buttons = "circle", OutlineButtons = true, Gloss = false, ButtonLook = "neon" },
-            _ => s
-        };
         if (settings.UiFont is { Length: > 0 } font && font != "style") s = s with { Font = font };
         s = settings.TileArt switch
         {
@@ -1124,17 +1007,6 @@ public static class UiStyles
         // Wide tiles are about twice as wide, so they're drawn smaller to keep a few on screen.
         double size = (settings.TileSize switch { "small" => 0.82, "large" => 1.16, _ => 1.0 }) * (s.Wide ? 0.66 : 1.0);
         if (Math.Abs(size - 1) > 0.001) s = s with { TileScale = s.TileScale * size };
-        s = settings.FooterStyle switch
-        {
-            "line" or "bar" or "glassbar" or "pill" or "none" or "taskbar" or "fade" or "accentbar" or "outlinepill" or "floatbar" or "neonline" => s with { Footer = settings.FooterStyle },
-            _ => s
-        };
-        s = settings.DockStyle switch
-        {
-            "none" => s with { ButtonDock = false },
-            "glass" or "solid" or "outline" or "glow" or "smoke" or "gradient" or "bevel" or "underline" or "sticker" => s with { ButtonDock = true, DockLook = settings.DockStyle },
-            _ => s
-        };
         Current = s;
     }
 

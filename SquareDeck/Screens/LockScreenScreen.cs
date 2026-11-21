@@ -133,32 +133,61 @@ public sealed class LockScreenScreen : GridScreen
     /// Sets the lock screen: first the normal way (as Settings > Personalization does); if Windows refuses, through the
     /// lock screen policy, which asks for administrator permission once.
     /// </summary>
+    /// <summary>Copies the picture into SquareDeck's data folder (so it keeps working if the original moves).</summary>
+    private static string CopyForLockScreen(string source)
+    {
+        var folder = Path.Combine(Settings.DataDir, "lockscreen");
+        Directory.CreateDirectory(folder);
+        foreach (var old in Directory.GetFiles(folder)) { try { File.Delete(old); } catch (Exception) { } }
+        var copy = Path.Combine(folder, "lockscreen-" + DateTime.Now.ToString("yyyyMMddHHmmss") + Path.GetExtension(source));
+        File.Copy(source, copy, true);
+        return copy;
+    }
+
+    private static async Task<bool> SetDirectAsync(string copy)
+    {
+        try
+        {
+            var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(copy);
+            await Windows.System.UserProfile.LockScreen.SetImageFileAsync(file);
+            return true;
+        }
+        catch (Exception) { return false; }
+    }
+
+    /// <summary>
+    /// Sets the lock screen without asking anything (a style of your own being chosen). False if Windows didn't allow
+    /// it the normal way; the Windows lock screen page can still set it through the policy.
+    /// </summary>
+    public static async Task<bool> SetQuietlyAsync(string source, Settings settings)
+    {
+        if (string.Equals(settings.LockScreenSource, source, StringComparison.OrdinalIgnoreCase)) return true; // already on it
+        try
+        {
+            if (!await SetDirectAsync(CopyForLockScreen(source))) return false;
+            settings.LockScreenSource = source;
+            settings.Save();
+            return true;
+        }
+        catch (Exception) { return false; }
+    }
+
     private async Task ApplyAsync(string source)
     {
         _status.Text = "Setting the lock screen…";
-        string? copy = null;
-        try
-        {
-            var folder = Path.Combine(Settings.DataDir, "lockscreen");
-            Directory.CreateDirectory(folder);
-            foreach (var old in Directory.GetFiles(folder)) { try { File.Delete(old); } catch (Exception) { } }
-            copy = Path.Combine(folder, "lockscreen-" + DateTime.Now.ToString("yyyyMMddHHmmss") + Path.GetExtension(source));
-            File.Copy(source, copy, true);
-        }
+        string copy;
+        try { copy = CopyForLockScreen(source); }
         catch (Exception ex)
         {
             _status.Text = "Couldn't copy the picture: " + ex.Message;
             return;
         }
 
-        try
+        if (await SetDirectAsync(copy))
         {
-            var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(copy);
-            await Windows.System.UserProfile.LockScreen.SetImageFileAsync(file);
             await ConfirmAsync(source);
             return;
         }
-        catch (Exception) { }
 
         // Some editions and managed PCs only allow it through the policy setting.
         if (await Host.AskAsync("Windows needs permission", "Windows didn't let SquareDeck change the lock screen directly. It can be set through the lock screen policy instead, which needs administrator permission once.",

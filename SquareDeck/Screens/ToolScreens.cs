@@ -750,8 +750,17 @@ public sealed class ControllerTestScreen : Screen
 /// <summary>The game stores installed on this PC, and a way to get the others.</summary>
 public sealed class StoresScreen : GridScreen
 {
-    private const double TileSize = 170;
+    /// <summary>ubiquity: the page is laid out like its home screen (see <see cref="BuildShowcase"/>).</summary>
+    private readonly bool _cine = Looks.Current.Id is "ubiquity" or "aniki" or "solaris" or "orbit";
+    /// <summary>SquareDeck: labeled rows ("Stores", "More") with no big space at the top, like a handheld's library.</summary>
+    private readonly bool _rows = Looks.Current.Id == "deck";
+    private double TileSize => _cine ? 150 : 170;
     private List<StoreApp> _all = new();
+    private readonly WrapPanel _more = new();
+    private readonly Image _heroImage = new() { Height = 150, MaxWidth = 300, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBlock _heroGlyph = Ui.Glyph("", 110, "AccentBrush");
+    private readonly TextBlock _heroName = Ui.Text("", 44, "FgBrush");
+    private readonly TextBlock _heroAbout = Ui.Text("", 17, "SubtleBrush");
 
     public StoresScreen() : base("Stores", "{Select}  Open      {Options}  Hide or uninstall      {Back}  Back") { }
 
@@ -763,6 +772,8 @@ public sealed class StoresScreen : GridScreen
     {
         _all = await Task.Run(Stores.Detect);
         Tiles.Children.Clear();
+        _more.Children.Clear();
+        if (_cine || _rows) BuildShowcase();
         var hidden = Host.Settings.HiddenStores;
 
         foreach (var store in _all.Where(s => s.Installed && !hidden.Contains(s.Name)))
@@ -771,7 +782,7 @@ public sealed class StoresScreen : GridScreen
             var box = ImageBox(TileSize, TileSize, out var icon);
             icon.Stretch = Stretch.Uniform;
             icon.Margin = new Thickness(34);
-            AddTile(box, s.Name, TileSize, () =>
+            AddTile(box, _cine ? null : s.Name, TileSize, () =>
             {
                 if (!Stores.Open(s)) _ = Host.AskAsync("Couldn't open " + s.Name, "Its app didn't start.", "OK");
             }, s);
@@ -784,18 +795,129 @@ public sealed class StoresScreen : GridScreen
         foreach (var service in CloudService.All.Where(c => Host.Settings.CloudServices.Contains(c.Id)))
         {
             var cs = service;
-            AddTile(cs.Face(TileSize, TileSize, 18), cs.Name, TileSize, () => Host.Push(new CloudGameScreen(cs)));
+            AddTile(cs.Face(TileSize, TileSize, _cine ? 2 : 18), _cine ? null : cs.Name, TileSize, () => Host.Push(new CloudGameScreen(cs)), cs.Name);
         }
 
         // Prices and release days of the games you want.
         int onSale = Host.PriceWatch.Games.Count(g => g.OnSale);
-        AddTile(GlyphBox(TileSize, TileSize, "\uE8EC"), onSale > 0 ? $"Wishlist · {onSale} on sale" : "Wishlist and sales", TileSize, () => Host.Push(new WishlistScreen()));
-        AddTile(GlyphBox(TileSize, TileSize, "\uE787"), "Release calendar", TileSize, () => Host.Push(new ReleaseCalendarScreen()));
-        AddTile(GlyphBox(TileSize, TileSize, "\uE710"), "Add more stores", TileSize, () => Host.Push(new AddStoresScreen()));
+        Panel? extras = _cine || _rows ? _more : null;
+        double small = _cine ? 110 : TileSize;
+        string wish = onSale > 0 ? $"Wishlist · {onSale} on sale" : "Wishlist and sales";
+        AddTile(GlyphBox(small, small, "\uE8EC"), _cine ? null : wish, small, () => Host.Push(new WishlistScreen()), wish, extras);
+        AddTile(GlyphBox(small, small, "\uE787"), _cine ? null : "Release calendar", small, () => Host.Push(new ReleaseCalendarScreen()), "Release calendar", extras);
+        AddTile(GlyphBox(small, small, "\uE710"), _cine ? null : "Add more stores", small, () => Host.Push(new AddStoresScreen()), "Add more stores", extras);
         int hiddenInstalled = _all.Count(s => s.Installed && hidden.Contains(s.Name));
         if (hiddenInstalled > 0)
-            AddTile(GlyphBox(TileSize, TileSize, "\uE7B3"), $"Hidden stores ({hiddenInstalled})", TileSize, () => _ = ShowHiddenAsync());
+            AddTile(GlyphBox(small, small, "\uE7B3"), _cine ? null : $"Hidden stores ({hiddenInstalled})", small, () => _ = ShowHiddenAsync(), $"Hidden stores ({hiddenInstalled})", extras);
+        if (_cine) HookShowcase();
         FocusDefaultLater();
+    }
+
+    /// <summary>
+    /// ubiquity's Stores page, laid out like its home screen: the store you're on large at the top left (its logo, its
+    /// name in thin spaced capitals, a line about it), "S T O R E S" over a row of small square tiles, then
+    /// "M O R E" over smaller ones for the wishlist, the release calendar and adding stores. No names under the tiles.
+    /// </summary>
+    private void BuildShowcase()
+    {
+        Body.Children.Clear();
+        Body.Margin = new Thickness(40, 0, 0, 0);
+        string look = Looks.Current.Id;
+        var hero = new StackPanel { Margin = new Thickness(8, 10, 0, 34), Height = 300, Visibility = _cine ? Visibility.Visible : Visibility.Collapsed };
+        var picture = new Grid { Height = 150, HorizontalAlignment = HorizontalAlignment.Left };
+        _heroGlyph.HorizontalAlignment = HorizontalAlignment.Left;
+        _heroGlyph.VerticalAlignment = VerticalAlignment.Center;
+        _heroImage.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 0, Opacity = 0.6 };
+        picture.Children.Add(_heroImage);
+        picture.Children.Add(_heroGlyph);
+        hero.Children.Add(picture);
+        // The name in each look's type: thin spaced capitals (ubiquity), heavy (Aniki), light capitals (Solaris), light (Orbit).
+        _heroName.FontWeight = look switch { "aniki" => FontWeights.Black, _ => FontWeights.Light };
+        _heroName.FontSize = look switch { "aniki" => 56, "solaris" => 60, "orbit" => 50, _ => 44 };
+        _heroName.Margin = new Thickness(0, 22, 0, 0);
+        hero.Children.Add(_heroName);
+        var line = new Border { Width = 64, Height = 2, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(2, 12, 0, 10),
+                                Visibility = look == "ubiquity" ? Visibility.Visible : Visibility.Collapsed };
+        line.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+        hero.Children.Add(line);
+        if (look != "ubiquity") _heroAbout.Margin = new Thickness(2, 10, 0, 0);
+        _heroAbout.TextWrapping = TextWrapping.Wrap;
+        _heroAbout.TextTrimming = TextTrimming.None;
+        _heroAbout.MaxWidth = 720;
+        hero.Children.Add(_heroAbout);
+        Body.Children.Add(hero);
+
+        TextBlock Label(string text)
+        {
+            var l = look switch
+            {
+                "ubiquity" => Ui.Text(LookChrome.Spaced(text), 14, "SubtleBrush"),
+                "solaris" => Ui.Text(text.ToUpperInvariant(), 13, "AccentBrush", bold: true),
+                "deck" => Ui.Text(text, 22, "FgBrush", bold: true),
+                _ => Ui.Text(text, 20, "FgBrush", bold: look == "aniki")
+            };
+            if (look == "orbit") l.FontWeight = FontWeights.Light;
+            l.Margin = new Thickness(10, 0, 0, look == "deck" ? 8 : 2);
+            return l;
+        }
+        Body.Children.Add(Label("Stores"));
+        Body.Children.Add(Tiles);
+        var moreLabel = Label("More");
+        moreLabel.Margin = new Thickness(10, 18, 0, 2);
+        Body.Children.Add(moreLabel);
+        Body.Children.Add(_more);
+    }
+
+    /// <summary>Moving onto a tile shows it in the big space at the top.</summary>
+    private void HookShowcase()
+    {
+        foreach (var tile in Tiles.Children.OfType<Button>().Concat(_more.Children.OfType<Button>()))
+        {
+            var t = tile;
+            t.GotKeyboardFocus += (_, _) => ShowInHero(t);
+        }
+    }
+
+    private void ShowInHero(Button tile)
+    {
+        // The tile's own picture (a store's logo) or its symbol (the wishlist, the calendar...).
+        var image = FindChild<Image>(tile);
+        var glyph = FindChild<TextBlock>(tile, g => Equals(g.FontFamily, Ui.IconFont));
+        if (image?.Source != null && glyph == null)
+        {
+            _heroImage.Source = image.Source;
+            _heroImage.Visibility = Visibility.Visible;
+            _heroGlyph.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            _heroGlyph.Text = glyph?.Text ?? "\uE719";
+            _heroGlyph.Visibility = Visibility.Visible;
+            _heroImage.Visibility = Visibility.Collapsed;
+        }
+        string name = tile.Tag switch { StoreApp s => s.Name, string s => s, _ => "" };
+        string shown = name.Split(" · ")[0];
+        _heroName.Text = Looks.Current.Id switch { "ubiquity" => LookChrome.Spaced(shown), "solaris" => shown.ToUpperInvariant(), _ => shown };
+        _heroAbout.Text = tile.Tag switch
+        {
+            StoreApp s => $"Opens {s.Name}.  Press Y to hide it from this page or uninstall it.",
+            string s when s.StartsWith("Wishlist") => s.Contains("on sale") ? s.Split(" · ")[1] + " from your wishlist. Prices and release days of the games you want." : "Prices and release days of the games you want.",
+            "Release calendar" => "What's coming out, day by day.",
+            "Add more stores" => "Install another game store or launcher.",
+            string s when s.StartsWith("Hidden") => "Stores you've hidden from this page. Pick one to show it again.",
+            string s => "Play " + s + " in the cloud.",
+            _ => ""
+        };
+    }
+
+    private static T? FindChild<T>(DependencyObject root, Func<T, bool>? match = null) where T : DependencyObject
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is T found && (match == null || match(found))) return found;
+            if (FindChild(child, match) is { } deeper) return deeper;
+        }
+        return null;
     }
 
     public override bool OnAction(NavAction action)

@@ -19,16 +19,18 @@ public sealed class ThemeScreen : ListScreen
 
         AddHeader("My themes");
         AddRow("Save the current look", s.SavedThemes.Count > 0 ? $"{s.SavedThemes.Count} saved" : "", "\uE74E", click: () => _ = SaveCurrentAsync(),
-            subtitle: "UI style, colors, highlight, wallpaper, moving background, sounds, music and button pictures, together");
+            subtitle: "Colors, highlight, wallpaper, moving background, sounds, music and button pictures, together");
         foreach (var saved in s.SavedThemes.ToList())
         {
             var t = saved;
-            AddRow(t.Name, UiStyles.Find(t.UiStyle).Name + (Theme.Palettes.TryGetValue(t.ThemePalette, out var tp) ? " · " + tp.Name : ""), "\uE790",
+            AddRow(t.Name, Theme.Palettes.TryGetValue(t.ThemePalette, out var tp) ? tp.Name : "Standard colors", "\uE790",
                 click: () => _ = SavedThemeMenuAsync(t), subtitle: "Saved " + t.Saved.ToString("MMM d, yyyy"));
         }
 
-        AddHeader("Ready-made looks");
-        foreach (var preset in Theme.Presets)
+        // Ready-made looks set light or dark, colors, wallpaper, corners and sounds together: only for the Switch style
+        // (the other styles bring all of that themselves).
+        if (UiStyles.Current.Id == "switch") AddHeader("Ready-made looks");
+        foreach (var preset in Theme.Presets.Where(_ => UiStyles.Current.Id == "switch"))
         {
             var p = preset;
             string details = (p.Mode switch { "dark" => "Dark", "oled" => "Black", _ => "Light" }) + ", " +
@@ -47,6 +49,13 @@ public sealed class ThemeScreen : ListScreen
             });
         }
 
+        // Mixing your own wallpaper, colors, corners and sounds is for the Switch style too; the others bring their own.
+        if (UiStyles.Current.Id != "switch")
+        {
+            AddNote("Ready-made looks and making your own are for the Switch style. " + UiStyles.Current.Name +
+                    " brings its own colors, wallpaper and sounds; pick Switch in Settings > Themes to mix your own.");
+            return;
+        }
         AddHeader("Make your own");
         AddRow("Wallpaper", WallpaperLabel(s.Wallpaper), "", click: () => Host.Push(new WallpaperScreen()));
         AddRow("Color theme", Theme.Palettes.TryGetValue(s.ThemePalette, out var pal) ? pal.Name : "Standard", "\uE790",
@@ -90,7 +99,7 @@ public sealed class ThemeScreen : ListScreen
     {
         var s = Host.Settings;
         var name = await Host.PromptAsync("Save this look", "Give it a name, to find it again here.",
-            UiStyles.Find(s.UiStyle).Name + " " + (s.SavedThemes.Count + 1));
+            "My theme " + (s.SavedThemes.Count + 1));
         if (string.IsNullOrWhiteSpace(name)) return;
         name = name.Trim();
         // The same name replaces the earlier one.
@@ -104,7 +113,7 @@ public sealed class ThemeScreen : ListScreen
     private async Task SavedThemeMenuAsync(SavedTheme t)
     {
         var s = Host.Settings;
-        int choice = await Host.AskAsync(t.Name, UiStyles.Find(t.UiStyle).Name + ", saved " + t.Saved.ToString("MMMM d, yyyy"),
+        int choice = await Host.AskAsync(t.Name, "Saved " + t.Saved.ToString("MMMM d, yyyy"),
             "Use this look", "Update with the current look", "Rename", "Delete", "Cancel");
         switch (choice)
         {

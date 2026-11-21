@@ -31,7 +31,7 @@ one home screen in front of all of it: pick it up, press A, play.
 - **Built for a controller.** Every page, setting and pop-up works with a gamepad, touch, keyboard or mouse.
 - **Made for handhelds.** Power limits (TDP) per game, a quick menu over your game, and it gets out of the game's way
   while you play.
-- **Yours to style.** 84 UI styles with matching colors, wallpapers, sounds and music.
+- **Yours to style.** Color themes, wallpapers, moving backgrounds, sounds and music (a new theming system is on the way).
 
 ## Features
 
@@ -91,10 +91,13 @@ one home screen in front of all of it: pick it up, press A, play.
 - Performance mode, low-battery notice and Do not disturb while playing
 
 ### Look and feel
-- 84 UI styles across five layouts: classic row, hero, top row, sidebar and stage, some with gentle ambient animation
-- Your own choice of home-screen button style (13), button shelf (10) and footer (12), on top of any UI style, and 22 color themes
-- Pixel-art, frosted glass, Frutiger Aero, OLED black, console-inspired and themed styles
-- 26 moving backgrounds (or add your own videos), 18 picture wallpapers, 14 music tracks and 7 interface sound packs
+- Themes: 100 styles of the Switch design, each with its own colors, type, corners, buttons, wallpaper or moving
+  background, sounds and music
+- Create your own styles: background, music, interface and navigation sounds, colors, font, button shape and look,
+  shelf, effects (halftone, comic book, synthwave, Y2K, dreamcore and more), game art, animations and the Windows lock
+  screen picture. Save them with your own name, and export or import them as .sdstyle files
+- 22 color themes, plus your choice of font and game art shape and size
+- 37 moving backgrounds (or add your own videos), 24 picture wallpapers, 15 music tracks and 3 interface sound packs
 - Controller button pictures for Xbox, PlayStation and Switch, in two art styles, plus keyboard keys
 - Light, dark, OLED and high-contrast themes, larger text and reduced motion
 - 16 startup animations, and a "Good morning" greeting by your profile picture
@@ -116,69 +119,6 @@ one home screen in front of all of it: pick it up, press A, play.
 - Apps in Settings: see every installed app, and uninstall, modify, repair or reset it
 - A play-time dashboard: weekly and 12-week charts, an activity heat map, most-played games, genres, habits, achievements and records
 - Optional player stats on game pages: players now and peaks, owner estimates, monthly players and review history, with SteamDB a press away
-
-### Some of the Many Available UI Styles
-
-## Pop Art
-
-<img width="2559" height="1439" alt="UI 3" src="https://github.com/user-attachments/assets/143296ca-664d-48f8-a265-7d7f5a8c72c2" />
-
-## Retro
-
-<img width="2559" height="1439" alt="UI 2" src="https://github.com/user-attachments/assets/2203077b-14ae-4937-8ec5-1658b8d77b2b" />
-
-## Aurora
-
-<img width="2559" height="1439" alt="UI 6" src="https://github.com/user-attachments/assets/38a0fde8-304c-4c67-a2ab-5831475500f0" />
-
-## Pixel Dawn
-
-<img width="2559" height="1439" alt="UI 7" src="https://github.com/user-attachments/assets/a18d951a-94d7-432e-8499-8b0db6c1d8a3" />
-
-## Pixel City
-
-<img width="2559" height="1439" alt="UI 9" src="https://github.com/user-attachments/assets/7e3dad52-a7e5-40a8-81c8-7d6443882e90" />
-
-### Built-in Solutions
-
-## File Explorer
-
-<img width="2559" height="1439" alt="File Explorer" src="https://github.com/user-attachments/assets/b17bd796-df4b-43cc-9b36-8d106b50dd41" />
-
-## Music Player
-
-<img width="2559" height="1439" alt="Music Player" src="https://github.com/user-attachments/assets/7716aaea-1b45-480f-a6e4-c1be6883a067" />
-
-## Web Browser
-
-<img width="2559" height="1439" alt="Browser" src="https://github.com/user-attachments/assets/1a5a70eb-ee64-454e-ab19-c3ac034e246c" />
-
-## Task Manager
-
-<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/0995c3ca-374d-405b-9f68-077b6781fd4e" />
-
-
-### Some of the Many Available UI Styles
-
-## Pop Art
-
-<img width="2559" height="1439" alt="UI 3" src="https://github.com/user-attachments/assets/143296ca-664d-48f8-a265-7d7f5a8c72c2" />
-
-## Retro
-
-<img width="2559" height="1439" alt="UI 2" src="https://github.com/user-attachments/assets/2203077b-14ae-4937-8ec5-1658b8d77b2b" />
-
-## Aurora
-
-<img width="2559" height="1439" alt="UI 6" src="https://github.com/user-attachments/assets/38a0fde8-304c-4c67-a2ab-5831475500f0" />
-
-## Pixel Dawn
-
-<img width="2559" height="1439" alt="UI 7" src="https://github.com/user-attachments/assets/a18d951a-94d7-432e-8499-8b0db6c1d8a3" />
-
-## Pixel City
-
-<img width="2559" height="1439" alt="UI 9" src="https://github.com/user-attachments/assets/7e3dad52-a7e5-40a8-81c8-7d6443882e90" />
 
 ### Built-in Solutions
 

@@ -84,14 +84,16 @@ public partial class MainWindow
 
         // Just right of the picture, centred on it, above everything in the top bar.
         var at = AvatarButton.TranslatePoint(new Point(AvatarButton.ActualWidth, AvatarButton.ActualHeight / 2), RootGrid);
-        var slide = new TranslateTransform(-width, 0);
+        double hidden = -width;
+        var slide = new TranslateTransform(hidden, 0);
         bubble.RenderTransform = slide;
         bubble.Opacity = 0;
         bubble.Margin = new Thickness(0, 12, 0, 12);
+        var margin = new Thickness(at.X + 10, at.Y - 36, 0, 0);
         var host = new Grid
         {
             ClipToBounds = true, Width = width, Height = 72, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(at.X + 10, at.Y - 36, 0, 0), IsHitTestVisible = false
+            Margin = margin, IsHitTestVisible = false
         };
         host.Children.Add(bubble);
         Grid.SetRowSpan(host, Math.Max(1, RootGrid.RowDefinitions.Count));
@@ -117,7 +119,7 @@ public partial class MainWindow
         }
 
         // In: out from behind the picture with a little overshoot, fading up; the hand gives a wave.
-        slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-width, 0, TimeSpan.FromMilliseconds(560)) { EasingFunction = new BackEase { Amplitude = 0.25, EasingMode = EasingMode.EaseOut } });
+        slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(hidden, 0, TimeSpan.FromMilliseconds(560)) { EasingFunction = new BackEase { Amplitude = 0.25, EasingMode = EasingMode.EaseOut } });
         bubble.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300)));
         var tilt = new RotateTransform(0);
         wave.RenderTransformOrigin = new Point(0.7, 0.8);
@@ -129,7 +131,7 @@ public partial class MainWindow
 
         // Out, three seconds later: back to the left, behind the picture, fading.
         var hold = TimeSpan.FromMilliseconds(560 + 3000);
-        var back = new DoubleAnimation(0, -width, TimeSpan.FromMilliseconds(460)) { BeginTime = hold, EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+        var back = new DoubleAnimation(0, hidden, TimeSpan.FromMilliseconds(460)) { BeginTime = hold, EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
         back.Completed += (_, _) => Remove();
         slide.BeginAnimation(TranslateTransform.XProperty, back, HandoffBehavior.Compose);
         bubble.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(420)) { BeginTime = hold + TimeSpan.FromMilliseconds(60) }, HandoffBehavior.Compose);

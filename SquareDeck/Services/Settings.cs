@@ -42,9 +42,11 @@ public sealed class Settings
     public string UiFont { get; set; } = "style";           // app-wide font, or "style" for the UI style's own
     public string TileArt { get; set; } = "style";          // home row art: style | square | tall | wide
     public string TileSize { get; set; } = "style";         // home row size: style | small | medium | large
-    public string NavButtonStyle { get; set; } = "style";   // home screen buttons: style | circle | square | small | outline | glossy | card | tab | large | soft | wide | accent | neon
-    public string FooterStyle { get; set; } = "style";      // style | line | bar | glassbar | pill | none
-    public string DockStyle { get; set; } = "style";        // the shelf behind the buttons: style | none | glass | solid | outline | glow
+    // The choices of home button style, button shelf and footer were removed in 6.4.1 (theming is being rebuilt).
+    // Kept so older settings files load; always "style" (the UI style's own) and no longer read.
+    public string NavButtonStyle { get; set; } = "style";
+    public string FooterStyle { get; set; } = "style";
+    public string DockStyle { get; set; } = "style";
     public string LockScreenSource { get; set; } = "";       // the picture SquareDeck last put on the Windows lock screen
     // The performance overlay (Power and performance)
     public bool OsdEnabled { get; set; }
@@ -127,7 +129,10 @@ public sealed class Settings
     /// <summary>How much the moving background is blurred (blur radius, 0 for none).</summary>
     public int DynamicBlur { get; set; }
 
-    /// <summary>The look of the whole launcher (see UiStyles.All for the ids).</summary>
+    /// <summary>The look chosen in Settings > Themes (see Looks.All). "switch" is the original design.</summary>
+    public string LookId { get; set; } = "switch";
+
+    /// <summary>The look of the whole launcher. Only "switch" exists now (see UiStyles.All); kept for the theming rebuild.</summary>
     public string UiStyle { get; set; } = "switch";
 
     /// <summary>Come back to the front when a game closes.</summary>
@@ -248,6 +253,12 @@ public sealed class Settings
 
     /// <summary>Looks the user saved (Settings > Appearance > My themes): every appearance setting at once.</summary>
     public List<SavedTheme> SavedThemes { get; set; } = new();
+
+    /// <summary>UI styles you made yourself (Settings > Themes > Your styles).</summary>
+    public List<CustomStyle> CustomStyles { get; set; } = new();
+
+    /// <summary>The sound set for moving around ("" = the same as <see cref="SoundSet"/>). Styles of your own can choose their own.</summary>
+    public string NavSoundSet { get; set; } = "";
 
     /// <summary>Loudness of the menu music, in percent.</summary>
     public int MenuMusicVolume { get; set; } = 30;
@@ -565,7 +576,27 @@ public sealed class Settings
                     s.PerformanceMode ??= "off";
                     s.WindowsPowerMode ??= "";
                     s.BrowserFavorites ??= new();
-                    s.UiStyle = UiStyles.Upgrade(s.UiStyle); // Glass became Frosted; Xbox and PlayStation were retired
+                    // 6.4: the old UI styles were removed (theming is being rebuilt; the looks have their own styles now).
+                    // Someone on a removed style is moved to Switch once; when their style had brought its own colors, wallpaper, sounds, music,
+                    // moving background and button pictures (style matching), those go back to Switch's too.
+                    if (!string.IsNullOrEmpty(s.UiStyle) && !MyStyles.IsCustom(s.UiStyle) && UiStyles.All.All(x => x.Id != s.UiStyle))
+                    {
+                        if (s.StyleMatching)
+                        {
+                            var basic = UiStyles.All[0];
+                            s.AccentColor = "";
+                            s.ThemePalette = "";
+                            s.Wallpaper = basic.Wallpaper;
+                            s.SoundSet = basic.Sounds;
+                            s.MenuMusic = basic.Music;
+                            s.DynamicBackground = basic.Moving;
+                            if (s.GlyphLook == "pixel") s.GlyphLook = "text";
+                        }
+                        s.UiStyle = "switch";
+                    }
+                    s.UiStyle = UiStyles.Upgrade(s.UiStyle);
+                    s.LookId = Looks.Find(s.LookId).Id; // a look that's gone (or none yet) becomes Switch
+                    s.NavButtonStyle = s.FooterStyle = s.DockStyle = "style"; // 6.4.1: these choices are gone
                     s.TaskManagerSort ??= "memory";
                     s.TouchKeyboard ??= "windows";
                     if (!s.KeyboardChosen)
@@ -609,6 +640,12 @@ public sealed class Settings
                     s.SoundSet ??= "classic";
                     s.SoundFolder ??= "";
                     if (!Hints.IsValidMap(s.ButtonMap)) s.ButtonMap = "ABXY";
+                    s.NavSoundSet ??= "";
+                    s.CustomStyles ??= new();
+                    s.CustomStyles.RemoveAll(c => c == null);
+                    MyStyles.Load(s);
+                    // A style of yours that's gone (deleted, or a settings file copied without it) becomes Switch.
+                    if (MyStyles.IsCustom(s.UiStyle) && !UiStyles.Exists(s.UiStyle)) s.UiStyle = "switch";
                     return s;
                 }
             }
@@ -672,7 +709,7 @@ public sealed class SavedTheme
     /// <summary>Copies this look into the settings (the caller applies and saves).</summary>
     public void ApplyTo(Settings s)
     {
-        s.UiStyle = UiStyle; s.ThemeMode = ThemeMode; s.ThemePalette = ThemePalette; s.AccentColor = AccentColor;
+        s.UiStyle = UiStyles.Find(UiStyle).Id; s.ThemeMode = ThemeMode; // a theme saved with a removed style uses Switch s.ThemePalette = ThemePalette; s.AccentColor = AccentColor;
         s.Wallpaper = Wallpaper; s.DynamicBackground = DynamicBackground; s.DynamicBlur = DynamicBlur; s.TileCorner = TileCorner;
         s.SoundSet = SoundSet; s.SoundFolder = SoundFolder; s.MenuMusic = MenuMusic; s.GlyphLook = GlyphLook; s.HeroBackgrounds = HeroBackgrounds;
     }

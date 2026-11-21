@@ -228,19 +228,33 @@ public sealed class UiStyleScreen : GridScreen
         var (bw, bh, bc) = s.Buttons switch
         {
             "card" => (100.0, 86.0, 8.0), "tab" => (104.0, 46.0, 23.0), "square" => (88.0, 88.0, s.SquareCorner >= 0 ? s.SquareCorner : s.RowCorner + 4),
-            "small" => (70.0, 70.0, 35.0), _ => (96.0, 96.0, 48.0)
+            "small" => (70.0, 70.0, 35.0), "large" => (116.0, 116.0, 58.0), "soft" => (92.0, 92.0, 32.0),
+            "wide" => (134.0, 82.0, Math.Max(8, s.RowCorner + 6)), _ => (96.0, 96.0, 48.0)
         };
-        double margin = s.Buttons switch { "tab" => 3, "small" => 8, _ => 6 };
-        int count = 9;
+        double margin = s.Buttons switch { "tab" => 3, "small" => 8, "wide" => 5, _ => 6 };
+        int count = s.Buttons is "wide" or "large" ? 7 : 9;
         double rowWidth = count * (bw + margin * 2);
         double bx = s.ButtonsAlign == HorizontalAlignment.Left ? 88 : (1280 - rowWidth) / 2;
         double by = top[3] + (rows[3] - bh) / 2;
         Brush buttonFill = s.Buttons == "tab" ? new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF))
             : s.OutlineButtons ? Brushes.Transparent : s.Glass ? UiStyles.ShelfBrush(s) : circle;
+        if (s.ButtonLook == "accent") buttonFill = new SolidColorBrush(Color.FromArgb(0xE6, accentColor.R, accentColor.G, accentColor.B));
+        else if (s.ButtonLook == "neon") buttonFill = new SolidColorBrush(Color.FromArgb(0x30, 0, 0, 0));
         if (s.ButtonDock)
-            Add(c, new Rectangle { Width = (rowWidth + 28) * K, Height = (bh + 16) * K, RadiusX = (bh + 16) * K / 2, RadiusY = (bh + 16) * K / 2,
-                                   Fill = UiStyles.ShelfBrush(s), Stroke = new SolidColorBrush(Color.FromArgb(0x90, 0xFF, 0xFF, 0xFF)), StrokeThickness = 0.6 },
-                (bx - 14) * K, (by - 8) * K);
+        {
+            // The shelf: glass, solid, outlined or glowing.
+            var shelf = new Rectangle { Width = (rowWidth + 28) * K, Height = (bh + 16) * K, RadiusX = (bh + 16) * K / 2, RadiusY = (bh + 16) * K / 2,
+                                        Fill = UiStyles.ShelfBrush(s), Stroke = new SolidColorBrush(Color.FromArgb(0x90, 0xFF, 0xFF, 0xFF)), StrokeThickness = 0.6 };
+            if (s.DockLook == "solid") { shelf.Fill = circle; shelf.Stroke = null; }
+            else if (s.DockLook == "outline") { shelf.Fill = Brushes.Transparent; shelf.Stroke = fg; shelf.StrokeThickness = 1; }
+            else if (s.DockLook == "glow")
+            {
+                shelf.Fill = new SolidColorBrush(Color.FromArgb(0x40, accentColor.R, accentColor.G, accentColor.B));
+                shelf.Stroke = accent; shelf.StrokeThickness = 1;
+                shelf.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = accentColor, BlurRadius = 10, ShadowDepth = 0 };
+            }
+            Add(c, shelf, (bx - 14) * K, (by - 8) * K);
+        }
         for (int i = 0; i < count; i++)
         {
             var b = new Rectangle
@@ -249,7 +263,23 @@ public sealed class UiStyleScreen : GridScreen
                 Stroke = s.Stroke == null ? null : s.Stroke == "accent" ? accent : Brush(s.Stroke), StrokeThickness = Math.Max(0.5, s.StrokeWidth * K * 1.5)
             };
             if (s.Glass) b.Stroke = new SolidColorBrush(Color.FromArgb(0x70, 0xFF, 0xFF, 0xFF));
+            if (s.ButtonLook == "neon")
+            {
+                b.Stroke = accent;
+                b.StrokeThickness = 1.2;
+                b.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = accentColor, BlurRadius = 6, ShadowDepth = 0 };
+            }
             Add(c, b, (bx + margin + 9) * K, (by + 9) * K);
+            if (s.Gloss)
+            {
+                // The shine across the top half.
+                var shine = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
+                shine.GradientStops.Add(new GradientStop(Color.FromArgb(0xC0, 0xFF, 0xFF, 0xFF), 0));
+                shine.GradientStops.Add(new GradientStop(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF), 0.95));
+                shine.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 1));
+                Add(c, new Rectangle { Width = (bw - 24) * K, Height = (bh - 18) * K / 2, RadiusX = Math.Max(0, bc - 12) * K, RadiusY = Math.Max(0, bc - 12) * K, Fill = shine },
+                    (bx + margin + 12) * K, (by + 10) * K);
+            }
             bx += bw + margin * 2;
         }
 

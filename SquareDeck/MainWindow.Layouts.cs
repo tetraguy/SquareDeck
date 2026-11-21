@@ -108,7 +108,11 @@ public partial class MainWindow
         StyleTitle.HorizontalAlignment = StyleInfo.HorizontalAlignment = HorizontalAlignment.Left;
         StyleLogo.HorizontalAlignment = HorizontalAlignment.Left;
         StyleLogo.MaxHeight = 150;
+        StyleLogo.MaxWidth = 560;
+        StyleLogo.Margin = new Thickness(0, 0, 0, 6);
+        StyleTitle.FontWeight = FontWeights.Bold;
         StyleInfo.Visibility = Visibility.Visible;
+        _sidebar!.Width = 232;
         _actions!.HorizontalAlignment = HorizontalAlignment.Left;
         _sidebar!.Visibility = _topFill!.Visibility = Visibility.Collapsed;
         _rowTitle!.Visibility = _rowCount!.Visibility = Visibility.Collapsed;

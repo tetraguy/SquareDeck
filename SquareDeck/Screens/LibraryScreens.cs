@@ -494,14 +494,22 @@ public static class ArtTabs
 public sealed class DetailsScreen : Screen
 {
     private const int MaxAchievementCards = 150;
-    private const double HeroHeight = 380;
+    // How tall the artwork at the top is, and how the page is laid out: both come from the look in use
+    // (Settings > Themes; see PageDesign.Details for the layouts).
+    private readonly double HeroHeight = Looks.Current.Design.HeroHeight;
+    private readonly string _layout = Looks.Current.Design.Details;
+    private readonly string _statsLook = Looks.Current.Design.Stats;
+    private HorizontalAlignment _logoAlign = HorizontalAlignment.Right;
+    private double _logoHeight = 150, _logoWidth = 380;
+    private bool _logoReplacesTitle;
+    private Image? _media; // the big picture beside the details card (Solaris)
     private const double CardRadius = 12;
 
     private readonly Game _game;
     private readonly CancellationTokenSource _cts = new();
 
     // The artwork banner behind the top of the page, which fades as the page scrolls.
-    private readonly Grid _hero = new() { Height = HeroHeight, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false, Opacity = 0 };
+    private readonly Grid _hero = new() { VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false, Opacity = 0 };
     private readonly Image _heroImage = new() { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Top };
     private readonly TranslateTransform _heroShift = new();
 
@@ -563,40 +571,45 @@ public sealed class DetailsScreen : Screen
         _meta.Margin = new Thickness(0, 8, 0, 0);
         _actionLabel.Margin = new Thickness(6, 6, 0, 0);
 
-        var info = new StackPanel { Margin = new Thickness(28, 0, 0, 0), VerticalAlignment = VerticalAlignment.Bottom };
-        info.Children.Add(_titleHost);
-        info.Children.Add(_meta);
-        info.Children.Add(_badges);
+        _hero.Height = HeroHeight;
+        _description.TextWrapping = TextWrapping.Wrap;
+        _description.TextTrimming = TextTrimming.None;
+        _description.LineHeight = 27;
+        var descriptionCard = Card(_description, new Thickness(24, 20, 24, 22));
+        var factsCard = Card(_facts, new Thickness(22, 18, 22, 18));
+        factsCard.VerticalAlignment = VerticalAlignment.Top;
 
-        var banner = new DockPanel { Margin = new Thickness(0, HeroHeight - 300, 0, 0), LastChildFill = true };
-        DockPanel.SetDock(_coverBox, Dock.Left);
-        banner.Children.Add(_coverBox);
-        DockPanel.SetDock(_logoHost, Dock.Right);
-        banner.Children.Add(_logoHost);
-        banner.Children.Add(info);
-        _page.Children.Add(banner);
-        _page.Children.Add(_actions);
-        _page.Children.Add(_actionLabel);
-        _page.Children.Add(_stats);
+        // ---- the top of the page, as the look lays it out
+        bool descriptionPlaced = false;
+        switch (_layout)
+        {
+            case "showcase": ArrangeShowcase(title, side: false); break;
+            case "sidepanel": ArrangeShowcase(title, side: true); break;
+            case "banner": ArrangeBanner(title); break;
+            case "panels": ArrangePanels(title, descriptionCard); descriptionPlaced = true; break;
+            case "split": ArrangeSplit(title); break;
+            case "dash": ArrangeDash(title); break;
+            case "orbit": ArrangeOrbit(title); break;
+            default: ArrangeSwitch(); break;
+        }
         _page.Children.Add(_hltb);
         _page.Children.Add(_notes);
         AddScreenshots();
 
-        // ---- about: description beside a column of facts
-        _description.TextWrapping = TextWrapping.Wrap;
-        _description.TextTrimming = TextTrimming.None;
-        _description.LineHeight = 27;
-        var about = new Grid { Margin = new Thickness(0, 6, 0, 0) };
-        about.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
-        about.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
-        about.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        about.Children.Add(Card(_description, new Thickness(24, 20, 24, 22)));
-        var factsCard = Card(_facts, new Thickness(22, 18, 22, 18));
-        factsCard.VerticalAlignment = VerticalAlignment.Top;
-        Grid.SetColumn(factsCard, 2);
-        about.Children.Add(factsCard);
+        // ---- about: description beside a column of facts (the facts alone where the description is up top)
         _page.Children.Add(SectionTitle("About"));
-        _page.Children.Add(about);
+        if (descriptionPlaced) _page.Children.Add(factsCard);
+        else
+        {
+            var about = new Grid { Margin = new Thickness(0, 6, 0, 0) };
+            about.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+            about.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
+            about.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            about.Children.Add(descriptionCard);
+            Grid.SetColumn(factsCard, 2);
+            about.Children.Add(factsCard);
+            _page.Children.Add(about);
+        }
         _source.Margin = new Thickness(4, 8, 0, 0);
         _source.TextWrapping = TextWrapping.Wrap;
         _page.Children.Add(_source);
@@ -621,6 +634,256 @@ public sealed class DetailsScreen : Screen
 
         SetPage("", _scroll, "{Select}  Choose      {Details}  Collections      {Options}  Rating and notes      {Back}  Back", wide: true);
         BuildHero();
+    }
+
+    // ---------------------------------------------------------------- the looks' layouts
+
+    /// <summary>Switch: the cover, name and logo in a banner; actions, then cards, under it.</summary>
+    private void ArrangeSwitch()
+    {
+        var info = new StackPanel { Margin = new Thickness(28, 0, 0, 0), VerticalAlignment = VerticalAlignment.Bottom };
+        info.Children.Add(_titleHost);
+        info.Children.Add(_meta);
+        info.Children.Add(_badges);
+        var banner = new DockPanel { Margin = new Thickness(0, HeroHeight - 300, 0, 0), LastChildFill = true };
+        DockPanel.SetDock(_coverBox, Dock.Left);
+        banner.Children.Add(_coverBox);
+        DockPanel.SetDock(_logoHost, Dock.Right);
+        banner.Children.Add(_logoHost);
+        banner.Children.Add(info);
+        _page.Children.Add(banner);
+        _page.Children.Add(_actions);
+        _page.Children.Add(_actionLabel);
+        _page.Children.Add(_stats);
+    }
+
+    /// <summary>Puts the game's logo on the left, large, in place of its name once it has loaded.</summary>
+    private void LogoOnLeft(double height, double width)
+    {
+        _logoAlign = HorizontalAlignment.Left;
+        _logoHeight = height;
+        _logoWidth = width;
+        _logoReplacesTitle = true;
+        _logoHost.HorizontalAlignment = HorizontalAlignment.Left;
+        _logoHost.VerticalAlignment = VerticalAlignment.Top;
+        _logoHost.Margin = new Thickness(0, 0, 0, 14);
+    }
+
+    /// <summary>
+    /// ubiquity and Aniki: the artwork fills the screen. The logo, details, numbers and actions sit on the left over
+    /// it; with <paramref name="side"/> (Aniki) the numbers go in a panel on the right instead.
+    /// </summary>
+    private void ArrangeShowcase(TextBlock title, bool side)
+    {
+        LogoOnLeft(180, 560);
+        _coverBox.Visibility = Visibility.Collapsed;
+        var left = new StackPanel { MaxWidth = 720, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom };
+        left.Children.Add(_logoHost);
+        left.Children.Add(_titleHost);
+        left.Children.Add(_meta);
+        left.Children.Add(_badges);
+        if (!side) left.Children.Add(_stats);
+        left.Children.Add(_actions);
+        left.Children.Add(_actionLabel);
+        if (!side)
+        {
+            left.Margin = new Thickness(18, HeroHeight - 560, 0, 0);
+            _page.Children.Add(left);
+            return;
+        }
+        var grid = new Grid { Margin = new Thickness(18, HeroHeight - 560, 0, 0) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(left);
+        _stats.Margin = new Thickness(0);
+        _stats.Orientation = Orientation.Vertical;
+        var panel = new Border
+        {
+            CornerRadius = new CornerRadius(10), Padding = new Thickness(18, 14, 18, 8), MinWidth = 280, Margin = new Thickness(24, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center, Background = new SolidColorBrush(Color.FromArgb(0xB3, 0x0C, 0x0F, 0x14)), Child = _stats
+        };
+        Grid.SetColumn(panel, 1);
+        grid.Children.Add(panel);
+        _page.Children.Add(grid);
+    }
+
+    /// <summary>
+    /// SquareDeck: the artwork as a banner with the logo in the middle of it, a play bar under it (Play and the other
+    /// actions, the numbers on the right), then the cover beside the name and details.
+    /// </summary>
+    private void ArrangeBanner(TextBlock title)
+    {
+        _logoAlign = HorizontalAlignment.Center;
+        _logoHeight = 200;
+        _logoWidth = 640;
+        _logoHost.HorizontalAlignment = HorizontalAlignment.Center;
+        _logoHost.VerticalAlignment = VerticalAlignment.Center;
+        _logoHost.Margin = new Thickness(0);
+        var logoArea = new Grid { Height = Math.Max(160, HeroHeight - 110) };
+        logoArea.Children.Add(_logoHost);
+        _page.Children.Add(logoArea);
+
+        var bar = new Grid();
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+        _actions.Margin = new Thickness(0);
+        bar.Children.Add(_actions);
+        _stats.Margin = new Thickness(0, 6, 0, 0);
+        _stats.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(_stats, 1);
+        bar.Children.Add(_stats);
+        var band = new Border { CornerRadius = new CornerRadius(6), Padding = new Thickness(20, 16, 20, 6), Child = bar };
+        band.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+        _page.Children.Add(band);
+        _page.Children.Add(_actionLabel);
+
+        SizeCover(128);
+        title.FontSize = 32;
+        var info = new StackPanel { Margin = new Thickness(22, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        info.Children.Add(_titleHost);
+        info.Children.Add(_meta);
+        info.Children.Add(_badges);
+        var row = new DockPanel { Margin = new Thickness(0, 22, 0, 0) };
+        DockPanel.SetDock(_coverBox, Dock.Left);
+        row.Children.Add(_coverBox);
+        row.Children.Add(info);
+        _page.Children.Add(row);
+    }
+
+    /// <summary>
+    /// J Hero: the logo, details and tags at the top left over the artwork; under them, the numbers in panels with
+    /// Play on the left, and the description on the right.
+    /// </summary>
+    private void ArrangePanels(TextBlock title, Border descriptionCard)
+    {
+        LogoOnLeft(160, 480);
+        _coverBox.Visibility = Visibility.Collapsed;
+        var top = new StackPanel { Margin = new Thickness(10, Math.Max(40, HeroHeight - 470), 0, 0) };
+        top.Children.Add(_logoHost);
+        top.Children.Add(_titleHost);
+        top.Children.Add(_meta);
+        top.Children.Add(_badges);
+        _page.Children.Add(top);
+
+        var grid = new Grid { Margin = new Thickness(0, 28, 0, 0) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(400) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var left = new StackPanel();
+        _stats.Margin = new Thickness(0);
+        left.Children.Add(_stats);
+        _actions.Margin = new Thickness(0, 8, 0, 0);
+        left.Children.Add(_actions);
+        left.Children.Add(_actionLabel);
+        grid.Children.Add(left);
+        descriptionCard.VerticalAlignment = VerticalAlignment.Top;
+        Grid.SetColumn(descriptionCard, 2);
+        grid.Children.Add(descriptionCard);
+        _page.Children.Add(grid);
+    }
+
+    /// <summary>
+    /// Solaris: the logo large over the artwork; under it a card with the cover, name, details, numbers and Play,
+    /// beside a big picture of the game.
+    /// </summary>
+    private void ArrangeSplit(TextBlock title)
+    {
+        LogoOnLeft(170, 520);
+        _logoReplacesTitle = false; // the card has the name
+        _logoHost.Margin = new Thickness(10, Math.Max(40, HeroHeight - 520), 0, 24);
+        _page.Children.Add(_logoHost);
+
+        SizeCover(150);
+        title.FontSize = 28;
+        var info = new StackPanel { Margin = new Thickness(18, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top };
+        info.Children.Add(_titleHost);
+        info.Children.Add(_meta);
+        info.Children.Add(_badges);
+        var head = new DockPanel();
+        DockPanel.SetDock(_coverBox, Dock.Left);
+        head.Children.Add(_coverBox);
+        head.Children.Add(info);
+        var inside = new StackPanel();
+        inside.Children.Add(head);
+        _stats.Margin = new Thickness(0, 18, 0, 0);
+        inside.Children.Add(_stats);
+        _actions.Margin = new Thickness(0, 10, 0, 0);
+        inside.Children.Add(_actions);
+        inside.Children.Add(_actionLabel);
+        var card = new Border { CornerRadius = new CornerRadius(10), Padding = new Thickness(20, 18, 20, 10), Child = inside };
+        card.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+
+        _media = new Image { Stretch = Stretch.UniformToFill };
+        RenderOptions.SetBitmapScalingMode(_media, BitmapScalingMode.HighQuality);
+        var mediaBox = new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Height = 380, VerticalAlignment = VerticalAlignment.Top, Child = _media };
+        mediaBox.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+        mediaBox.SizeChanged += (_, e) => mediaBox.Clip = new RectangleGeometry(new Rect(e.NewSize), 10, 10);
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(11, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10, GridUnitType.Star) });
+        grid.Children.Add(card);
+        Grid.SetColumn(mediaBox, 2);
+        grid.Children.Add(mediaBox);
+        _page.Children.Add(grid);
+    }
+
+    /// <summary>
+    /// X Dash: a console game page. The logo (or name), details, Play and the other actions and the numbers on the
+    /// left; the cover large on the right; the artwork across the whole top.
+    /// </summary>
+    private void ArrangeDash(TextBlock title)
+    {
+        LogoOnLeft(150, 520);
+        title.FontSize = 46;
+        title.FontWeight = FontWeights.SemiBold;
+        var left = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom };
+        left.Children.Add(_logoHost);
+        left.Children.Add(_titleHost);
+        left.Children.Add(_meta);
+        left.Children.Add(_badges);
+        left.Children.Add(_actions);
+        left.Children.Add(_actionLabel);
+        left.Children.Add(_stats);
+        SizeCover(300);
+        _coverBox.CornerRadius = new CornerRadius(4);
+        _coverBox.VerticalAlignment = VerticalAlignment.Bottom;
+        _coverBox.Margin = new Thickness(30, 0, 10, 0);
+        var grid = new Grid { Margin = new Thickness(18, Math.Max(40, HeroHeight - 560), 0, 0) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(left);
+        Grid.SetColumn(_coverBox, 1);
+        grid.Children.Add(_coverBox);
+        _page.Children.Add(grid);
+    }
+
+    /// <summary>
+    /// Orbit: the artwork fills the screen; the logo, details and a big Play near the bottom left; the numbers as
+    /// large glass cards along the bottom.
+    /// </summary>
+    private void ArrangeOrbit(TextBlock title)
+    {
+        LogoOnLeft(170, 560);
+        _coverBox.Visibility = Visibility.Collapsed;
+        var block = new StackPanel { Margin = new Thickness(18, Math.Max(40, HeroHeight - 500), 0, 0) };
+        block.Children.Add(_logoHost);
+        block.Children.Add(_titleHost);
+        block.Children.Add(_meta);
+        block.Children.Add(_badges);
+        block.Children.Add(_actions);
+        block.Children.Add(_actionLabel);
+        _stats.Margin = new Thickness(0, 36, 0, 0);
+        block.Children.Add(_stats);
+        _page.Children.Add(block);
+    }
+
+    /// <summary>Makes the cover a different size (it's square, with rounded corners).</summary>
+    private void SizeCover(double size)
+    {
+        _coverBox.Width = _coverBox.Height = size;
+        if (_coverBox.Child is Grid g) g.Clip = new RectangleGeometry(new Rect(0, 0, size, size), CardRadius, CardRadius);
     }
 
     /// <summary>Your screenshots of this game (Game Bar and Steam), newest first; select one to see it full screen.</summary>
@@ -739,9 +1002,12 @@ public sealed class DetailsScreen : Screen
         down.GradientStops.Add(new GradientStop(bg, 1));
         _hero.Children.Add(new Border { Background = down });
 
+        // Looks with the details over the artwork darken its left side more, so the text stays readable.
+        bool over = _layout is "showcase" or "sidepanel" or "panels" or "dash" or "orbit";
         var side = new LinearGradientBrush { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
-        side.GradientStops.Add(new GradientStop(Color.FromArgb(0x99, bg.R, bg.G, bg.B), 0));
-        side.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, bg.R, bg.G, bg.B), 0.6));
+        side.GradientStops.Add(new GradientStop(Color.FromArgb(over ? (byte)0xE0 : (byte)0x99, bg.R, bg.G, bg.B), 0));
+        side.GradientStops.Add(new GradientStop(Color.FromArgb(over ? (byte)0x80 : (byte)0x00, bg.R, bg.G, bg.B), over ? 0.45 : 0.6));
+        side.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, bg.R, bg.G, bg.B), over ? 0.8 : 0.6));
         _hero.Children.Add(new Border { Background = side });
         SetPageHero(_hero);
     }
@@ -750,6 +1016,7 @@ public sealed class DetailsScreen : Screen
     {
         if (picture == null || _heroImage.Source != null) return;
         _heroImage.Source = picture;
+        if (_media != null && _media.Source == null) _media.Source = picture;
         double target = Math.Max(0, 1 - _scroll.VerticalOffset / (HeroHeight * 0.9));
         if (Theme.ReduceMotion) _hero.Opacity = target;
         else _hero.BeginAnimation(OpacityProperty, new DoubleAnimation(0, target, TimeSpan.FromMilliseconds(500)) { FillBehavior = FillBehavior.Stop });
@@ -831,7 +1098,7 @@ public sealed class DetailsScreen : Screen
         _actions.Children.Clear();
         string play = _game.IsRunning ? "Return to game" : _game.OnWishlist ? "View in store" : !_game.IsInstalled ? "Install" : "Play";
         string playGlyph = _game.IsRunning ? "" : _game.OnWishlist ? "" : !_game.IsInstalled ? "" : "";
-        var main = new Button { Style = Ui.StyleOf("AccentButton"), Content = GlyphLabel(playGlyph, play, 20), Margin = new Thickness(0, 0, 14, 10) };
+        var main = new Button { Style = Looks.PlayStyle(), Content = GlyphLabel(playGlyph, play, 20), Margin = new Thickness(0, 0, 14, 10) };
         main.Click += (_, _) => _ = Host.ActivateAsync(_game);
         Watch(main, "action:play", play);
         _actions.Children.Add(main);
@@ -857,8 +1124,6 @@ public sealed class DetailsScreen : Screen
         if (_wiki?.Url is { Length: > 0 } wikiUrl) Pill("\uE774", "Wikipedia", "Read the full article", () => Host.Push(BrowserScreen.Open(Host, wikiUrl)));
         if (!_game.IsSteam && InstallFolder() is string dir)
             Pill("\uE838", "Files", "Open the install folder", () => Host.Push(new ExplorerScreen(dir)));
-        Pill("", "Time to beat", "How long to beat", () =>
-            ProcessUtil.Open(_hltbTimes?.PageUrl ?? "https://howlongtobeat.com/?q=" + Uri.EscapeDataString(_game.OriginalName.Length > 0 ? _game.OriginalName : _game.Name)));
         if (_game.IsGame && !_game.OnWishlist) Pill("", "More", "More options", () => _ = Host.OpenOptionsAsync(_game));
 
         var target = _actions.Children.OfType<Button>().FirstOrDefault(b => _focusId != null && b.DataContext as string == _focusId)
@@ -937,6 +1202,54 @@ public sealed class DetailsScreen : Screen
         _stats.Children.Clear();
         void Stat(string glyph, string value, string label, double? fraction = null)
         {
+            switch (_statsLook)
+            {
+                case "text":
+                {
+                    // The label small above the value, no card (ubiquity, SquareDeck, X Dash).
+                    var col = new StackPanel { Margin = new Thickness(0, 0, 34, 12), MinWidth = 96 };
+                    col.Children.Add(Line(label.ToUpperInvariant(), 12, "SubtleBrush", bold: true));
+                    var v = Line(value, 21, "FgBrush", bold: true);
+                    v.Margin = new Thickness(0, 3, 0, 0);
+                    col.Children.Add(v);
+                    if (fraction is double tf) { var tb = Bar(tf, 4); tb.Margin = new Thickness(0, 6, 0, 0); col.Children.Add(tb); }
+                    _stats.Children.Add(col);
+                    return;
+                }
+                case "list":
+                {
+                    // An icon, the label and the value on one row, in a column (Aniki's side panel).
+                    var row = new DockPanel { Margin = new Thickness(0, 0, 0, 10), MinWidth = 260 };
+                    var ic = Ui.Glyph(glyph, 16, "FgBrush");
+                    ic.Margin = new Thickness(0, 2, 12, 0);
+                    DockPanel.SetDock(ic, Dock.Left);
+                    row.Children.Add(ic);
+                    var val = Line(value, 17, "FgBrush", bold: true);
+                    val.Margin = new Thickness(16, 0, 0, 0);
+                    DockPanel.SetDock(val, Dock.Right);
+                    row.Children.Add(val);
+                    row.Children.Add(Line(label, 15));
+                    _stats.Children.Add(row);
+                    return;
+                }
+                case "large":
+                {
+                    // Big glass cards along the bottom (Orbit).
+                    var inner = new StackPanel();
+                    inner.Children.Add(Line(label, 15));
+                    var bv = Line(value, 30, "FgBrush", bold: true);
+                    bv.Margin = new Thickness(0, 8, 0, 0);
+                    inner.Children.Add(bv);
+                    if (fraction is double lf) { var lb = Bar(lf, 6); lb.Margin = new Thickness(0, 12, 0, 0); inner.Children.Add(lb); }
+                    var glass = new Border
+                    {
+                        Width = 250, MinHeight = 120, CornerRadius = new CornerRadius(18), Padding = new Thickness(22, 18, 22, 18), Margin = new Thickness(0, 0, 14, 14),
+                        Background = new SolidColorBrush(Color.FromArgb(0x99, 0x20, 0x22, 0x30)), Child = inner
+                    };
+                    _stats.Children.Add(glass);
+                    return;
+                }
+            }
             var stack = new StackPanel { Width = 170 };
             var icon = Ui.Glyph(glyph, 20, "AccentBrush");
             icon.HorizontalAlignment = HorizontalAlignment.Left;
@@ -991,7 +1304,6 @@ public sealed class DetailsScreen : Screen
         }
         catch (Exception) { } // offline or the site changed: keep what was there (if anything)
         BuildHltb();
-        if (Host.IsTop(this)) BuildActions();
     }
 
     private void BuildHltb(bool loading = false)
@@ -1562,7 +1874,7 @@ public sealed class DetailsScreen : Screen
             if (logo == null || ct.IsCancellationRequested) return;
             var image = new Image
             {
-                Source = logo, MaxHeight = 150, MaxWidth = 380, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Right,
+                Source = logo, MaxHeight = _logoHeight, MaxWidth = _logoWidth, Stretch = Stretch.Uniform, HorizontalAlignment = _logoAlign,
                 ToolTip = _game.Name,
                 Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 0, Opacity = 0.6 }
             };
@@ -1573,10 +1885,12 @@ public sealed class DetailsScreen : Screen
                 _logoHost.Content = new Border
                 {
                     Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x2D)), CornerRadius = new CornerRadius(10),
-                    Padding = new Thickness(18, 10, 18, 10), HorizontalAlignment = HorizontalAlignment.Right, Child = image
+                    Padding = new Thickness(18, 10, 18, 10), HorizontalAlignment = _logoAlign, Child = image
                 };
             }
             else _logoHost.Content = image;
+            // Looks that show the logo large in place of the name: the name goes (it's in the logo).
+            if (_logoReplacesTitle) _titleHost.Visibility = Visibility.Collapsed;
             if (!Theme.ReduceMotion) _logoHost.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350)));
         }
         catch (Exception)

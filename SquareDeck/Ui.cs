@@ -173,6 +173,7 @@ public static class Ui
     /// <summary>A symbol in a rounded square tinted with the highlight color.</summary>
     public static Grid IconBadge(string glyph, double size)
     {
+        if (Services.LookChrome.Design.Icons != "badge") return Services.LookChrome.Icon(glyph, size);
         var badge = new Grid { Width = size, Height = size, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
         var tint = new Border { CornerRadius = new CornerRadius(size * 0.27), Opacity = 0.16 };
         tint.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
@@ -192,6 +193,15 @@ public static class Ui
     {
         var rowStyle = StyleOf("RowButton");
         var children = panel.Children.OfType<UIElement>().ToList();
+        // Looks that don't draw rows as cards keep their own spacing: rows on lines touch, separate cards keep a gap.
+        string kind = Services.LookChrome.Design.Rows;
+        if (kind != "card")
+        {
+            double gap = kind is "line" or "flat" ? 0 : 3;
+            foreach (var row in children.OfType<Button>().Where(b => b.Style == rowStyle))
+                row.Margin = new Thickness(row.Margin.Left, gap, row.Margin.Right, gap);
+            return;
+        }
         int i = 0;
         while (i < children.Count)
         {
@@ -314,6 +324,7 @@ public static class Ui
 
     public static TextBlock Header(string text)
     {
+        if (Services.LookChrome.Design.Headers != "bold") return Services.LookChrome.Header(text);
         var t = Text(text, 17, "FgBrush", bold: true);
         t.Opacity = 0.85;
         t.Margin = new Thickness(6, 26, 0, 10);

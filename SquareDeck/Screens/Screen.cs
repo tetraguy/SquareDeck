@@ -277,8 +277,18 @@ public abstract class Screen : UserControl
         Grid.SetRowSpan(_backdrop, 3);
         root.Children.Add(_backdrop);
 
+        // The title, as the look draws it (Settings > Themes): bold, thin spaced capitals, or large and light.
+        var design = Looks.Current.Design;
         var header = new DockPanel { Margin = new Thickness(side, 30, side, 0), VerticalAlignment = VerticalAlignment.Top };
-        _titleText = Ui.Text(title, 34, "FgBrush", bold: true);
+        if (design.HeaderClock) header.Children.Add(HeaderClock());
+        _titleText = design.Title switch
+        {
+            "spaced" => Ui.Text(Spaced(title), design.TitleSize, "FgBrush"),
+            "light" => Ui.Text(title, design.TitleSize, "FgBrush"),
+            _ => Ui.Text(title, design.TitleSize, "FgBrush", bold: true)
+        };
+        if (design.Title == "light") _titleText.FontWeight = FontWeights.Light;
+        if (design.Title == "spaced") { _titleText.FontWeight = FontWeights.Light; _titleText.Margin = new Thickness(0, 6, 0, 0); }
         _header = header;
         header.Children.Add(_titleText);
         root.Children.Add(header);
@@ -289,13 +299,19 @@ public abstract class Screen : UserControl
         Grid.SetRow(bodyHost, 1);
         root.Children.Add(bodyHost);
 
-        var footer = new Grid { Margin = new Thickness(30, 0, 30, 0) };
-        var line = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Top, Opacity = 0.15 };
-        line.SetResourceReference(Shape.FillProperty, "FgBrush");
-        footer.Children.Add(line);
+        // The footer with the button hints, as the look draws it: a thin line over them, a solid band, or hints alone.
+        var footer = new Grid { Margin = design.Footer == "bar" ? new Thickness(0) : new Thickness(30, 0, 30, 0) };
+        if (design.Footer == "bar")
+            footer.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE6, 0, 0, 0));
+        else if (design.Footer == "line")
+        {
+            var line = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Top, Opacity = 0.15 };
+            line.SetResourceReference(Shape.FillProperty, "FgBrush");
+            footer.Children.Add(line);
+        }
         var hint = new HintBar(hints); // the same button shapes as the home screen
         hint.HorizontalAlignment = HorizontalAlignment.Right;
-        hint.Margin = new Thickness(0, 0, 26, 0);
+        hint.Margin = new Thickness(0, 0, design.Footer == "bar" ? 56 : 26, 0);
         footer.Children.Add(hint);
         Grid.SetRow(footer, 2);
         root.Children.Add(footer);
@@ -304,6 +320,33 @@ public abstract class Screen : UserControl
     }
 
     private Grid? _bodyHost;
+
+    /// <summary>"Settings" as "S E T T I N G S": the thin, widely spaced capitals some looks title their pages with.</summary>
+    private static string Spaced(string title) => string.Join("\u2009", title.ToUpperInvariant().ToCharArray());
+
+    /// <summary>The battery and time at the right of the title bar, in looks that show them on every page.</summary>
+    private static FrameworkElement HeaderClock()
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(20, 6, 0, 0) };
+        DockPanel.SetDock(row, Dock.Right);
+        var battery = Ui.Text("", 18, "SubtleBrush");
+        battery.Margin = new Thickness(0, 0, 18, 0);
+        var time = Ui.Text("", 22, "FgBrush", bold: true);
+        row.Children.Add(battery);
+        row.Children.Add(time);
+        void Update()
+        {
+            time.Text = DateTime.Now.ToString("t");
+            battery.Text = Battery.GetPercent() is int p ? p + "%" + (Battery.IsPluggedIn() ? "  \u26A1" : "") : "";
+            battery.Visibility = battery.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        Update();
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+        timer.Tick += (_, _) => Update();
+        row.Loaded += (_, _) => { Update(); timer.Start(); };
+        row.Unloaded += (_, _) => timer.Stop();
+        return row;
+    }
 
     /// <summary>Swaps the page's content for another layout (with the wide page margins).</summary>
     protected void ReplaceBody(UIElement body)
@@ -539,6 +582,7 @@ public abstract class GridScreen : Screen
             c.HorizontalAlignment = HorizontalAlignment.Left;
             c.TextTrimming = TextTrimming.CharacterEllipsis;
             c.Margin = new Thickness(2, 8, 2, 0);
+            LookChrome.StyleTileCaption(c);
             stack.Children.Add(c);
         }
         var tile = Ui.Tile(stack);
@@ -559,16 +603,19 @@ public abstract class GridScreen : Screen
         box.SetResourceReference(Border.BackgroundProperty, "TileBrush");
         // Follow the tile-corner style chosen in Themes.
         // Pages always round their pictures a little, whatever the home row uses.
-        double corner = Math.Max(Theme.TileCorner, 10);
+        double corner = LookChrome.TileCorner(Math.Max(Theme.TileCorner, 10));
         box.Clip = new System.Windows.Media.RectangleGeometry(new Rect(0, 0, width, height), corner, corner);
+        box.CornerRadius = new CornerRadius(corner);
+        LookChrome.StyleTileBox(box);
         return box;
     }
 
     /// <summary>A fixed-size box showing an icon, for action tiles.</summary>
     public static Border GlyphBox(double width, double height, string glyph)
     {
-        var box = new Border { Width = width, Height = height, CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner, 10)), Child = Ui.Glyph(glyph, 44, "AccentBrush") };
+        var box = new Border { Width = width, Height = height, CornerRadius = new CornerRadius(LookChrome.TileCorner(Math.Max(Theme.TileCorner, 10))), Child = Ui.Glyph(glyph, 44, "AccentBrush") };
         box.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+        LookChrome.StyleTileBox(box);
         return box;
     }
 }

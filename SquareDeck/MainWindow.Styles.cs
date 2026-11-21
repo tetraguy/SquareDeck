@@ -26,7 +26,7 @@ public partial class MainWindow
                 .AddValueChanged(InfoText, (_, _) => UpdateStyleTitle());
         }
 
-        try { FontFamily = new FontFamily(s.Font); }
+        try { FontFamily = AppFonts.Family(s.Font); }
         catch (Exception) { FontFamily = new FontFamily("Segoe UI"); }
         ApplyRowHeights();
 
@@ -323,10 +323,25 @@ public partial class MainWindow
     {
         if (!UiStyles.Current.ButtonDock) return;
         double k = ButtonRow.LayoutTransform is ScaleTransform t ? t.ScaleX : 1;
-        ButtonDock.Width = ButtonRow.ActualWidth * k + 28;
-        // Taller below than above, so the dot under the current view (Home, Favorites, Apps) sits inside the shelf.
-        ButtonDock.Height = Math.Max(0, ButtonRow.ActualHeight * k + 40);
-        ButtonDock.Margin = new Thickness(0, 12, 0, 0);
+        // Sized to the buttons themselves, not to the row they sit in: the row is often much taller than the buttons
+        // (the shelf came out far too tall in some styles and ran off the bottom of its row).
+        double width = 0, tallest = 0;
+        foreach (UIElement child in ButtonRow.Children)
+        {
+            if (child.Visibility == Visibility.Collapsed) continue;
+            child.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var m = (child as FrameworkElement)?.Margin ?? new Thickness();
+            width += child.DesiredSize.Width;
+            tallest = Math.Max(tallest, child.DesiredSize.Height - m.Top - m.Bottom);
+        }
+        if (width <= 0 || tallest <= 0) return;
+        ButtonDock.Width = width * k + 28;
+        // A little taller below than above, so the dot under the current view (Home, Favorites, Apps) sits inside it.
+        double rowHeight = Grid.GetRow(ButtonRow) < RootGrid.RowDefinitions.Count ? RootGrid.RowDefinitions[Grid.GetRow(ButtonRow)].ActualHeight : 0;
+        double height = tallest * k + 26;
+        if (rowHeight > 0) height = Math.Min(height, rowHeight + 6);
+        ButtonDock.Height = height;
+        ButtonDock.Margin = new Thickness(0, 6, 0, 0);
     }
 
     private static Brush? HeroScrimBrush(UiStyle s)
@@ -454,12 +469,32 @@ public partial class MainWindow
     /// Switches to a UI style. With "Match wallpaper, sounds and music" on (the default), it also brings the style's own
     /// wallpaper or moving background, interface sounds, menu music and colors, so everything fits together.
     /// </summary>
+    /// <summary>Switches to a look (Settings > Themes): its UI style, colors, sounds and music.</summary>
+    public void UseLook(Look look)
+    {
+        Settings.LookId = look.Id;
+        Looks.Select(look.Id);
+        // The look's own library layout and art (you can still change them in the library afterwards).
+        Settings.LibraryLayout = look.Design.LibraryLayout;
+        Settings.LibraryView = look.Design.LibraryView;
+        // Its home screen, colors, sounds and music. A look built around the game's artwork shows it, with the
+        // moving background set aside (a moving background would cover it).
+        var style = UiStyles.Find(look.StyleId);
+        if (style.WantsHero && Settings.StyleMatching) UseDynamicBackground("");
+        UseStyle(style); // saves and redraws
+    }
+
     public void UseStyle(UiStyle style)
     {
         var s = Settings;
         var leaving = UiStyles.Find(s.UiStyle);
         s.UiStyle = style.Id;
-        if (s.StyleMatching)
+        s.DarkTheme = Theme.ShouldBeDark(s); // each style other than Switch has its own light or dark
+        // A style of your own always brings everything you chose for it.
+        var mine = s.CustomStyles.FirstOrDefault(c => c.Id == style.Id);
+        if (mine != null) MyStyles.ApplyExtras(s, mine);
+        else if (s.StyleMatching || MyStyles.IsCustom(leaving.Id)) s.NavSoundSet = ""; // ready-made styles use one set for everything
+        if (s.StyleMatching || mine != null)
         {
             // Its button pictures (the pixel styles bring pixel-art buttons); leaving such a style goes back to plain.
             if (style.Glyphs != null) s.GlyphLook = style.Glyphs;
@@ -468,11 +503,16 @@ public partial class MainWindow
             s.AccentColor = "";             // the style's own highlight color
             s.ThemePalette = "";            // and its own colors (a color theme would replace them)
             s.Wallpaper = style.Wallpaper;  // its picture, gradient or none (its own backdrop shows then)
-            // Its theme too (Light / Dark / OLED), unless high contrast is on.
-            if (style.ThemeMode != null && s.ThemeMode is not ("hc-dark" or "hc-light")) s.ThemeMode = style.ThemeMode;
+            // Its own theme (light, dark or OLED) comes with it automatically (Theme.EffectiveMode); your choice for
+            // Switch is kept for when you go back to it.
             s.SoundSet = style.Sounds;
             s.MenuMusic = style.Music;
             UiSound.Configure(s);
+            if (style.LaunchChime != null)
+            {
+                s.LaunchChime = style.LaunchChime;
+                UiSound.SetLaunchChime(s.LaunchChime, s.LaunchChimeFile);
+            }
             UseDynamicBackground(style.Moving);
         }
         else if (style.Wallpaper.Length > 0) s.Wallpaper = style.Wallpaper; // a style built around its own picture
@@ -481,6 +521,15 @@ public partial class MainWindow
         s.Save();
         ApplyLook();
         UpdateMenuMusic();
+        if (mine != null) _ = ApplyStyleLockScreenAsync(mine);
+    }
+
+    /// <summary>Puts a style's lock screen picture on the Windows lock screen, if it has one.</summary>
+    private async Task ApplyStyleLockScreenAsync(CustomStyle style)
+    {
+        if (MyStyles.LockScreenFile(style) is not { } file) return;
+        if (!await Screens.LockScreenScreen.SetQuietlyAsync(file, Settings))
+            ShowToast("Themes", "Lock screen not changed", "Windows didn't allow it. Settings > Windows lock screen can set it with permission.", "", "info", remember: false);
     }
 
     private void PlayPill_Click(object sender, MouseButtonEventArgs e)

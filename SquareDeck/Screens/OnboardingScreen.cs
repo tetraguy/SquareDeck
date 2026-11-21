@@ -530,85 +530,21 @@ public sealed class OnboardingScreen : Screen
 
     private FrameworkElement LookPage()
     {
+        // The choice of UI style was taken out with the styles themselves (only Switch is left while theming is
+        // rebuilt); light or dark is what's left to pick here.
         var s = Host.Settings;
-        var (page, body) = Page("Pick a look", "Each UI style changes the home screen and every page, and brings its own colors, wallpaper, sounds and music. " +
-                                               "Browse with left and right; A uses it, and you'll see it change behind this page.");
-        var all = UiStyles.All;
-        string current = UiStyles.Upgrade(s.UiStyle);
-        if (_styleIndex < 0) _styleIndex = Math.Max(0, Array.FindIndex(all, x => x.Id == current));
-
-        // Neighbors either side, smaller and dimmer; the one in the middle is a button.
-        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-        FrameworkElement Shot(UiStyle st, double width)
+        var (page, body) = Page("Pick a look", "Light or dark, or follow Windows. You'll see it change behind this page.");
+        body.Children.Add(Section("Light or dark"));
+        body.Children.Add(Choices(new[] { ("system", "Follow Windows"), ("light", "Light"), ("dark", "Dark"), ("oled", "Black (OLED)") }, s.ThemeMode, m =>
         {
-            double h = width * 9 / 16;
-            var preview = UiStyleScreen.Preview(st);
-            preview.RenderTransform = new ScaleTransform(width / 340, width / 340);
-            var holder = new Canvas { Width = width, Height = h, ClipToBounds = true };
-            holder.Children.Add(preview);
-            return new Border { CornerRadius = new CornerRadius(18), ClipToBounds = true, Child = holder, Clip = new RectangleGeometry(new Rect(0, 0, width, h), 18, 18) };
-        }
-        var left = Shot(all[(_styleIndex - 1 + all.Length) % all.Length], 250);
-        left.Opacity = 0.45;
-        left.VerticalAlignment = VerticalAlignment.Center;
-        left.Margin = new Thickness(0, 0, 24, 0);
-        left.Cursor = Cursors.Hand;
-        left.MouseLeftButtonUp += (_, _) => StepStyle(-1);
-        row.Children.Add(left);
-
-        var st = all[_styleIndex];
-        var middle = new Grid();
-        middle.Children.Add(Shot(st, 560));
-        if (st.Id == current) middle.Children.Add(Tick(40, new Thickness(0, 14, 14, 0)));
-        _carousel = Ui.Tile(middle);
-        _carousel.Tag = "current";
-        _carousel.Click += (_, _) => { Host.UseStyle(st); Go(_step, keep: true); };
-        row.Children.Add(_carousel);
-
-        var right = Shot(all[(_styleIndex + 1) % all.Length], 250);
-        right.Opacity = 0.45;
-        right.VerticalAlignment = VerticalAlignment.Center;
-        right.Margin = new Thickness(24, 0, 0, 0);
-        right.Cursor = Cursors.Hand;
-        right.MouseLeftButtonUp += (_, _) => StepStyle(1);
-        row.Children.Add(right);
-        body.Children.Add(row);
-
-        var name = Ui.Text(st.Name, 28, "FgBrush", bold: true);
-        name.HorizontalAlignment = HorizontalAlignment.Center;
-        name.Margin = new Thickness(0, 18, 0, 2);
-        body.Children.Add(name);
-        var about = Ui.Text(st.Description, 16, "SubtleBrush");
-        about.HorizontalAlignment = HorizontalAlignment.Center;
-        about.TextAlignment = TextAlignment.Center;
-        about.TextWrapping = TextWrapping.Wrap;
-        about.MaxWidth = 720;
-        body.Children.Add(about);
-        var where = Ui.Text($"{_styleIndex + 1} of {all.Length}" + (st.Id == current ? "  ·  in use" : "  ·  press A to use it"), 14, st.Id == current ? "AccentBrush" : "SubtleBrush");
-        where.HorizontalAlignment = HorizontalAlignment.Center;
-        where.Margin = new Thickness(0, 8, 0, 0);
-        body.Children.Add(where);
-
-        if (UiStyles.Find(current).ThemeMode == null)
-        {
-            body.Children.Add(Section("Light or dark"));
-            body.Children.Add(Choices(new[] { ("system", "Follow Windows"), ("light", "Light"), ("dark", "Dark"), ("oled", "Black (OLED)") }, s.ThemeMode, m =>
-            {
-                s.ThemeMode = m;
-                s.DarkTheme = Theme.ShouldBeDark(s);
-                Host.ApplyLook();
-            }));
-        }
+            s.ThemeMode = m;
+            s.DarkTheme = Theme.ShouldBeDark(s);
+            Host.ApplyLook();
+        }));
         return page;
     }
 
-    private void StepStyle(int by)
-    {
-        var all = UiStyles.All;
-        _styleIndex = (_styleIndex + by + all.Length) % all.Length;
-        UiSound.Move();
-        Go(_step, keep: true);
-    }
+    private void StepStyle(int by) { } // nothing to step through now: one style
 
     private FrameworkElement BackgroundPage()
     {
@@ -795,7 +731,7 @@ public sealed class OnboardingScreen : Screen
             b.Click += (_, _) => Go(step);
             chips.Children.Add(b);
         }
-        Chosen("", "Look", UiStyles.Find(s.UiStyle).Name, 2);
+        Chosen("", "Look", s.ThemeMode switch { "light" => "Light", "dark" => "Dark", "oled" => "Black (OLED)", _ => "Follow Windows" }, 2);
         Chosen("", "Background", s.DynamicBackground.Length > 0 ? System.IO.Path.GetFileNameWithoutExtension(s.DynamicBackground) : "None", 3);
         Chosen("", "Controller", Hints.Styles.FirstOrDefault(x => x.Item1 == s.GlyphStyle).Item2 ?? "Xbox", 4);
         Chosen("", "Games", s.OtherStores ? "Steam and other launchers" : "Steam", 5);

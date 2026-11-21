@@ -21,9 +21,10 @@ public partial class MainWindow
         ("Waves", new[] { "Black Wave", "Blue Wave", "Gold Wave", "Silver Wave" }),
         ("Blades", new[] { "Black Blades", "Green Blades", "Mint Blades", "Blurry Blades", "Fuzzy Blades" }),
         ("Pixel art", new[] { "Lofi City", "City Dawn", "Cyberpunk Rain", "Night River", "Mushroom Forest", "Yellowstone", "Chill Mario",
-                              "Ocarina", "Pokee", "Stars and Me", "Witcher" }),
-        ("Scenery", new[] { "Aero", "Heaven", "Pasture", "Plague" }),
-        ("Vaporwave", new[] { "La Fuente", "Analog" })
+                              "Ocarina", "Pokee", "Stars and Me", "Witcher", "Gamer Den", "Pixel Forest", "Dark Sunset", "Emerald",
+                              "Pixel Ride", "Midnight", "Sleepy" }),
+        ("Scenery", new[] { "Aero", "Heaven", "Pasture", "Plague", "Summer Steam", "Fall Blossom", "Dreamcore" }),
+        ("Vaporwave and Y2K", new[] { "La Fuente", "Analog", "Black Bug" })
     };
 
     public static readonly (int Radius, string Name)[] DynamicBlurLevels =

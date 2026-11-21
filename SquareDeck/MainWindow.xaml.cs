@@ -2674,6 +2674,7 @@ public partial class MainWindow : Window
         }
 
         int total = 1500; // when the cover starts to fade
+        if (style == "look") style = "logo"; // "From the look" (6.12 to 6.14): the looks it belonged to are gone
         if (PlayMoreIntro(style, cover, center, ref total)) style = "";
         switch (style)
         {

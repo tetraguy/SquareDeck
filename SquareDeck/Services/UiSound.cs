@@ -27,7 +27,7 @@ public static class UiSound
         SelectEnabled = s.SoundSelect;
         PageEnabled = s.SoundPage;
         ToastEnabled = s.SoundToast;
-        Load(s.SoundSet, s.SoundFolder);
+        Load(s.SoundSet, s.SoundFolder, s.NavSoundSet);
     }
 
     private enum Wave { Sine, Square, Triangle }
@@ -84,8 +84,42 @@ public static class UiSound
     /// <summary>File names looked for in a custom sound folder. Any that are missing use the Classic sound.</summary>
     public static readonly string[] CustomFiles = { "move.wav", "select.wav", "back.wav", "error.wav", "startup.wav", "toast.wav", "page.wav" };
 
-    /// <summary>Switches every interface sound to a built-in set, or to WAV files from a folder.</summary>
-    public static void Load(string set, string folder)
+    /// <summary>
+    /// Switches every interface sound to a built-in set, or to WAV files from a folder. <paramref name="navSet"/> gives
+    /// moving around a set of its own ("" or null = the same set).
+    /// </summary>
+    public static void Load(string set, string folder, string? navSet = null)
+    {
+        var sounds = Build(set, folder);
+        if (!string.IsNullOrEmpty(navSet) && navSet != set) sounds = sounds with { Move = Build(navSet, folder).Move };
+        _packLaunch = sounds.PackLaunch;
+        lock (Gate)
+        {
+            MoveClip = new Clip(sounds.Move);
+            SelectClip = new Clip(sounds.Select);
+            BackClip = new Clip(sounds.Back);
+            ErrorClip = new Clip(sounds.Error);
+            StartupClip = new Clip(sounds.Startup);
+            ToastClip = new Clip(sounds.Toast);
+            PageClip = new Clip(sounds.Page);
+        }
+        // The "from the sound pack" game-start chime follows whichever pack is now selected.
+        if (_chimeId == "pack") SetLaunchChime(_chimeId, _chimeFile);
+    }
+
+    private sealed record SoundBytes(byte[] Move, byte[] Select, byte[] Back, byte[] Error, byte[] Startup, byte[] Toast, byte[] Page, byte[]? PackLaunch);
+
+    private static Clip? _previewClip;
+
+    /// <summary>Plays one sound of a set without switching to it (choosing sounds for a style), even with sounds off.</summary>
+    public static void Preview(string set, bool move)
+    {
+        var sounds = Build(set, "");
+        _previewClip = new Clip(move ? sounds.Move : sounds.Select); // kept so it isn't cleaned up mid-sound
+        Play(_previewClip, force: true);
+    }
+
+    private static SoundBytes Build(string set, string folder)
     {
         // Each set is the same family of sounds in a different voice: waveform, pitch, loudness and length.
         var (wave, pitch, volume, length) = set switch
@@ -139,20 +173,7 @@ public static class UiSound
             startup = SoundPacks.ReadSound(pack, "Startup.wav", "startup.wav") ?? startup;
             packLaunch = SoundPacks.ReadSound(pack, "deck_ui_launch_game.wav");
         }
-        _packLaunch = packLaunch;
-
-        lock (Gate)
-        {
-            MoveClip = new Clip(move);
-            SelectClip = new Clip(select);
-            BackClip = new Clip(back);
-            ErrorClip = new Clip(error);
-            StartupClip = new Clip(startup);
-            ToastClip = new Clip(toast);
-            PageClip = new Clip(page);
-        }
-        // The "from the sound pack" game-start chime follows whichever pack is now selected.
-        if (_chimeId == "pack") SetLaunchChime(_chimeId, _chimeFile);
+        return new SoundBytes(move, select, back, error, startup, toast, page, packLaunch);
     }
 
     private static byte[]? _packLaunch;

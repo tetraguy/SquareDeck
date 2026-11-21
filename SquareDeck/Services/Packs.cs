@@ -22,6 +22,15 @@ public static class SoundPacks
 
     private static List<SoundPack>? _cache;
 
+    /// <summary>
+    /// Built-in packs that were removed (6.15): the PlayStation, Xbox and Dreamcast sounds. Skipped even if an older
+    /// install still has their folders next to the app.
+    /// </summary>
+    private static readonly HashSet<string> Removed = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "PS5_Sounds", "PSP Sounds", "Xbox One Sound Pack", "Xbox 360 UI", "Dreamcast UI SFX"
+    };
+
     /// <summary>Forgets the list, so packs copied in while the launcher is open are found.</summary>
     public static void Refresh() => _cache = null;
 
@@ -36,6 +45,7 @@ public static class SoundPacks
                 if (!Directory.Exists(root)) continue;
                 foreach (var folder in Directory.EnumerateDirectories(root))
                 {
+                    if (root == BuiltInDir && Removed.Contains(Path.GetFileName(folder))) continue;
                     var pack = Read(folder);
                     // A pack in the user's folder replaces a built-in one with the same folder name.
                     if (pack == null) continue;

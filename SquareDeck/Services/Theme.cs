@@ -28,7 +28,9 @@ public static class Theme
         ("Crimson", "Crimson.jpg"), ("Gold Dust", "Gold Dust.jpg"), ("Lavender", "Lavender.jpg"), ("Next Door", "Next Door.jpg"),
         ("Nostalgia", "Nostalgia.jpg"), ("Jewels", "Jewels.jpg"), ("Terra", "Terra.jpg"),
         ("Me o Tu", "Me o Tu.jpg"), ("The View", "The View.jpg"), ("Tu Reflexion", "Tu Reflexion.jpg"), ("Cloud Pool", "Cloud Pool.jpg"),
-        ("Viborl", "Viborl.jpg"), ("Dorado Obscur", "Dorado Obscur.jpg"), ("Windows 95", "Windows 95.jpg")
+        ("Viborl", "Viborl.jpg"), ("Dorado Obscur", "Dorado Obscur.jpg"), ("Windows 95", "Windows 95.jpg"),
+        ("Bad Trip", "Bad Trip.jpg"), ("Chased", "Chased.jpg"), ("Too Much Acid", "Too Much Acid.jpg"), ("Your Fault", "Your Fault.jpg"),
+        ("Silver Lining", "Silver Lining.jpg"), ("Waivy Web", "Waivy Web.jpg")
     };
 
     public const string LeonidaWallpaper = "image:Leonida.jpg";
@@ -218,7 +220,18 @@ public static class Theme
         }
     }
 
-    public static bool ShouldBeDark(Settings settings) => settings.ThemeMode switch
+    /// <summary>
+    /// Light, dark, OLED or following Windows: only the Switch style lets you choose (Settings > Look and feel > Theme).
+    /// Every other style always uses its own (high contrast still wins, for accessibility).
+    /// </summary>
+    public static string EffectiveMode(Settings settings)
+    {
+        if (settings.ThemeMode is "hc-dark" or "hc-light") return settings.ThemeMode;
+        var style = UiStyles.Find(settings.UiStyle);
+        return style.Id == "switch" ? settings.ThemeMode : style.ThemeMode ?? "dark";
+    }
+
+    public static bool ShouldBeDark(Settings settings) => EffectiveMode(settings) switch
     {
         "dark" or "oled" or "hc-dark" => true,
         "hc-light" => false,
@@ -268,6 +281,10 @@ public static class Theme
 
     public static void Apply(Settings settings)
     {
+        // Switch is the only look; its style is whichever of its ready-made styles (or yours) you picked (Settings > Themes).
+        Looks.Select(settings.LookId);
+        MyStyles.Load(settings);
+        if (!UiStyles.Exists(settings.UiStyle)) settings.UiStyle = Looks.Current.StyleId;
         UiStyles.Select(settings.UiStyle);
         UiStyles.ApplyOverrides(settings);
         var style = UiStyles.Current;
@@ -298,7 +315,7 @@ public static class Theme
         }
 
         // OLED: true black, so those pixels are switched off entirely.
-        bool oled = settings.ThemeMode == "oled";
+        bool oled = EffectiveMode(settings) == "oled";
         Set("BgBrush", oled ? "#000000" : dark ? "#2D2D2D" : "#EBEBEB");
         Set("FgBrush", dark ? "#FFFFFF" : "#2D2D2D");
         Set("SubtleBrush", oled ? "#A0A0A0" : dark ? "#B4B4B4" : "#6B6B6B");
