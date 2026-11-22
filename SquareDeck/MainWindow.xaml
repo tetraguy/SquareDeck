@@ -178,7 +178,7 @@
                                                                Foreground="{DynamicResource SubtleBrush}"/>
                                                 </StackPanel>
                                                 <Image x:Name="CoverImage" Source="{Binding TileImage}" Stretch="UniformToFill"
-                                                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                       RenderOptions.BitmapScalingMode="{DynamicResource CoverScaling}"/>
                                                 <!-- Animated cover: a silent looping clip, only on the highlighted tile -->
                                                 <MediaElement x:Name="AnimatedFace" Visibility="Collapsed"
                                                               Source="{Binding AnimatedCover, NotifyOnTargetUpdated=True}"
@@ -200,6 +200,9 @@
                                                 </Border>
                                                 <!-- Experimental "Dusty tiles": dust on games not played for months -->
                                                 <Image Source="{Binding DustImage}" Stretch="Fill" IsHitTestVisible="False"/>
+                                                <!-- Experimental "Darken covers that aren't highlighted": dimmed and softened, cleared on the highlighted tile -->
+                                                <Rectangle x:Name="CoverDim" Fill="{DynamicResource CoverDimBrush}" IsHitTestVisible="False"/>
+                                                <Rectangle x:Name="CoverFade" Fill="{DynamicResource CoverFadeBrush}" IsHitTestVisible="False"/>
                                                 <Border x:Name="UpdateBadge" Background="#2B7DE0" CornerRadius="3" Padding="8,3"
                                                         Margin="8" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                                                         Visibility="Collapsed">
@@ -280,6 +283,8 @@
                                             <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource RingActiveBrush}"/>
                                             <Setter TargetName="TitleHost" Property="Visibility" Value="Visible"/>
                                             <Setter TargetName="NameOverlay" Property="Visibility" Value="Visible"/>
+                                            <Setter TargetName="CoverDim" Property="Visibility" Value="Collapsed"/>
+                                            <Setter TargetName="CoverFade" Property="Visibility" Value="Collapsed"/>
                                         </Trigger>
                                         <DataTrigger Binding="{Binding HasAnimatedCover}" Value="True">
                                             <Setter TargetName="AnimatedFace" Property="Visibility" Value="Visible"/>

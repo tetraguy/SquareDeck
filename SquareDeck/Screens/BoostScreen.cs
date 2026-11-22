@@ -16,7 +16,10 @@ namespace SquareDeck.Screens;
 /// </summary>
 public static class Booster
 {
-    private static readonly string[] Skip = { "System", "Idle", "Registry", "Memory Compression", "smss", "csrss", "wininit", "services", "lsass", "audiodg" };
+    // Left alone: Windows' core, and anything that draws or plays the boost itself (trimming the desktop compositor or
+    // the sound engine made the animation stutter while they paged back in).
+    private static readonly string[] Skip = { "System", "Idle", "Registry", "Memory Compression", "smss", "csrss", "wininit", "services", "lsass", "audiodg",
+        "dwm", "fontdrvhost", "winlogon", "ctfmon", "TextInputHost", "ShellExperienceHost", "StartMenuExperienceHost" };
 
     public static ulong Run()
     {
@@ -36,9 +39,8 @@ public static class Booster
             finally { p.Dispose(); }
         }
         PurgeStandbyList();
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        ProcessUtil.TrimWorkingSet();
+        // SquareDeck's own memory is handed back later, once it's behind the game (lean mode and the graphics saver):
+        // collecting and trimming it here paused the boost and splash animations while they were playing.
         ulong after = Hardware.MemoryStatus()?.Available ?? 0;
         return after > before ? after - before : 0;
     }

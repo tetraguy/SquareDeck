@@ -295,6 +295,8 @@ public static class Theme
         CurrentIsDark = dark;
 
         ReduceMotion = settings.ReduceMotion;
+        HighContrast = settings.ThemeMode is "hc-dark" or "hc-light";
+        HighlightEffects.Load(settings);
         TextScale = Math.Clamp(settings.TextScale, 100, 200) / 100.0;
 
         // High contrast: pure black and white, no grays, and a highlight that can't be missed.
@@ -356,8 +358,13 @@ public static class Theme
     /// <summary>Whether the highlight color is one the user picked (not the style's own), which also replaces a gradient ring.</summary>
     public static bool UserAccent { get; private set; }
 
+    /// <summary>A high-contrast theme is on (highlight effects are left out).</summary>
+    public static bool HighContrast { get; private set; }
+
     public static void ApplyAccent(Settings settings)
     {
+        HighlightEffects.Load(settings);
+        HighContrast = settings.ThemeMode is "hc-dark" or "hc-light";
         UserAccent = settings.ThemeMode is not ("hc-dark" or "hc-light") && !string.IsNullOrEmpty(settings.AccentColor);
         if (settings.ThemeMode is "hc-dark" or "hc-light")
         {

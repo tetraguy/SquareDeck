@@ -20,8 +20,50 @@ public sealed class MoveGameScreen : ListScreen
     private List<Labs.LibraryDrive> _drives = new();
     private string? _status;
     private bool _busy;
+    private double _fraction;
 
-    public MoveGameScreen(Game game) : base("Move " + game.Name, "{Select}  Move here      {Back}  Back") { _game = game; }
+    // The progress card: a bar that slides along with a shine, the percentage and what's happening.
+    private readonly Border _fill = new() { HorizontalAlignment = HorizontalAlignment.Left, Width = 0, Height = 14, CornerRadius = new CornerRadius(7) };
+    private readonly Border _shine = new() { Width = 120, Height = 14, HorizontalAlignment = HorizontalAlignment.Left, IsHitTestVisible = false };
+    private readonly TextBlock _percent = Ui.Text("0%", 30, "FgBrush", bold: true);
+    private readonly TextBlock _step = Ui.Text("", 15, "SubtleBrush");
+    private readonly ProgressFill _bar;
+    private readonly StackPanel _card = new() { Margin = new Thickness(8, 6, 8, 14) };
+
+    public MoveGameScreen(Game game) : base("Move " + game.Name, "{Select}  Move here      {Back}  Back")
+    {
+        _game = game;
+        var track = new Border { Height = 14, CornerRadius = new CornerRadius(7) };
+        track.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        _fill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+        _fill.ClipToBounds = true;
+        var shineBrush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 0) };
+        shineBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 255, 255, 255), 0));
+        shineBrush.GradientStops.Add(new GradientStop(Color.FromArgb(150, 255, 255, 255), 0.5));
+        shineBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 255, 255, 255), 1));
+        _shine.Background = shineBrush;
+        _shine.RenderTransform = new TranslateTransform(-120, 0);
+        _fill.Child = new Canvas { Children = { _shine } };
+        var bar = new Grid();
+        bar.Children.Add(track);
+        bar.Children.Add(_fill);
+        _bar = new ProgressFill(bar, _fill);
+        var top = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+        DockPanel.SetDock(_percent, Dock.Right);
+        top.Children.Add(_percent);
+        _step.VerticalAlignment = VerticalAlignment.Bottom;
+        top.Children.Add(_step);
+        _card.Children.Add(top);
+        _card.Children.Add(bar);
+    }
+
+    private void ShowProgress(double fraction, string step)
+    {
+        _fraction = Math.Clamp(fraction, 0, 1);
+        _percent.Text = $"{Math.Floor(_fraction * 100):0}%";
+        _step.Text = step;
+        _bar.Set(_fraction, 300);
+    }
 
     public override void OnShown()
     {
@@ -37,7 +79,16 @@ public sealed class MoveGameScreen : ListScreen
         long size = _game.SizeOnDisk > 0 ? _game.SizeOnDisk : 0;
         AddNote($"{_game.Name} uses {(size > 0 ? Labs.Size(size) : "an unknown amount of space")}. Pick the Steam library to move it to. " +
                 "Steam closes while it moves and opens again afterwards.");
-        if (_status != null) AddNote(_status);
+        if (_busy)
+        {
+            // Kept, not rebuilt, so the bar slides smoothly.
+            if (_card.Parent is Panel old) old.Children.Remove(_card);
+            Rows.Children.Add(_card);
+            if (!Theme.ReduceMotion)
+                ((TranslateTransform)_shine.RenderTransform).BeginAnimation(TranslateTransform.XProperty,
+                    new System.Windows.Media.Animation.DoubleAnimation(-120, 900, TimeSpan.FromSeconds(1.6)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
+        }
+        else if (_status != null) AddNote(_status);
         AddHeader("Steam libraries");
         foreach (var d in _drives)
         {
@@ -60,8 +111,8 @@ public sealed class MoveGameScreen : ListScreen
         if (await Host.AskAsync("Move " + _game.Name + "?", $"To {drive.Library}. Steam will close while it moves. Don't turn the PC off until it's done.",
                 "Move", "Cancel") != 0) return;
         _busy = true;
-        _status = "Closing Steam…";
         Rebuild();
+        ShowProgress(0, "Closing Steam…");
         if (!await Labs.CloseSteamAsync())
         {
             _busy = false;
@@ -69,18 +120,13 @@ public sealed class MoveGameScreen : ListScreen
             Rebuild();
             return;
         }
-        var last = DateTime.MinValue;
-        var progress = new Progress<double>(f =>
-        {
-            if ((DateTime.Now - last).TotalMilliseconds < 400 && f < 1) return;
-            last = DateTime.Now;
-            _status = $"Moving… {f * 100:0}%";
-            Rebuild();
-        });
+        var progress = new Progress<double>(f => ShowProgress(f, f < 0.95 ? "Copying the game's files…" : "Checking every file and tidying up…"));
         try
         {
             await Labs.MoveGameAsync(_game, drive.Library, progress, _cts.Token);
-            _status = "Moved. Steam is opening again.";
+            ShowProgress(1, "Done. Steam is opening again.");
+            await Task.Delay(900);
+            _status = "Moved to " + drive.Library + ". Steam is opening again.";
             ProcessUtil.Open("steam://open/main");
             await Task.Delay(1500);
             _ = Host.ReloadAsync(waitForArt: false);
@@ -1149,4 +1195,326 @@ public sealed class StickerBookScreen : Screen
     }
 
     private static async Task LoadAsync(Image view, string url) => view.Source = url.Length == 0 ? null : await Task.Run(() => ImageLoader.FromUrlAsync(url, 128));
+}
+
+/// <summary>The companion's look: which character, its color and name, and a try of each reaction.</summary>
+public sealed class CompanionScreen : ListScreen
+{
+    public CompanionScreen() : base("Companion") { }
+
+    protected override void Build()
+    {
+        var preview = new Canvas { Width = 120, Height = 120, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) };
+        CompanionArt.Draw(preview, CompanionArt.SpeciesId, CompanionArt.ColorHex, "happy", false, Labs.Outfit, cell: 10);
+        Rows.Children.Add(preview);
+        var name = Ui.Text(CompanionArt.Name, 22, "FgBrush", bold: true);
+        name.HorizontalAlignment = HorizontalAlignment.Center;
+        name.Margin = new Thickness(0, 0, 0, 8);
+        Rows.Children.Add(name);
+        if (!Labs.On("companion")) AddNote("Turn on Companion in Experimental to see it on Home.");
+
+        AddHeader("Look");
+        AddRow("Character", CompanionArt.Species.First(s => s.Id == CompanionArt.SpeciesId).Name, "", click: async () =>
+        {
+            int c = await Host.AskAsync("Character", null, CompanionArt.Species.Select(s => s.Name).ToArray());
+            if (c >= 0) Change("companion.species", CompanionArt.Species[c].Id);
+        });
+        AddRow("Color", CompanionArt.Colors.FirstOrDefault(c => c.Hex == CompanionArt.ColorHex).Name ?? "Custom", "", click: async () =>
+        {
+            int c = await Host.AskAsync("Color", null, CompanionArt.Colors.Select(x => x.Name).ToArray());
+            if (c >= 0) Change("companion.color", CompanionArt.Colors[c].Hex);
+        });
+        AddRow("Name", CompanionArt.Name, "", click: async () =>
+        {
+            var n = await Host.PromptAsync("Name your companion", null, CompanionArt.Name);
+            if (n != null && n.Trim().Length > 0) Change("companion.name", n.Trim().Length > 16 ? n.Trim()[..16] : n.Trim());
+        });
+        AddRow("Outfit", Labs.Outfit.Length == 0 ? "None" : Labs.Outfit, "", click: () => Host.Push(new UnlockablesScreen()), subtitle: "Earned in Unlockables");
+
+        AddHeader("Try a reaction");
+        AddNote("It reacts by itself on Home: a wave when you come back from a game, a jump for achievements, a spin for milestones, " +
+                "hearts for new favorites, a worried shake at low battery, dancing to music, yawns when you haven't played for a while, " +
+                "sleep late at night, and its eyes follow you along the home row.");
+        foreach (var (id, label) in new[] { ("wave", "Wave"), ("jump", "Jump for joy"), ("spin", "Spin"), ("hearts", "Hearts"), ("worried", "Worried"),
+                                            ("dance", "Dance"), ("yawn", "Yawn"), ("sleep", "Sleep"), ("peek", "Peek"), ("bye", "Wave goodbye") })
+        {
+            var action = id;
+            AddRow(label, null, "", click: () => Host.CompanionReact(action));
+        }
+    }
+
+    private void Change(string key, string value)
+    {
+        Labs.Put(key, value);
+        Host.RefreshCompanion();
+        Rebuild();
+    }
+}
+
+/// <summary>The changelog, read inside SquareDeck: each version's changes, newest first, a few at a time.</summary>
+public sealed class ChangelogScreen : ListScreen
+{
+    private readonly CancellationTokenSource _cts = new();
+    private List<(string Version, List<string> Lines)>? _versions;
+    private bool _failed;
+    private int _shown = 6;
+
+    public ChangelogScreen() : base("Changelogs") { }
+
+    public override void OnShown()
+    {
+        Rebuild();
+        _ = LoadAsync();
+    }
+
+    public override void OnClosed() => _cts.Cancel();
+
+    private async Task LoadAsync()
+    {
+        var text = await Updater.ChangelogAsync(_cts.Token);
+        _failed = text == null;
+        if (text != null)
+        {
+            _versions = new();
+            foreach (var raw in text.Replace("\r", "").Split('\n'))
+            {
+                var line = raw.TrimEnd();
+                if (line.StartsWith("## ")) { _versions.Add((line[3..].Trim(), new List<string>())); continue; }
+                if (_versions.Count == 0 || line.Trim().Length == 0 || line.StartsWith("# ")) continue;
+                _versions[^1].Lines.Add(line);
+            }
+        }
+        if (Host.IsTop(this)) Rebuild();
+    }
+
+    /// <summary>Markdown's emphasis and code marks taken out, for plain reading.</summary>
+    private static string Plain(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\*\*|__|`", "");
+
+    protected override void Build()
+    {
+        if (_failed) { AddNote("The changelog couldn't be loaded. Check the internet connection."); return; }
+        if (_versions == null) { AddNote("Loading the changelog…"); return; }
+        AddNote($"You have version {Updater.Current}.");
+        foreach (var (version, lines) in _versions.Take(_shown))
+        {
+            AddHeader(version == Updater.Current.ToString() ? version + "  (this version)" : version);
+            foreach (var line in lines)
+            {
+                var trimmed = line.TrimStart();
+                int indent = line.Length - trimmed.Length;
+                bool bullet = trimmed.StartsWith("- ") || trimmed.StartsWith("* ");
+                bool heading = !bullet && trimmed.StartsWith("**") && trimmed.EndsWith("**");
+                var text = Ui.Text((bullet ? "•  " : "") + Plain(bullet ? trimmed[2..] : trimmed), heading ? 16 : 15, heading ? "FgBrush" : "SubtleBrush", bold: heading);
+                text.TextWrapping = TextWrapping.Wrap;
+                text.Margin = new Thickness(12 + indent * 10, heading ? 8 : 2, 12, 2);
+                Rows.Children.Add(text);
+            }
+        }
+        if (_shown < _versions.Count)
+            AddRow("Show older versions", $"{_versions.Count - _shown} more", "", click: () => { _shown += 10; Rebuild(); });
+    }
+}
+
+/// <summary>Settings for the cover features: how dark and soft the other covers are, and the cover art effect.</summary>
+public sealed class CoverLabsScreen : ListScreen
+{
+    private readonly bool _effect;
+
+    public CoverLabsScreen(bool effect) : base(effect ? "Cover art effect" : "Darken covers") { _effect = effect; }
+
+    protected override void Build()
+    {
+        if (_effect)
+        {
+            string kind = Labs.Get("covereffect.kind", "retro");
+            AddPreview(kind);
+            AddRow("Effect", CoverEffects.NameOf(kind), "\uE7B8", click: () => Host.Push(new CoverEffectPickerScreen(this)),
+                subtitle: CoverEffects.All.FirstOrDefault(x => x.Id == kind).About + $". {CoverEffects.All.Length - 1} effects to choose from");
+            if (kind is "retro" or "gameboy" or "bricks" or "terminal" or "shuffle")
+            {
+                string px = Labs.Get("covereffect.pixels", "48");
+                AddRow(kind switch { "bricks" => "Brick size", "terminal" => "Text size", _ => "Pixel size" },
+                    px switch { "32" => "Chunky", "72" => "Fine", _ => "Classic" }, "\uE80A", click: () => Pick("covereffect.pixels",
+                    new[] { ("32", "Chunky"), ("48", "Classic"), ("72", "Fine") }), subtitle: "Bigger blocks, or more detail");
+            }
+            if (kind is "duotone" or "shuffle")
+            {
+                string palette = Labs.Get("covereffect.duotone", "accent");
+                AddRow("Duotone colors", CoverEffects.DuotonePalettes.FirstOrDefault(x => x.Id == palette).Name ?? "Highlight color", "\uE790",
+                    click: () => Pick("covereffect.duotone", CoverEffects.DuotonePalettes.Select(x => (x.Id, x.Name)).ToArray()));
+            }
+            AddNote("Applies to the covers on Home. Covers change over a moment as each one is redrawn. Turn it off in Experimental to go back to sharp covers.");
+            return;
+        }
+        string dark = Labs.Get("coverdim.dark", "40"), soft = Labs.Get("coverdim.soft", "0");
+        AddRow("Brightness", dark switch { "20" => "Slightly darker", "30" => "Darker", "40" => "Dark", "55" => "Very dark", "70" => "Darkest", _ => dark + "%" }, "",
+            click: () => Pick("coverdim.dark", new[] { ("20", "Slightly darker"), ("30", "Darker"), ("40", "Dark"), ("55", "Very dark"), ("70", "Darkest") }),
+            subtitle: "How much darker covers are when they aren't highlighted");
+        AddRow("Contrast", soft switch { "0" => "Unchanged", "15" => "A little softer", "30" => "Softer", "45" => "Much softer", _ => soft + "%" }, "",
+            click: () => Pick("coverdim.soft", new[] { ("0", "Unchanged"), ("15", "A little softer"), ("30", "Softer"), ("45", "Much softer") }),
+            subtitle: "Lower contrast makes the other covers recede further");
+        AddNote("The highlighted cover is always shown as it is.");
+    }
+
+    /// <summary>A cover from the library, before and after, so the effect can be seen without leaving the page.</summary>
+    private void AddPreview(string kind)
+    {
+        var source = Host.AllGames.Select(g => g.Cover).OfType<System.Windows.Media.Imaging.BitmapSource>().FirstOrDefault(b => b.IsFrozen);
+        if (source == null) return;
+        ImageSource after;
+        try { after = CoverEffects.RenderNow(source, kind); } catch { return; }
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 14) };
+        foreach (var (picture, label) in new[] { ((ImageSource)source, "Before"), (after, "After") })
+        {
+            var image = new Image { Source = picture, Width = 200, Height = 200, Stretch = Stretch.UniformToFill };
+            RenderOptions.SetBitmapScalingMode(image, CoverEffects.IsPixelArt(kind) ? BitmapScalingMode.NearestNeighbor : BitmapScalingMode.HighQuality);
+            var frame = new Border { Width = 200, Height = 200, Child = image, Clip = new RectangleGeometry(new Rect(0, 0, 200, 200), 10, 10) };
+            var caption = Ui.Text(label, 14, "SubtleBrush");
+            caption.HorizontalAlignment = HorizontalAlignment.Center;
+            caption.Margin = new Thickness(0, 6, 0, 0);
+            var column = new StackPanel { Margin = new Thickness(10, 0, 10, 0) };
+            column.Children.Add(frame);
+            column.Children.Add(caption);
+            row.Children.Add(column);
+        }
+        Rows.Children.Add(row);
+    }
+
+    /// <summary>Called by the effect picker after a choice.</summary>
+    public void Chosen()
+    {
+        Host.ApplyCoverLabs();
+        Rebuild();
+    }
+
+    private async void Pick(string key, (string Value, string Name)[] options)
+    {
+        int c = await Host.AskAsync(_effect ? "Cover art effect" : "Darken covers", null, options.Select(o => o.Name).ToArray());
+        if (c < 0) return;
+        Labs.Put(key, options[c].Value);
+        Host.ApplyCoverLabs();
+        Rebuild();
+    }
+}
+
+/// <summary>Every cover art effect, each with what it looks like; choosing one goes back to the cover settings.</summary>
+public sealed class CoverEffectPickerScreen : ListScreen
+{
+    private readonly CoverLabsScreen _owner;
+
+    public CoverEffectPickerScreen(CoverLabsScreen owner) : base("Choose an effect") { _owner = owner; }
+
+    protected override void Build()
+    {
+        string current = Labs.Get("covereffect.kind", "retro");
+        foreach (var (id, name, about) in CoverEffects.All)
+            AddRow(name, id == current ? "In use" : null, id == current ? "\uE73E" : "\uE7B8", subtitle: about, click: () =>
+            {
+                Labs.Put("covereffect.kind", id);
+                Host.Pop(this);
+                _owner.Chosen();
+            });
+    }
+}
+
+/// <summary>
+/// A game's trailers, played inside SquareDeck in a pop-up window over the page; Y expands it to the whole screen
+/// and back. Plain video files and Steam's newer streamed trailers both play.
+/// </summary>
+public sealed class TrailerScreen : Screen
+{
+    private readonly List<Trailer> _trailers;
+    private readonly string _game;
+    private int _index;
+    private readonly Border _frame;
+    private readonly Microsoft.Web.WebView2.Wpf.WebView2 _web = new() { DefaultBackgroundColor = System.Drawing.Color.Black };
+    private readonly TextBlock _title = Ui.Text("", 18, "FgBrush", bold: true);
+    private bool _expanded;
+    private static Task<Microsoft.Web.WebView2.Core.CoreWebView2Environment>? _environment;
+
+    public TrailerScreen(string game, List<Trailer> trailers)
+    {
+        _game = game;
+        _trailers = trailers;
+        _frame = new Border { Width = 960, Height = 540, CornerRadius = new CornerRadius(14), ClipToBounds = true, Background = Brushes.Black, Child = _web };
+        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        _title.Margin = new Thickness(4, 0, 0, 10);
+        stack.Children.Add(_title);
+        stack.Children.Add(_frame);
+        var dim = new Grid { Background = new SolidColorBrush(Color.FromArgb(0xC8, 0, 0, 0)) };
+        dim.Children.Add(stack);
+        Content = dim;
+        Focusable = true;
+    }
+
+    public override void FocusDefault() => Focus();
+
+    public override async void OnShown()
+    {
+        Focus();
+        try
+        {
+            _environment ??= Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(null, Path.Combine(Settings.DataDir, "Trailers"),
+                new Microsoft.Web.WebView2.Core.CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required"));
+            await _web.EnsureCoreWebView2Async(await _environment);
+            _web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+            Play();
+        }
+        catch (Exception)
+        {
+            _title.Text = "Trailers need Microsoft Edge WebView2, which isn't available.";
+        }
+    }
+
+    public override void OnClosed()
+    {
+        try { _web.Dispose(); } catch (Exception) { }
+    }
+
+    private void Play()
+    {
+        var t = _trailers[_index];
+        _title.Text = $"{_game}  ·  {(t.Name.Length > 0 ? t.Name : "Trailer")}" + (_trailers.Count > 1 ? $"   ({_index + 1} of {_trailers.Count})   LB / RB: other trailers" : "") + "   ·   Y: expand";
+        string src = t.Url ?? t.Stream!;
+        bool hls = t.Url == null;
+        // A plain page with one video. Streams play through hls.js where the browser can't play them itself.
+        string page = "<!doctype html><html><head><meta charset='utf-8'><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}" +
+                      "video{width:100%;height:100%;object-fit:contain;background:#000}</style>" +
+                      (hls ? "<script src='https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js'></script>" : "") +
+                      "</head><body><video id='v' controls autoplay playsinline></video><script>" +
+                      $"var v=document.getElementById('v'),s={System.Text.Json.JsonSerializer.Serialize(src)};" +
+                      (hls ? "if(v.canPlayType('application/vnd.apple.mpegurl')){v.src=s}else if(window.Hls&&Hls.isSupported()){var h=new Hls();h.loadSource(s);h.attachMedia(v)}else{v.src=s}"
+                           : "v.src=s;") +
+                      "v.play().catch(function(){});</script></body></html>";
+        _web.CoreWebView2?.NavigateToString(page);
+    }
+
+    private void Expand()
+    {
+        _expanded = !_expanded;
+        _frame.Width = _expanded ? 1280 : 960;
+        _frame.Height = _expanded ? 720 : 540;
+        _frame.CornerRadius = new CornerRadius(_expanded ? 0 : 14);
+        _title.Visibility = _expanded ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void Script(string js)
+    {
+        try { _ = _web.CoreWebView2?.ExecuteScriptAsync(js); } catch (Exception) { }
+    }
+
+    public override bool OnAction(NavAction action)
+    {
+        switch (action)
+        {
+            case NavAction.Y: Expand(); return true;
+            case NavAction.Accept: Script("var v=document.getElementById('v');if(v){v.paused?v.play():v.pause()}"); return true;
+            case NavAction.Left: Script("var v=document.getElementById('v');if(v)v.currentTime=Math.max(0,v.currentTime-10)"); return true;
+            case NavAction.Right: Script("var v=document.getElementById('v');if(v)v.currentTime+=10"); return true;
+            case NavAction.LB when _trailers.Count > 1: _index = (_index + _trailers.Count - 1) % _trailers.Count; Play(); return true;
+            case NavAction.RB when _trailers.Count > 1: _index = (_index + 1) % _trailers.Count; Play(); return true;
+            case NavAction.Back when _expanded: Expand(); return true;
+        }
+        return false;
+    }
 }

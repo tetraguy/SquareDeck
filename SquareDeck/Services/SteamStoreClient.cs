@@ -9,7 +9,11 @@ namespace SquareDeck.Services;
 public sealed record Screenshot(string Thumb, string Full);
 
 /// <summary>A store trailer. Url is null when Steam only offers it as an adaptive stream we can't play in-app.</summary>
-public sealed record Trailer(string Name, string? Url);
+public sealed record Trailer(string Name, string? Url)
+{
+    /// <summary>The adaptive stream (HLS) Steam serves newer trailers as, when there's no plain video file.</summary>
+    public string? Stream { get; init; }
+}
 
 /// <summary>One post from a game's Steam news feed (announcements, patch notes).</summary>
 /// <param name="Body">The whole post as plain text, for reading inside the launcher.</param>
@@ -149,7 +153,8 @@ public static class SteamStoreClient
                     if (best.Length == 0) best = Str(mp4, "480");
                     if (best.Length > 0) url = best.Replace("http://", "https://");
                 }
-                trailers.Add(new Trailer(Str(m, "name"), url));
+                string? stream = m.ValueKind == JsonValueKind.Object ? Str(m, "hls_h264") : null;
+                trailers.Add(new Trailer(Str(m, "name"), url) { Stream = string.IsNullOrEmpty(stream) ? null : stream!.Replace("http://", "https://") });
             }
         }
 

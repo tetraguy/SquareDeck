@@ -899,7 +899,7 @@ public sealed class MediaScreen : Screen
             _streaming ??= new StreamingView(this);
             _streaming.Build(); // shows the service that's open now, if any
             if (_streaming.Parent is ScrollViewer old) old.Content = null; // from the last visit to this tab
-            _streamingScroll = new ScrollViewer { Content = _streaming, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, Focusable = false };
+            _streamingScroll = new ScrollViewer { PanningMode = PanningMode.VerticalFirst, Content = _streaming, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, Focusable = false };
             _tabHost.Children.Add(_streamingScroll);
             first = _streaming.FirstFocus;
             _timer.Stop();

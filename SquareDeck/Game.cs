@@ -177,7 +177,17 @@ public sealed class Game : INotifyPropertyChanged
     public bool PortraitTried { get; set; }
 
     /// <summary>The picture on the tile: the tall cover in poster styles (when there is one), otherwise the square one.</summary>
-    public ImageSource? TileImage => Wide && _headerCover != null ? _headerCover : Portrait && _portraitCover != null ? _portraitCover : Cover;
+    public ImageSource? TileImage
+    {
+        get
+        {
+            var image = Wide && _headerCover != null ? _headerCover : Portrait && _portraitCover != null ? _portraitCover : Cover;
+            return CoverEffect != null && image != null ? CoverEffect(image, () => Changed(nameof(TileImage))) : image;
+        }
+    }
+
+    /// <summary>Experimental "Cover art effect": changes how Home covers are drawn (null for none).</summary>
+    public static Func<ImageSource, Action, ImageSource>? CoverEffect;
 
     /// <summary>The wide "Continue where you left off" face (not in poster styles: the tile is too narrow for it).</summary>
     public bool ShowContinueFace => IsContinueTile && !Portrait && !Wide;

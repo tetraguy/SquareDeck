@@ -96,7 +96,7 @@ one home screen in front of all of it: pick it up, press A, play.
 - Themes, in two tabs:
   - **Basic:** 100 styles of the Switch design, each with its own colors, type, corners, buttons, wallpaper or moving
     background, sounds and music
-  - **Advanced:** 17 styles made from UI kits, with the kit's own panels, buttons, dialogs, switches, mouse pointer and
+  - **Advanced:** 18 styles made from UI kits, with the kit's own panels, buttons, dialogs, switches, mouse pointer and
     (for some) icons. Several come in more than one color
 - Create your own styles: background, music, interface and navigation sounds, colors, font, button shape and look,
   shelf, effects (halftone, comic book, synthwave, Y2K, dreamcore and more), game art, animations and the Windows lock
@@ -242,6 +242,7 @@ More notes on individual features are in the [changelog](CHANGELOG.md).
 - Music "At Rest", "Daybreak" and "Thinking of You" by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0
 - Sapphire uses the Sapphire GUI kit (three colors) and Barlow Condensed by Jeremy Tribby (SIL Open Font License)
 - Spectrum uses the Spectrum UI kit (five colors)
+- Ubuntu is an original skin in the spirit of the Ubuntu desktop, with the Ubuntu font by Dalton Maag (Ubuntu Font Licence 1.0). Ubuntu is a trademark of Canonical
 - Fatanzia uses the Fatanzia UI kit
 - Cozy Place uses the Travel Book UI (Lite) kit
 - Luna XP uses the Windows XP UI pack packed by NullTale (https://nulltale.itch.io/). The Windows XP look, icons,

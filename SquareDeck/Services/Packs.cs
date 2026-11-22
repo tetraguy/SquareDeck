@@ -206,6 +206,18 @@ public static class Updater
 
     /// <summary>The changelog people read (shown on the update page).</summary>
     public const string ChangelogPage = "https://github.com/" + Repo + "/blob/master/CHANGELOG.md";
+    /// <summary>The whole changelog as written (markdown), from GitHub. Null when it can't be loaded.</summary>
+    public static async Task<string?> ChangelogAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("SquareDeck/" + Current);
+            return await http.GetStringAsync(ChangelogRaw, ct).ConfigureAwait(false);
+        }
+        catch (Exception) { return null; }
+    }
+
     private const string ChangelogRaw = "https://raw.githubusercontent.com/" + Repo + "/master/CHANGELOG.md";
 
     /// <summary>
@@ -316,8 +328,51 @@ public static class Updater
         return path;
     }
 
+    /// <summary>
+    /// Removes downloaded installers (.msi / .zip) once an update is done with them: the download folder and
+    /// background downloads of versions no newer than the one running. Files still in use are left for next time.
+    /// </summary>
+    public static void CleanUpDownloads()
+    {
+        foreach (var name in new[] { "SquareDeckUpdate", "SquareDeckUpdatePrefetch", "SquareDeckUpdatePreview" })
+        {
+            var folder = Path.Combine(Path.GetTempPath(), name);
+            if (!Directory.Exists(folder)) continue;
+            foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    // A background download of a newer version is kept: it's waiting to be installed.
+                    if (name == "SquareDeckUpdatePrefetch" && IsNewerThanCurrent(file)) continue;
+                    if (DateTime.Now - File.GetLastWriteTime(file) < TimeSpan.FromMinutes(2)) continue; // just downloaded or still in use
+                    File.Delete(file);
+                }
+                catch (Exception) { }
+            }
+            try { foreach (var dir in Directory.EnumerateDirectories(folder)) if (!Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir); }
+            catch (Exception) { }
+        }
+    }
+
+    /// <summary>Whether a background-downloaded file belongs to a version newer than the one running.</summary>
+    private static bool IsNewerThanCurrent(string file)
+    {
+        var name = Path.GetFileName(Path.GetDirectoryName(file)) ?? "";
+        var tagVersion = TryVersion(name);
+        var running = TryVersion(Current.ToString());
+        return tagVersion != null && running != null ? tagVersion > running : false;
+    }
+
+    private static Version? TryVersion(string text)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(text, @"(\d+)\D?(\d+)?\D?(\d+)?");
+        if (!m.Success) return null;
+        int Part(int i) => m.Groups[i].Success && int.TryParse(m.Groups[i].Value, out var v) ? v : 0;
+        return new Version(Part(1), Part(2), Part(3));
+    }
+
     private static string PrefetchFolder(ReleaseInfo release) =>
-        Path.Combine(Path.GetTempPath(), "SquareDeckUpdatePrefetch", string.Concat(release.Tag.Where(char.IsLetterOrDigit)));
+        Path.Combine(Path.GetTempPath(), "SquareDeckUpdatePrefetch", string.Concat(release.Tag.Where(c => !Path.GetInvalidFileNameChars().Contains(c))));
 
     /// <summary>The release's file if it has already been downloaded in the background (experimental), whole; null otherwise.</summary>
     public static string? Prefetched(ReleaseInfo release)

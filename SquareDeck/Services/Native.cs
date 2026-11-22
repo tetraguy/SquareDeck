@@ -164,7 +164,9 @@ public static class ShellThumb
     [DllImport("user32.dll")]
     private static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
 
-    public static BitmapSource? ForApp(string appId, int size = 256) => Get(@"shell:AppsFolder\" + appId, size);
+    // A program added by hand is a file path: its own icon, straight from the file.
+    public static BitmapSource? ForApp(string appId, int size = 256) =>
+        Get(System.IO.Path.IsPathRooted(appId) ? appId : @"shell:AppsFolder\" + appId, size);
 
     /// <summary>
     /// The sharpest icon we can find for an installed app: a Microsoft Store app's own logo file at its largest
@@ -172,6 +174,7 @@ public static class ShellThumb
     /// </summary>
     public static BitmapSource? BestForApp(string appId)
     {
+        if (System.IO.Path.IsPathRooted(appId)) return Get(appId, 256);
         var logo = StoreLogoPath(appId);
         if (logo != null && Services.ImageLoader.FromFile(logo, 256) is BitmapSource fromPackage)
         {

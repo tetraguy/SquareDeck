@@ -22,7 +22,24 @@ public static partial class SteamLibrary
     [GeneratedRegex("\"path\"\\s+\"([^\"]+)\"", RegexOptions.IgnoreCase)]
     private static partial Regex LibraryPathRegex();
 
+    // Asked for constantly (once per game in some lists): remembered for a few seconds instead of reading the
+    // registry and checking the folder every time.
+    private static string? _steamPath;
+    private static DateTime _steamPathAt;
+    private static long? _accountId;
+    private static DateTime _accountIdAt;
+    private static readonly TimeSpan Remember = TimeSpan.FromSeconds(10);
+
     public static string? FindSteamPath()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _steamPathAt < Remember) return _steamPath;
+        _steamPath = FindSteamPathNow();
+        _steamPathAt = now;
+        return _steamPath;
+    }
+
+    private static string? FindSteamPathNow()
     {
         string?[] candidates =
         {
@@ -255,6 +272,15 @@ public static partial class SteamLibrary
 
     /// <summary>Account id (the userdata folder name) of the signed-in Steam user.</summary>
     internal static long? GetAccountId()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _accountIdAt < Remember) return _accountId;
+        _accountId = GetAccountIdNow();
+        _accountIdAt = now;
+        return _accountId;
+    }
+
+    private static long? GetAccountIdNow()
     {
         try
         {

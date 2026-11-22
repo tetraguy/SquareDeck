@@ -39,6 +39,7 @@ public sealed class CreditsScreen : ListScreen
         ("UI & Menu SFX (free)", "Northleaf Studio", "Northleaf UI sounds", "Royalty-free", "https://northleafstudio.itch.io/"),
         ("At Rest, Daybreak and Thinking of You", "Kevin MacLeod (incompetech.com)", "Scholar's music, and in the music list", "Licensed under Creative Commons: By Attribution 4.0", "https://incompetech.com/"),
         ("Windows 2000 sounds", "Microsoft", "Windows 2000 sounds (Retro Windows)", "From Sample Focus", null),
+        ("Ubuntu font", "Dalton Maag for Canonical", "The Ubuntu style's font", "Ubuntu Font Licence 1.0", "https://design.ubuntu.com/font"),
         ("GamerPower", "GamerPower", "The free games list (Experimental > Free games tracker)", "Free API; data credited to GamerPower", "https://www.gamerpower.com/"),
         ("Windows 2000 icons", "Microsoft", "Retro Windows (Home button icons)", "Windows 2000's icons belong to Microsoft; from a Stardock IconPackager set", null),
         ("Windows XP sounds", "Microsoft", "Windows XP sounds (Luna XP)", "From the NullTale pack", null),

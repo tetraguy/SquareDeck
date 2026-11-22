@@ -1009,13 +1009,13 @@ public static class UiStyles
         },
         new()
         {
-            Id = "adv-retro-windows", Name = "Retro Windows", Sounds = "pack:Windows 2000", Music = "track:Recuerdos", Moving = "", Wallpaper = "",
+            Id = "adv-retro-windows", Name = "Retro Windows", Sounds = "pack:Windows XP", Music = "track:Recuerdos", Moving = "", Wallpaper = "",
             Description = "Like a 90s desktop: beveled gray windows and buttons, a navy title bar on pop-ups, square checkboxes for switches and a gray taskbar, on a teal desktop seen through an old CRT.",
             Light = new[] { "#C0C0C0", "#000000", "#3A3A3A", "#D4D0C8", "#BDBDBD", "#000080" }, ForceLight = true,
             Font = "file:Windows2000XP.otf#windows 2000 and xp", TileCorner = 0, RowCorner = 0, RingThickness = 2, Buttons = "circle",
             HeroOpacity = 0, Footer = "taskbar", Shadow = "none", Backdrop = new[] { "#008080", "#008080" }, PageScrim = 0.2,
             Ambient = "vhs", Overlay = "scanlines",
-            Skin = new AdvancedSkin("retrowin"), TileAnimation = "steady", NavSounds = "pack:Windows 2000"
+            Skin = new AdvancedSkin("retrowin"), TileAnimation = "steady", NavSounds = "pack:Windows XP"
         },
         new()
         {
@@ -1072,6 +1072,15 @@ public static class UiStyles
             Font = "file:PixelOperator16-Regular.ttf#Pixel Operator", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "bar", Shadow = "hard", Backdrop = new[] { "#B55C60", "#8E3F45" }, PageScrim = 0.35, Glyphs = "pixel",
             Overlay = "paper", Skin = new AdvancedSkin("cozyplace"), TileAnimation = "jelly", NavSounds = "pack:Essential UI Soft"
+        },
+        new()
+        {
+            Id = "adv-ubuntu", Name = "Ubuntu", Sounds = "soft", Music = "track:At Rest", Moving = "", Wallpaper = "image:Ubuntu.jpg",
+            Description = "A Linux desktop in the Ubuntu spirit: dark grey GNOME-style cards and buttons, pop-ups with a header bar and window buttons, orange switches and check boxes, the Ubuntu font, over an aubergine and orange wallpaper.",
+            Dark = new[] { "#2C2C2C", "#F2F2F2", "#A8A8A8", "#383838", "#424242", "#E95420" }, Mode = "dark",
+            Font = "file:Ubuntu-Regular.ttf#Ubuntu", TileCorner = 12, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "bar", Shadow = "soft", Backdrop = new[] { "#2C001E", "#4A1340" }, PageScrim = 0.45,
+            Skin = new AdvancedSkin("ubuntu"), TileAnimation = "lift", NavSounds = "soft"
         },
         new()
         {
@@ -1354,6 +1363,7 @@ public static class UiStyles
         {
             Color = s.Glass && !s.LightGlass ? Colors.White : accent, BlurRadius = s.Glass ? 20 : 24, ShadowDepth = 0, Opacity = s.Glass ? 0.65 : 0.9
         }) : null;
+        if (!Theme.HighContrast && HighlightEffects.GlowFor(accent) is (true, var glow)) res["RingGlow"] = glow;
         res["ButtonShadow"] = Perf.Active ? null : s.Glow && !s.Glass ? Frozen(new DropShadowEffect { Color = accent, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.45 })
                             : s.OutlineButtons || s.ButtonDock ? null : Shadow(6, 1, 0.18);
 
@@ -1433,11 +1443,13 @@ public static class UiStyles
         var res = Application.Current.Resources;
         Color accent = (res["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.White;
         res["RingBrush"] = RingBrush(Current, accent, gradient);
+        if (!Theme.HighContrast && HighlightEffects.GlowFor(accent) is (true, var glow)) res["RingGlow"] = glow;
         (Application.Current.MainWindow as MainWindow)?.RefreshHomeRing();
     }
 
     private static Brush RingBrush(UiStyle s, Color accent, bool gradient = true)
     {
+        if (HighlightEffects.Active && !Theme.HighContrast) return HighlightEffects.Build(accent);
         if (!gradient || s.RingColors is not { Length: > 1 } colors || Theme.UserAccent) return Frozen(new SolidColorBrush(accent));
         var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
         for (int i = 0; i < colors.Length; i++)

@@ -3,6 +3,72 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 6.41.0
+
+**Highlight effects**
+- Settings > Themes > Highlight color > Effects: the highlight can now be drawn in your own colors, standing still or moving. Ten effects: Gradient, Spin, Flow, Candy stripes, Shimmer, Comet (a bright spot racing round the edge), Color cycle, Breathe, Heartbeat and Neon flicker.
+- Colors: 13 ready-made sets (Highlight color, Switch 2, Rainbow, Sunset, Ocean, Aurora, Fire, Ice, Candy, Synthwave, Gold, Toxic, Silver), or your own, with 2 to 8 colors. Each color can be changed with the color picker, colors can be added, removed or reversed.
+- Speed (slow, normal, fast) and glow (the style's own, off, soft, strong). A live preview at the top of the page shows the result.
+- Reduce motion and Performance mode keep the colors but stop the movement. High-contrast themes keep their own highlight.
+
+**Cover art effect (Experimental)**
+- 17 new effects next to Retro: Pocket (four greens with dithering, like a 1989 handheld), Bricks (rebuilt from toy bricks, studs and all), Terminal (green text characters on a glowing screen), Comic, Newspaper, Pencil sketch, Blueprint, Neon, Duotone (with six color pairs, including your highlight color), Thermal camera, Night vision, VHS, Glitch, Oil painting, Stained glass, Old photo, Instant photo, and Shuffle, which gives every cover a different effect.
+- The settings page shows a before-and-after preview with one of your covers, and the effects are chosen from a list with a line about each.
+- Covers are redrawn in the background, a few at a time, so changing effect doesn't freeze Home; each cover changes as it's ready.
+
+## 6.40.0
+
+**New look**
+- Ubuntu: a new Advanced style in the spirit of a Linux desktop. Dark grey GNOME-style cards and buttons, pop-ups with a header bar and window buttons, orange switches and check boxes, the Ubuntu font, and an aubergine-to-orange wallpaper. The Ubuntu font can also be picked on its own under Themes > Font.
+
+**Launch splash**
+- Two retro launch animations under Settings > Launch splash style:
+  - Cartridge: the game's cover drops into a cartridge slot, the slot's light turns from red to green, and the name types out on a scanlined screen.
+  - CRT power-on: the screen switches on like an old tube TV, from a bright line that opens to a full picture with a flash, a flicker and scanlines.
+
+## 6.39.0
+
+**New experimental features**
+- Open Steam in fullscreen: Steam pages opened from SquareDeck (store, library, friends, downloads) open in Steam's Big Picture mode. Starting games is unchanged.
+- Close store launchers after playing: when a game ends, its store's launcher closes too (Epic, EA app, Ubisoft Connect, GOG Galaxy, Battle.net, Amazon Games and others), unless another game from it is still running. Steam is only closed if you choose, and never while it's downloading.
+- Darken covers that aren't highlighted: other covers on Home are dimmed so the highlighted one stands out. Brightness can be set from slightly darker to darkest, and contrast can be softened.
+- Cover art effect, Retro: Home covers become pixel art with fewer colours, in Chunky, Classic or Fine pixel sizes.
+- Trailers in SquareDeck: "Watch the trailer" plays in a pop-up window over the game's page. Steam's newer streamed trailers play too. Y expands it to the whole screen and back, A pauses, left and right skip 10 seconds, and LB / RB switch between a game's trailers.
+- Watermark screenshots: in Captures, a new button on a screenshot adds the game's logo in the corner you choose (top or bottom, left or right) at small, normal or large size. It's saved as a copy named "… (logo).png", and the original is kept.
+
+**Improvements**
+- Updates: "View changelogs" (in Settings > Data and updates, and on the update page) shows the changelog inside SquareDeck, a few versions at a time. It replaces the links to GitHub's release page.
+- Updates: downloaded installers (.msi / .zip) are removed after the update is done.
+- The menu music now starts after the startup sound has finished, instead of over it.
+- Stopping a game: the closing animation plays for 3 seconds before the game is closed, so it's always seen.
+- Add apps: "Choose a program…" adds any program, shortcut or script, not just ones in the Start menu. The installed list no longer shows games from Steam, Epic and other stores, only actual apps.
+- Game library: grouping by genre no longer freezes the page. It used to reorganize once for every genre found; it now waits until they've arrived and shows "Reorganizing…" while it sorts.
+- Game library: groups (category, genre, played) can be folded away by selecting their heading.
+- Touch: smoother, quicker touch scrolling and tapping. SquareDeck uses Windows' modern touch input, and the press-and-hold circle and flick gestures no longer get in the way. The two scroll areas that didn't pan with a finger now do.
+
+## 6.38.0
+
+**Faster**
+- Game library: pictures load only for tiles on or near the screen and are released again once you scroll well past them. Covers of games that aren't installed, and the wide or tall art in the Posters, Banners and other layouts, are only fetched for tiles that come into view. Before, every one of hundreds of games was given its pictures as soon as the page opened.
+- Game launch animations no longer stutter. Two causes are fixed:
+  - SquareDeck switched to drawing without the graphics card (the "free the GPU during games" saver) as soon as a game counted as running. That was often while the boost or launch splash was still animating, so their blur and glow were drawn slowly. It now waits until SquareDeck is actually behind the game.
+  - Performance Boost no longer trims memory from Windows' desktop compositor and a few other parts that draw the screen, and no longer pauses SquareDeck to tidy its own memory mid-animation. That tidy-up still happens later, once it's behind the game.
+- The Steam folder and signed-in account are remembered for a few seconds instead of being read from the registry every time. Some lists asked for them once per game.
+
+**Experimental**
+- Move games between drives: an animated progress bar with a sliding shine, the percentage and the current step (closing Steam, copying, checking).
+- Companion:
+  - Six characters: Blob, Cat, Bunny, Ghost, Robot and Dino.
+  - Eight colours, and a name of your choice, shown in its speech bubbles.
+  - New reactions: a wave when SquareDeck opens or you come back from a game, a goodbye when a game starts, a jump with sparkles for achievements, a spin with stars for milestones, hearts for a new favorite, a worried shake at low battery, dancing to music, yawns when it's bored, floating z's when it sleeps, and eyes that follow you along the home row.
+  - Its own page (Experimental > Open companion) to change it and try each reaction.
+- New: Settings view style, a choice of five Settings layouts (single column, wide column, side drawer, two panes or tiles) or the style's own.
+- Overlays (the companion and the milestone confetti) now cover the whole screen. Before, they were placed only in the top band of the home layout.
+
+**Sounds**
+- Retro Windows now uses the Windows XP sounds.
+- Windows XP sounds (Retro Windows and Luna XP): the Back sound no longer sounds like a burst of air. It had been XP's Minimize "whoosh"; it's now the XP click played lower and a little softer.
+
 ## 6.37.2
 
 - Retro Windows: the Back sound no longer sounds like a phone ringing. It had been Windows 2000's "ring out" sound from its phone dialer. It's now the same Windows click as moving, played lower and a little softer, so going back sounds like the opposite of moving forward.

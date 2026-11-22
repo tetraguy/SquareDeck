@@ -24,6 +24,12 @@ public partial class App : Application
     [DllImport("user32.dll")]
     private static extern bool AllowSetForegroundWindow(int processId);
 
+    public App()
+    {
+        // Touch: Windows' modern pointer input instead of the old tablet stack, for quicker, smoother touch scrolling.
+        AppContext.SetSwitch("Switch.System.Windows.Input.Stylus.EnablePointerSupport", true);
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         // Only one SquareDeck at a time (per Windows user).

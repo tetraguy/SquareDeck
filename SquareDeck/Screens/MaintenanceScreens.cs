@@ -254,7 +254,7 @@ public sealed class DriveSpeedScreen : Screen
         _again.Click += (_, _) => _ = RunAsync();
         panel.Children.Add(_again);
 
-        SetPage("Storage speed test", new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, Focusable = false },
+        SetPage("Storage speed test", new ScrollViewer { PanningMode = PanningMode.VerticalFirst, Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, Focusable = false },
                 "{Select}  Run again      {Back}  Stop / back");
     }
 

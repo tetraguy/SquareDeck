@@ -1,0 +1,26 @@
+{
+ "panel": [
+  14,
+  14,
+  14,
+  14
+ ],
+ "button": [
+  12,
+  12,
+  12,
+  12
+ ],
+ "dialog": [
+  32,
+  18,
+  18,
+  18
+ ],
+ "scale": 0.75,
+ "pixel": false,
+ "iconPixel": false,
+ "roundCorner": 0.5,
+ "dialogPad": 20,
+ "titleText": "#FFFFFF"
+}

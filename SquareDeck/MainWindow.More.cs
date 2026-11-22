@@ -196,7 +196,11 @@ public partial class MainWindow
         UpdateDynamicPlayback();
         UpdateBackgroundMode();
         UpdateGameMemory();
-        bool save = Settings.FreeGpuDuringGames && AllGames.Any(g => g.IsRunning);
+        // Software drawing only once SquareDeck is actually behind the game. Switching while the boost or launch
+        // splash was still animating (the game is "running" a moment before its window shows) drew those animations,
+        // with their blur and glow, without the graphics card: that's what made them stutter.
+        bool covering = _screens.Count > 0 && _screens[^1] is LaunchSplashScreen or BoostScreen;
+        bool save = Settings.FreeGpuDuringGames && AllGames.Any(g => g.IsRunning) && !covering && (_backgroundMode || !IsActive);
         if (save == _gpuSaving) return;
         _gpuSaving = save;
         try
@@ -1083,6 +1087,20 @@ public partial class MainWindow
     /// (never while a game runs, nor with a video, the Music page or the browser open).
     /// A single track loops; "Shuffle all" moves on to another track at the end of each one.
     /// </summary>
+    private DateTime _musicAfterStartup;
+
+    /// <summary>Holds the menu music until the startup sound has finished, then starts it.</summary>
+    private void HoldMusicForStartup()
+    {
+        var length = UiSound.StartupLength;
+        if (length <= TimeSpan.Zero) return;
+        _musicAfterStartup = DateTime.Now + length + TimeSpan.FromMilliseconds(250);
+        if (_menuMusicPlaying && _menuMusic != null) { _menuMusic.Pause(); _menuMusicPlaying = false; }
+        var later = new System.Windows.Threading.DispatcherTimer { Interval = length + TimeSpan.FromMilliseconds(300) };
+        later.Tick += (_, _) => { later.Stop(); UpdateMenuMusic(); };
+        later.Start();
+    }
+
     private void UpdateMenuMusic()
     {
         string choice = Settings.MenuMusic;
@@ -1110,7 +1128,7 @@ public partial class MainWindow
 
             bool busy = (_screens.Count > 0 && _screens[^1] is ViewerScreen or BrowserScreen or MediaScreen or MusicSearchScreen or StreamingScreen) || CloudOpen || LocalMusic.IsPlaying
                         || (Settings.MenuMusicPausesForMedia && (_mediaPlaying || SpotifyPlayer.IsPlaying));
-            bool play = IsActive && !busy && _bootVideo == null && !AllGames.Any(g => g.IsRunning);
+            bool play = IsActive && !busy && _bootVideo == null && !AllGames.Any(g => g.IsRunning) && DateTime.Now >= _musicAfterStartup;
             if (play == _menuMusicPlaying) return;
             _menuMusicPlaying = play;
             if (play) _menuMusic.Play(); else _menuMusic.Pause();

@@ -948,6 +948,7 @@ public partial class MainWindow
 
             Playtime.AddSession(key, name, started, seconds);
             Playtime.Save();
+            if (game != null && Labs.On("closelaunchers")) _ = CloseLauncherAfterAsync(game);
             if (_activeLaunch != null && _activeLaunch.Game.Key == key) _ = RestoreLaunchAsync();
 
             // Steam games wait a moment so the summary can include achievements; the rest report straight away.

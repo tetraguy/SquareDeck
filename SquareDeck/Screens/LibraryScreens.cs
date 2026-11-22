@@ -1168,6 +1168,12 @@ public sealed class DetailsScreen : Screen
 
     private void WatchTrailer()
     {
+        // Experimental: played in a pop-up here, streams included, instead of the full-screen viewer or Steam's page.
+        if (Labs.On("trailers") && _details is { Trailers.Count: > 0 } d && d.Trailers.Any(t => t.Url != null || t.Stream != null))
+        {
+            Host.Push(new TrailerScreen(_game.Name, d.Trailers.Where(t => t.Url != null || t.Stream != null).ToList()));
+            return;
+        }
         // Steam serves some trailers only as adaptive streams, which can't be played here: open the store page then.
         var playable = _details?.Trailers.FirstOrDefault(t => t.Url != null);
         if (playable?.Url != null) Host.Push(new ViewerScreen(new Uri(playable.Url)));
@@ -2048,12 +2054,20 @@ public sealed class AddAppScreen : ListScreen
         AddRow("Search the Microsoft Store and install…", glyph: "", click: SearchStore);
         AddRow("Open the Microsoft Store app", glyph: "", click: () => ProcessUtil.Open("ms-windows-store://home"));
 
+        AddHeader("Your own");
+        AddRow("Choose a program…", null, "\uE8E5", click: ChooseProgram, subtitle: "Any program, shortcut or script on this PC, even if it isn't in the Start menu");
+        foreach (var own in Host.Library.Apps.Where(a => System.IO.Path.IsPathRooted(a.AppId)).ToList())
+        {
+            var entry = own;
+            AddRow(entry.Name, "Added  ✓", "\uE7AC", click: () => { Host.RemoveApp(entry.AppId); Rebuild(); }, subtitle: entry.AppId + "  ·  Select to remove");
+        }
+
         AddHeader("Installed on this PC");
         if (_apps == null) { AddNote("Scanning installed apps…"); return; }
         if (_error != null) AddNote(_error);
 
         var pending = new List<(Image View, string AppId)>();
-        foreach (var app in _apps)
+        foreach (var app in _apps.Where(a => !IsGame(a)))
         {
             var a = app;
             var icon = new Image();
@@ -2076,6 +2090,42 @@ public sealed class AddAppScreen : ListScreen
                 if (source != null) Dispatcher.BeginInvoke(new Action(() => view.Source = source));
             }
         }, ct);
+    }
+
+    // Folders and links that belong to game stores: their shortcuts are games, which the library has already.
+    private static readonly string[] GameMarks =
+    {
+        "steamapps", "steam://", "com.epicgames.launcher", "epic games", "gog galaxy", "goggalaxy://", "ubisoft game launcher", "uplay://",
+        "origin2://", "ea games", "ea app", "battle.net", "battlenet://", "xboxgames", "amazon games", "itch.io", "riot games", "rockstar games\\",
+    };
+
+    /// <summary>Whether a Start-menu entry is really a game (a store's shortcut, or one already in the library).</summary>
+    private bool IsGame(InstalledApp a)
+    {
+        var id = a.AppId.ToLowerInvariant();
+        if (GameMarks.Any(id.Contains)) return true;
+        if (id.Contains("://")) return true; // a store's link, not a program
+        var name = a.Name.Trim();
+        return Host.AllGames.Any(g => g.IsGame && (string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase) || string.Equals(g.OriginalName, name, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private async void ChooseProgram()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Choose a program to add",
+            Filter = "Programs and shortcuts (*.exe;*.lnk;*.bat;*.cmd;*.url)|*.exe;*.lnk;*.bat;*.cmd;*.url|All files|*.*",
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog() != true) return;
+        var path = dialog.FileName;
+        var suggested = System.IO.Path.GetFileNameWithoutExtension(path);
+        try { if (path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && System.Diagnostics.FileVersionInfo.GetVersionInfo(path).FileDescription is { Length: > 0 } d) suggested = d; }
+        catch (Exception) { }
+        var name = await Host.PromptAsync("Name it", "How it's shown on the launcher.", suggested, "Add");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        Host.AddApp(name.Trim(), path);
+        Rebuild();
     }
 
     private async void SearchStore()
@@ -2274,6 +2324,11 @@ public sealed class LibraryScreen : Screen
             PanningMode = PanningMode.VerticalOnly, Focusable = false, Content = content
         };
         _pageScroll = scroll;
+        _genresSettled.Tick += (_, _) => { _genresSettled.Stop(); if (_groupBy == "genre" && Host.IsTop(this)) Reorganize(); };
+        _realizeSoon.Tick += (_, _) => Realize();
+        // Scrolling the page, or a shelf sideways (its scroll event bubbles up here), brings tiles into view.
+        scroll.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler((_, _) => RealizeSoon()));
+        scroll.SizeChanged += (_, _) => RealizeSoon();
         // Showcase fits four banners to the row, so a change of width lays it out again.
         _groups.SizeChanged += (_, e) =>
         {
@@ -2417,7 +2472,75 @@ public sealed class LibraryScreen : Screen
         _artCts?.Cancel();
     }
 
-    private void OnGenres() => Dispatcher.BeginInvoke(() => { if (_groupBy == "genre" && Host.IsTop(this)) Rebuild(); });
+    // Genres arrive one by one in the background: the page is reorganized once they've stopped arriving for a
+    // moment, not once per game (that rebuilt it over and over, and it froze while sorting).
+    private readonly System.Windows.Threading.DispatcherTimer _genresSettled = new() { Interval = TimeSpan.FromMilliseconds(1500) };
+    private void OnGenres() => Dispatcher.BeginInvoke(() =>
+    {
+        if (_groupBy != "genre") return;
+        _genresSettled.Stop();
+        _genresSettled.Start();
+    });
+
+    private Border? _reorganizing;
+
+    /// <summary>Shows "Reorganizing…" while the page is sorted into its groups, then rebuilds it.</summary>
+    private void Reorganize()
+    {
+        if (_reorganizing == null)
+        {
+            var words = new StackPanel { Orientation = Orientation.Horizontal };
+            var spin = Ui.Glyph("\uE895", 18, "AccentBrush");
+            spin.RenderTransformOrigin = new Point(0.5, 0.5);
+            var turn = new RotateTransform();
+            spin.RenderTransform = turn;
+            if (!Theme.ReduceMotion) turn.BeginAnimation(RotateTransform.AngleProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromSeconds(1)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
+            words.Children.Add(spin);
+            var label = Ui.Text("Reorganizing…", 16, "FgBrush", bold: true);
+            label.Margin = new Thickness(10, 0, 0, 0);
+            words.Children.Add(label);
+            _reorganizing = new Border { Child = words, Padding = new Thickness(18, 10, 18, 10), CornerRadius = new CornerRadius(20), HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 70), IsHitTestVisible = false };
+            _reorganizing.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+            Panel.SetZIndex(_reorganizing, 50);
+            if (Content is Panel root) { Grid.SetRowSpan(_reorganizing, 99); Grid.SetColumnSpan(_reorganizing, 99); root.Children.Add(_reorganizing); }
+        }
+        _reorganizing.Visibility = Visibility.Visible;
+        // Drawn first, then the work: the pop-up shows while the page is sorted.
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (Host.IsTop(this)) Rebuild();
+            Dispatcher.BeginInvoke(new Action(() => { if (_reorganizing != null) _reorganizing.Visibility = Visibility.Collapsed; }), System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }), System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    // ---------------------------------------------------------------- groups that fold away
+
+    private static readonly HashSet<string> Collapsed = new();
+
+    /// <summary>A group's heading that folds the group away (and back) when selected.</summary>
+    private bool AddGroupHeading(string name, int count)
+    {
+        string key = _groupBy + ":" + name;
+        bool folded = Collapsed.Contains(key);
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(Ui.Glyph(folded ? "\uE76C" : "\uE70D", 14, "SubtleBrush"));
+        var title = Ui.Text($"{name}  ({count})", 20, "FgBrush", bold: true);
+        title.Margin = new Thickness(10, 0, 0, 0);
+        row.Children.Add(title);
+        var heading = new Button { Style = Ui.StyleOf("RowButton"), Content = row, HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 6, 14, 6),
+            Margin = new Thickness(0, 10, 0, 4), ToolTip = folded ? "Show this group" : "Fold this group away", Tag = "group:" + key };
+        heading.Click += (_, _) =>
+        {
+            if (!Collapsed.Remove(key)) Collapsed.Add(key);
+            FocusTag = "group:" + key;
+            Rebuild();
+        };
+        _groups.Children.Add(heading);
+        return !folded;
+    }
+
+    private string? FocusTag;
 
     private void OnLibraryChanged()
     {
@@ -2480,6 +2603,11 @@ public sealed class LibraryScreen : Screen
         BuildChips(everything);
         BuildToolbar();
         _groups.Children.Clear();
+        _lazy.Clear();
+        _pendingArt.Clear();
+        _shownArt.Clear();
+        _coversAsked.Clear();
+        Dispatcher.BeginInvoke(new Action(Realize), System.Windows.Threading.DispatcherPriority.Loaded);
         // Art still on its way for the old tiles isn't wanted any more.
         _artCts?.Cancel();
         _artCts = new CancellationTokenSource();
@@ -2538,10 +2666,7 @@ public sealed class LibraryScreen : Screen
                 .OrderBy(g => g.Key == Uncategorized)          // uncategorized last
                 .ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase);
             foreach (var group in byCategory)
-            {
-                _groups.Children.Add(Ui.Header($"{group.Key}  ({group.Count()})"));
-                AddGames(group);
-            }
+                if (AddGroupHeading(group.Key, group.Count())) AddGames(group);
         }
         else if (_groupBy == "genre")
         {
@@ -2552,10 +2677,7 @@ public sealed class LibraryScreen : Screen
                 .ThenByDescending(g => g.Count())
                 .ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase);
             foreach (var group in byGenre)
-            {
-                _groups.Children.Add(Ui.Header($"{group.Key}  ({group.Count()})"));
-                AddGames(group);
-            }
+                if (AddGroupHeading(group.Key, group.Count())) AddGames(group);
             if (list.Any(g => g.IsGame && GenreCache.Of(g) == null)) _ = Task.Run(() => GenreCache.EnsureAsync(list.ToList()));
         }
         else if (_groupBy == "played")
@@ -2563,16 +2685,22 @@ public sealed class LibraryScreen : Screen
             bool Played(Game g) => Host.Playtime.TotalSeconds(g.Key) > 0 || g.LastPlayed is not null;
             var played = list.Where(Played).ToList();
             var never = list.Where(g => !Played(g)).ToList();
-            if (played.Count > 0) { _groups.Children.Add(Ui.Header($"Played  ({played.Count})")); AddGames(played); }
-            if (never.Count > 0) { _groups.Children.Add(Ui.Header($"Never played  ({never.Count})")); AddGames(never); }
+            if (played.Count > 0 && AddGroupHeading("Played", played.Count)) AddGames(played);
+            if (never.Count > 0 && AddGroupHeading("Never played", never.Count)) AddGames(never);
         }
         else
         {
             AddGames(list);
         }
 
-        // Covers for games that aren't installed are only fetched once they are actually on screen.
-        if (online) Host.EnsureCovers(list);
+        // Covers for games that aren't installed are only fetched once they are actually on screen (see Realize).
+        _online = online;
+        if (FocusTag != null && _groups.Children.OfType<Button>().FirstOrDefault(b => b.Tag as string == FocusTag) is { } folded)
+        {
+            FocusTag = null;
+            FocusLater(folded);
+            return;
+        }
         RestoreFocus();
     }
 
@@ -2986,7 +3114,7 @@ public sealed class LibraryScreen : Screen
         _groupBy = Groupings[choice].Id;
         Host.Settings.LibraryGroupBy = _groupBy;
         Host.Settings.Save();
-        Rebuild();
+        Reorganize();
     }
 
     private void AddTool(string glyph, string label, Action click, string tip)
@@ -3040,8 +3168,8 @@ public sealed class LibraryScreen : Screen
             name.Margin = new Thickness(10);
             name.HorizontalAlignment = HorizontalAlignment.Center;
             face.Children.Insert(0, name);
-            // Bound, so covers that finish downloading later still appear.
-            cover.SetBinding(Image.SourceProperty, new System.Windows.Data.Binding(nameof(Game.Cover)) { Source = g });
+            // Bound once the tile comes near the screen (see Realize), so covers that finish downloading later still appear.
+            Lazy(box, cover, g);
             // Not installed: the cover is dimmed with a shade on top (fading the picture itself let the name show through).
             if (!g.IsInstalled && !g.OnWishlist)
             {
@@ -3071,7 +3199,7 @@ public sealed class LibraryScreen : Screen
                 var art = new Image { Stretch = Stretch.UniformToFill, Visibility = Visibility.Collapsed };
                 RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.HighQuality);
                 face.Children.Insert(face.Children.IndexOf(cover) + 1, art);
-                QueueArt(g, art, () => { art.Visibility = Visibility.Visible; name.Visibility = Visibility.Collapsed; });
+                QueueArt(g, art, () => { art.Visibility = Visibility.Visible; name.Visibility = Visibility.Collapsed; }, box);
             }
             AddBadges(face, g);
 
@@ -3156,6 +3284,7 @@ public sealed class LibraryScreen : Screen
     /// </summary>
     private void CenterGrids()
     {
+        RealizeSoon(); // the grids may change width: check which tiles are near the screen again afterwards
         double room = _groups.ActualWidth;
         var grids = _groups.Children.OfType<WrapPanel>().Where(p => p.Children.Count > 0).ToList();
         if (room <= 0 || grids.Count == 0) return;
@@ -3490,7 +3619,7 @@ public sealed class LibraryScreen : Screen
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
         var box = GridScreen.ImageBox(62, 62, out var cover);
-        cover.SetBinding(Image.SourceProperty, new System.Windows.Data.Binding(nameof(Game.Cover)) { Source = g });
+        Lazy(box, cover, g);
         if (g.UsesIcon && !g.IconFills) { cover.Stretch = Stretch.Uniform; cover.Margin = new Thickness(12); if (g.TileBackground != null) box.Background = g.TileBackground; }
         box.VerticalAlignment = VerticalAlignment.Center;
         if (!g.IsInstalled && !g.OnWishlist) box.Opacity = 0.5;
@@ -3553,7 +3682,77 @@ public sealed class LibraryScreen : Screen
     private CancellationTokenSource? _artCts;
     private readonly List<(Game Game, Image Picture, Action Shown)> _artQueue = new();
 
-    private void QueueArt(Game game, Image picture, Action shown) => _artQueue.Add((game, picture, shown));
+    private void QueueArt(Game game, Image picture, Action shown, FrameworkElement near) => _pendingArt[near] = (game, picture, shown);
+
+    // ---------------------------------------------------------------- pictures only near the screen
+    //
+    // With hundreds of games, giving every tile its cover (and fetching wide or tall art for all of them) at once
+    // decoded hundreds of pictures and kept them all drawn. Now a tile gets its picture when it comes within a
+    // screen or so of view, and lets go of it again when it's scrolled far away; covers of games that aren't
+    // installed, and the wide or tall art, are only fetched for tiles that come into view.
+
+    private sealed class LazyTile
+    {
+        public required FrameworkElement Bounds;
+        public required Image Cover;
+        public required Game Game;
+        public bool Bound;
+    }
+
+    private readonly List<LazyTile> _lazy = new();
+    private readonly Dictionary<FrameworkElement, (Game Game, Image Picture, Action Shown)> _pendingArt = new();
+    private readonly Dictionary<FrameworkElement, (Game Game, Image Picture, Action Shown)> _shownArt = new();
+    private readonly HashSet<string> _coversAsked = new();
+    private readonly System.Windows.Threading.DispatcherTimer _realizeSoon = new() { Interval = TimeSpan.FromMilliseconds(70) };
+    private bool _online;
+
+    private void Lazy(FrameworkElement bounds, Image cover, Game game) => _lazy.Add(new LazyTile { Bounds = bounds, Cover = cover, Game = game });
+
+    private void RealizeSoon()
+    {
+        _realizeSoon.Stop();
+        _realizeSoon.Start();
+    }
+
+    private void Realize()
+    {
+        _realizeSoon.Stop();
+        if (_pageScroll == null || _lazy.Count == 0) return;
+        double vw = _pageScroll.ViewportWidth, vh = _pageScroll.ViewportHeight;
+        if (vw <= 0 || vh <= 0) return;
+        var near = new Rect(-vw, -vh * 1.5, vw * 3, vh * 4);
+        var far = new Rect(-vw * 2, -vh * 5, vw * 5, vh * 11);
+        var missing = new List<Game>();
+        foreach (var t in _lazy)
+        {
+            Rect r;
+            try
+            {
+                if (!t.Bounds.IsVisible) continue;
+                r = t.Bounds.TransformToAncestor(_pageScroll).TransformBounds(new Rect(t.Bounds.RenderSize));
+            }
+            catch (InvalidOperationException) { continue; }
+            if (r.IntersectsWith(near))
+            {
+                if (!t.Bound)
+                {
+                    t.Cover.SetBinding(Image.SourceProperty, new System.Windows.Data.Binding(nameof(Game.Cover)) { Source = t.Game });
+                    t.Bound = true;
+                }
+                if (t.Game.Cover == null && t.Game.IsSteam) missing.Add(t.Game);
+                if (_pendingArt.Remove(t.Bounds, out var job)) { _artQueue.Add(job); _shownArt[t.Bounds] = job; }
+            }
+            else if (t.Bound && !r.IntersectsWith(far))
+            {
+                System.Windows.Data.BindingOperations.ClearBinding(t.Cover, Image.SourceProperty);
+                t.Cover.Source = null;
+                t.Bound = false;
+                if (_shownArt.Remove(t.Bounds, out var shown)) { shown.Picture.Source = null; _pendingArt[t.Bounds] = shown; }
+            }
+        }
+        if (_artQueue.Count > 0) LoadArt();
+        if (_online && missing.Count > 0 && missing.Any(g => _coversAsked.Add(g.Key))) Host.EnsureCovers(missing);
+    }
 
     private async void LoadArt()
     {

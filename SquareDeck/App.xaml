@@ -5,6 +5,10 @@
              xmlns:sd="clr-namespace:SquareDeck">
     <!-- The main window is opened by App.OnStartup, after checking that SquareDeck isn't already running. -->
     <Application.Resources>
+        <!-- Home covers: experimental darkening of covers that aren't highlighted, and how covers are scaled (retro effect). -->
+        <SolidColorBrush x:Key="CoverDimBrush" Color="Transparent"/>
+        <SolidColorBrush x:Key="CoverFadeBrush" Color="Transparent"/>
+        <BitmapScalingMode x:Key="CoverScaling">HighQuality</BitmapScalingMode>
         <!-- Theme brushes. Replaced at runtime by Theme.Apply(). -->
         <SolidColorBrush x:Key="BgBrush" Color="#EBEBEB"/>
         <SolidColorBrush x:Key="FgBrush" Color="#2D2D2D"/>

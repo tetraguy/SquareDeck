@@ -19,6 +19,12 @@ public sealed class Settings
     /// <summary>Highlight / title color as #RRGGBB, "system" to follow the Windows accent color, or empty for the theme's own.</summary>
     public string AccentColor { get; set; } = "";
 
+    /// <summary>Highlight effect id ("" for none), its colors ("palette:id" or "#hex,#hex,…"), speed and glow.</summary>
+    public string? HighlightEffect { get; set; } = "";
+    public string? HighlightColors { get; set; } = "palette:accent";
+    public string? HighlightSpeed { get; set; } = "normal";
+    public string? HighlightGlow { get; set; } = "style";
+
     /// <summary>Short controller rumble each time a tile is highlighted.</summary>
     public bool Vibration { get; set; }
 

@@ -93,6 +93,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // Touch: no press-and-hold circle, flick gestures or tap ripples getting in the way of scrolling and tapping.
+        System.Windows.Input.Stylus.SetIsPressAndHoldEnabled(this, false);
+        System.Windows.Input.Stylus.SetIsFlicksEnabled(this, false);
+        System.Windows.Input.Stylus.SetIsTapFeedbackEnabled(this, false);
         Theme.Apply(Settings);
         Hints.Map = Settings.ButtonMap;
         Hints.SetStyle(Settings.GlyphStyle);
@@ -933,6 +937,7 @@ public partial class MainWindow : Window
         if (started)
         {
             UiSound.Launch();
+            CompanionReact("bye");
             // A splash screen with the cover until the game is running.
             if (Settings.LaunchSplash && !item.IsRunning && splash == null) Push(new LaunchSplashScreen(item));
             _ = CheckWindowsUpdateAsync(atLaunch: true); // a pending restart could cut the session short
@@ -962,6 +967,9 @@ public partial class MainWindow : Window
         try
         {
             var shownAt = DateTime.UtcNow;
+            // The closing animation plays for three seconds before the game is told to stop, so it's always seen
+            // (some games close so fast it used to flash by).
+            await Task.Delay(3000);
             string? exe = ExactProgram(game);
             string? dir = exe == null && !string.IsNullOrEmpty(game.InstallDir) && Directory.Exists(game.InstallDir) ? game.InstallDir : null;
 
@@ -1193,6 +1201,7 @@ public partial class MainWindow : Window
     /// <summary>Queues a small pop-up in the bottom-right corner. They show one at a time.</summary>
     public void ShowToast(string heading, string title, string detail, string iconUrl, string kind = "info", ImageSource? picture = null, Game? game = null, bool remember = true)
     {
+        if (kind == "achievement") CompanionReact("jump");
         // Everything that pops up is also kept in the notification center (with its game, for the icon there),
         // except quick confirmations of something you just did.
         if (remember)
@@ -1341,6 +1350,7 @@ public partial class MainWindow : Window
     {
         var running = AllGames.FirstOrDefault(g => g.IsRunning);
         RunningPanel.Visibility = running == null ? Visibility.Collapsed : Visibility.Visible;
+        CompanionGameState(running != null);
         // Checked every second while a game runs, so SquareDeck is back quickly once it closes.
         var interval = TimeSpan.FromSeconds(running == null ? 2 : 1);
         if (_runningTimer.Interval != interval) _runningTimer.Interval = interval;
@@ -1439,7 +1449,7 @@ public partial class MainWindow : Window
     public void ToggleFavorite(Game item, FrameworkElement? from = null)
     {
         item.IsFavorite = !item.IsFavorite;
-        if (item.IsFavorite) ShowHeartBurst(item, from); // a heart pops up once, instead of a badge that stays
+        if (item.IsFavorite) { ShowHeartBurst(item, from); CompanionReact("hearts"); } // a heart pops up once, instead of a badge that stays
         Library.For(item.Key).Favorite = item.IsFavorite;
         Library.Save();
         NotifyLibraryChanged();
@@ -2652,6 +2662,7 @@ public partial class MainWindow : Window
     {
         if (TryPlayBootVideo()) return; // the user's own video replaces the built-in animation
         UiSound.Startup();
+        HoldMusicForStartup(); // the menu music starts once the startup sound has finished
         if (Theme.ReduceMotion) return; // chime only
 
         static System.Windows.Media.Animation.DoubleAnimation Anim(double from, double to, int ms, int delayMs = 0,

@@ -116,7 +116,10 @@ public sealed class CaptureViewerScreen : Screen
         _delete = Tool("", "Delete", () => _ = DeleteAsync());
         _back = Tool("", "Close", () => Host.Pop(this));
         _next = Tool("", "Next", () => Step(+1));
-        foreach (var b in new[] { _previous, _play, _zoom, _fullButton, _share, _delete, _back, _next }) tools.Children.Add(b);
+        var tools1 = new List<Button> { _previous, _play, _zoom, _fullButton, _share };
+        if (Labs.On("watermark")) tools1.Add(Tool("\uE8B9", "Add the game's logo", () => _ = WatermarkAsync()));
+        tools1.AddRange(new[] { _delete, _back, _next });
+        foreach (var b in tools1) tools.Children.Add(b);
         var toolbarStack = new StackPanel();
         toolbarStack.Children.Add(tools);
         // A clip's progress, inside the toolbar under its buttons.
@@ -568,6 +571,93 @@ public sealed class CaptureViewerScreen : Screen
         if (_paths.Count == 0) return;
         if (_video != null && _playing) _video.Pause();
         Host.Push(new ShareScreen(Current));
+    }
+
+    /// <summary>
+    /// Experimental "Watermark screenshots": a copy of the screenshot with the game's logo in a corner (the size and
+    /// corner you choose), saved next to it as "… (logo).png". The original is kept.
+    /// </summary>
+    private async Task WatermarkAsync()
+    {
+        if (_paths.Count == 0 || CapturesScreen.IsVideo(Current)) { await Host.AskAsync("Screenshots only", "The logo can be added to screenshots, not videos.", "OK"); return; }
+        string path = Current;
+        var game = GameForCapture(path);
+        if (game == null) { await Host.AskAsync("Which game is this?", "The screenshot's name doesn't match a game in your library, so its logo can't be found.", "OK"); return; }
+        int corner = await Host.AskAsync("Where should the logo go?", game.Name, "Top left", "Top right", "Bottom left", "Bottom right");
+        if (corner < 0) return;
+        int size = await Host.AskAsync("Logo size", null, "Small", "Normal", "Large");
+        if (size < 0) return;
+        string? saved = null, problem = null;
+        await Host.RunBusyAsync("Adding the logo", async () =>
+        {
+            try
+            {
+                string? logoPath = null;
+                using (var client = new SteamGridDbClient(Host.Settings.SteamGridDbApiKey))
+                    try { logoPath = await client.GetLogoAsync(game, CancellationToken.None); } catch (Exception) { }
+                BitmapSource? logo = null;
+                if (logoPath != null) logo = await Task.Run(() => ImageLoader.FromFile(logoPath, 1600) as BitmapSource);
+                if (logo == null && game.IsSteam)
+                    logo = await ImageLoader.FromUrlAsync($"https://cdn.cloudflare.steamstatic.com/steam/apps/{game.AppId}/logo.png", 1600) as BitmapSource;
+                if (logo == null) { problem = "No logo was found for " + game.Name + "."; return; }
+                saved = await Task.Run(() => Compose(path, logo, corner, size));
+            }
+            catch (Exception ex) { problem = ex.Message; }
+        });
+        if (saved == null) { await Host.AskAsync("Couldn't add the logo", problem ?? "Something went wrong.", "OK"); return; }
+        Changed = true;
+        _paths.Insert(_index + 1, saved);
+        _index++;
+        BuildStrip();
+        Show();
+        Host.ShowToast("SAVED", "Logo added", Path.GetFileName(saved), "", remember: false);
+    }
+
+    private Game? GameForCapture(string path)
+    {
+        static string Simple(string s) => new string(s.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        // Steam's own screenshots sit in a folder named after the game's app id.
+        var parts = path.Split(Path.DirectorySeparatorChar);
+        int i = Array.FindIndex(parts, p => p.Equals("remote", StringComparison.OrdinalIgnoreCase));
+        if (i >= 0 && i + 1 < parts.Length && int.TryParse(parts[i + 1], out var appId))
+            return Host.AllGames.FirstOrDefault(g => g.IsSteam && g.AppId == appId);
+        string of = Simple(CapturesScreen.GameOf(path));
+        if (of.Length == 0) return null;
+        return Host.AllGames.Where(g => g.IsGame).FirstOrDefault(g => Simple(g.Name) == of || Simple(g.OriginalName) == of)
+            ?? Host.AllGames.Where(g => g.IsGame).FirstOrDefault(g => of.Length > 5 && (Simple(g.Name).StartsWith(of) || of.StartsWith(Simple(g.Name))));
+    }
+
+    /// <summary>Draws the logo onto the screenshot at full size and saves the copy. Returns its path.</summary>
+    private static string Compose(string path, BitmapSource logo, int corner, int size)
+    {
+        var shot = new BitmapImage();
+        shot.BeginInit();
+        shot.CacheOption = BitmapCacheOption.OnLoad;
+        shot.UriSource = new Uri(path);
+        shot.EndInit();
+        shot.Freeze();
+        int w = shot.PixelWidth, h = shot.PixelHeight;
+        double logoW = w * new[] { 0.14, 0.2, 0.28 }[size];
+        double logoH = logoW * logo.PixelHeight / Math.Max(1, logo.PixelWidth);
+        if (logoH > h * 0.3) { logoH = h * 0.3; logoW = logoH * logo.PixelWidth / Math.Max(1, logo.PixelHeight); }
+        double margin = w * 0.025;
+        double x = corner is 0 or 2 ? margin : w - margin - logoW;
+        double y = corner is 0 or 1 ? margin : h - margin - logoH;
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawImage(shot, new Rect(0, 0, w, h));
+            dc.DrawImage(logo, new Rect(x, y, logoW, logoH));
+        }
+        var target = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+        target.Render(visual);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(target));
+        string dir = Path.GetDirectoryName(path)!, name = Path.GetFileNameWithoutExtension(path);
+        string output = Path.Combine(dir, name + " (logo).png");
+        for (int n = 2; File.Exists(output); n++) output = Path.Combine(dir, $"{name} (logo {n}).png");
+        using (var file = File.Create(output)) encoder.Save(file);
+        return output;
     }
 
     private async Task DeleteAsync()

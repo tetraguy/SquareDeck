@@ -282,6 +282,7 @@ public partial class MainWindow
         if (AllGames.Any(g => g.IsRunning) && !IsActive) GameNotice.Show(title, detail, "\uEBA0"); // over the game
         else ShowToast("Battery", title, detail, "", "info");
         UiSound.Battery(critical: p <= 5);
+        CompanionReact("worried");
     }
 
     private bool _focusPaused;

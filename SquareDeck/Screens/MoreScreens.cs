@@ -1031,13 +1031,12 @@ public sealed class UpdateScreen : ListScreen
                 "", click: () => _ = Host.InstallUpdateAsync(_release));
         else
             AddNote("This release has no installer or ZIP attached, so it can't be installed from here. Open its page to get it.");
-        AddRow("Open the changelog", "On GitHub", glyph: "", click: () => WebLinks.Open(Updater.ChangelogPage, Host));
-        AddRow("Open the release page", glyph: "", click: () => WebLinks.Open(_release.PageUrl, Host));
+        AddRow("View changelogs", null, glyph: "\uE81C", click: () => Host.Push(new ChangelogScreen()));
         AddRow("Not now", glyph: "", click: () => Host.Pop(this));
 
         AddHeader("What's new");
         var notes = Updater.PlainNotes(_release.Notes);
-        if (notes.Length == 0) AddNote("No changes are listed for this version yet. Open the changelog to see the latest.");
+        if (notes.Length == 0) AddNote("No changes are listed for this version yet. Choose View changelogs to see the latest.");
         foreach (var paragraph in notes.Split('\n'))
         {
             if (paragraph.Trim().Length == 0) continue;
@@ -1483,6 +1482,8 @@ public sealed class LaunchSplashScreen : Screen
         ("ripples", "Ripples", "Rings of light ripple out from the cover"),
         ("ring", "Loading ring", "A ring of light chases round the cover"),
         ("cinema", "Cinematic", "Letterbox bars close in as the cover glides into place"),
+        ("cartridge", "Cartridge", "Retro: the cover slots in like a game cartridge, the power light blinks on, and the name types itself out"),
+        ("crt", "CRT power-on", "Retro: an old TV switches on, from a bright line to a flickering picture with scanlines"),
     };
 
     /// <summary>A few seconds of the animation with a stand-in game, from Settings.</summary>
@@ -1737,6 +1738,91 @@ public sealed class LaunchSplashScreen : Screen
                 Both(scale, new DoubleAnimation(1, 1.08, TimeSpan.FromSeconds(9)) { EasingFunction = new SineEase { EasingMode = EasingMode.EaseOut } });
                 break;
             }
+            case "cartridge":
+            {
+                // A console slot at the bottom of the stage; the cover drops into it with a clunk, the power light goes
+                // from red to green, and the name types itself out in blocky letters over faint scanlines.
+                var slot = new Border { Width = 320, Height = 34, CornerRadius = new CornerRadius(6), VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, -26),
+                    Background = new LinearGradientBrush(Color.FromRgb(0x2A, 0x2D, 0x34), Color.FromRgb(0x14, 0x15, 0x19), 90), IsHitTestVisible = false };
+                var mouth = new Border { Width = 270, Height = 8, CornerRadius = new CornerRadius(3), Background = Brushes.Black, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 5, 0, 0) };
+                var led = new System.Windows.Shapes.Ellipse { Width = 10, Height = 10, Fill = Brushes.Red, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 14, 6) };
+                var slotGrid = new Grid();
+                slotGrid.Children.Add(mouth);
+                slotGrid.Children.Add(led);
+                slot.Child = slotGrid;
+                fx.Children.Add(slot);
+                var drop = new TranslateTransform(0, -520);
+                var group = new TransformGroup();
+                group.Children.Add(scale);
+                group.Children.Add(drop);
+                cover.RenderTransform = group;
+                var fall = new DoubleAnimationUsingKeyFrames();
+                fall.KeyFrames.Add(new EasingDoubleKeyFrame(-520, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+                fall.KeyFrames.Add(new EasingDoubleKeyFrame(14, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(520)), new QuadraticEase { EasingMode = EasingMode.EaseIn }));
+                fall.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(640))));
+                fall.KeyFrames.Add(new EasingDoubleKeyFrame(6, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(700))));
+                fall.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(780))));
+                drop.BeginAnimation(TranslateTransform.YProperty, fall);
+                var power = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
+                int blinks = 0;
+                power.Tick += (_, _) =>
+                {
+                    power.Interval = TimeSpan.FromMilliseconds(140);
+                    led.Fill = blinks++ % 2 == 0 ? Brushes.LimeGreen : Brushes.DarkGreen;
+                    if (blinks >= 5) { led.Fill = Brushes.LimeGreen; power.Stop(); }
+                };
+                power.Start();
+                // The name types out, one letter at a time, with a blinking block cursor.
+                string full = name.Text;
+                name.FontFamily = new FontFamily("Consolas");
+                name.Text = "";
+                int shown = 0;
+                var type = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(55) };
+                var startTyping = DateTime.UtcNow.AddMilliseconds(900);
+                type.Tick += (_, _) =>
+                {
+                    if (DateTime.UtcNow < startTyping) return;
+                    shown = Math.Min(full.Length, shown + 1);
+                    bool cursor = (DateTime.UtcNow.Millisecond / 300) % 2 == 0;
+                    name.Text = full[..shown] + (shown < full.Length || cursor ? "█" : " ");
+                    if (shown >= full.Length && DateTime.UtcNow > startTyping.AddSeconds(4)) { name.Text = full; type.Stop(); }
+                };
+                type.Start();
+                root.Children.Add(Scanlines(0.10));
+                break;
+            }
+            case "crt":
+            {
+                // An old TV switching on: a bright line in the middle opens up into the picture with a flash, then a
+                // gentle flicker and scanlines while the game loads.
+                var tv = new ScaleTransform(1, 0.004, 640, 360);
+                foreach (var child in root.Children.OfType<FrameworkElement>().ToList()) child.RenderTransform = tv; // what's there now: the picture
+                var line = new Border { Height = 4, Background = Brushes.White, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false,
+                    Effect = new System.Windows.Media.Effects.BlurEffect { Radius = 6 } };
+                root.Children.Add(line);
+                var open = new DoubleAnimationUsingKeyFrames { BeginTime = TimeSpan.FromMilliseconds(260) };
+                open.KeyFrames.Add(new EasingDoubleKeyFrame(0.004, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+                open.KeyFrames.Add(new EasingDoubleKeyFrame(1.04, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(260)), new CubicEase { EasingMode = EasingMode.EaseOut }));
+                open.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(380))));
+                tv.BeginAnimation(ScaleTransform.ScaleYProperty, open);
+                var lineFade = new DoubleAnimation(1, 0, Ms(300)) { BeginTime = TimeSpan.FromMilliseconds(380) };
+                line.BeginAnimation(OpacityProperty, lineFade);
+                var flash = new Border { Background = Brushes.White, IsHitTestVisible = false, Opacity = 0 };
+                root.Children.Add(flash);
+                var flashKeys = new DoubleAnimationUsingKeyFrames { BeginTime = TimeSpan.FromMilliseconds(460) };
+                flashKeys.KeyFrames.Add(new LinearDoubleKeyFrame(0.55, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(40))));
+                flashKeys.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(360))));
+                flash.BeginAnimation(OpacityProperty, flashKeys);
+                var lines = Scanlines(0.16);
+                root.Children.Add(lines);
+                // A faint, uneven flicker, like an old tube.
+                var flicker = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, BeginTime = TimeSpan.FromMilliseconds(900) };
+                foreach (var (ms, o) in new[] { (0, 1.0), (90, 0.93), (160, 1.0), (1300, 1.0), (1350, 0.9), (1420, 1.0), (2600, 1.0) })
+                    flicker.KeyFrames.Add(new LinearDoubleKeyFrame(o, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ms))));
+                cover.BeginAnimation(OpacityProperty, flicker);
+                Breathe(scale, 1, 1.02, 2.2);
+                break;
+            }
             default:
             {
                 // Classic: the cover pops in, then breathes gently while the game loads.
@@ -1746,6 +1832,18 @@ public sealed class LaunchSplashScreen : Screen
                 break;
             }
         }
+    }
+
+    /// <summary>Faint horizontal lines over the screen, like an old TV.</summary>
+    private static FrameworkElement Scanlines(double strength)
+    {
+        var drawing = new GeometryDrawing(new SolidColorBrush(Color.FromArgb((byte)(strength * 255), 0, 0, 0)), null, new RectangleGeometry(new Rect(0, 0, 4, 2)));
+        var brush = new DrawingBrush(new DrawingGroup { Children = { new GeometryDrawing(Brushes.Transparent, null, new RectangleGeometry(new Rect(0, 0, 4, 4))), drawing } })
+        {
+            TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 4, 4), ViewportUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, 4, 4), ViewboxUnits = BrushMappingMode.Absolute
+        };
+        brush.Freeze();
+        return new Border { Background = brush, IsHitTestVisible = false };
     }
 
     private bool _held;

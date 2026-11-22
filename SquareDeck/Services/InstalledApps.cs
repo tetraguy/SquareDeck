@@ -42,7 +42,20 @@ public static class InstalledApps
         return apps.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
-    public static bool Launch(string appId) => ProcessUtil.Open("explorer.exe", @"shell:AppsFolder\" + appId);
+    public static bool Launch(string appId)
+    {
+        // A program added by hand ("Choose a program…"): started directly, from its own folder.
+        if (System.IO.Path.IsPathRooted(appId))
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(appId) { UseShellExecute = true, WorkingDirectory = System.IO.Path.GetDirectoryName(appId) ?? "" });
+                return true;
+            }
+            catch (Exception) { return false; }
+        }
+        return ProcessUtil.Open("explorer.exe", @"shell:AppsFolder\" + appId);
+    }
 
     /// <summary>Searches the Microsoft Store catalogue through winget.</summary>
     public static async Task<List<StoreResult>> SearchStoreAsync(string query, CancellationToken ct = default)

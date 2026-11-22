@@ -217,8 +217,25 @@ public static class ProcessUtil
     /// </summary>
     public static bool Open(string target, string? arguments = null)
     {
+        if (arguments == null && SteamFullscreen(target)) return true;
         if (arguments == null && WebLinks.TryInside(target)) return true;
         return OpenOutside(target, arguments);
+    }
+
+    /// <summary>
+    /// Experimental "Open Steam in fullscreen": a Steam page (store, library, friends, settings…) opens in Steam's
+    /// Big Picture mode. Starting games, closing Steam and its file checks are left as they are.
+    /// </summary>
+    private static bool SteamFullscreen(string target)
+    {
+        if (!Labs.On("steamfullscreen") || !target.StartsWith("steam://", StringComparison.OrdinalIgnoreCase)) return false;
+        var rest = target[8..].ToLowerInvariant();
+        if (rest.StartsWith("rungameid") || rest.StartsWith("run/") || rest.StartsWith("launch") || rest.StartsWith("exit") || rest.StartsWith("validate") ||
+            rest.StartsWith("open/bigpicture") || rest.StartsWith("flushconfig") || rest.StartsWith("forceinputappid")) return false;
+        OpenOutside("steam://open/bigpicture");
+        // Once Big Picture is up, the page opens inside it.
+        _ = Task.Delay(SteamLibrary.ClientRunning() ? 900 : 5000).ContinueWith(_ => OpenOutside(target));
+        return true;
     }
 
     /// <summary>Opens with Windows' default handler, whatever the browser setting (Windows' own browser for links).</summary>

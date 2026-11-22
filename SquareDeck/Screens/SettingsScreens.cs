@@ -140,7 +140,7 @@ public sealed class SettingsScreen : ListScreen
     /// </summary>
     private void BuildLayout()
     {
-        switch (LookChrome.Design.Settings)
+        switch (LayoutId)
         {
             case "drawer":
                 Rows.Width = 880;
@@ -166,6 +166,41 @@ public sealed class SettingsScreen : ListScreen
         }
     }
 
+    /// <summary>
+    /// The page's layout: the look's own, unless Experimental > Settings view style picks one. "column" (one
+    /// centered column), "wide", "drawer" (on the left over the artwork), "panes" (sections on the left) or "tiles"
+    /// (Settings home shows the sections as a grid of tiles).
+    /// </summary>
+    internal static string LayoutId
+    {
+        get
+        {
+            var chosen = Labs.On("settingsview") ? Labs.Get("settings.layout", "auto") : "auto";
+            return chosen == "auto" ? LookChrome.Design.Settings : chosen;
+        }
+    }
+
+    public static readonly (string Id, string Name, string About)[] Layouts =
+    {
+        ("auto", "Follow the style", "Each UI style's own layout"),
+        ("column", "Single column", "One centered list; Settings home lists the sections"),
+        ("wide", "Wide column", "A wider list that shows more on each row"),
+        ("drawer", "Side drawer", "A list on the left, over the wallpaper or artwork"),
+        ("panes", "Two panes", "The sections down the left, their settings on the right"),
+        ("tiles", "Tiles", "Settings home shows the sections as big tiles"),
+    };
+
+    private async void ChooseLayout()
+    {
+        int c = await Host.AskAsync("Settings view style", "How the Settings page is laid out. Settings reopens in the new layout.",
+            Layouts.Select(l => l.Name).ToArray());
+        if (c < 0) return;
+        Labs.Put("settings.layout", Layouts[c].Id);
+        // The layout is set up when the page opens, so open it again.
+        Host.Pop(this);
+        Host.Push(new SettingsScreen("experimental"));
+    }
+
     // ---------------------------------------------------------------- two panes (console-style looks)
 
     [ThreadStatic] private static Grid? _panesHost;
@@ -174,7 +209,7 @@ public sealed class SettingsScreen : ListScreen
     /// <summary>For looks with two panes: a grid with room on the left for the sections and the settings on the right.</summary>
     private static Func<ScrollViewer, UIElement>? PanesLayout()
     {
-        if (LookChrome.Design.Settings != "panes") return null;
+        if (LayoutId != "panes") return null;
         return scroll =>
         {
             var grid = new Grid();
@@ -488,6 +523,36 @@ public sealed class SettingsScreen : ListScreen
 
         // Every section, as a card (two panes list them on the left already).
         if (_panes) return;
+        if (LayoutId == "tiles")
+        {
+            AddHeader("All settings");
+            var wrap = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 8) };
+            foreach (var c in VisibleCategories.Skip(1))
+            {
+                var id = c.Id;
+                var cardFace = new StackPanel { Width = 220, Height = 132, Margin = new Thickness(12) };
+                var glyph = Ui.Glyph(c.Glyph, 40, "AccentBrush");
+                glyph.HorizontalAlignment = HorizontalAlignment.Left;
+                cardFace.Children.Add(glyph);
+                var title = Ui.Text(c.Name, 19, "FgBrush", bold: true);
+                title.Margin = new Thickness(0, 12, 0, 2);
+                cardFace.Children.Add(title);
+                var about = Ui.Text(c.About, 12, "SubtleBrush");
+                about.TextWrapping = TextWrapping.Wrap;
+                about.TextTrimming = TextTrimming.CharacterEllipsis;
+                about.MaxHeight = 34;
+                cardFace.Children.Add(about);
+                var card = new Border { Child = cardFace, CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner, 8)) };
+                card.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+                var tile = Ui.Tile(card);
+                tile.Margin = new Thickness(6);
+                tile.DataContext = "section:" + id;
+                tile.Click += (_, _) => Show(id, focusContent: true);
+                wrap.Children.Add(tile);
+            }
+            Rows.Children.Add(wrap);
+            return;
+        }
         AddHeader("All settings");
         foreach (var c in VisibleCategories.Skip(1))
         {
@@ -2303,6 +2368,18 @@ public sealed class SettingsScreen : ListScreen
         "unlockables" => () => Host.Push(new UnlockablesScreen()),
         "passport" => () => Host.Push(new PassportScreen()),
         "mood" => () => Host.Push(new MoodScreen()),
+        "companion" => () => Host.Push(new CompanionScreen()),
+        "settingsview" => ChooseLayout,
+        "coverdim" => () => Host.Push(new CoverLabsScreen(effect: false)),
+        "covereffect" => () => Host.Push(new CoverLabsScreen(effect: true)),
+        "closelaunchers" => async () =>
+        {
+            bool steam = Labs.Get("closelaunchers.steam") == "1";
+            int c = await Host.AskAsync("Close Steam too?", "Steam also handles downloads, friends and chat, so it's left open unless you choose otherwise. " +
+                "It's never closed while it's downloading.", steam ? "Keep closing Steam" : "Close Steam too", steam ? "Leave Steam open" : "Leave Steam open");
+            if (c == 0) Labs.Put("closelaunchers.steam", "1");
+            else if (c == 1) Labs.Put("closelaunchers.steam", "0");
+        },
         _ => null
     };
 
@@ -2316,7 +2393,7 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Check for updates now", glyph: "", click: () => _ = Host.CheckForUpdatesAsync(manual: true));
         if (s.SkippedVersion.Length > 0)
             AddRow("Stop ignoring " + s.SkippedVersion, glyph: "", click: () => Toggle(() => s.SkippedVersion = ""));
-        AddRow("Open the releases page", glyph: "", click: () => ProcessUtil.Open(Updater.ReleasesPage));
+        AddRow("View changelogs", null, "\uE81C", subtitle: "What changed in each version", click: () => Host.Push(new ChangelogScreen()));
         AddRow("Credits", null, "\uE946", subtitle: "The artists behind the Advanced styles' kits, sounds and fonts", click: () => Host.Push(new CreditsScreen()));
         AddRow("Update screen animation", SilentUpdate.Looks.FirstOrDefault(l => l.Id == s.UpdaterLook).Name ?? "A different one each time", "\uE768",
             click: () => Pick("Update screen animation", SilentUpdate.Looks.Select(l => (l.Id, l.Name, "")).ToArray(), id => s.UpdaterLook = id),
@@ -2696,6 +2773,7 @@ public sealed class SettingsScreen : ListScreen
         ("file:Windows2000XP.otf#windows 2000 and xp", "Windows 2000", "The crisp system type of old Windows"),
         ("file:WindowsXPLike.otf#WindowsXPlike A", "Windows XP", "Friendly early-2000s desktop type"),
         ("file:OpenDyslexic-Regular.otf#OpenDyslexic", "OpenDyslexic", "Weighted letters that some people with dyslexia find easier to read"),
+        ("file:Ubuntu-Regular.ttf#Ubuntu", "Ubuntu", "Ubuntu Linux's friendly, rounded sans-serif"),
         ("file:VT323-Regular.ttf#VT323", "VT323", "An old computer terminal's pixel type"),
         ("file:Jersey10-Regular.ttf#Jersey 10", "Jersey 10", "Tall, condensed pixel type like a team jersey"),
         ("file:PixelOperator16-Regular.ttf#Pixel Operator", "Pixel Operator", "A tidy, readable pixel font"),
@@ -2808,6 +2886,19 @@ public sealed class AccentScreen : GridScreen
     {
         AddTile(GlyphBox(120, 120, "\uE777"), "Default", 120, () => Pick(""));
 
+        // Highlight effects: the ring in your own colors, moving.
+        var effects = new System.Windows.Media.LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
+        foreach (var (hex, at) in new[] { ("#FF2BD6", 0.0), ("#7A2BFF", 0.5), ("#22D3EE", 1.0) })
+            effects.GradientStops.Add(new System.Windows.Media.GradientStop((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex), at));
+        var effectsTile = new Border
+        {
+            Width = 120, Height = 120, BorderThickness = new Thickness(6), BorderBrush = effects, CornerRadius = new CornerRadius(14),
+            Child = Ui.Glyph("\uE945", 40, "FgBrush")
+        };
+        ((TextBlock)effectsTile.Child).HorizontalAlignment = HorizontalAlignment.Center;
+        ((TextBlock)effectsTile.Child).VerticalAlignment = VerticalAlignment.Center;
+        AddTile(effectsTile, HighlightEffects.Active ? "Effects (on)" : "Effects\u2026", 120, () => Host.Push(new HighlightEffectsScreen()));
+
         // Whatever accent color is set in Windows' own Personalization settings.
         var system = Theme.SystemAccent();
         var windows = new Border
@@ -2858,6 +2949,147 @@ public sealed class AccentScreen : GridScreen
         var start = (Application.Current.Resources["AccentBrush"] as System.Windows.Media.SolidColorBrush)?.Color
                     ?? System.Windows.Media.Color.FromRgb(0x20, 0xE0, 0xD0);
         Host.Push(new ColorPickerScreen(start, Pick)); // Pick closes this page, and the picker with it
+    }
+}
+
+/// <summary>
+/// Highlight effects: the selection ring drawn in your own colors, still or moving (spin, flow, stripes, shimmer,
+/// comet, color cycle, breathe, heartbeat, neon flicker), with speed and glow.
+/// </summary>
+public sealed class HighlightEffectsScreen : ListScreen
+{
+    public HighlightEffectsScreen() : base("Highlight effects") { }
+
+    private static System.Windows.Media.Color Accent =>
+        (Application.Current.Resources["AccentBrush"] as System.Windows.Media.SolidColorBrush)?.Color ?? System.Windows.Media.Color.FromRgb(0x20, 0xE0, 0xD0);
+
+    protected override void Build()
+    {
+        var s = Host.Settings;
+        string effect = HighlightEffects.Effect;
+        AddPreview(effect);
+
+        AddRow("Effect", HighlightEffects.All.FirstOrDefault(e => e.Id == effect).Name ?? "None", "\uE945",
+            click: () => Host.Push(new HighlightChoiceScreen("Effect", HighlightEffects.All, effect, id => { s.HighlightEffect = id; Apply(); })),
+            subtitle: HighlightEffects.All.FirstOrDefault(e => e.Id == effect).About);
+        if (effect.Length == 0)
+        {
+            AddNote("Choose an effect to draw the highlight in your own colors, standing still or moving.");
+            return;
+        }
+
+        AddHeader("Colors");
+        string palette = HighlightEffects.PaletteId;
+        var sets = HighlightEffects.Palettes.Select(p => (p.Id, p.Name, p.Id == "accent" ? "Shades of the highlight color, so it follows the color you pick" : string.Join("  ", p.Colors))).ToArray();
+        AddRow("Color set", palette.Length == 0 ? "Your own" : HighlightEffects.Palettes.FirstOrDefault(p => p.Id == palette).Name ?? "Highlight color", "\uE790",
+            click: () => Host.Push(new HighlightChoiceScreen("Color set", sets, palette, id => { s.HighlightColors = "palette:" + id; Apply(); })),
+            subtitle: "A ready-made set. Changing any color below makes it your own");
+        var hexes = HighlightEffects.Hexes(Accent);
+        for (int i = 0; i < hexes.Count; i++)
+        {
+            int index = i;
+            AddRow($"Color {i + 1}", hexes[i], icon: Swatch(hexes[i]), click: () => EditColor(hexes, index));
+        }
+        if (hexes.Count < 8)
+            AddRow("Add a color", null, "\uE710", click: () => { hexes.Add(hexes[^1]); EditColor(hexes, hexes.Count - 1); });
+        if (hexes.Count > 2)
+            AddRow("Remove the last color", null, "\uE738", click: () => { hexes.RemoveAt(hexes.Count - 1); Save(hexes); });
+        AddRow("Reverse the colors", null, "\uE8AB", click: () => { hexes.Reverse(); Save(hexes); });
+
+        AddHeader("Movement and glow");
+        AddRow("Speed", HighlightEffects.Speeds.First(x => x.Id == HighlightEffects.Speed).Name, "\uEC4A",
+            click: () => _ = PickAsync("Speed", HighlightEffects.Speeds, v => s.HighlightSpeed = v));
+        AddRow("Glow", HighlightEffects.Glows.First(x => x.Id == HighlightEffects.Glow).Name, "\uE706",
+            click: () => _ = PickAsync("Glow", HighlightEffects.Glows, v => s.HighlightGlow = v),
+            subtitle: "A soft light around the highlight, in its first color");
+        AddNote(Theme.ReduceMotion || Perf.Active
+            ? "Reduce motion or Performance mode is on, so the colors are shown standing still."
+            : "Shown on the highlighted game on Home and on every highlighted row and button. A high-contrast theme uses its own highlight instead.");
+    }
+
+    /// <summary>A sample ring with the effect, its glow and the word Preview.</summary>
+    private void AddPreview(string effect)
+    {
+        var ring = new Border
+        {
+            Width = 520, Height = 110, CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(5), Margin = new Thickness(0, 6, 0, 18),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            BorderBrush = effect.Length > 0 ? HighlightEffects.Build(effect, Accent) : new System.Windows.Media.SolidColorBrush(Accent),
+            Child = Ui.Text("Preview", 22, "FgBrush", bold: true)
+        };
+        ((TextBlock)ring.Child).HorizontalAlignment = HorizontalAlignment.Center;
+        ((TextBlock)ring.Child).VerticalAlignment = VerticalAlignment.Center;
+        if (HighlightEffects.GlowFor(Accent) is (true, var glow)) ring.Effect = glow;
+        else ring.SetResourceReference(UIElement.EffectProperty, "RingGlow");
+        Rows.Children.Add(ring);
+    }
+
+    private static Image Swatch(string hex)
+    {
+        Theme.TryParseColor(hex, out var color);
+        var drawing = new System.Windows.Media.GeometryDrawing(new System.Windows.Media.SolidColorBrush(color),
+            new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 1.5), new System.Windows.Media.RectangleGeometry(new Rect(0, 0, 28, 28), 7, 7));
+        return new Image { Source = new System.Windows.Media.DrawingImage(drawing), Width = 28, Height = 28 };
+    }
+
+    private void EditColor(List<string> hexes, int index)
+    {
+        Theme.TryParseColor(hexes[index], out var start);
+        ColorPickerScreen? picker = null;
+        picker = new ColorPickerScreen(start, hex =>
+        {
+            hexes[index] = hex;
+            if (picker != null) Host.Pop(picker);
+            Save(hexes);
+        });
+        Host.Push(picker);
+    }
+
+    private void Save(List<string> hexes)
+    {
+        Host.Settings.HighlightColors = string.Join(",", hexes);
+        Apply();
+    }
+
+    private async Task PickAsync(string title, (string Id, string Name)[] options, Action<string> set)
+    {
+        int choice = await Host.AskAsync(title, null, options.Select(o => o.Name).ToArray());
+        if (choice < 0) return;
+        set(options[choice].Id);
+        Apply();
+    }
+
+    private void Apply()
+    {
+        var s = Host.Settings;
+        s.Save();
+        HighlightEffects.Load(s);
+        UiStyles.ApplyResources();
+        UiStyles.RefreshRing(gradient: true);
+        Rebuild();
+    }
+}
+
+/// <summary>A list to choose one thing from, each with a line about it; choosing goes back.</summary>
+public sealed class HighlightChoiceScreen : ListScreen
+{
+    private readonly (string Id, string Name, string About)[] _items;
+    private readonly string _current;
+    private readonly Action<string> _chosen;
+
+    public HighlightChoiceScreen(string title, (string Id, string Name, string About)[] items, string current, Action<string> chosen) : base(title)
+    {
+        _items = items; _current = current; _chosen = chosen;
+    }
+
+    protected override void Build()
+    {
+        foreach (var (id, name, about) in _items)
+            AddRow(name, id == _current ? "In use" : null, id == _current ? "\uE73E" : "", subtitle: about, click: () =>
+            {
+                Host.Pop(this);
+                _chosen(id);
+            });
     }
 }
 

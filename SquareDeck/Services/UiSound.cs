@@ -46,6 +46,29 @@ public static class UiSound
 
         public Clip(byte[] data) => _data = data;
 
+        /// <summary>How long the sound plays, read from its WAV header (zero if it can't be read).</summary>
+        public TimeSpan Length
+        {
+            get
+            {
+                try
+                {
+                    if (_data.Length < 44 || _data[0] != 'R' || _data[8] != 'W') return TimeSpan.Zero;
+                    int byteRate = BitConverter.ToInt32(_data, 28);
+                    int pos = 12;
+                    while (pos + 8 <= _data.Length)
+                    {
+                        int size = BitConverter.ToInt32(_data, pos + 4);
+                        if (_data[pos] == 'd' && _data[pos + 1] == 'a' && _data[pos + 2] == 't' && _data[pos + 3] == 'a')
+                            return byteRate > 0 ? TimeSpan.FromSeconds(Math.Min(size, _data.Length - pos - 8) / (double)byteRate) : TimeSpan.Zero;
+                        pos += 8 + size + (size & 1);
+                    }
+                }
+                catch (Exception) { }
+                return TimeSpan.Zero;
+            }
+        }
+
         public void Play()
         {
             if (_data.Length == 0) return;
@@ -256,6 +279,9 @@ public static class UiSound
 
     /// <summary>The boot chime. Has its own setting, so it ignores <see cref="Enabled"/>.</summary>
     public static void Startup() => Play(StartupClip, force: true);
+
+    /// <summary>How long the startup sound lasts (the menu music waits for it).</summary>
+    public static TimeSpan StartupLength => StartupClip?.Length ?? TimeSpan.Zero;
 
     /// <summary>Game-start chimes to choose from in Settings.</summary>
     public static readonly (string Id, string Name)[] LaunchChimes =
