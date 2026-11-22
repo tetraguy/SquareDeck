@@ -1484,7 +1484,8 @@ public partial class MainWindow : Window
             Add(Play, "Return to game", "\uE768", () => ReturnToGame(item));
             AddAsync(Play, "Stop game", "\uE71A", () => StopGameAsync(item, confirm: true), danger: true);
         }
-        if (item.IsGame) Add(Play, "Game details", "\uE946", () => Push(new DetailsScreen(item)));
+        // Not when the menu was opened from the game's details page itself.
+        if (item.IsGame && _screens.LastOrDefault() is not DetailsScreen) Add(Play, "Game details", "\uE946", () => Push(new DetailsScreen(item)));
         if (item.IsGame && GameCaptures.For(item, 1).Count > 0)
             Add(Play, "Screenshots", "\uE722", () =>
             {
@@ -1705,6 +1706,14 @@ public partial class MainWindow : Window
         finally { Pop(busy); }
     }
 
+    /// <summary>Asks for a password: what's typed shows as dots. Returns null if cancelled.</summary>
+    public async Task<string?> PromptSecretAsync(string title, string? message, string okLabel = "OK")
+    {
+        var dialog = new MenuScreen(title, message, new[] { okLabel, "Cancel" }, "", secret: true);
+        Push(dialog);
+        return await dialog.Result == 0 ? dialog.InputText : null;
+    }
+
     /// <summary>Asks for a line of text. Returns null if cancelled.</summary>
     public async Task<string?> PromptAsync(string title, string? message, string initial, string okLabel = "Save")
     {
@@ -1775,9 +1784,9 @@ public partial class MainWindow : Window
             _gamepad.Reset();
             return;
         }
-        // A streaming service whose page reads the controller itself: SquareDeck keeps out of its way (the page
+        // A page that reads the controller itself (a streaming service, VacuumTube): SquareDeck keeps out of its way (the page
         // says it's alive every second; if it stops, SquareDeck's own handling below takes over again).
-        if (active && _overlay is not { IsVisible: true } && _screens.Count > 0 && _screens[^1] is StreamingScreen { PadInPage: true })
+        if (active && _overlay is not { IsVisible: true } && _screens.Count > 0 && _screens[^1] is IPagePad { PadInPage: true })
         {
             _gamepad.Poll(); // keeps the button state, so nothing fires twice when SquareDeck takes over
             return;

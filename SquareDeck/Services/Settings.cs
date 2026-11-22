@@ -38,6 +38,7 @@ public sealed class Settings
 
     // Explorer: folders pinned to its sidebar, grid or list, sort order, and hidden files.
     public List<string> ExplorerPins { get; set; } = new();
+    public List<FtpServer> FtpServers { get; set; } = new();
     public string ExplorerView { get; set; } = "grid";
     public bool WelcomeMessage { get; set; } = true;
     public bool SteamArtworkFirst { get; set; }              // set once SteamGridDB copies of Steam's own art were let go (6.3)
@@ -167,7 +168,10 @@ public sealed class Settings
     public string Wallpaper { get; set; } = "";
 
     /// <summary>A color theme for the base colors ("" = the standard grays, "gtavi" = GTA VI). See Theme.Palettes.</summary>
-    public string ThemePalette { get; set; } = "";
+    public string ThemePalette { get; set; } = "steel";
+
+    /// <summary>Set once Steel has been made the Switch style's color theme for someone who had none.</summary>
+    public bool SteelDefault { get; set; }
 
     /// <summary>Corner radius of the game tiles: 0 square, 10 rounded, 22 round.</summary>
     public int TileCorner { get; set; }
@@ -565,6 +569,12 @@ public sealed class Settings
                     s.LabValues ??= new();
                     s.Wallpaper ??= "";
                     s.ThemePalette ??= "";
+                    // Steel became Switch's standard color theme: given once to anyone on Switch with no color theme.
+                    if (!s.SteelDefault)
+                    {
+                        if (s.ThemePalette.Length == 0 && (string.IsNullOrEmpty(s.UiStyle) || s.UiStyle == "switch")) s.ThemePalette = "steel";
+                        s.SteelDefault = true;
+                    }
                     s.LaunchChime ??= "rise";
                     s.BackupFolder ??= "";
                     s.BootVideo ??= "";
@@ -583,6 +593,7 @@ public sealed class Settings
                     if (s.LaunchCountdownSeconds is < 1 or > 30) s.LaunchCountdownSeconds = 3;
                     s.DisabledStores ??= new();
                     s.ExplorerPins ??= new();
+                    s.FtpServers ??= new();
                     s.ExplorerView ??= "grid";
                     s.ExplorerSort ??= "name";
                     s.TaskManagerTab ??= "Apps";
@@ -600,7 +611,7 @@ public sealed class Settings
                         {
                             var basic = UiStyles.All[0];
                             s.AccentColor = "";
-                            s.ThemePalette = "";
+                            s.ThemePalette = "steel";
                             s.Wallpaper = basic.Wallpaper;
                             s.SoundSet = basic.Sounds;
                             s.MenuMusic = basic.Music;

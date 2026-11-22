@@ -537,7 +537,7 @@ public partial class MainWindow
             else if (leaving.Glyphs != null && s.GlyphLook == leaving.Glyphs) s.GlyphLook = "text";
             Hints.SetLook(s.GlyphLook);
             s.AccentColor = "";             // the style's own highlight color
-            s.ThemePalette = "";            // and its own colors (a color theme would replace them)
+            s.ThemePalette = style.Id == "switch" ? "steel" : ""; // and its own colors (Switch's own is the Steel color theme)
             s.Wallpaper = style.Wallpaper;  // its picture, gradient or none (its own backdrop shows then)
             // Its own theme (light, dark or OLED) comes with it automatically (Theme.EffectiveMode); your choice for
             // Switch is kept for when you go back to it.

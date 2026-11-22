@@ -151,7 +151,9 @@ public static class StreamingPad
   // ---- the video
   function video() {
     var vs = Array.prototype.slice.call(document.querySelectorAll('video')).filter(function (v) { var r = v.getBoundingClientRect(); return r.width > 200 && r.height > 100; });
-    return vs.filter(function (v) { return !v.paused; })[0] || vs.sort(function (a, b) { return b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight; })[0] || null;
+    return vs.filter(function (v) { return !v.paused; })[0] || vs.sort(function (a, b) { return b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight; })[0] ||
+      // Music services play through an <audio> element (or a hidden video): that one, then.
+      Array.prototype.slice.call(document.querySelectorAll('audio,video')).filter(function (m) { return m.currentSrc; }).sort(function (a, b) { return (a.paused ? 1 : 0) - (b.paused ? 1 : 0); })[0] || null;
   }
   function watching() {
     var v = video(); if (!v) return null;
@@ -242,7 +244,7 @@ public static class StreamingPad
     var v = video(), md = navigator.mediaSession && navigator.mediaSession.metadata;
     var info = {
       title: (md && md.title) || '', artist: (md && (md.artist || md.album)) || '',
-      page: document.title || '', playing: !!(v && !v.paused && !v.ended), hasVideo: !!v,
+      page: document.title || '', playing: !!((v && !v.paused && !v.ended) || (navigator.mediaSession && navigator.mediaSession.playbackState === 'playing')), hasVideo: !!v,
       position: v ? Math.floor(v.currentTime || 0) : 0, duration: v && isFinite(v.duration) ? Math.floor(v.duration) : 0
     };
     post('sd:media|' + JSON.stringify(info));

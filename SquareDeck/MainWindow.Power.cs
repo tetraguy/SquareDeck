@@ -245,7 +245,8 @@ public partial class MainWindow
             StopDynamicBackground(); // the setting stays; only the video is unloaded
             SuspendMenuMusic(); // closed to save memory; it picks up from the same spot afterwards
             if (!_screens.OfType<Screens.BrowserScreen>().Any()) Screens.BrowserScreen.DisposeKept();
-            if (!_screens.OfType<Screens.StreamingScreen>().Any()) Screens.StreamingScreen.CloseKept(); // video pages use a lot of memory
+            // Video pages use a lot of memory; a music service keeps playing (music while you play is the point of it).
+            if (!_screens.OfType<Screens.StreamingScreen>().Any() && Screens.StreamingScreen.Current?.Service.Music != true) Screens.StreamingScreen.CloseKept();
             if (_animatedGame != null) _animatedGame.AnimatedCover = null;
             ClearHero();
             Motion.StopPulse(RingOf(GameList.SelectedItem));

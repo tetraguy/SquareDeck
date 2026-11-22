@@ -816,9 +816,14 @@ public static class Motion
         "jelly" => 1.05, "float" => 1.03, "heartbeat" => 1.04, _ => 1
     };
 
+    /// <summary>Counts each change of a tile's highlight, so a finished animation can tell whether it's still the current one.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<UIElement, System.Runtime.CompilerServices.StrongBox<int>> TileTurns = new();
+
     public static void GrowTile(UIElement? tile, bool on)
     {
         if (tile == null) return;
+        var turnBox = TileTurns.GetValue(tile, _ => new System.Runtime.CompilerServices.StrongBox<int>());
+        int turn = ++turnBox.Value;
         var parts = PartsOf(tile);
         var scale = parts.Scale;
         double grow = SelectGrow > 1.001 ? SelectGrow : HighlightGrow;
@@ -882,13 +887,24 @@ public static class Motion
             }
             case "float":
             {
-                // Lifts off and bobs gently up and down while it stays selected, like it's floating on water.
-                var bob = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever };
-                bob.KeyFrames.Add(new EasingDoubleKeyFrame(-12, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(260)), new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut }));
-                bob.KeyFrames.Add(new EasingDoubleKeyFrame(-5, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1260)), new SineEase { EasingMode = EasingMode.EaseInOut }));
-                bob.KeyFrames.Add(new EasingDoubleKeyFrame(-12, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2260)), new SineEase { EasingMode = EasingMode.EaseInOut }));
-                if (Perf.Active) parts.Move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-10, TimeSpan.FromMilliseconds(240)) { EasingFunction = ease });
-                else parts.Move.BeginAnimation(TranslateTransform.YProperty, bob);
+                // Lifts off once, then bobs gently up and down for as long as it stays selected, like it's floating on
+                // water. The bob is its own endless back-and-forth starting where the lift ends, so it never jumps back
+                // to the ground and lifts again (which looked like a hiccup every couple of seconds).
+                var move = parts.Move;
+                var lift = new DoubleAnimation(-12, TimeSpan.FromMilliseconds(320)) { EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut } };
+                if (!Perf.Active)
+                {
+                    lift.Completed += (_, _) =>
+                    {
+                        // Only while it's still the selected one (moving on starts its own animation back down).
+                        if (turnBox.Value != turn) return;
+                        move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-12, -6, TimeSpan.FromMilliseconds(1700))
+                        {
+                            AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                        });
+                    };
+                }
+                move.BeginAnimation(TranslateTransform.YProperty, lift);
                 break;
             }
             case "heartbeat":
@@ -1218,25 +1234,39 @@ public sealed class MarqueeText : FrameworkElement
 }
 
 /// <summary>
-/// A progress bar's fill that always matches its percentage: it's sized from the track's width at the moment it
-/// changes, and again whenever the track itself changes size (text beside it growing, the dialog resizing), which a
-/// width worked out once would miss.
+/// A progress bar's fill that always matches its percentage. It's sized from the track's width at the moment it
+/// changes, and again whenever the track itself changes size (text beside it growing, the dialog resizing). A slide to a
+/// new point is played frame by frame here rather than by a WPF animation, and every frame reports where the bar is now
+/// through <see cref="Shown"/>, so a percentage written from that moves with the bar instead of jumping ahead of it.
 /// </summary>
 public sealed class ProgressFill
 {
     private readonly FrameworkElement _track;
     private readonly FrameworkElement _fill;
-    private double _fraction;
+    private double _fraction;  // where the bar is going
+    private double _now;       // where the bar is on screen
+    private double _from;
+    private DateTime _slideStart;
+    private double _slideMs;
+    private bool _sliding;
     private bool _set; // until the first Set, the fill is left alone (a "still starting" sweep may be using it)
+
+    /// <summary>Called with the bar's fraction (0–1) each time it's drawn somewhere new: show the percentage from this.</summary>
+    public Action<double>? Shown { get; set; }
 
     public ProgressFill(FrameworkElement track, FrameworkElement fill)
     {
         _track = track;
         _fill = fill;
-        track.SizeChanged += (_, _) => { if (_set) Snap(); };
+        track.SizeChanged += (_, _) => { if (_set) Draw(); };
+        fill.Unloaded += (_, _) => StopSliding();
     }
 
+    /// <summary>Where the bar is heading.</summary>
     public double Fraction => _fraction;
+
+    /// <summary>Where the bar is on screen right now (behind <see cref="Fraction"/> while it slides).</summary>
+    public double Current => _now;
 
     /// <summary>The track's inner width (inside its border and padding).</summary>
     private double Full => _track is Border b
@@ -1248,11 +1278,15 @@ public sealed class ProgressFill
     {
         _fraction = Math.Clamp(double.IsNaN(fraction) ? 0 : fraction, 0, 1);
         _set = true;
-        if (Full <= 0) return; // sized when the track is laid out
-        if (ms <= 0 || Theme.ReduceMotion) { Snap(); return; }
-        _fill.BeginAnimation(FrameworkElement.WidthProperty,
-            new System.Windows.Media.Animation.DoubleAnimation(Full * _fraction, TimeSpan.FromMilliseconds(ms))
-            { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+        if (ms <= 0 || Theme.ReduceMotion || Full <= 0) { Snap(); return; }
+        _from = _now;
+        _slideStart = DateTime.UtcNow;
+        _slideMs = ms;
+        if (!_sliding)
+        {
+            _sliding = true;
+            System.Windows.Media.CompositionTarget.Rendering += OnFrame;
+        }
     }
 
     /// <summary>Straight to a fraction (0–1), no slide.</summary>
@@ -1260,13 +1294,38 @@ public sealed class ProgressFill
     {
         _fraction = Math.Clamp(double.IsNaN(fraction) ? 0 : fraction, 0, 1);
         _set = true;
-        if (Full > 0) Snap();
+        Snap();
     }
 
-    /// <summary>Straight to the right width, ending any slide.</summary>
+    /// <summary>Straight to where it's heading, ending any slide.</summary>
     public void Snap()
     {
+        StopSliding();
+        _now = _fraction;
+        Draw();
+    }
+
+    private void OnFrame(object? sender, EventArgs e)
+    {
+        double t = Math.Clamp((DateTime.UtcNow - _slideStart).TotalMilliseconds / _slideMs, 0, 1);
+        double eased = 1 - Math.Pow(1 - t, 3); // ease out
+        _now = _from + (_fraction - _from) * eased;
+        Draw();
+        if (t >= 1) StopSliding();
+    }
+
+    private void StopSliding()
+    {
+        if (!_sliding) return;
+        _sliding = false;
+        System.Windows.Media.CompositionTarget.Rendering -= OnFrame;
+    }
+
+    private void Draw()
+    {
         _fill.BeginAnimation(FrameworkElement.WidthProperty, null);
-        _fill.Width = Full * _fraction;
+        if (Full > 0) _fill.Width = Full * _now;
+        Shown?.Invoke(_now);
     }
 }
+

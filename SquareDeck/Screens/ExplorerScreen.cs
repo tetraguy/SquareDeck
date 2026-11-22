@@ -18,7 +18,7 @@ namespace SquareDeck.Screens;
 /// on several at once, LB / RB go back and forward, LT / RT page, View switches grid and list, Menu is the
 /// main menu.
 /// </summary>
-public sealed class ExplorerScreen : Screen
+public sealed partial class ExplorerScreen : Screen
 {
     private const int MaxShown = 1500;
     private const double TileW = 132, TileH = 146;
@@ -268,6 +268,13 @@ public sealed class ExplorerScreen : Screen
     private void GoUp()
     {
         if (_folder == null) return;
+        if (NetworkPlaces.IsFtp(_folder))
+        {
+            string from = _folder;
+            NavigateTo(NetworkPlaces.FtpParent(_folder));
+            _focusPath = from;
+            return;
+        }
         var parent = Directory.GetParent(_folder.TrimEnd('\\') + (_folder.EndsWith(":\\") ? "" : ""))?.FullName;
         if (_folder.Length <= 3) parent = null; // a drive's parent is This PC
         string child = _folder;
@@ -290,13 +297,13 @@ public sealed class ExplorerScreen : Screen
         string? error = null;
         try
         {
-            entries = await Task.Run(() => folder == null ? new List<Entry>() : Read(folder, hidden), ct);
+            entries = await Task.Run(() => folder == null ? new List<Entry>() : NetworkPlaces.IsFtp(folder) ? ReadFtp(folder, hidden) : Read(folder, hidden), ct);
         }
         catch (OperationCanceledException) { return; }
         catch (Exception ex)
         {
             entries = new List<Entry>();
-            error = ex is UnauthorizedAccessException ? "You don't have permission to open this folder." : ex.Message;
+            error = ex is UnauthorizedAccessException ? "You don't have permission to open this folder." : NetworkPlaces.IsFtp(folder) ? NetworkPlaces.Reason(ex) : ex.Message;
         }
         if (ct.IsCancellationRequested) return;
         _entries = entries;
@@ -332,7 +339,7 @@ public sealed class ExplorerScreen : Screen
     {
         _watcher?.Dispose();
         _watcher = null;
-        if (folder == null) return;
+        if (folder == null || NetworkPlaces.IsFtp(folder)) return;
         try
         {
             _watcher = new FileSystemWatcher(folder) { IncludeSubdirectories = false, EnableRaisingEvents = true };
@@ -551,6 +558,7 @@ public sealed class ExplorerScreen : Screen
             _gridPanel.Children.Add(button);
             _shown.Add((entry, button, new Image(), new Border()));
         }
+        AddNetworkCards();
     }
 
     private static string DriveName(DriveInfo drive) => drive.DriveType switch
@@ -579,7 +587,7 @@ public sealed class ExplorerScreen : Screen
     private void LoadIcons()
     {
         var ct = _loadCts.Token;
-        var work = _shown.Select(s => (s.Entry, s.Icon)).ToList();
+        var work = _shown.Where(s => !NetworkPlaces.IsFtp(s.Entry.Path) && !s.Entry.Path.StartsWith("action:")).Select(s => (s.Entry, s.Icon)).ToList();
         _ = Task.Run(async () =>
         {
             foreach (var (entry, view) in work)
@@ -620,6 +628,13 @@ public sealed class ExplorerScreen : Screen
 
         if (_folder == null) { Crumb("This PC", null, true); return; }
         Crumb("This PC", null, false);
+        if (NetworkPlaces.IsFtp(_folder))
+        {
+            var crumbs = NetworkPlaces.FtpCrumbs(_folder, ServerNameFor(_folder));
+            for (int i = 0; i < crumbs.Count; i++) Crumb(crumbs[i].Name, crumbs[i].Url, i == crumbs.Count - 1);
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => _crumbScroll.ScrollToRightEnd()));
+            return;
+        }
         var parts = new List<string>();
         for (var d = new DirectoryInfo(_folder); d != null; d = d.Parent) parts.Insert(0, d.FullName);
         for (int i = 0; i < parts.Count; i++)
@@ -649,6 +664,7 @@ public sealed class ExplorerScreen : Screen
             foreach (var pin in pins) Nav("", System.IO.Path.GetFileName(pin.TrimEnd('\\')) is { Length: > 0 } n ? n : pin, pin);
         }
 
+        BuildNetworkSidebar();
         Section("DRIVES");
         Nav("", "This PC", null);
         foreach (var drive in DriveInfo.GetDrives())
@@ -674,7 +690,7 @@ public sealed class ExplorerScreen : Screen
 
     private void Nav(string glyph, string label, string? path, double? used = null, string? sub = null)
     {
-        if (path != null && !Directory.Exists(path)) return;
+        if (path != null && !NetworkPlaces.IsFtp(path) && !Directory.Exists(path)) return;
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -757,13 +773,18 @@ public sealed class ExplorerScreen : Screen
 
     private void Open(Entry entry)
     {
+        if (entry.Path.StartsWith("action:")) { _ = RunNetworkActionAsync(entry.Path); return; }
         if (entry.IsFolder) { NavigateTo(entry.Path); return; }
+        if (NetworkPlaces.IsFtp(entry.Path)) { _ = OpenFtpFileAsync(entry); return; }
+        // Pictures, videos, music, web links and text open inside SquareDeck; anything else in Windows.
+        if (FileOpener.TryOpen(Host, entry.Path, _shown.Where(s => !s.Entry.IsFolder).Select(s => s.Entry.Path).ToList())) return;
         try { ProcessUtil.Open(entry.Path); }
         catch (Exception ex) { _ = Host.AskAsync("Couldn't open it", ex.Message, "OK"); }
     }
 
     private async Task ActionsAsync(Entry? focused)
     {
+        if (await NetworkActionsAsync(focused)) return;
         if (_folder == null && focused != null)
         {
             // A drive on This PC.
@@ -829,8 +850,9 @@ public sealed class ExplorerScreen : Screen
         if (_folder != null)
         {
             Add(IsPinned(_folder) ? "Unpin this folder" : "Pin this folder to the sidebar", "", () => TogglePin(_folder));
-            Add("Open this folder in Windows Explorer", "", () => ProcessUtil.Open("explorer.exe", "\"" + _folder + "\""));
+            if (!NetworkPlaces.IsFtp(_folder)) Add("Open this folder in Windows Explorer", "", () => ProcessUtil.Open("explorer.exe", "\"" + _folder + "\""));
         }
+        AddNetworkMenu(actions);
         actions.Add(("Controls", "", ControlsAsync));
 
         int choice = await Host.AskWithIconsAsync("Explorer", _folder ?? "This PC", actions.Select(a => (a.Label, a.Glyph)).ToArray());
@@ -881,6 +903,13 @@ public sealed class ExplorerScreen : Screen
         if (_clipboard.Count == 0) return;
         var sources = _clipboard.ToList();
         bool move = _clipboardIsCut;
+        if (NetworkPlaces.IsFtp(destination) || sources.Any(NetworkPlaces.IsFtp))
+        {
+            await RunAsync(move ? "Moving…" : NetworkPlaces.IsFtp(destination) ? "Uploading…" : "Downloading…", () => FtpTransfer(sources, destination, move));
+            if (move) _clipboard.Clear();
+            UpdateStatus();
+            return;
+        }
         await RunAsync(move ? "Moving…" : "Copying…", () => FileOps.Transfer(sources, destination, move, CancellationToken.None));
         if (move) _clipboard.Clear();
         UpdateStatus();
@@ -892,6 +921,12 @@ public sealed class ExplorerScreen : Screen
         var name = await Host.PromptAsync("New folder", "Name for the folder", "New folder", "Create");
         if (string.IsNullOrWhiteSpace(name)) return;
         if (!ValidName(name.Trim())) { await Host.AskAsync("That name can't be used", "Names can't contain \\ / : * ? \" < > |", "OK"); return; }
+        if (NetworkPlaces.IsFtp(_folder))
+        {
+            string url = NetworkPlaces.Child(_folder, name.Trim(), folder: true);
+            await RunAsync("Creating the folder…", () => NetworkPlaces.MakeFolder(url, Server(url)));
+            return;
+        }
         try
         {
             var path = FileOps.UniquePath(_folder, name.Trim());
@@ -909,6 +944,12 @@ public sealed class ExplorerScreen : Screen
         var name = await Host.PromptAsync("Rename", null, entry.Name, "Rename");
         if (string.IsNullOrWhiteSpace(name) || name.Trim() == entry.Name) return;
         if (!ValidName(name.Trim())) { await Host.AskAsync("That name can't be used", "Names can't contain \\ / : * ? \" < > |", "OK"); return; }
+        if (NetworkPlaces.IsFtp(entry.Path))
+        {
+            string newName = name.Trim();
+            await RunAsync("Renaming…", () => NetworkPlaces.Rename(entry.Path, newName, Server(entry.Path)));
+            return;
+        }
         try { _focusPath = FileOps.Rename(entry.Path, name.Trim()); }
         catch (Exception ex) { await Host.AskAsync("Couldn't rename it", ex.Message, "OK"); }
         await LoadAsync(keepFocus: false);
@@ -917,6 +958,12 @@ public sealed class ExplorerScreen : Screen
     private async Task DeleteAsync(List<Entry> targets)
     {
         string what = targets.Count == 1 ? targets[0].Name : targets.Count + " items";
+        if (targets.Any(t => NetworkPlaces.IsFtp(t.Path)))
+        {
+            if (await Host.AskAsync("Delete " + what + " from the server?", "Servers have no Recycle Bin, so this can't be undone.", "Cancel", "Delete") != 1) return;
+            await RunAsync("Deleting…", () => { foreach (var t in targets) NetworkPlaces.Delete(t.Path, Server(t.Path)); });
+            return;
+        }
         if (await Host.AskAsync("Delete " + what + "?", "It goes to the Recycle Bin, so you can get it back.", "Cancel", "Delete") != 1) return;
         await RunAsync("Deleting…", () => FileOps.Recycle(targets.Select(t => t.Path).ToList()));
     }
@@ -953,6 +1000,15 @@ public sealed class ExplorerScreen : Screen
     private async Task PropertiesAsync(List<Entry> targets)
     {
         string title = targets.Count == 1 ? targets[0].Name : $"{targets.Count} items";
+        if (targets.Any(t => NetworkPlaces.IsFtp(t.Path)))
+        {
+            var one = targets[0];
+            await Host.AskAsync(title, targets.Count == 1
+                ? $"{(one.IsFolder ? "Folder" : one.TypeText)} on {ServerNameFor(one.Path)}\n{Uri.UnescapeDataString(one.Path)}" +
+                  (one.IsFolder ? "" : $"\n\nSize {SystemStats.Bytes(one.Size)} ({one.Size:N0} bytes)") + (one.Modified > DateTime.MinValue ? $"\nModified {one.Modified:f}" : "")
+                : $"{targets.Count(t => t.IsFolder)} folders and {targets.Count(t => !t.IsFolder)} files\n{SystemStats.Bytes(targets.Sum(t => t.Size))} in the files", "OK");
+            return;
+        }
         string details;
         try
         {

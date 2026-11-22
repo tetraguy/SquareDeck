@@ -88,6 +88,7 @@ public sealed class FriendsScreen : GridScreen
             var add = AddTile(ActionFace("", "Add API key"), null, 220, AddKey, into: row);
             AddTile(ActionFace("", "Open the key page"), null, 220,
                 () => ProcessUtil.Open("https://steamcommunity.com/dev/apikey"), into: row);
+            if (Labs.On("discord")) AddTile(ActionFace("\uE8BD", "Discord"), null, 220, () => Host.Push(new DiscordScreen()), into: row);
             FocusLater(add);
             return;
         }
@@ -133,6 +134,13 @@ public sealed class FriendsScreen : GridScreen
         actions.Children.Add(alerts);
         actions.Children.Add(addFriend);
         actions.Children.Add(chat);
+        if (Labs.On("discord"))
+        {
+            var discord = Ui.PanelButton("\uE8BD", "Discord");
+            discord.Margin = new Thickness(8, 0, 0, 0);
+            discord.Click += (_, _) => Host.Push(new DiscordScreen());
+            actions.Children.Add(discord);
+        }
         var summary = new StackPanel();
         summary.Children.Add(Ui.Text($"{_friends.Count(f => f.InGame)} playing  ·  {_friends.Count(f => f.IsOnline)} online  ·  {_friends.Count} friends", 18, "FgBrush", bold: true));
         summary.Children.Add(Ui.Text("Updated " + (_loading ? "now…" : _loadedAt.ToString("t")) + "  ·  refreshes every minute", 13, "SubtleBrush"));

@@ -122,6 +122,10 @@ public static class LocalMusic
         }
     }
 
+    /// <summary>A song file anywhere (opened from the File explorer), with its tags.</summary>
+    public static Task<LocalTrack> TrackAsync(string path) =>
+        ReadTagsAsync(path, File.Exists(path) ? File.GetLastWriteTimeUtc(path).Ticks : 0);
+
     /// <summary>The song's tags, or a guess from its file name ("Artist - Title.mp3").</summary>
     private static async Task<LocalTrack> ReadTagsAsync(string path, long stamp)
     {

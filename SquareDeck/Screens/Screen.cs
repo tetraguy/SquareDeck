@@ -642,8 +642,9 @@ public sealed class MenuScreen : Screen
     public string InputText => _input?.Text ?? "";
 
     /// <param name="glyphs">Optional icon (Segoe MDL2 glyph) for each option, in the same order.</param>
+    /// <param name="secret">The typed text shows as dots (a password).</param>
     public MenuScreen(string title, string? message, IReadOnlyList<string> options, string? inputInitial = null,
-        IReadOnlyList<string>? glyphs = null)
+        IReadOnlyList<string>? glyphs = null, bool secret = false)
     {
         var panel = new StackPanel();
 
@@ -685,7 +686,20 @@ public sealed class MenuScreen : Screen
             _input.SetResourceReference(Control.BorderBrushProperty, "AccentBrush");
             _input.SetResourceReference(TextBox.CaretBrushProperty, "AccentBrush");
             _input.SetResourceReference(TextBox.SelectionBrushProperty, "AccentBrush");
-            panel.Children.Add(_input);
+            if (secret)
+            {
+                // A password: the box's own text is invisible and dots stand in for it (the caret still shows).
+                _input.Foreground = System.Windows.Media.Brushes.Transparent;
+                var dots = Ui.Text("", 20, "FgBrush");
+                dots.Margin = new Thickness(16, 27, 12, 0);
+                dots.IsHitTestVisible = false;
+                _input.TextChanged += (_, _) => dots.Text = new string('\u2022', _input.Text.Length);
+                var holder = new Grid();
+                holder.Children.Add(_input);
+                holder.Children.Add(dots);
+                panel.Children.Add(holder);
+            }
+            else panel.Children.Add(_input);
             // The built-in keys, unless Settings asks for Windows' touch keyboard (which opens on focus, below).
             if (!TouchKeyboard.UseWindows) panel.Children.Add(BuildKeyboard());
         }

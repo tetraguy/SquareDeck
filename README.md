@@ -71,6 +71,8 @@ one home screen in front of all of it: pick it up, press A, play.
   for power draw, battery health and pace, the power limit, controller battery, memory, every drive, display, network
   and sound (a home screen button, off by default)
 - **Legion Go and MSI Claw:** Legion modes / MSI user scenarios, fan boost, charge limit and TDP through their firmware
+- **VacuumTube** (experimental): YouTube's TV and console app, made for the controller, with VacuumTube's ad blocking,
+  SponsorBlock, DeArrow and Return YouTube Dislike. It gets its own tab on the Music page, next to Spotify
 - **Adrenaline Hook** (experimental, AMD graphics): adds Xbox, Store and other games to AMD Software so its per-game
   settings work for them, with Adrenalin switches per game, repair after updates, backups and the Radeon overlay shortcuts
 - Live processor, memory, graphics, storage and network readouts in Settings > Power and performance
@@ -93,11 +95,13 @@ one home screen in front of all of it: pick it up, press A, play.
 - Performance mode, low-battery notice and Do not disturb while playing
 
 ### Look and feel
-- Themes, in two tabs:
+- Themes, in three tabs:
   - **Basic:** 100 styles of the Switch design, each with its own colors, type, corners, buttons, wallpaper or moving
     background, sounds and music
   - **Advanced:** 18 styles made from UI kits, with the kit's own panels, buttons, dialogs, switches, mouse pointer and
     (for some) icons. Several come in more than one color
+  - **Legendary:** 21 styles drawn from scratch by Claude: every panel, button, pop-up, switch, check box, pointer,
+    icon and wallpaper, each with its own font, sounds and music
 - Create your own styles: background, music, interface and navigation sounds, colors, font, button shape and look,
   shelf, effects (halftone, comic book, synthwave, Y2K, dreamcore and more), game art, animations and the Windows lock
   screen picture. Save them with your own name, and export or import them as .sdstyle files
@@ -232,6 +236,8 @@ More notes on individual features are in the [changelog](CHANGELOG.md).
   Intel commands (`Services/DeviceHelper.cs`, `Services/HandheldVendors.cs`), which follow it too. Intel power limits
   use KX.exe from your own HandheldCompanion install; SquareDeck doesn't include it
 - Adrenaline Hook (Settings > Experimental) is rebuilt from [Adrenaline Hook](https://github.com/tetraguy/Adrenaline-Hook) by tetraguy
+- VacuumTube (Settings > Experimental) runs the page scripts of [VacuumTube](https://github.com/shy1132/VacuumTube) by shy
+  (MIT licence), bundled in `SquareDeck/VacuumTube` by `tools/vacuumtube/build.js`; its licence is in that folder
 - The Advanced styles use these UI kits (in `SquareDeck/Skins`), each under its own terms:
   NEONIX UI assets by GONKEN Games — https://gonkengames.itch.io/ ; Free Hologram Interface by Wenrexa; Glowing UI icons;
   Mega Cozy UI Pack and Cozy UI Pack demos by dobo_ui; Pixel UI Kit by Northleaf Studio; Tropical Night UI Lite by Brunka
@@ -242,6 +248,8 @@ More notes on individual features are in the [changelog](CHANGELOG.md).
 - Music "At Rest", "Daybreak" and "Thinking of You" by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0
 - Sapphire uses the Sapphire GUI kit (three colors) and Barlow Condensed by Jeremy Tribby (SIL Open Font License)
 - Spectrum uses the Spectrum UI kit (five colors)
+- Atelier, Abyss, Greenhouse, Origami, Sumi-e, Forge, Glacier, Cartographer, Sweet Shop and Gatsby are original styles drawn for SquareDeck, with fonts under the SIL Open Font License: Philosopher, Play, Crimson Text, Varela Round, Spectral, Saira Condensed, Didact Gothic, IM FELL English, Sniglet and Poiret One
+- Meridian is an original style drawn for SquareDeck (artwork, icons, pointer and star-chart wallpaper), with the Marcellus font by Brian J. Bonislawsky (SIL Open Font License)
 - Ubuntu is an original skin in the spirit of the Ubuntu desktop, with the Ubuntu font by Dalton Maag (Ubuntu Font Licence 1.0). Ubuntu is a trademark of Canonical
 - Fatanzia uses the Fatanzia UI kit
 - Cozy Place uses the Travel Book UI (Lite) kit

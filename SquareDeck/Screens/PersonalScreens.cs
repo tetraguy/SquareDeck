@@ -163,7 +163,7 @@ public sealed class ColorThemeScreen : GridScreen
         _built = true;
         Add("", "Standard", Theme.CurrentIsDark ? new[] { "#2D2D2D", "#FFFFFF", "#B4B4B4", "#4B4B4B", "#3C3C3C", "#20E0D0" }
                                                 : new[] { "#EBEBEB", "#2D2D2D", "#6B6B6B", "#FFFFFF", "#D2D2D2", "#0AB9C9" });
-        foreach (var (id, theme) in Theme.Palettes) Add(id, theme.Name, Theme.CurrentIsDark ? theme.Dark : theme.Light);
+        foreach (var (id, theme) in Theme.Palettes) Add(id, id == "steel" ? theme.Name + " (Switch default)" : theme.Name, Theme.CurrentIsDark ? theme.Dark : theme.Light);
         if (UiStyles.PaletteFor(UiStyles.Current, Theme.CurrentIsDark) != null)
         {
             var note = Ui.Text("The UI style in use has colors of its own, so a color theme shows in styles without them.", 15, "SubtleBrush");

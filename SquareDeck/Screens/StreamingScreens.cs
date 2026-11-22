@@ -13,7 +13,8 @@ using SquareDeck.Services;
 namespace SquareDeck.Screens;
 
 /// <summary>A streaming service the Multimedia page can open, and the sites it's allowed to show.</summary>
-public sealed record StreamingService(string Id, string Name, string Url, string[] Domains, Color Brand, Color OnBrand)
+/// <param name="Music">A music service: it keeps playing when you leave it (Experimental: music services).</param>
+public sealed record StreamingService(string Id, string Name, string Url, string[] Domains, Color Brand, Color OnBrand, bool Music = false)
 {
     public static readonly StreamingService[] All =
     {
@@ -40,7 +41,18 @@ public sealed record StreamingService(string Id, string Name, string Url, string
         new("tubi", "Tubi", "https://tubitv.com/home",
             // Free; signing in with Google goes through Google's accounts pages.
             new[] { "tubitv.com", "tubi.tv", "accounts.google.com" }, Color.FromRgb(0xFF, 0xFF, 0x13), Color.FromRgb(0x10, 0x10, 0x10)),
+        // Music (Experimental: YouTube Music and Apple Music): they keep playing in the background.
+        new("ytmusic", "YouTube Music", "https://music.youtube.com/",
+            new[] { "music.youtube.com", "youtube.com", "accounts.google.com", "consent.google.com", "consent.youtube.com", "accounts.youtube.com" },
+            Color.FromRgb(0xFF, 0x00, 0x00), Colors.White, Music: true),
+        new("applemusic", "Apple Music", "https://music.apple.com/",
+            // Signing in goes through Apple's ID pages.
+            new[] { "music.apple.com", "apple.com", "idmsa.apple.com", "appleid.apple.com", "mzstatic.com", "itunes.apple.com" },
+            Color.FromRgb(0xFA, 0x23, 0x3B), Colors.White, Music: true),
     };
+
+    /// <summary>The services to show: the music ones only with their experiment on.</summary>
+    public static IEnumerable<StreamingService> Shown => All.Where(s => !s.Music || Labs.On("musicstreams"));
 
     /// <summary>The service's logo, if one has been added (Streaming\&lt;id&gt;.png next to SquareDeck.exe).</summary>
     public string? LogoPath
@@ -104,7 +116,7 @@ public sealed record StreamingService(string Id, string Name, string Url, string
 /// (press it to click), Y opens the menu, and B goes back a page, then out of full screen, then back to the launcher
 /// with the service kept open (paused) to come back to.
 /// </summary>
-public sealed class StreamingScreen : Screen
+public sealed class StreamingScreen : Screen, IPagePad
 {
     private static StreamingScreen? _current;
     private static Task<CoreWebView2Environment>? _environment;
@@ -300,6 +312,13 @@ public sealed class StreamingScreen : Screen
     {
         if (_disposed) return;
         _web.Visibility = Visibility.Hidden;
+        if (Service.Music)
+        {
+            // Music keeps playing while you play or browse; Windows' media controls and the home screen's pill show it.
+            Changed();
+            Host.ShowToast("MUSIC", Service.Name + " keeps playing", "Go back to it from Multimedia > Streaming to choose something else.", "", "info");
+            return;
+        }
         NowPlaying = false;
         Changed();
         _ = Run("document.querySelectorAll('video').forEach(function(v){ if(!v.paused){ v.dataset.sdPaused='1'; v.pause(); } });");
@@ -446,7 +465,7 @@ public sealed class StreamingScreen : Screen
 
     // The video that matters: the one playing, else the biggest on the page.
     private const string FindVideo =
-        "var vs=[].slice.call(document.querySelectorAll('video')); var v=vs.filter(function(x){return !x.paused;})[0]||" +
+        "var vs=[].slice.call(document.querySelectorAll('video,audio')); var v=vs.filter(function(x){return !x.paused;})[0]||" +
         "vs.sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight;})[0];";
 
     private Task<string> Video(string body) => Run("(function(){" + FindVideo + " if(!v) return 'none'; " + body + " return 'ok';})()");
@@ -517,7 +536,7 @@ public sealed class StreamingScreen : Screen
 
     private async Task PickAnotherAsync()
     {
-        var others = StreamingService.All.Where(s => s.Id != Service.Id).ToArray();
+        var others = StreamingService.Shown.Where(s => s.Id != Service.Id).ToArray();
         int choice = await Host.AskWithIconsAsync("Open another service", $"{Service.Name} closes.",
             others.Select(s => (s.Name, "")).ToArray());
         if (choice < 0) return;
@@ -735,7 +754,7 @@ public sealed class StreamingView : StackPanel
         heading.Margin = new Thickness(4, 0, 0, 12);
         Children.Add(heading);
         var tiles = new WrapPanel();
-        foreach (var service in StreamingService.All)
+        foreach (var service in StreamingService.Shown.Where(x => !x.Music))
         {
             var s = service;
             var stack = new StackPanel();
@@ -757,6 +776,35 @@ public sealed class StreamingView : StackPanel
             FirstFocus ??= tile;
         }
         Children.Add(tiles);
+        var music = StreamingService.Shown.Where(x => x.Music).ToList();
+        if (music.Count > 0)
+        {
+            var listen = Ui.Text("Listen", 18, "FgBrush", bold: true);
+            listen.Margin = new Thickness(4, 8, 0, 12);
+            Children.Add(listen);
+            var musicTiles = new WrapPanel();
+            foreach (var service in music)
+            {
+                var s = service;
+                var stack = new StackPanel();
+                stack.Children.Add(s.Face(214, 120, 24));
+                var label = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 10, 0, 0) };
+                label.Children.Add(Ui.Text(s.Name, 16, "FgBrush", bold: true));
+                if (StreamingScreen.Current?.Service.Id == s.Id)
+                {
+                    var pill = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 1, 8, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+                    pill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+                    pill.Child = Ui.Text(StreamingScreen.Current.NowPlaying ? "PLAYING" : "OPEN", 11, "BgBrush", bold: true);
+                    label.Children.Add(pill);
+                }
+                stack.Children.Add(label);
+                var tile = new Button { Style = Ui.StyleOf("TileButton"), Content = stack, Margin = new Thickness(0, 0, 18, 18), Tag = s };
+                tile.Click += (_, _) => _ = StreamingScreen.OpenAsync(host, s);
+                musicTiles.Children.Add(tile);
+                FirstFocus ??= tile;
+            }
+            Children.Add(musicTiles);
+        }
         var note = Ui.Text("Each one opens full screen here and stays on its own site. Sign in once and you stay signed in.", 14, "SubtleBrush");
         note.Margin = new Thickness(4, 6, 0, 0);
         note.TextWrapping = TextWrapping.Wrap;

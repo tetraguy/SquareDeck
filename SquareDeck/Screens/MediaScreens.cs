@@ -824,7 +824,7 @@ public sealed class MediaScreen : Screen
         page.Children.Add(layout);
         _nowPage = page;
 
-        // Four tabs: whatever is playing on the PC, your own music folder, Spotify, and the streaming services.
+        // The tabs: whatever is playing on the PC, your own music folder, Spotify, VacuumTube (Experimental) and the streaming services.
         var root = new DockPanel();
         DockPanel.SetDock(_tabBar, Dock.Top);
         root.Children.Add(_tabBar);
@@ -834,10 +834,15 @@ public sealed class MediaScreen : Screen
         _visualTimer.Tick += (_, _) => DrawBars();
     }
 
-    private static readonly (string Id, string Name, string Glyph)[] Tabs =
+    private static readonly (string Id, string Name, string Glyph)[] AllTabs =
     {
-        ("now", "Now playing", "\uE8D6"), ("local", "My music", "\uE8B7"), ("spotify", "Spotify", "\uE93C"), ("streaming", "Streaming", "\uE714")
+        ("now", "Now playing", "\uE8D6"), ("local", "My music", "\uE8B7"), ("spotify", "Spotify", "\uE93C"),
+        ("vacuumtube", "VacuumTube", "\uE714"), ("streaming", "Streaming", "\uE714")
     };
+
+    /// <summary>The tabs shown: VacuumTube's only with its experiment on.</summary>
+    private static (string Id, string Name, string Glyph)[] Tabs =>
+        Labs.On("vacuumtube") ? AllTabs : AllTabs.Where(t => t.Id != "vacuumtube").ToArray();
 
     private StreamingView? _streaming;
     private ScrollViewer? _streamingScroll;
@@ -858,6 +863,7 @@ public sealed class MediaScreen : Screen
     private readonly UIElement _nowPage;
     private LocalMusicView? _local;
     private SpotifyView? _spotify;
+    private VacuumTubeView? _vacuumTube;
     private string _tab = "now";
 
     private void ShowTab(string id, bool focus)
@@ -905,6 +911,14 @@ public sealed class MediaScreen : Screen
             _timer.Stop();
             _visualTimer.Stop();
         }
+        else if (id == "vacuumtube")
+        {
+            _vacuumTube ??= new VacuumTubeView(this);
+            _tabHost.Children.Add(_vacuumTube);
+            first = _vacuumTube.FirstFocus;
+            _timer.Stop();
+            _visualTimer.Stop();
+        }
         else if (id == "spotify")
         {
             _spotify ??= new SpotifyView(this);
@@ -927,9 +941,10 @@ public sealed class MediaScreen : Screen
 
     public override bool OnAction(NavAction action)
     {
-        int index = Array.FindIndex(Tabs, t => t.Id == _tab);
-        if (action == NavAction.RB) { ShowTab(Tabs[(index + 1) % Tabs.Length].Id, focus: true); UiSound.Page(); return true; }
-        if (action == NavAction.LB) { ShowTab(Tabs[(index + Tabs.Length - 1) % Tabs.Length].Id, focus: true); UiSound.Page(); return true; }
+        var tabs = Tabs;
+        int index = Math.Max(0, Array.FindIndex(tabs, t => t.Id == _tab));
+        if (action == NavAction.RB) { ShowTab(tabs[(index + 1) % tabs.Length].Id, focus: true); UiSound.Page(); return true; }
+        if (action == NavAction.LB) { ShowTab(tabs[(index + tabs.Length - 1) % tabs.Length].Id, focus: true); UiSound.Page(); return true; }
         if (_tab == "local" && _local != null) return _local.OnAction(action);
         if (_tab == "spotify" && _spotify != null) return _spotify.OnAction(action);
         if (_tab == "streaming") return _streaming?.Move(action) ?? false;
@@ -959,6 +974,7 @@ public sealed class MediaScreen : Screen
     {
         if (_tab == "local") Host.FocusSoon(_local?.FirstFocus);
         else if (_tab == "spotify") Host.FocusSoon(_spotify?.FirstFocus);
+        else if (_tab == "vacuumtube") Host.FocusSoon(_vacuumTube?.FirstFocus);
         else _playPause.Focus();
     }
 

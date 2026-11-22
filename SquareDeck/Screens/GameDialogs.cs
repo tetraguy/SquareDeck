@@ -451,6 +451,8 @@ public sealed class GameUpdateScreen : Screen
         };
         _bar.Child = _fill;
         _barFill = new ProgressFill(_bar, _fill);
+        // The number is read off the bar as it slides, so the two always agree.
+        _barFill.Shown = v => { if (_showPercent) _percent.Text = (int)Math.Floor(v * 100 + 0.0001) + "%"; };
         _progress.Children.Add(_bar);
         _percent = GameCard.Text("", 16, bold: true);
         _percent.Margin = new Thickness(14, 0, 0, 0);
@@ -502,6 +504,7 @@ public sealed class GameUpdateScreen : Screen
             _eyebrow.Text = Spaced("Waiting for Steam");
             _body.Text = "Start the update in Steam's Downloads page (it's open now), then come back. The bar fills as it downloads.";
             SetBar(0);
+            _showPercent = false;
             _percent.Text = "…";
         }
         else
@@ -515,10 +518,12 @@ public sealed class GameUpdateScreen : Screen
 
     private static string Spaced(string text) => string.Join(" ", text.ToUpperInvariant().ToCharArray());
 
+    private bool _showPercent = true;
+
     private void SetBar(int percent)
     {
         percent = Math.Clamp(percent, 0, 100);
-        _percent.Text = percent + "%";
+        _showPercent = true;
         _barFill.Set(percent / 100.0, 400);
     }
 

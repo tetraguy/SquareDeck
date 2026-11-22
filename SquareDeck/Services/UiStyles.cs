@@ -30,6 +30,7 @@ public sealed record UiStyle
     public bool Glow { get; init; }            // a soft glow in the highlight color around the selection
     public string[]? RingColors { get; init; }  // the highlight ring as a gradient (Switch); null = the highlight color
     public AdvancedSkin? Skin { get; init; }      // Advanced styles: their artwork (Skins\), drawn over the Switch layout
+    public bool Legendary { get; init; }          // an Advanced style drawn by Claude, shown in Themes > Legendary instead of Advanced
     public string? SkinVariant { get; init; }     // the color variant of that artwork in use (set from settings)
     public bool Glass { get; init; }           // frosted panels with a bright rim over blurred art
     public bool DarkGlass { get; init; }       // with Glass: smoked dark glass instead of white frost
@@ -962,6 +963,198 @@ public static class UiStyles
     {
         new()
         {
+            Id = "adv-meridian", Name = "Meridian", Sounds = "chime", NavSounds = "glass", Music = "track:Meditation", Moving = "", Wallpaper = "image:Meridian.jpg",
+            Description = "A celestial atlas, drawn by Claude: midnight-blue cards framed in engraved gold, pop-ups with a ruled header and astrolabe corners, astrolabe rings for the Home buttons, switches that turn a new moon full, check boxes that light a star, gold line icons, a compass-needle pointer, and a hand-plotted star chart with constellations behind it all.",
+            Dark = new[] { "#070D1F", "#F3E9D2", "#A9B3CF", "#101A36", "#0E1730", "#E8C27A" }, Mode = "dark",
+            Font = "file:Marcellus-Regular.ttf#Marcellus", TileCorner = 8, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#E8C27A", "#FFF1C9", "#C9973F", "#FFE3A3", "#E8C27A" },
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#0B1638", "#060B1E" }, PageScrim = 0.5,
+            Legendary = true, Skin = new AdvancedSkin("meridian"), TileAnimation = "float"
+        },
+        new()
+        {
+            Id = "adv-atelier", Name = "Atelier", Sounds = "kalimba", NavSounds = "marimba", Music = "track:Sun Rays", Moving = "", Wallpaper = "image:Atelier.jpg",
+            Description = "An Art Nouveau poster, drawn by Claude: cream cards with sage frames and copper whiplash curls, pop-ups with a sage header and little flowers, copper-ringed buttons, switches where a bud blooms into a flower, leaf check boxes, a pen-nib pointer and a poster of petals, ribbons and lilies.",
+            Light = new[] { "#EFE6D2", "#3B3328", "#7A6E5C", "#F7F0E2", "#E6DAC2", "#B8734A" }, ForceLight = true,
+            Font = "file:Philosopher-Regular.ttf#Philosopher", TileCorner = 10, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#EFE6D2", "#E3D5B8" }, PageScrim = 0.35,
+            Legendary = true, Skin = new AdvancedSkin("atelier"), TileAnimation = "breathe"
+        },
+        new()
+        {
+            Id = "adv-abyss", Name = "Abyss", Sounds = "droplet", NavSounds = "bubble", Music = "track:Waves", Moving = "", Wallpaper = "image:Abyss.jpg",
+            Description = "The deep sea, glowing, drawn by Claude: dark glass with glowing cyan rims, bubble buttons, an anglerfish's lure that lights up for switches, glowing pearls for check boxes, a little fish for a pointer, and jellyfish drifting through light from far above.",
+            Dark = new[] { "#020B10", "#E6FFFC", "#8FC9C4", "#0B2A36", "#08202A", "#4DF5E3" }, Mode = "dark",
+            Font = "file:Play-Regular.ttf#Play", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "float", Backdrop = new[] { "#07323E", "#010508" }, PageScrim = 0.5,
+            Legendary = true, Skin = new AdvancedSkin("abyss"), TileAnimation = "float"
+        },
+        new()
+        {
+            Id = "adv-greenhouse", Name = "Greenhouse", Sounds = "marimba", NavSounds = "soft", Music = "track:Relaxing", Moving = "", Wallpaper = "image:Greenhouse.jpg",
+            Description = "A Victorian glasshouse, drawn by Claude: frosted glass panes in wrought-iron frames with brass rivets, brass plate buttons, porthole home buttons, switches where a seed sprouts in a terracotta pot, leaf check boxes and ferns, under arched iron and big leaves.",
+            Light = new[] { "#E4EDE2", "#1E2B22", "#5C6E60", "#F3F7F1", "#D7E3D5", "#3E7B4F" }, ForceLight = true,
+            Font = "file:CrimsonText-Regular.ttf#Crimson Text", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#DCEBD9", "#A9C9A5" }, PageScrim = 0.35,
+            Legendary = true, Skin = new AdvancedSkin("greenhouse"), TileAnimation = "lift"
+        },
+        new()
+        {
+            Id = "adv-origami", Name = "Origami", Sounds = "tick", NavSounds = "soft", Music = "track:Sweetness", Moving = "", Wallpaper = "image:Origami.jpg",
+            Description = "Folded paper, drawn by Claude: paper cards with a folded corner, coral paper buttons, pop-ups whose header is a folded flap, pinwheel home buttons, switches that fold into a pinwheel, a paper-airplane pointer, and layered paper mountains with cranes.",
+            Light = new[] { "#F3EDE4", "#2E3447", "#7A7F8F", "#FFFFFF", "#E9E1D6", "#F27D72" }, ForceLight = true,
+            Font = "file:VarelaRound-Regular.ttf#Varela Round", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#FBEFE6", "#F2E2D8" }, PageScrim = 0.3,
+            Legendary = true, Skin = new AdvancedSkin("origami"), TileAnimation = "lift"
+        },
+        new()
+        {
+            Id = "adv-sumie", Name = "Sumi-e", Sounds = "kalimba", NavSounds = "soft", Music = "track:Thinking of You", Moving = "", Wallpaper = "image:Sumie.jpg",
+            Description = "Ink and brush, drawn by Claude: rice paper with brushed ink borders, a red seal on every pop-up, ensō circles for the home buttons, switches stamped with a red seal, brushed check marks, a brush pointer and misty ink mountains under a red sun.",
+            Light = new[] { "#EFE9DD", "#1C1A17", "#6E675C", "#F7F3EA", "#E2DBCC", "#C0392B" }, ForceLight = true,
+            Font = "file:Spectral-Regular.ttf#Spectral", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "none", Backdrop = new[] { "#F6F1E6", "#ECE4D3" }, PageScrim = 0.3,
+            Legendary = true, Skin = new AdvancedSkin("sumie"), TileAnimation = "steady"
+        },
+        new()
+        {
+            Id = "adv-forge", Name = "Forge", Sounds = "deep", NavSounds = "tick", Music = "track:Gaming Vibes", Moving = "", Wallpaper = "image:Forge.jpg",
+            Description = "Iron and fire, drawn by Claude: riveted iron plates with glowing seams, pop-ups headed by a bar of hot metal, cog home buttons glowing at the heart, switches that light a coal, molten icons, a pointer with a glowing tip, and sparks rising from the anvil.",
+            Dark = new[] { "#141110", "#F4E6D8", "#A8968A", "#241F1C", "#1E1A18", "#FF7A1A" }, Mode = "dark",
+            Font = "file:SairaCondensed-Regular.ttf#Saira Condensed", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "hard", Backdrop = new[] { "#0E0A09", "#1A0F0A" }, PageScrim = 0.5,
+            Legendary = true, Skin = new AdvancedSkin("forge"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "adv-glacier", Name = "Glacier", Sounds = "glass", NavSounds = "droplet", Music = "track:Daybreak", Moving = "", Wallpaper = "image:Glacier.jpg",
+            Description = "Ice under the aurora, drawn by Claude: deep-blue glass framed in ice with frost growing from the corners, faceted buttons, crystal home buttons, switches that turn from a snowflake to aurora light, snowflake check boxes, an ice-shard pointer, and the northern lights over a glacier.",
+            Dark = new[] { "#0A1626", "#EAF6FF", "#9DB5C9", "#14273D", "#102034", "#7FE7D6" }, Mode = "dark",
+            Font = "file:DidactGothic-Regular.ttf#Didact Gothic", TileCorner = 12, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#050B18", "#0E2238" }, PageScrim = 0.5,
+            Legendary = true, Skin = new AdvancedSkin("glacier"), TileAnimation = "float"
+        },
+        new()
+        {
+            Id = "adv-cartographer", Name = "Cartographer", Sounds = "marimba", NavSounds = "tick", Music = "track:Recuerdos", Moving = "", Wallpaper = "image:Cartographer.jpg",
+            Description = "An old sea chart, drawn by Claude: parchment cards ruled in ink with compass points, pop-ups under a red ribbon with a compass rose, compass home buttons, switches sealed with red wax, X-marks-the-spot check boxes, a quill pointer and a hand-drawn chart with a route, rhumb lines and a sea serpent.",
+            Light = new[] { "#E6D3AD", "#3A2A18", "#7A6346", "#F1E4C6", "#DCC79D", "#A83A2A" }, ForceLight = true,
+            Font = "file:IMFeENrm28P.ttf#IM FELL English", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#E6D3AD", "#D4BC8A" }, PageScrim = 0.35,
+            Legendary = true, Skin = new AdvancedSkin("cartographer"), TileAnimation = "breathe"
+        },
+        new()
+        {
+            Id = "adv-sweetshop", Name = "Sweet Shop", Sounds = "bubble", NavSounds = "bubble", Music = "track:Jumps", Moving = "", Wallpaper = "image:SweetShop.jpg",
+            Description = "A sweet shop, drawn by Claude: pink cards piped with frosting and sprinkles, glossy mint candy buttons, pop-ups with dripping icing, donut home buttons, swirl-lollipop switches, candy check boxes, a candy-cane pointer and a pastel sky of macarons, lollipops and sprinkles.",
+            Light = new[] { "#FFEFF5", "#5A2E3E", "#A36F82", "#FFFFFF", "#FFE0EC", "#FF5C9A" }, ForceLight = true,
+            Font = "file:Sniglet-Regular.ttf#Sniglet", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "pill", Shadow = "soft", Backdrop = new[] { "#FFE9F2", "#E6F7FF" }, PageScrim = 0.3,
+            Legendary = true, Skin = new AdvancedSkin("sweetshop"), TileAnimation = "jelly"
+        },
+        new()
+        {
+            Id = "adv-gatsby", Name = "Gatsby", Sounds = "chime", NavSounds = "tick", Music = "track:Coffee Shop", Moving = "", Wallpaper = "image:Gatsby.jpg",
+            Description = "Art Deco black and gold, drawn by Claude: black lacquer cards with stepped gold corners, pop-ups with gold sunburst fans, sunburst home buttons, diamond switches, gold diamond check boxes, a geometric gold pointer, and a sunburst rising behind a skyline of stepped towers.",
+            Dark = new[] { "#0B0B0C", "#F3E6C4", "#B8A57A", "#17161A", "#121114", "#D4AF37" }, Mode = "dark",
+            Font = "file:PoiretOne-Regular.ttf#Poiret One", TileCorner = 2, RowCorner = 2, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Backdrop = new[] { "#0D0C0F", "#050506" }, PageScrim = 0.5,
+            Legendary = true, Skin = new AdvancedSkin("gatsby"), TileAnimation = "glow"
+        },
+        // 7.0: ten more drawn by Claude for the Legendary tab.
+        new()
+        {
+            Id = "adv-stainedglass", Name = "Stained Glass", Sounds = "chime", NavSounds = "glass", Music = "track:At Rest", Moving = "", Wallpaper = "image:StainedGlass.jpg",
+            Description = "A cathedral window at night, drawn by Claude: smoky glass cards with jewel panes set in lead at the corners, pop-ups headed by a row of lancet windows, rose-window home buttons, switches that light a little rose, a ruby pointer, and a great gothic window glowing over dark stone.",
+            Dark = new[] { "#0C0A14", "#F6EEDC", "#B3A9C2", "#1A1626", "#16121F", "#E8B04A" }, Mode = "dark",
+            Font = "file:Cinzel-Regular.ttf#Cinzel", TileCorner = 6, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#C2183A", "#E3A21A", "#1E8C4E", "#1F4FB8", "#7A2BA8", "#C2183A" },
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Backdrop = new[] { "#120E18", "#0A0810" }, PageScrim = 0.5,
+            Legendary = true, Skin = new AdvancedSkin("stainedglass"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "adv-koipond", Name = "Koi Pond", Sounds = "droplet", NavSounds = "droplet", Music = "track:Ripples", Moving = "", Wallpaper = "image:KoiPond.jpg",
+            Description = "A garden pond seen from above, drawn by Claude: dark-water cards with a lily pad in the corner and ripples, pop-ups with a lotus in bloom, lily-pad home buttons, switches where a lotus bud opens, koi-orange check boxes, a koi pointer, and koi gliding under lily pads.",
+            Dark = new[] { "#06201E", "#EAF7EE", "#9CC2B4", "#0D2F2B", "#0B2925", "#FF8A3D" }, Mode = "dark",
+            Font = "file:Comfortaa-Regular.ttf#Comfortaa", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "float", Backdrop = new[] { "#0D3B35", "#05201C" }, PageScrim = 0.45,
+            Legendary = true, Skin = new AdvancedSkin("koipond"), TileAnimation = "float"
+        },
+        new()
+        {
+            Id = "adv-blueprint", Name = "Blueprint", Sounds = "tick", NavSounds = "tick", Music = "track:Gaming Vibes", Moving = "", Wallpaper = "image:Blueprint.jpg",
+            Description = "An engineer's drawing, drawn by Claude: gridded blueprint cards with registration marks, pop-ups headed by a title block, measuring-dial home buttons, crosshair switches, a drafting pointer, and a fully dimensioned technical drawing of a handheld behind it all.",
+            Dark = new[] { "#0B2A55", "#F2F7FF", "#A8C1E3", "#11366A", "#0F3163", "#FFD34D" }, Mode = "dark",
+            Font = "file:ShareTechMono-Regular.ttf#Share Tech Mono", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "none", Backdrop = new[] { "#164384", "#0B2C5A" }, PageScrim = 0.45,
+            Legendary = true, Skin = new AdvancedSkin("blueprint"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "adv-circuit", Name = "Circuit", Sounds = "retro", NavSounds = "laser", Music = "track:Fraxsu", Moving = "", Wallpaper = "image:Circuit.jpg",
+            Description = "A circuit board up close, drawn by Claude: green solder-mask cards with gold traces and vias, buttons that are little chips with gold pins, gold-ringed home buttons, switches that light an LED, gold pads for check boxes, and a processor with data pulsing along its traces.",
+            Dark = new[] { "#04140C", "#E8FFF0", "#8DBFA3", "#0A2618", "#082014", "#F2C14E" }, Mode = "dark",
+            Font = "file:ChakraPetch-Regular.ttf#Chakra Petch", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "hard", Backdrop = new[] { "#0E3B22", "#062413" }, PageScrim = 0.5,
+            Legendary = true, Skin = new AdvancedSkin("circuit"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "adv-grimoire", Name = "Grimoire", Sounds = "deep", NavSounds = "marimba", Music = "track:Dreamcore", Moving = "", Wallpaper = "image:Grimoire.jpg",
+            Description = "An old spell book, drawn by Claude: tooled leather cards with gilt borders and corner fleurons, pop-ups set with a violet gem, home buttons ringed with glowing runes, switches that wake a gem, a gilt wand pointer, and an open book by candlelight with a sigil glowing on its page.",
+            Dark = new[] { "#140D0A", "#F2E3C6", "#B39A7A", "#24170F", "#1E130D", "#B48CFF" }, Mode = "dark",
+            Font = "file:Almendra-Regular.ttf#Almendra", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#1C110B", "#120B08" }, PageScrim = 0.5,
+            Legendary = true, Skin = new AdvancedSkin("grimoire"), TileAnimation = "breathe"
+        },
+        new()
+        {
+            Id = "adv-bauhaus", Name = "Bauhaus", Sounds = "tick", NavSounds = "marimba", Music = "track:Jewels", Moving = "", Wallpaper = "image:Bauhaus.jpg",
+            Description = "A Bauhaus poster, drawn by Claude: cream cards with a red quarter-circle and a yellow square, yellow buttons with a hard black shadow, a blue pop-up header with a circle and triangle, yellow-and-red ring buttons, switches with a square that turns into a circle, and a poster of bold shapes.",
+            Light = new[] { "#F2EDE3", "#1A1A1A", "#5E5A52", "#FBF8F2", "#ECE5D8", "#D7263D" }, ForceLight = true,
+            Font = "file:JosefinSans-Regular.ttf#Josefin Sans", TileCorner = 0, RowCorner = 2, RingThickness = 4, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "hard", Backdrop = new[] { "#F4EEE2", "#EBE2D1" }, PageScrim = 0.5,
+            Legendary = true, Skin = new AdvancedSkin("bauhaus"), TileAnimation = "steady"
+        },
+        new()
+        {
+            Id = "adv-mirage", Name = "Mirage", Sounds = "kalimba", NavSounds = "soft", Music = "track:Sun Rays", Moving = "", Wallpaper = "image:Mirage.jpg",
+            Description = "The desert at golden hour, drawn by Claude: sand cards with wind ripples and a low sun, pop-ups headed by a sunset over the dunes, sun home buttons, switches that go from a starry night with a moon to a sunny day, and a caravan crossing the dunes beneath a huge shimmering sun.",
+            Light = new[] { "#F3E3C8", "#3D2A1C", "#8A6B52", "#FBF1E1", "#EED9BA", "#D9733B" }, ForceLight = true,
+            Font = "file:TenorSans-Regular.ttf#Tenor Sans", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#F6E2C4", "#E6866A" }, PageScrim = 0.35,
+            Legendary = true, Skin = new AdvancedSkin("mirage"), TileAnimation = "breathe"
+        },
+        new()
+        {
+            Id = "adv-riad", Name = "Riad", Sounds = "marimba", NavSounds = "kalimba", Music = "track:Relaxing", Moving = "", Wallpaper = "image:Riad.jpg",
+            Description = "A Moroccan courtyard, drawn by Claude: white plaster cards with zellige stars in the corners, pop-ups with a cobalt header, a tile border and a horseshoe arch, eight-pointed star home buttons, switches with a gold star, and a tiled courtyard wall with an arch onto a palm and the sky.",
+            Light = new[] { "#F4EEE4", "#1F2E3A", "#66727C", "#FFFFFF", "#EEE5D6", "#1F7A8C" }, ForceLight = true,
+            Font = "file:ElMessiri-Regular.ttf#El Messiri", TileCorner = 8, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#FFFDF8", "#F1E9DC" }, PageScrim = 0.4,
+            Legendary = true, Skin = new AdvancedSkin("riad"), TileAnimation = "lift"
+        },
+        new()
+        {
+            Id = "adv-autumn", Name = "Autumn", Sounds = "marimba", NavSounds = "soft", Music = "track:Coffee Shop", Moving = "", Wallpaper = "image:Autumn.jpg",
+            Description = "A misty autumn wood, drawn by Claude: cream cards with a maple and an oak leaf, pop-ups headed with falling leaves, home buttons in a wreath of leaves, switches where a green leaf turns red, an orange leaf pointer, and a sunlit wood with leaves falling and covering the ground.",
+            Light = new[] { "#F5EAD7", "#3A2618", "#84664C", "#FDF6EA", "#F0E0C6", "#D4572A" }, ForceLight = true,
+            Font = "file:Merienda-Regular.ttf#Merienda", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Ambient = "float", Backdrop = new[] { "#FBE7C6", "#E59A5E" }, PageScrim = 0.4,
+            Legendary = true, Skin = new AdvancedSkin("autumn"), TileAnimation = "float"
+        },
+        new()
+        {
+            Id = "adv-halftone", Name = "Halftone", Sounds = "bubble", NavSounds = "laser", Music = "track:Jumps", Moving = "", Wallpaper = "image:Halftone.jpg",
+            Description = "A comic book, drawn by Claude: white cards inked in black with halftone dots and a hard shadow, yellow buttons, pop-ups headed in red with a POW! burst, starburst home buttons, switches that go off with a bang, a red pointer, and a comic page full of bursts, speed lines and speech bubbles.",
+            Light = new[] { "#FFF6D6", "#111111", "#4A4A4A", "#FFFFFF", "#FFF0B8", "#E52521" }, ForceLight = true,
+            Font = "file:Bangers-Regular.ttf#Bangers", TileCorner = 4, RowCorner = 4, RingThickness = 4, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "hard", Backdrop = new[] { "#FFF6D6", "#FFE58A" }, PageScrim = 0.55,
+            Legendary = true, Skin = new AdvancedSkin("halftone"), TileAnimation = "jelly"
+        },
+        new()
+        {
             Id = "adv-neon-grid", Name = "Neon Grid", Sounds = "pack:Essential UI", Music = "track:Fraxsu", Moving = "", Wallpaper = "",
             Description = "A cyberpunk control panel: glowing framed panels with header strips, neon switches and checkboxes, a grid over deep navy and a pointer of its own.",
             Dark = new[] { "#060B1A", "#E6F4FF", "#8EA8C8", "#0C1630", "#0A1228", "#22D3EE" },
@@ -972,7 +1165,7 @@ public static class UiStyles
         new()
         {
             Id = "adv-hologram", Name = "Hologram", Sounds = "pack:Essential UI", Music = "track:Ripples", Moving = "", Wallpaper = "",
-            Description = "A starship's holographic interface: translucent teal cards that shimmer, holo bars for switches and pixel hologram icons on the home buttons.",
+            Description = "A starship's holographic interface: translucent teal cards that shimmer, pop-ups with a glowing header band, glowing ring buttons, holo pill switches and check boxes, and hologram icons on the home buttons.",
             Dark = new[] { "#02110F", "#D9FFF7", "#7FC9BD", "#06201C", "#051A17", "#5BF2D6" },
             Font = "file:Vislar-Thin.otf#Vislar#Vislar Thin", TileCorner = 8, RowCorner = 10, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Overlay = "hud", Ambient = "status", Footer = "line", Backdrop = new[] { "#03201C", "#010807" },
@@ -1150,6 +1343,9 @@ public static class UiStyles
 
     /// <summary>Whether a style is one of the Advanced ones (Settings > Themes > Advanced).</summary>
     public static bool IsAdvanced(string? id) => Advanced.Any(s => s.Id == id);
+
+    /// <summary>Whether a style is one of the Legendary ones (Advanced styles drawn by Claude: Settings > Themes > Legendary).</summary>
+    public static bool IsLegendary(string? id) => Advanced.Any(s => s.Id == id && s.Legendary);
 
     /// <summary>
     /// How many styles come with SquareDeck (Basic plus Advanced), counted from the lists themselves, so text that

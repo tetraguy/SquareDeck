@@ -319,12 +319,21 @@ public static class Updater
         var buffer = new byte[81920];
         long done = 0;
         int read;
+        // Reported about 20 times a second, not after every 80 KB: on a fast connection that was thousands of updates
+        // queued for the screen, which drew them late and in bursts.
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        long lastReport = -1000;
         while ((read = await source.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
         {
             await target.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
             done += read;
-            if (total > 0) progress?.Report((double)done / total);
+            if (total > 0 && clock.ElapsedMilliseconds - lastReport >= 50)
+            {
+                lastReport = clock.ElapsedMilliseconds;
+                progress?.Report(Math.Min(1, (double)done / total));
+            }
         }
+        if (total > 0) progress?.Report(1);
         return path;
     }
 

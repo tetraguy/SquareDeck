@@ -3,6 +3,197 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 7.1.0
+
+**VacuumTube (Experimental)**
+YouTube's TV and console app, Leanback, inside SquareDeck with [VacuumTube](https://github.com/shy1132/VacuumTube)'s enhancements, made for the controller. Turn it on in Settings > Experimental, and the Music page gets a **VacuumTube** tab next to Spotify.
+- **The tab:** a big Open button, and VacuumTube's main switches to set before you go in: Block ads, SponsorBlock, DeArrow, Return YouTube Dislike, Hide Shorts and No "Continue watching?".
+- **Opening it:** YouTube's TV interface fills the screen. Every button does what it does on a console, because the page reads the controller itself through VacuumTube's controller support, and SquareDeck keeps out of its way. Without that (or with it turned off), SquareDeck sends the same console buttons itself.
+- **Leaving, back to the Music page**, from anywhere in VacuumTube:
+  - **View + Menu** together on the controller (the two small buttons in the middle). A reminder shows a few seconds after it opens.
+  - **The "← SquareDeck" button** that shows in the top corner for a few seconds whenever you touch the screen or move the mouse.
+  - **Ctrl+Q** on a keyboard.
+  - YouTube's own **Exit** (B on its home row) works too.
+- **Settings:** the rest of VacuumTube's settings are in YouTube's own Settings, under VacuumTube, or Ctrl+O with a keyboard. Settings for its own window (full screen, keep on top, hardware decoding, updates) are hidden, since SquareDeck looks after those.
+- **Sign-in:** with a code on your phone, as on a TV, or watch as a guest. It's kept apart from SquareDeck's other web pages.
+- **How it works:** VacuumTube is an Electron app. Its page scripts (version 2.1.2) are bundled into SquareDeck, and SquareDeck plays the part of its Electron side: the identity YouTube sees, letting VacuumTube's add-ons past YouTube's content rules, and saving its settings. Casting from your phone (DIAL) isn't included, because a web page can't run the local server it needs.
+- VacuumTube is by shy and others, under the MIT licence. It's listed in Credits, and its licence ships in the VacuumTube folder.
+
+## 7.0.0
+
+**Legendary: a third tab in Themes**
+Themes now has three tabs: Basic, Advanced and **Legendary**. Legendary holds the styles drawn from scratch by Claude, SquareDeck's AI collaborator. Meridian and the ten styles from 6.46 have moved there from Advanced, and ten new ones join them, for 21 in all. If you're using one of them, Themes opens on the Legendary tab.
+
+**Ten new Legendary styles**
+Each has its own cards, buttons, pop-ups, home buttons, switches, check boxes, 13 icons, pointer, wallpaper, font, sounds and music.
+- **Stained Glass:** a cathedral window at night. Smoky glass with jewel panes leaded into the corners, pop-ups headed by a row of lancet windows, rose-window home buttons, switches that light a little rose, a ruby pointer, and a great gothic window glowing over dark stone.
+- **Koi Pond:** a garden pond from above. Dark-water cards with a lily pad and ripples, a lotus in bloom on pop-ups, lily-pad home buttons, switches where a lotus bud opens, a koi pointer, and koi gliding under lily pads.
+- **Blueprint:** an engineer's drawing. Gridded blueprint cards with registration marks, pop-ups headed by a title block, measuring-dial home buttons, crosshair switches, and a dimensioned technical drawing of a handheld.
+- **Circuit:** a circuit board up close. Solder-mask cards with gold traces and vias, buttons that are little chips with gold pins, switches that light an LED, and a processor with data pulsing along its traces.
+- **Grimoire:** an old spell book. Tooled leather with gilt borders and corner fleurons, a violet gem on pop-ups, home buttons ringed with glowing runes, a wand pointer, and an open book by candlelight with a sigil glowing on its page.
+- **Bauhaus:** a 1920s poster. Cream cards with a red quarter-circle and a yellow square, yellow buttons with a hard black shadow, switches where a square becomes a circle, and a poster of bold shapes.
+- **Mirage:** the desert at golden hour. Sand cards with wind ripples, a sunset over dunes on pop-ups, sun home buttons, switches that go from a starry night to a sunny day, and a caravan crossing the dunes under a shimmering sun.
+- **Riad:** a Moroccan courtyard. Plaster cards with zellige stars, a cobalt header with a tile border and a horseshoe arch, eight-pointed star home buttons, and a tiled wall with an arch onto a palm and the sky.
+- **Autumn:** a misty wood. Cream cards with a maple and an oak leaf, falling leaves on pop-ups, a wreath of leaves around the home buttons, switches where a green leaf turns red, and leaves falling through low sun.
+- **Halftone:** a comic book. Inked cards with halftone dots and a hard shadow, pop-ups headed in red with a POW! burst, starburst home buttons, switches that go off with a bang, and a comic page of bursts, speed lines and speech bubbles.
+- Their ten fonts (all under the SIL Open Font License) can also be picked on their own under Themes > Font, and are listed in Credits.
+
+**Progress bars and their percentages move together**
+- The Steam game update dialog, Experimental downloads and artwork downloads: the percentage used to jump straight to the new number while the bar slid there afterwards, so the bar always trailed behind it. The number is now read off the bar on every frame as it moves.
+- SquareDeck's update download reports its progress about 20 times a second instead of after every 80 KB. On a fast connection the old way queued thousands of updates, so the screen drew them late and in bursts.
+- The full-screen "Updating SquareDeck" screen: the glowing dot now rides inside the end of the bar. Centred on the end, the dot and its glow reached past the fill, so the bar looked further along than the percentage said.
+
+## 6.46.0
+
+**Ten new Advanced styles, drawn from scratch**
+Each has its own cards, buttons, pop-ups, home buttons, switches, check boxes, 13 icons, pointer, wallpaper, font, sounds and music.
+- **Atelier:** an Art Nouveau poster. Cream cards with sage frames and copper whiplash curls, a bud that blooms into a flower for switches, leaf check boxes, a pen-nib pointer, and a poster of petals, ribbons and lilies.
+- **Abyss:** the deep sea, glowing. Dark glass with cyan rims, bubble home buttons, an anglerfish's lure that lights up for switches, glowing pearls, a little fish for a pointer, and jellyfish drifting through light from far above.
+- **Greenhouse:** a Victorian glasshouse. Frosted panes in wrought-iron frames with brass rivets, brass plate buttons, porthole home buttons, a seed that sprouts in a terracotta pot, ferns, and arched iron and big leaves behind.
+- **Origami:** folded paper. Cards with a folded corner, pop-ups whose header is a folded flap, pinwheel home buttons and switches, a paper-airplane pointer, and layered paper mountains with cranes.
+- **Sumi-e:** ink and brush. Rice paper with brushed borders, a red seal on every pop-up, ensō circles for home buttons, switches stamped with a seal, a brush pointer, and misty ink mountains under a red sun.
+- **Forge:** iron and fire. Riveted plates with glowing seams, pop-ups headed by a bar of hot metal, cog home buttons, a coal that lights up for switches, molten icons, and sparks rising from an anvil.
+- **Glacier:** ice under the aurora. Ice-framed glass with frost growing from the corners, crystal home buttons, switches that turn from a snowflake to aurora light, an ice-shard pointer, and the northern lights over a glacier reflected in still water.
+- **Cartographer:** an old sea chart. Parchment ruled in ink with compass points, pop-ups under a red ribbon, compass-rose home buttons, red wax seals for switches, X-marks-the-spot check boxes, a quill pointer, and a chart with a route, rhumb lines and a sea serpent.
+- **Sweet Shop:** candy and frosting. Pink cards piped with frosting and sprinkles, glossy mint candy buttons, dripping icing on pop-ups, donut home buttons, swirl-lollipop switches, a candy-cane pointer, and a pastel sky of macarons and lollipops.
+- **Gatsby:** Art Deco black and gold. Lacquer cards with stepped gold corners, sunburst fans on pop-ups, sunburst home buttons, diamond switches, a geometric gold pointer, and a sunburst rising behind a skyline of stepped towers.
+- Their ten fonts (all under the SIL Open Font License) can also be picked on their own under Themes > Font, and are listed in Credits.
+
+## 6.45.0
+
+**11 more cover art effects (Experimental)**
+- **Windows 2000 icon:** the cover becomes a 256-color desktop icon on Windows 2000's blue desktop, with a black outline, a bevel, a drop shadow and a highlighted "GAME.EXE" label.
+- **Roman mosaic:** little stone tiles set in grout.
+- **Cross-stitch:** stitched in colored thread on cream aida cloth.
+- **Low poly:** flat-shaded triangles, like an early 3D model.
+- **Watercolor:** soft washes that pool at their edges, on textured paper.
+- **Risograph:** two fluorescent inks, pink and blue, printed slightly out of line like a zine.
+- **Woodblock print:** ukiyo-e colors and inked outlines on fibrous paper.
+- **Engraving:** fine wavy lines, like the portrait on a banknote.
+- **CRT television:** curved glass, phosphor stripes, scanlines and glow.
+- **Holo foil:** a rainbow foil trading card that shimmers, with sparkles.
+- **Kaleidoscope:** the cover mirrored six ways.
+- That makes 30 effects, plus Shuffle.
+
+**The companion goes everywhere (Experimental)**
+- **Every page:** it follows you through the launcher and does what suits each page:
+  - tinkering with gears in Settings
+  - searching and reading in the Library and on game pages
+  - trophies and confetti on achievements and playtime
+  - dancing on the Music page
+  - shopping in the Stores and Recomp Zone
+  - waving and hearts on Friends
+  - snapping pictures in Captures
+  - digging through files in the File explorer
+  - zooming around in Boost and the speed tests
+  - stretching on the battery and power pages
+  - Each page has its own lines too. It stays off full-screen video, web pages and pop-ups.
+- **Home:** it gets up to all sorts on its own: going for a walk, juggling stars, somersaults, tripping over, peekaboo, a balloon, confetti, stretching, looking around, playing a game, thinking, and dancing when music plays.
+- **When a game starts:** it puts on a show next to the cover. It's one of 12 acts, picked each time:
+  - hopping onto the cover and bouncing on it
+  - running back and forth kicking up dust
+  - blasting off on a rocket
+  - peeking out from behind the cover and waving
+  - a drumroll and a jump for joy
+  - flying round the cover
+  - cheering with confetti
+  - waking up from a nap with a start
+  - dancing with music notes
+  - floating down on a parachute
+  - skating in and doing a trick
+  - juggling stars
+- Every new move can be tried from the companion's own page.
+
+## 6.44.0
+
+**Network drives and FTP servers in the File explorer**
+- This PC has a new Network section with Add an FTP server, Map a network drive and Open a network location. They're also in the explorer's menu, along with Disconnect a network drive.
+- **Map a network drive:**
+  - Type a shared folder's address (like \\DESKTOP\Games), pick a drive letter, and sign in with your Windows account or another one.
+  - It's remembered after a restart, like in Windows.
+  - Disconnecting only removes the drive letter; nothing on the share is touched.
+- **Open a network location:** browse \\computer\share or an ftp:// address without saving it.
+- **FTP servers:**
+  - Add a server by its address (port and starting folder are optional) as a guest or with a user name. Plain FTP and FTPS (encrypted) both work.
+  - The password is kept in Windows' Credential Manager, not in SquareDeck's settings, and passwords show as dots while you type them.
+  - The connection is checked before saving.
+  - Saved servers appear on This PC and in the sidebar, and their folders browse like any other folder.
+  - Opening a file downloads a copy and opens it in SquareDeck's viewers.
+  - Copy and paste download into a folder on this PC, or upload into a server folder; cut and paste moves. There are also Download to Downloads, new folder, rename, delete (asks first, since servers have no Recycle Bin) and properties.
+
+**Recomp Zone (Experimental)**
+- Native PC versions of console games, rebuilt from the original code by fans, in one place. Turn it on in Experimental; it appears on the Stores page.
+- It uses the list that recomplauncher.com publishes for RecompLauncher (github.com/elripalda/RecompLauncher). Installed recomps come first, then every one grouped by console, with search (Y) and refresh (X).
+- Each recomp's page has its art, what it's based on, its console and developer, and a description. From there you can:
+  - Install: the download comes straight from the developer's GitHub release and is checked against GitHub's checksum.
+  - Play, update to a newer version (unpacked over the old one, so saves and settings stay), add it to Home, open its folder, or uninstall it (to the Recycle Bin).
+  - Read screenshots, release notes, and open the developer's page.
+- Every recomp needs your own copy of the original game. SquareDeck never downloads game files.
+
+**YouTube Music and Apple Music (Experimental)**
+- With the experiment on, Multimedia > Streaming has a Listen section with YouTube Music and Apple Music. They open full screen inside SquareDeck with the same controller support as the video services.
+- Unlike the video services, music keeps playing when you go back to the launcher and while you play a game. Windows' media controls and the home screen's now-playing pill show it.
+- X plays and pauses, and LB / RB skip 10 seconds. "Open YouTube Music" in the music search opens it here too.
+
+**Discord (Experimental)**
+- The Friends page gets a Discord button: open the Discord app (your friends and messages), join a server with an invite, use Discord in SquareDeck's browser, or get the app.
+- Your Discord status can show the game you're playing from SquareDeck, with its picture and how long you've played, and optionally "Browsing the library" between games. This needs the Discord app running and a free application ID from Discord's Developer Portal; the page explains how to get one.
+- Discord doesn't let other apps read your friends list or messages, so those open in Discord itself.
+
+**Improvements**
+- The Float highlight (used by Meridian and Hologram) no longer drops and lifts again every couple of seconds. It lifts once, then bobs smoothly for as long as the game stays selected.
+
+## 6.43.0
+
+**Meridian, a new Advanced style**
+- A celestial atlas, drawn from scratch for SquareDeck:
+  - midnight-blue cards framed in engraved gold, with a small star where each frame turns its corners
+  - pop-ups with a ruled gold header and a quarter astrolabe in every corner
+  - the Home buttons are astrolabe rings with a 360-degree scale
+  - switches turn a new moon into a glowing full moon, with stars coming out beside it
+  - check boxes light up a star
+  - gold line icons, including a globe with meridians and a constellation for Friends, and a compass-needle pointer
+- Behind it all is a hand-plotted star chart with the Milky Way, constellations in fine gold lines and a great graduated celestial circle. Sparkles twinkle over Home, and the highlight ring shimmers in gold.
+- It uses the Marcellus font (carved Roman letters), the chime sounds and "Meditation" as its music. Marcellus can also be picked on its own under Themes > Font.
+
+**Files open inside SquareDeck**
+- In the File explorer, opening a file now uses SquareDeck's own viewers instead of sending everything to Windows:
+  - **Pictures and videos** open in a full-screen viewer that moves through the whole folder with LB / RB or left and right.
+    - Pictures: A zooms in, LT / RT zoom in steps, the stick or d-pad moves around a zoomed picture, and Y turns it. Pinch, drag, swipe and the mouse wheel work too.
+    - Videos: A plays and pauses, left and right skip 10 seconds, up and down change the volume, and a progress bar shows the time.
+    - X hides or shows the name, size, date and picture size.
+  - **Music** plays in the Music page's own player, along with the folder's other songs, and the Music page opens.
+  - **Web shortcuts** (.url) and web pages (.htm, .html) open in SquareDeck's browser.
+  - **Text files** (.txt, .log, .md, .ini, .json, .xml, .csv, .cfg and other plain-text files) open in a new text editor:
+    - It opens for reading. A, a tap or a click starts editing, and B goes back to reading.
+    - X or Ctrl+S saves. Y has Find (also Ctrl+F), line wrapping, go to top or end, undo, and Open with Windows.
+    - LT / RT change the text size. The bottom line shows the line, word and character counts, the text encoding and whether there are unsaved changes.
+    - Closing with unsaved changes asks whether to save them.
+- Files SquareDeck can't show (and formats a viewer can't play) still open with Windows. "Open with…" in the file menu is unchanged.
+
+## 6.42.2
+
+**Fix**
+- A game's details page: the "More" menu no longer offers "Game details", since you're already on that page. The menu still has it when opened from Home or the Library.
+
+## 6.42.1
+
+**Steel is Switch's standard colors**
+- The Switch style now uses the Steel color theme by default: cool charcoal greys with an ice-blue highlight in dark mode, soft silver-white in light mode.
+- If you're on Switch without a color theme, Steel is applied once with this update. A color theme you picked yourself is kept.
+- Choosing Switch again from the styles also brings Steel back. The old greys are still there as "Standard" under Color theme, and Steel is marked "(Switch default)".
+
+## 6.42.0
+
+**Hologram style, rebuilt with the full kit**
+- The Advanced style Hologram now uses the full Hologram interface kit instead of a few pieces of it:
+  - Pop-ups have a glowing header band with the title in it.
+  - The round buttons on Home are glowing hologram rings.
+  - Switches are holo pills that fill with green when on.
+  - Check boxes are the kit's own.
+- The artwork is drawn smoothly instead of as hard pixels, so the glow edges are soft.
+- If you already use Hologram, it updates by itself; nothing needs to be chosen again.
+
 ## 6.41.0
 
 **Highlight effects**

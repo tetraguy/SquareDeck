@@ -35,6 +35,17 @@ public static class CoverEffects
         ("stainedglass", "Stained glass", "Pieces of colored glass held together with lead"),
         ("oldphoto", "Old photo", "Sepia, faded, scratched and dusty"),
         ("instant", "Instant photo", "In a white instant-photo frame, warm and faded, with a light leak"),
+        ("win2000", "Windows 2000 icon", "A 256-color desktop icon on the Windows 2000 blue, with its label highlighted"),
+        ("mosaic", "Roman mosaic", "Little stone tiles set in grout"),
+        ("crossstitch", "Cross-stitch", "Stitched in colored thread on cream cloth"),
+        ("lowpoly", "Low poly", "Flat-shaded triangles, like an early 3D model"),
+        ("watercolor", "Watercolor", "Soft washes that pool at the edges, on textured paper"),
+        ("risograph", "Risograph", "Two fluorescent inks, slightly out of line, like a zine print"),
+        ("woodblock", "Woodblock print", "Ukiyo-e colors and inked outlines on fibrous paper"),
+        ("engraving", "Engraving", "Fine wavy lines, like the portrait on a banknote"),
+        ("crt", "CRT television", "Curved glass, glowing phosphor stripes and scanlines"),
+        ("holofoil", "Holo foil", "A rainbow foil card that shimmers with sparkles"),
+        ("kaleidoscope", "Kaleidoscope", "Mirrored six ways, like looking down a kaleidoscope"),
         ("shuffle", "Shuffle", "Every cover gets a different effect"),
     };
 
@@ -59,7 +70,7 @@ public static class CoverEffects
     public static string Duotone { get; set; } = "accent";
 
     /// <summary>Effects drawn as hard pixels, which should be scaled up without smoothing.</summary>
-    public static bool IsPixelArt(string kind) => kind is "retro" or "gameboy";
+    public static bool IsPixelArt(string kind) => kind is "retro" or "gameboy" or "win2000";
 
     public static string NameOf(string kind) => All.FirstOrDefault(e => e.Id == kind).Name ?? "Retro";
 
@@ -176,6 +187,17 @@ public static class CoverEffects
         "stainedglass" => StainedGlass(source),
         "oldphoto" => OldPhoto(source),
         "instant" => Instant(source),
+        "win2000" => Win2000(source, o.Detail),
+        "mosaic" => Mosaic(source),
+        "crossstitch" => CrossStitch(source),
+        "lowpoly" => LowPoly(source),
+        "watercolor" => Watercolor(source),
+        "risograph" => Risograph(source),
+        "woodblock" => Woodblock(source),
+        "engraving" => Engraving(source),
+        "crt" => Crt(source),
+        "holofoil" => HoloFoil(source),
+        "kaleidoscope" => Kaleidoscope(source),
         _ => source,
     };
 
@@ -816,6 +838,415 @@ public static class CoverEffects
                 double leak = Math.Max(0, 1 - Math.Sqrt(Math.Pow(lx / iw - 1, 2) + Math.Pow(ly / ih, 2)) / 0.55);
                 double inner = Math.Min(Math.Min(lx, iw - lx), Math.Min(ly, ih - ly)) < 1.5 ? 0.82 : 1;
                 o.Set(x, y, (r * v + 120 * leak) * inner, (g * v + 55 * leak) * inner, (b * v + 10 * leak) * inner);
+            }
+        return o.ToBitmap();
+    }
+
+    // ---------------------------------------------------------------- the second set
+
+    private static Color Hex(string h) => (Color)ColorConverter.ConvertFromString(h);
+
+    /// <summary>Windows' 256-color palette: the 6×6×6 color cube plus the 16 classic VGA colors.</summary>
+    private static readonly Color[] Palette256 = Enumerable.Range(0, 216).Select(i => Color.FromRgb((byte)(i / 36 * 51), (byte)(i / 6 % 6 * 51), (byte)(i % 6 * 51)))
+        .Concat(new[] { "#000000", "#800000", "#008000", "#808000", "#000080", "#800080", "#008080", "#C0C0C0", "#808080", "#FF0000", "#00FF00", "#FFFF00", "#0000FF", "#FF00FF", "#00FFFF", "#FFFFFF" }.Select(Hex)).ToArray();
+
+    private static Color Nearest(Color[] palette, double r, double g, double b)
+    {
+        Color best = palette[0];
+        double bestD = double.MaxValue;
+        foreach (var c in palette)
+        {
+            double d = 2 * (c.R - r) * (c.R - r) + 4 * (c.G - g) * (c.G - g) + 3 * (c.B - b) * (c.B - b);
+            if (d < bestD) { bestD = d; best = c; }
+        }
+        return best;
+    }
+
+    private static BitmapSource Win2000(BitmapSource s, int detail)
+    {
+        // A desktop the shape of the cover, in Windows 2000's own blue, with one icon on it.
+        double aspect = s.PixelHeight / (double)s.PixelWidth;
+        int cw = 64, ch = Math.Max(40, (int)Math.Round(64 * aspect));
+        int icon = detail switch { <= 32 => 28, >= 72 => 40, _ => 34 };
+        var desk = Hex("#3A6EA5");
+        var o = new Px(cw, ch);
+        for (int y = 0; y < ch; y++) for (int x = 0; x < cw; x++) o.Set(x, y, desk);
+        // The picture: the middle of the cover, squared off, in 256 colors with a little dithering.
+        int side = Math.Min(s.PixelWidth, s.PixelHeight);
+        var square = new CroppedBitmap(s, new Int32Rect((s.PixelWidth - side) / 2, (s.PixelHeight - side) / 2, side, side));
+        var pic = Load(square, icon, icon, keepAspect: false);
+        int ix = (cw - icon) / 2, iy = Math.Max(3, (int)(ch * 0.42) - icon / 2 - 4);
+        // Its shadow, two pixels down and right, then the picture with a black outline and a bevel of light.
+        for (int y = 0; y < icon; y++) for (int x = 0; x < icon; x++)
+            {
+                int sx = ix + x + 2, sy = iy + y + 2;
+                if (sx < cw && sy < ch) { var c = o.Get(sx, sy); o.Set(sx, sy, c.R * 0.55, c.G * 0.55, c.B * 0.55); }
+            }
+        for (int y = 0; y < icon; y++)
+            for (int x = 0; x < icon; x++)
+            {
+                var (r, g, b) = pic.Get(x, y);
+                double t = (Bayer[y & 3, x & 3] + 0.5) / 16.0 - 0.5;
+                var c = Nearest(Palette256, r + t * 28, g + t * 28, b + t * 28);
+                double f = x == 1 || y == 1 ? 1.25 : x == icon - 2 || y == icon - 2 ? 0.7 : 1.0;
+                if (x == 0 || y == 0 || x == icon - 1 || y == icon - 1) o.Set(ix + x, iy + y, 0, 0, 0);
+                else o.Set(ix + x, iy + y, Math.Min(255, c.R * f), Math.Min(255, c.G * f), Math.Min(255, c.B * f));
+            }
+        // The label, selected: a navy box with a dotted focus line and white "text".
+        int ly = iy + icon + 4, lw = icon + 10, lx = (cw - lw) / 2, lh = 9;
+        if (ly + lh < ch)
+        {
+            var navy = Hex("#0A246A");
+            for (int y = 0; y < lh; y++)
+                for (int x = 0; x < lw; x++)
+                {
+                    bool edge = x == 0 || y == 0 || x == lw - 1 || y == lh - 1;
+                    if (edge && (x + y) % 2 == 0) o.Set(lx + x, ly + y, 255, 255, 255);
+                    else o.Set(lx + x, ly + y, navy);
+                }
+            // "GAME.EXE" in a tiny 3×5 pixel font, centered.
+            var font = new Dictionary<char, string[]>
+            {
+                ['G'] = new[] { "111", "100", "101", "101", "111" }, ['A'] = new[] { "010", "101", "111", "101", "101" },
+                ['M'] = new[] { "101", "111", "111", "101", "101" }, ['E'] = new[] { "111", "100", "110", "100", "111" },
+                ['.'] = new[] { "0", "0", "0", "0", "1" }, ['X'] = new[] { "101", "101", "010", "101", "101" },
+            };
+            const string label = "GAME.EXE";
+            int textW = label.Sum(ch2 => font[ch2][0].Length + 1) - 1;
+            int tx = lx + (lw - textW) / 2;
+            foreach (char letter in label)
+            {
+                var rows = font[letter];
+                for (int y = 0; y < 5; y++)
+                    for (int x = 0; x < rows[y].Length; x++)
+                        if (rows[y][x] == '1') o.Set(tx + x, ly + 2 + y, 255, 255, 255);
+                tx += rows[0].Length + 1;
+            }
+        }
+        return Enlarge(o, 5).ToBitmap();
+    }
+
+    private static BitmapSource Mosaic(BitmapSource s)
+    {
+        var p = Load(s, 300);
+        var soft = BlurColor(p, 2);
+        var o = new Px(p.W, p.H);
+        const double cell = 10;
+        for (int y = 0; y < p.H; y++)
+        {
+            int row = (int)(y / cell);
+            double offset = (row % 2) * cell / 2 + Noise(row, 0, 51) * 3;
+            for (int x = 0; x < p.W; x++)
+            {
+                double fx = x + offset;
+                int col = (int)Math.Floor(fx / cell);
+                double lx = fx - col * cell, ly = y - row * cell;
+                // Tiles aren't perfectly square: each edge moves a little.
+                double left = Noise(col, row, 52) * 1.4, top = Noise(col, row, 53) * 1.4;
+                double right = cell - Noise(col, row, 54) * 1.4, bottom = cell - Noise(col, row, 55) * 1.4;
+                double inset = Math.Min(Math.Min(lx - left, right - lx), Math.Min(ly - top, bottom - ly));
+                double grout = 1 - Math.Clamp(inset - 0.4, 0, 1);
+                int cx = (int)Math.Clamp(col * cell - offset + cell / 2, 0, p.W - 1), cy = (int)Math.Clamp(row * cell + cell / 2, 0, p.H - 1);
+                var c = Saturate(soft.Get(cx, cy), 1.2);
+                double shade = 0.9 + Noise(col, row, 56) * 0.2 + (inset < 2.2 && (lx - left < 2.2 || ly - top < 2.2) ? 0.12 : 0) + (Noise(x, y, 57) - 0.5) * 0.08;
+                double gr = 196 + (Noise(x, y, 58) - 0.5) * 20;
+                o.Set(x, y, c.R * shade * (1 - grout) + gr * grout, c.G * shade * (1 - grout) + (gr - 6) * grout, c.B * shade * (1 - grout) + (gr - 22) * grout);
+            }
+        }
+        return o.ToBitmap();
+    }
+
+    /// <summary>A soft copy of a picture (each channel blurred).</summary>
+    private static Px BlurColor(Px p, int r)
+    {
+        var ch = new float[3][];
+        for (int c = 0; c < 3; c++)
+        {
+            ch[c] = new float[p.W * p.H];
+            for (int i = 0; i < ch[c].Length; i++) ch[c][i] = p.D[i * 4 + 2 - c];
+            ch[c] = Blur(ch[c], p.W, p.H, r, 2);
+        }
+        var o = new Px(p.W, p.H);
+        for (int i = 0; i < ch[0].Length; i++) o.Set(i % p.W, i / p.W, ch[0][i], ch[1][i], ch[2][i]);
+        return o;
+    }
+
+    private static BitmapSource CrossStitch(BitmapSource s)
+    {
+        const int cell = 7;
+        double aspect = s.PixelHeight / (double)s.PixelWidth;
+        int cols = 46, rows = Math.Max(10, (int)Math.Round(cols * aspect));
+        var small = Load(s, cols, rows, keepAspect: false);
+        var o = new Px(cols * cell, rows * cell);
+        var cloth = (R: 236.0, G: 230.0, B: 214.0);
+        for (int y = 0; y < o.H; y++)
+            for (int x = 0; x < o.W; x++)
+            {
+                int cx = x / cell, cy = y / cell;
+                double lx = x % cell + 0.5, ly = y % cell + 0.5;
+                // Aida cloth: a woven grid with a hole at every corner.
+                double weave = ((x % cell == 0) || (y % cell == 0) ? -16 : 0) + (Noise(x, y, 61) - 0.5) * 10;
+                double hole = Math.Clamp(1.6 - Math.Sqrt(Math.Min(lx, cell - lx) * Math.Min(lx, cell - lx) + Math.Min(ly, cell - ly) * Math.Min(ly, cell - ly)), 0, 1) * 70;
+                double r = cloth.R + weave - hole, g = cloth.G + weave - hole, b = cloth.B + weave - hole;
+                var (sr, sg, sb) = Saturate(small.Get(cx, cy), 1.25);
+                // Floss comes in set colors: rounded to a smaller set.
+                sr = Math.Round(sr / 36) * 36; sg = Math.Round(sg / 36) * 36; sb = Math.Round(sb / 36) * 36;
+                bool stitch = 0.299 * sr + 0.587 * sg + 0.114 * sb < 222;
+                if (stitch)
+                {
+                    double d1 = Math.Abs(lx - ly) / Math.Sqrt(2), d2 = Math.Abs(lx + ly - cell) / Math.Sqrt(2);
+                    double a1 = Math.Clamp(1.35 - d1, 0, 1), a2 = Math.Clamp(1.35 - d2, 0, 1);
+                    // The thread is lit along its middle; the top stitch casts a little shadow on the bottom one.
+                    double sh1 = 0.82 + 0.25 * Math.Clamp(1 - d1, 0, 1), sh2 = 0.9 + 0.3 * Math.Clamp(1 - d2, 0, 1);
+                    double edge = Math.Clamp(2.2 - d2, 0, 1) * (1 - a2) * 0.25;
+                    r = r * (1 - a1) + sr * sh1 * a1; g = g * (1 - a1) + sg * sh1 * a1; b = b * (1 - a1) + sb * sh1 * a1;
+                    r *= 1 - edge; g *= 1 - edge; b *= 1 - edge;
+                    r = r * (1 - a2) + sr * sh2 * a2; g = g * (1 - a2) + sg * sh2 * a2; b = b * (1 - a2) + sb * sh2 * a2;
+                }
+                o.Set(x, y, r, g, b);
+            }
+        return o.ToBitmap();
+    }
+
+    private static BitmapSource LowPoly(BitmapSource s)
+    {
+        var p = Load(s, 300);
+        var soft = BlurColor(p, 3);
+        var o = new Px(p.W, p.H);
+        const double step = 24;
+        int gw = (int)(p.W / step) + 2, gh = (int)(p.H / step) + 2;
+        var pts = new (double X, double Y)[gw * gh];
+        for (int j = 0; j < gh; j++)
+            for (int i = 0; i < gw; i++)
+            {
+                bool edgeX = i == 0 || i == gw - 1, edgeY = j == 0 || j == gh - 1;
+                pts[j * gw + i] = (Math.Clamp(i * step + (edgeX ? 0 : (Noise(i, j, 71) - 0.5) * step * 0.8), 0, p.W + step),
+                                   Math.Clamp(j * step + (edgeY ? 0 : (Noise(i, j, 72) - 0.5) * step * 0.8), 0, p.H + step));
+            }
+        void Fill((double X, double Y) a, (double X, double Y) b, (double X, double Y) c, int seed)
+        {
+            int cx = (int)Math.Clamp((a.X + b.X + c.X) / 3, 0, p.W - 1), cy = (int)Math.Clamp((a.Y + b.Y + c.Y) / 3, 0, p.H - 1);
+            var col = Saturate(soft.Get(cx, cy), 1.15);
+            // Facets catch the light differently: the slope of each triangle's brightness decides how much.
+            double la = Lum(soft, (int)a.X, (int)a.Y), lb = Lum(soft, (int)b.X, (int)b.Y), lc = Lum(soft, (int)c.X, (int)c.Y);
+            double light = 1 + Math.Clamp(((lb - la) - (lc - la)) / 400, -0.12, 0.12) + (Noise(seed, 0, 73) - 0.5) * 0.08;
+            int x0 = (int)Math.Max(0, Math.Floor(Math.Min(a.X, Math.Min(b.X, c.X)))), x1 = (int)Math.Min(p.W - 1, Math.Ceiling(Math.Max(a.X, Math.Max(b.X, c.X))));
+            int y0 = (int)Math.Max(0, Math.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y)))), y1 = (int)Math.Min(p.H - 1, Math.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))));
+            double area = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+            if (Math.Abs(area) < 1e-6) return;
+            for (int y = y0; y <= y1; y++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    double px = x + 0.5, py = y + 0.5;
+                    double w0 = ((b.X - px) * (c.Y - py) - (b.Y - py) * (c.X - px)) / area;
+                    double w1 = ((c.X - px) * (a.Y - py) - (c.Y - py) * (a.X - px)) / area;
+                    double w2 = 1 - w0 - w1;
+                    if (w0 < -0.001 || w1 < -0.001 || w2 < -0.001) continue;
+                    o.Set(x, y, col.R * light, col.G * light, col.B * light);
+                }
+        }
+        for (int j = 0; j < gh - 1; j++)
+            for (int i = 0; i < gw - 1; i++)
+            {
+                var a = pts[j * gw + i]; var b = pts[j * gw + i + 1]; var c = pts[(j + 1) * gw + i]; var d = pts[(j + 1) * gw + i + 1];
+                if ((i + j) % 2 == 0) { Fill(a, b, d, i * 7 + j * 131); Fill(a, d, c, i * 7 + j * 131 + 1); }
+                else { Fill(a, b, c, i * 7 + j * 131); Fill(b, d, c, i * 7 + j * 131 + 1); }
+            }
+        return o.ToBitmap();
+    }
+
+    private static BitmapSource Watercolor(BitmapSource s)
+    {
+        var p = Load(s, 300);
+        var soft = BlurColor(p, 2);
+        var o = new Px(p.W, p.H);
+        // Pigment pools where one wash meets another, so the edges come out darker.
+        var lumSoft = Luma(soft);
+        var post = lumSoft.Select(v => (float)(Math.Round(v / 42.0) * 42)).ToArray();
+        var edges = Edges(Blur(post, p.W, p.H, 1, 1), p.W, p.H);
+        var paperLow = new float[p.W * p.H];
+        for (int i = 0; i < paperLow.Length; i++) paperLow[i] = (float)Noise(i % p.W / 6, i / p.W / 6, 81);
+        paperLow = Blur(paperLow, p.W, p.H, 4, 2);
+        for (int y = 0; y < p.H; y++)
+            for (int x = 0; x < p.W; x++)
+            {
+                int i = y * p.W + x;
+                var c = soft.Get(x, y);
+                double Step(double v) => Math.Round(v / 32.0) * 32 * 0.6 + v * 0.4;
+                double r = Step(c.R), g = Step(c.G), b = Step(c.B);
+                (r, g, b) = Saturate((r, g, b), 1.1 + (paperLow[i] - 0.5) * 0.6);
+                // Thinned with water: lighter overall, toward the white of the paper.
+                double wash = 0.72;
+                r = 250 - (250 - r) * wash; g = 247 - (247 - g) * wash; b = 238 - (238 - b) * wash;
+                double pool = 1 - Math.Clamp(edges[i] / 70, 0, 0.3);
+                double grain = 0.94 + 0.06 * Noise(x, y, 82) + (paperLow[i] - 0.5) * 0.08;
+                o.Set(x, y, r * pool * grain, g * pool * grain, b * pool * grain);
+            }
+        return o.ToBitmap();
+    }
+
+    private static BitmapSource Risograph(BitmapSource s)
+    {
+        var p = Load(s, 300);
+        var o = new Px(p.W, p.H);
+        var pink = (R: 255.0, G: 72.0, B: 176.0);
+        var blue = (R: 0.0, G: 120.0, B: 191.0);
+        double Halftone(int x, int y, double density, double angle, double spacing)
+        {
+            double ca = Math.Cos(angle), sa = Math.Sin(angle);
+            double u = (x * ca + y * sa) / spacing, v = (-x * sa + y * ca) / spacing;
+            double d = Math.Sqrt(Math.Pow(u - Math.Round(u), 2) + Math.Pow(v - Math.Round(v), 2)) * spacing;
+            return Math.Clamp(spacing * 0.68 * Math.Sqrt(Math.Clamp(density, 0, 1)) - d + 0.5, 0, 1);
+        }
+        for (int y = 0; y < p.H; y++)
+            for (int x = 0; x < p.W; x++)
+            {
+                // The blue drum prints where there's little red; the pink one, a little out of line, where there's little green.
+                var cb = p.Get(x, y);
+                var cp = p.Get(x - 2, y - 1);
+                double db = Math.Pow(1 - cb.R / 255.0, 1.1) * 0.95, dp = Math.Pow(1 - cp.G / 255.0, 1.1) * 0.9;
+                double inkB = Halftone(x, y, db, 0.26, 4.2) * (0.86 + 0.14 * Noise(x, y, 91));
+                double inkP = Halftone(x, y, dp, 1.31, 4.2) * (0.86 + 0.14 * Noise(x, y, 92));
+                double r = 246, g = 241, b = 230;
+                // Inks are see-through: where both print, they mix (multiply).
+                r *= 1 - inkB * (1 - blue.R / 255); g *= 1 - inkB * (1 - blue.G / 255); b *= 1 - inkB * (1 - blue.B / 255);
+                r *= 1 - inkP * (1 - pink.R / 255); g *= 1 - inkP * (1 - pink.G / 255); b *= 1 - inkP * (1 - pink.B / 255);
+                double grain = (Noise(x, y, 93) - 0.5) * 12;
+                o.Set(x, y, r + grain, g + grain, b + grain);
+            }
+        return o.ToBitmap();
+    }
+
+    private static BitmapSource Woodblock(BitmapSource s)
+    {
+        var palette = new[] { "#263A69", "#3C5F8C", "#7FA3B5", "#CD4632", "#D7A550", "#8CA06E", "#F0E4C8", "#2A2423", "#B9806A" }.Select(Hex).ToArray();
+        var p = Load(s, 300);
+        var soft = BlurColor(p, 1);
+        var l = Luma(soft);
+        var e = Edges(Blur(l, p.W, p.H, 1, 1), p.W, p.H);
+        var o = new Px(p.W, p.H);
+        for (int y = 0; y < p.H; y++)
+            for (int x = 0; x < p.W; x++)
+            {
+                var c = Saturate(soft.Get(x, y), 1.3);
+                var ink = Nearest(palette, c.R, c.G, c.B);
+                // The block's grain shows through the ink, and the paper has long fibers.
+                double grain = 0.92 + 0.08 * Math.Sin(y * 0.9 + Math.Sin(x * 0.05) * 3 + Noise(x / 9, y / 2, 101) * 2);
+                double fiber = (Noise(x / 7, y, 102) - 0.5) * 10;
+                double line = Smooth(26, 48, e[y * p.W + x]);
+                o.Set(x, y, (ink.R * grain + fiber) * (1 - line) + 34 * line, (ink.G * grain + fiber) * (1 - line) + 30 * line, (ink.B * grain + fiber) * (1 - line) + 30 * line);
+            }
+        return o.ToBitmap();
+    }
+
+    private static BitmapSource Engraving(BitmapSource s)
+    {
+        var p = Load(s, 340);
+        var l = Blur(Luma(p), p.W, p.H, 1, 1);
+        Stretch(l);
+        var o = new Px(p.W, p.H);
+        const double spacing = 4.6;
+        for (int y = 0; y < p.H; y++)
+            for (int x = 0; x < p.W; x++)
+            {
+                double dark = 1 - l[y * p.W + x] / 255.0;
+                // Lines that ripple across the picture, thicker where it's darker.
+                double phase = (y + 2.6 * Math.Sin(x * 0.045 + y * 0.012) + 1.4 * Math.Sin(x * 0.11)) / spacing;
+                double d = Math.Abs(phase - Math.Round(phase)) * spacing;
+                double ink = Math.Clamp(spacing * 0.5 * dark - d + 0.55, 0, 1);
+                // Cross-hatching in the deepest shadows.
+                if (dark > 0.62)
+                {
+                    double ph2 = (x * 0.7 + y * 0.7) / spacing;
+                    double d2 = Math.Abs(ph2 - Math.Round(ph2)) * spacing;
+                    ink = Math.Max(ink, Math.Clamp(spacing * 0.45 * (dark - 0.62) / 0.38 - d2 + 0.5, 0, 1));
+                }
+                double paper = (Noise(x, y, 111) - 0.5) * 6;
+                o.Set(x, y, 240 + paper - 214 * ink, 234 + paper - 196 * ink, 214 + paper - 184 * ink);
+            }
+        return o.ToBitmap();
+    }
+
+    private static BitmapSource Crt(BitmapSource s)
+    {
+        var p = Load(s, 320);
+        var o = new Px(p.W, p.H);
+        var glowSrc = BlurColor(p, 3);
+        for (int y = 0; y < p.H; y++)
+            for (int x = 0; x < p.W; x++)
+            {
+                // Curved glass: the picture bulges out toward the middle.
+                double nx = x / (double)p.W * 2 - 1, ny = y / (double)p.H * 2 - 1;
+                double k = 0.11;
+                double bx = nx * (1 + k * ny * ny), by = ny * (1 + k * nx * nx);
+                double sx = (bx + 1) / 2 * p.W, sy = (by + 1) / 2 * p.H;
+                // The screen's rounded corners, black beyond them.
+                double cornerX = Math.Max(0, Math.Abs(bx) - 0.86) / 0.14, cornerY = Math.Max(0, Math.Abs(by) - 0.86) / 0.14;
+                if (Math.Abs(bx) > 1 || Math.Abs(by) > 1 || cornerX * cornerX + cornerY * cornerY > 1) { o.Set(x, y, 8, 8, 10); continue; }
+                var c = p.Get((int)sx, (int)sy);
+                var gl = glowSrc.Get((int)sx, (int)sy);
+                // Phosphor stripes: each column lights one of red, green or blue more.
+                int phase = x % 3;
+                double mr = phase == 0 ? 1.25 : 0.8, mg = phase == 1 ? 1.25 : 0.8, mb = phase == 2 ? 1.25 : 0.8;
+                double scan = y % 3 == 2 ? 0.62 : 1.0;
+                double vignette = 1 - 0.4 * Smooth(0.4, 1.3, Math.Sqrt(bx * bx + by * by));
+                o.Set(x, y, (c.R * mr * scan + gl.R * 0.35) * vignette, (c.G * mg * scan + gl.G * 0.35) * vignette, (c.B * mb * scan + gl.B * 0.35) * vignette);
+            }
+        return o.ToBitmap();
+    }
+
+    private static (double R, double G, double B) Hue(double h)
+    {
+        h = (h % 1 + 1) % 1 * 6;
+        double x = 1 - Math.Abs(h % 2 - 1);
+        var (r, g, b) = (int)h switch { 0 => (1, x, 0.0), 1 => (x, 1, 0.0), 2 => (0.0, 1, x), 3 => (0.0, x, 1.0), 4 => (x, 0.0, 1.0), _ => (1, 0.0, x) };
+        return (r * 255, g * 255, b * 255);
+    }
+
+    private static BitmapSource HoloFoil(BitmapSource s)
+    {
+        var p = Load(s, 320);
+        var l = Luma(p);
+        var o = new Px(p.W, p.H);
+        for (int y = 0; y < p.H; y++)
+            for (int x = 0; x < p.W; x++)
+            {
+                var c = p.Get(x, y);
+                double lum = l[y * p.W + x] / 255.0;
+                // The foil's rainbow runs diagonally and shifts with the picture's brightness, as if the card were tilted.
+                double t = (x + y * 0.8) / (p.W + p.H) * 2.2 + lum * 0.6 + Math.Sin(x * 0.04) * 0.05;
+                var rainbow = Hue(t);
+                double foil = 0.28 + 0.25 * lum;
+                // Screen blend: light adds, never darkens.
+                double Screen(double a, double b) => 255 - (255 - a) * (255 - b) / 255;
+                double r = c.R + (Screen(c.R, rainbow.R) - c.R) * foil, g = c.G + (Screen(c.G, rainbow.G) - c.G) * foil, b = c.B + (Screen(c.B, rainbow.B) - c.B) * foil;
+                double band = Math.Exp(-Math.Pow(((x - y * 0.6) / (double)p.W - 0.25) * 6, 2)) * 70;
+                double sparkle = Noise(x, y, 121) > 0.996 ? 160 : Noise(x / 2, y / 2, 122) > 0.992 ? 60 : 0;
+                o.Set(x, y, r + band + sparkle, g + band + sparkle, b + band + sparkle);
+            }
+        return o.ToBitmap();
+    }
+
+    private static BitmapSource Kaleidoscope(BitmapSource s)
+    {
+        var p = Load(s, 320);
+        var o = new Px(p.W, p.H);
+        double cx = p.W / 2.0, cy = p.H / 2.0;
+        double wedge = Math.PI / 3;
+        for (int y = 0; y < p.H; y++)
+            for (int x = 0; x < p.W; x++)
+            {
+                double dx = x - cx, dy = y - cy;
+                double r = Math.Sqrt(dx * dx + dy * dy), a = Math.Atan2(dy, dx) + Math.PI;
+                // Fold every angle into one wedge, mirrored back and forth.
+                double m = a % wedge;
+                if ((int)(a / wedge) % 2 == 1) m = wedge - m;
+                double sa = m - Math.PI / 2 - wedge / 2;
+                double sx = cx + r * 0.95 * Math.Cos(sa), sy = cy + r * 0.95 * Math.Sin(sa);
+                var c = p.Get((int)Math.Clamp(sx, 0, p.W - 1), (int)Math.Clamp(sy, 0, p.H - 1));
+                // A little sparkle of light at the middle, as if through glass.
+                double glow = Math.Exp(-r * r / (p.W * p.W * 0.02)) * 40;
+                o.Set(x, y, c.R + glow, c.G + glow, c.B + glow);
             }
         return o.ToBitmap();
     }

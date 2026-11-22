@@ -2,3 +2,10 @@ bin/
 obj/
 .vs/
 *.user
+
+# VacuumTube bundle tooling: the cloned repo and npm packages
+tools/vacuumtube/VacuumTube/
+tools/vacuumtube/node_modules/
+tools/vacuumtube/package-lock.json
+tools/vacuumtube/shims/files.js
+tools/vacuumtube/shims/defaults.js

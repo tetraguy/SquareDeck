@@ -807,7 +807,7 @@ public sealed class SettingsScreen : ListScreen
         // Basic: the styles drawn by SquareDeck (and yours). Advanced: styles made from UI kits, with their own
         // panels, buttons, switches, pointer and icons.
         var tabs = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 2) };
-        foreach (var (id, label, glyph) in new[] { ("basic", "Basic", "\uE771"), ("advanced", "Advanced", "\uE7F4") })
+        foreach (var (id, label, glyph) in new[] { ("basic", "Basic", "\uE771"), ("advanced", "Advanced", "\uE7F4"), ("legendary", "Legendary", "\uE734") })
         {
             var chip = new Button
             {
@@ -836,7 +836,8 @@ public sealed class SettingsScreen : ListScreen
         }
         Rows.Children.Add(tabs);
         const double W = 296;
-        if (_stylesTab == "advanced") { BuildAdvancedStyles(s, W); return; }
+        if (_stylesTab == "advanced") { BuildAdvancedStyles(s, W, legendary: false); return; }
+        if (_stylesTab == "legendary") { BuildAdvancedStyles(s, W, legendary: true); return; }
 
         AddRow("Surprise me", null, "\uE8B1", subtitle: "Switch to a random style you're not using now", click: () =>
         {
@@ -897,14 +898,18 @@ public sealed class SettingsScreen : ListScreen
             subtitle: "Interface sounds and menu music");
     }
 
-    /// <summary>Which tab of Themes is showing: the Basic styles or the Advanced ones.</summary>
-    private static string _stylesTab = UiStyles.IsAdvanced(UiStyles.Current.Id) ? "advanced" : "basic";
+    /// <summary>Which tab of Themes is showing: the Basic styles, the Advanced ones or the Legendary ones.</summary>
+    private static string _stylesTab = UiStyles.IsLegendary(UiStyles.Current.Id) ? "legendary" : UiStyles.IsAdvanced(UiStyles.Current.Id) ? "advanced" : "basic";
 
-    /// <summary>The Advanced tab: styles made from UI kits, each with a color choice where the kit has several.</summary>
-    private void BuildAdvancedStyles(Settings s, double W)
+    /// <summary>
+    /// The Advanced tab (styles made from UI kits, each with a color choice where the kit has several) or the Legendary
+    /// tab (Advanced styles whose artwork was drawn from scratch by Claude). Both are UiStyles.Advanced, split by Legendary.
+    /// </summary>
+    private void BuildAdvancedStyles(Settings s, double W, bool legendary)
     {
         var current = UiStyles.Current;
-        if (UiStyles.IsAdvanced(current.Id) && current.Skin is { Variants.Length: > 1 } skin)
+        var list = UiStyles.Advanced.Where(x => x.Legendary == legendary).ToList();
+        if (list.Any(x => x.Id == current.Id) && current.Skin is { Variants.Length: > 1 } skin)
         {
             AddHeader(current.Name);
             string chosen = skin.Variants.FirstOrDefault(v => v.Id == current.SkinVariant).Name ?? skin.Variants[0].Name;
@@ -919,9 +924,9 @@ public sealed class SettingsScreen : ListScreen
             });
         }
 
-        AddHeader("Advanced styles  ·  " + UiStyles.Advanced.Length);
+        AddHeader((legendary ? "Legendary styles  ·  " : "Advanced styles  ·  ") + list.Count);
         var shelf = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
-        foreach (var style in UiStyles.Advanced)
+        foreach (var style in list)
         {
             var st = style;
             bool inUse = st.Id == current.Id;
@@ -935,9 +940,14 @@ public sealed class SettingsScreen : ListScreen
             shelf.Children.Add(tile);
         }
         Rows.Children.Add(shelf);
-        AddNote("Advanced styles keep the Switch layout and dress it in a UI kit's own artwork: panels, buttons, dialogs, " +
-                "switches, the mouse pointer and, for some, the round buttons' icons. With matching on, each brings its own theme, " +
-                "background, interface sounds and music.");
+        if (legendary)
+            AddNote("Legendary styles were drawn from scratch by Claude, SquareDeck's AI collaborator: every panel, button, pop-up, " +
+                    "switch, check box, pointer, icon and wallpaper. They keep the Switch layout, and with matching on each brings its own " +
+                    "theme, font, interface sounds and music.");
+        else
+            AddNote("Advanced styles keep the Switch layout and dress it in a UI kit's own artwork: panels, buttons, dialogs, " +
+                    "switches, the mouse pointer and, for some, the round buttons' icons. With matching on, each brings its own theme, " +
+                    "background, interface sounds and music.");
         AddRow("Credits", null, "\uE946", subtitle: "The artists behind these kits, sounds and fonts", click: () => Host.Push(new CreditsScreen()));
     }
 
@@ -2360,6 +2370,9 @@ public sealed class SettingsScreen : ListScreen
         "refund" => () => Host.Push(new RefundScreen()),
         "sticks" => () => Host.Push(new StickCheckScreen()),
         "battery" => () => Host.Push(new BatteryHealthScreen()),
+        "recomp" => () => Host.Push(new RecompZoneScreen()),
+        "discord" => () => Host.Push(new DiscordScreen()),
+        "musicstreams" => () => { Host.Settings.MusicTab = "streaming"; Host.Push(new MediaScreen()); },
         "freegames" => () => Host.Push(new FreeGamesScreen()),
         "leaderboard" => () => Host.Push(new LeaderboardScreen()),
         "styleschedule" => () => Host.Push(new StyleScheduleScreen()),
@@ -2774,6 +2787,27 @@ public sealed class SettingsScreen : ListScreen
         ("file:WindowsXPLike.otf#WindowsXPlike A", "Windows XP", "Friendly early-2000s desktop type"),
         ("file:OpenDyslexic-Regular.otf#OpenDyslexic", "OpenDyslexic", "Weighted letters that some people with dyslexia find easier to read"),
         ("file:Ubuntu-Regular.ttf#Ubuntu", "Ubuntu", "Ubuntu Linux's friendly, rounded sans-serif"),
+        ("file:Marcellus-Regular.ttf#Marcellus", "Marcellus", "Classic carved Roman letters with a gentle flare"),
+        ("file:Philosopher-Regular.ttf#Philosopher", "Philosopher", "Flowing Art Nouveau letters"),
+        ("file:Play-Regular.ttf#Play", "Play", "Rounded and techy"),
+        ("file:CrimsonText-Regular.ttf#Crimson Text", "Crimson Text", "A bookish old-style serif"),
+        ("file:VarelaRound-Regular.ttf#Varela Round", "Varela Round", "Soft and round"),
+        ("file:Spectral-Regular.ttf#Spectral", "Spectral", "An elegant, quiet serif"),
+        ("file:SairaCondensed-Regular.ttf#Saira Condensed", "Saira Condensed", "Tall, narrow and strong"),
+        ("file:DidactGothic-Regular.ttf#Didact Gothic", "Didact Gothic", "Clean and open, easy to read"),
+        ("file:IMFeENrm28P.ttf#IM FELL English", "IM FELL English", "Old printed letters from the 1600s"),
+        ("file:Sniglet-Regular.ttf#Sniglet", "Sniglet", "Chunky and playful"),
+        ("file:PoiretOne-Regular.ttf#Poiret One", "Poiret One", "Thin Art Deco lines"),
+        ("file:Cinzel-Regular.ttf#Cinzel", "Cinzel", "Stately capitals carved like an old inscription"),
+        ("file:Comfortaa-Regular.ttf#Comfortaa", "Comfortaa", "Round and soft, built from circles"),
+        ("file:ShareTechMono-Regular.ttf#Share Tech Mono", "Share Tech Mono", "A technical monospace for drawings and readouts"),
+        ("file:JosefinSans-Regular.ttf#Josefin Sans", "Josefin Sans", "Geometric and elegant, from the 1920s"),
+        ("file:TenorSans-Regular.ttf#Tenor Sans", "Tenor Sans", "Calm, open and classical"),
+        ("file:ElMessiri-Regular.ttf#El Messiri", "El Messiri", "Gently curved, with an Arabic calligraphic air"),
+        ("file:ChakraPetch-Regular.ttf#Chakra Petch", "Chakra Petch", "Squared-off and techy"),
+        ("file:Almendra-Regular.ttf#Almendra", "Almendra", "A calligraphic book hand with a medieval feel"),
+        ("file:Merienda-Regular.ttf#Merienda", "Merienda", "Warm, flowing casual script"),
+        ("file:Bangers-Regular.ttf#Bangers", "Bangers", "Loud comic-book capitals"),
         ("file:VT323-Regular.ttf#VT323", "VT323", "An old computer terminal's pixel type"),
         ("file:Jersey10-Regular.ttf#Jersey 10", "Jersey 10", "Tall, condensed pixel type like a team jersey"),
         ("file:PixelOperator16-Regular.ttf#Pixel Operator", "Pixel Operator", "A tidy, readable pixel font"),

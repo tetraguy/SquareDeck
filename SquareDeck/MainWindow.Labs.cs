@@ -22,6 +22,7 @@ public partial class MainWindow
     private readonly DispatcherTimer _tiltTimer = new() { Interval = TimeSpan.FromMilliseconds(33) };
     private readonly DispatcherTimer _genreTimer = new() { Interval = TimeSpan.FromMilliseconds(1200) };
     private readonly DispatcherTimer _companionTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private readonly DispatcherTimer _discordTimer = new() { Interval = TimeSpan.FromSeconds(15) };
     private Windows.Devices.Sensors.Accelerometer? _accel;
     private double _tiltX, _tiltY;
     private FrameworkElement? _tiltedCover, _tiltedFace;
@@ -51,6 +52,7 @@ public partial class MainWindow
         _tiltTimer.Tick += (_, _) => TiltTick();
         _genreTimer.Tick += (_, _) => GenreTick();
         _companionTimer.Tick += (_, _) => CompanionTick();
+        _discordTimer.Tick += (_, _) => _ = DiscordTickAsync();
         Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
         {
             foreach (var f in Labs.Features) if (f.Id is not ("coverdim" or "covereffect")) OnLabChanged(f.Id);
@@ -71,6 +73,10 @@ public partial class MainWindow
             case "coverdim": case "covereffect": ApplyCoverLabs(); break;
             case "dust": RefreshDust(); break;
             case "companion": SetCompanion(Labs.On("companion")); break;
+            case "discord":
+                if (Labs.On("discord") && Labs.Get("discord.presence", "1") == "1") { _discordTimer.Start(); _ = DiscordTickAsync(); }
+                else { _discordTimer.Stop(); _ = DiscordPresence.ClearAsync(); }
+                break;
             case "genresound":
                 if (!Labs.On("genresound") && _genreTrack != null) { _genreTrack = null; UpdateMenuMusic(); }
                 break;
@@ -78,6 +84,18 @@ public partial class MainWindow
                 if (!Labs.On("overnight")) { Labs.KeepAwake(false); Labs.Put("overnight.active", "0", save: false); }
                 break;
         }
+    }
+
+    /// <summary>Every 15 seconds while Discord status is on: the game that's running (or browsing) as your Discord status.</summary>
+    public async Task DiscordTickAsync()
+    {
+        string id = Labs.Get("discord.app", "");
+        if (id.Length == 0) return;
+        var running = AllGames.FirstOrDefault(g => g.IsRunning);
+        if (running != null && Labs.Get("discord.hide:" + running.Key) == "1") running = null;
+        DateTime? started = running != null && _sessionStart.TryGetValue(running.Key, out var s) ? s : null;
+        string? image = running is { IsSteam: true } ? $"https://cdn.cloudflare.steamstatic.com/steam/apps/{running.AppId}/header.jpg" : null;
+        await DiscordPresence.UpdateAsync(id, running?.Name, started, image, Labs.Get("discord.browsing", "1") == "1");
     }
 
     /// <summary>Once a minute: the background parts of the experimental features.</summary>
@@ -535,7 +553,11 @@ public partial class MainWindow
     {
         if (_companion == null || _companionSprite == null) return;
         _companionAction = action;
-        double seconds = action switch { "spin" => 1.6, "dance" => 3.2, "sleep" => 4, "wave" or "bye" => 2.2, _ => 1.8 };
+        double seconds = action switch
+        {
+            "spin" => 1.6, "dance" => 3.2, "sleep" => 4, "wave" or "bye" => 2.2, "walk" => 4.2, "juggle" => 3, "lookaround" => 2.6, "flip" => 1.4,
+            "trip" => 2.4, "peekaboo" => 2.6, "balloon" => 3.2, "read" or "tinker" or "search" or "think" or "game" => 3, "zoom" => 1.6, _ => 1.8
+        };
         _companionActionUntil = DateTime.Now.AddSeconds(seconds);
         _companionFrames.Start();
         var reduce = Theme.ReduceMotion;
@@ -582,6 +604,103 @@ public partial class MainWindow
                 case "bye":
                     _companionTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(-6, 6, TimeSpan.FromSeconds(0.25)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(4) });
                     break;
+                case "walk":
+                {
+                    // A little stroll to the left and back, hopping with each step, facing the way it goes.
+                    var stroll = new DoubleAnimationUsingKeyFrames();
+                    stroll.KeyFrames.Add(new EasingDoubleKeyFrame(-150, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.8)), new SineEase { EasingMode = EasingMode.EaseInOut }));
+                    stroll.KeyFrames.Add(new LinearDoubleKeyFrame(-150, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(2.2))));
+                    stroll.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(4)), new SineEase { EasingMode = EasingMode.EaseInOut }));
+                    _companionMove.BeginAnimation(TranslateTransform.XProperty, stroll);
+                    _companionMove.BeginAnimation(TranslateTransform.YProperty, Anim(0, -5, 0.16, true, 12));
+                    _companionLook = -1; _companionLookUntil = DateTime.Now.AddSeconds(2);
+                    Dispatcher.BeginInvoke(async () => { await Task.Delay(2200); _companionLook = 1; _companionLookUntil = DateTime.Now.AddSeconds(1.8); _companionDrawn = ""; CompanionTick(); });
+                    break;
+                }
+                case "juggle":
+                    for (int i = 0; i < 3; i++) Juggle(i);
+                    _companionMove.BeginAnimation(TranslateTransform.YProperty, Anim(0, -3, 0.25, true, 6));
+                    break;
+                case "lookaround":
+                    _companionLook = -1; _companionLookUntil = DateTime.Now.AddSeconds(0.9);
+                    Dispatcher.BeginInvoke(async () => { await Task.Delay(900); _companionLook = 1; _companionLookUntil = DateTime.Now.AddSeconds(0.9); _companionDrawn = ""; CompanionTick(); });
+                    Sparkles("?", 1, "#AAB4C8", rise: true);
+                    break;
+                case "stretch":
+                    _companionScale.BeginAnimation(ScaleTransform.ScaleYProperty, Anim(1, 1.22, 0.5, true));
+                    _companionScale.BeginAnimation(ScaleTransform.ScaleXProperty, Anim(1, 0.88, 0.5, true));
+                    break;
+                case "flip":
+                    _companionMove.BeginAnimation(TranslateTransform.YProperty, Anim(0, -46, 0.35, true));
+                    _companionTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, -360, TimeSpan.FromSeconds(0.7)) { EasingFunction = ease });
+                    Sparkles("✦", 5, "#FFFFFF");
+                    break;
+                case "trip":
+                {
+                    // Topples over, lies there a moment, and pops back up.
+                    var fall = new DoubleAnimationUsingKeyFrames();
+                    fall.KeyFrames.Add(new EasingDoubleKeyFrame(85, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.35)), new BounceEase { Bounces = 2, Bounciness = 3, EasingMode = EasingMode.EaseOut }));
+                    fall.KeyFrames.Add(new LinearDoubleKeyFrame(85, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.4))));
+                    fall.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.8)), new BackEase { EasingMode = EasingMode.EaseOut }));
+                    _companionTurn.BeginAnimation(RotateTransform.AngleProperty, fall);
+                    Sparkles("✶", 3, "#FFD84D");
+                    break;
+                }
+                case "peekaboo":
+                {
+                    var hide = new DoubleAnimationUsingKeyFrames();
+                    hide.KeyFrames.Add(new EasingDoubleKeyFrame(90, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.4)), ease));
+                    hide.KeyFrames.Add(new LinearDoubleKeyFrame(90, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.5))));
+                    hide.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.9)), new BackEase { Amplitude = 0.6, EasingMode = EasingMode.EaseOut }));
+                    _companionMove.BeginAnimation(TranslateTransform.YProperty, hide);
+                    break;
+                }
+                case "balloon":
+                    Sparkles("◯", 1, "#FF6B8A", rise: true);
+                    _companionMove.BeginAnimation(TranslateTransform.YProperty, Anim(0, -18, 1.2, true));
+                    break;
+                case "confetti":
+                    foreach (var hex in new[] { "#FF6B8A", "#FFD84D", "#7FD8BE", "#7FB8FF", "#C3A6FF" }) Sparkles("■", 3, hex);
+                    _companionMove.BeginAnimation(TranslateTransform.YProperty, Anim(0, -20, 0.2, true, 2));
+                    break;
+                case "read":
+                    Sparkles("❐", 1, "#E8D8B0", rise: false);
+                    _companionTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, -5, TimeSpan.FromSeconds(0.8)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(2) });
+                    break;
+                case "tinker":
+                    Sparkles("⚙", 3, "#AAB4C8", rise: true);
+                    _companionMove.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-2, 2, TimeSpan.FromMilliseconds(90)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(12) });
+                    break;
+                case "search":
+                    _companionLook = 1; _companionLookUntil = DateTime.Now.AddSeconds(1.2);
+                    Dispatcher.BeginInvoke(async () => { await Task.Delay(1200); _companionLook = -1; _companionLookUntil = DateTime.Now.AddSeconds(1.2); _companionDrawn = ""; CompanionTick(); });
+                    Sparkles("○", 2, "#7FB8FF", rise: true);
+                    break;
+                case "think":
+                    Sparkles("…", 1, "#AAB4C8", rise: true);
+                    _companionTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 8, TimeSpan.FromSeconds(0.6)) { AutoReverse = true });
+                    break;
+                case "game":
+                    Sparkles("▶", 2, "#7FD8BE", rise: true);
+                    _companionTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(-8, 8, TimeSpan.FromSeconds(0.3)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(4) });
+                    break;
+                case "shop":
+                    Sparkles("$", 4, "#FFD84D", rise: true);
+                    _companionMove.BeginAnimation(TranslateTransform.YProperty, Anim(0, -10, 0.2, true, 3));
+                    break;
+                case "camera":
+                    Sparkles("✦", 8, "#FFFFFF");
+                    _companionScale.BeginAnimation(ScaleTransform.ScaleXProperty, Anim(1.1, 1, 0.3));
+                    _companionScale.BeginAnimation(ScaleTransform.ScaleYProperty, Anim(1.1, 1, 0.3));
+                    break;
+                case "trophy":
+                    Sparkles("★", 6, "#FFC93C", rise: true);
+                    _companionMove.BeginAnimation(TranslateTransform.YProperty, Anim(0, -24, 0.25, true, 2));
+                    break;
+                case "zoom":
+                    _companionMove.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, -60, TimeSpan.FromSeconds(0.25)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(3), EasingFunction = ease });
+                    Sparkles("≡", 4, "#AAB4C8");
+                    break;
             }
         string? say = action switch
         {
@@ -594,6 +713,10 @@ public partial class MainWindow
             "dance" => "♪ ♫",
             "yawn" => "*yawn*",
             "sleep" => "Zzz…",
+            "trip" => "Oops!",
+            "flip" => "Ta-da!",
+            "juggle" => "Look, juggling!",
+            "balloon" => "Wheee!",
             _ => null
         };
         if (say != null) CompanionSay(say);
@@ -639,6 +762,65 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>One star thrown up and caught, round and round (the juggling act).</summary>
+    private void Juggle(int index)
+    {
+        if (_companionFx == null) return;
+        var star = new TextBlock { Text = "★", FontSize = 16, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(index switch { 0 => Color.FromRgb(0xFF, 0xD8, 0x4D), 1 => Color.FromRgb(0xFF, 0x6B, 0x8A), _ => Color.FromRgb(0x7F, 0xB8, 0xFF) }) };
+        _companionFx.Children.Add(star);
+        var delay = TimeSpan.FromSeconds(index * 0.33);
+        var x = new DoubleAnimationUsingKeyFrames { BeginTime = delay, RepeatBehavior = new RepeatBehavior(3) };
+        x.KeyFrames.Add(new LinearDoubleKeyFrame(36, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        x.KeyFrames.Add(new LinearDoubleKeyFrame(70, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.9))));
+        var y = new DoubleAnimationUsingKeyFrames { BeginTime = delay, RepeatBehavior = new RepeatBehavior(3) };
+        y.KeyFrames.Add(new LinearDoubleKeyFrame(64, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        y.KeyFrames.Add(new EasingDoubleKeyFrame(4, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.45)), new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+        y.KeyFrames.Add(new EasingDoubleKeyFrame(64, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.9)), new QuadraticEase { EasingMode = EasingMode.EaseIn }));
+        y.Completed += (_, _) => _companionFx?.Children.Remove(star);
+        star.BeginAnimation(Canvas.LeftProperty, x);
+        star.BeginAnimation(Canvas.TopProperty, y);
+    }
+
+    // ---------------------------------------------------------------- the companion around the launcher
+
+    /// <summary>
+    /// Where the companion is, by page, and what it does there: its first move when it arrives, the things it does
+    /// now and then, and what it says. Null: pages it stays off (full-screen video, web pages, the game's start, pop-ups).
+    /// </summary>
+    private static (string Arrive, string[] Idle, string[] Lines)? CompanionPlace(Screen? screen) => screen switch
+    {
+        null => ("wave", new[] { "walk", "juggle", "lookaround", "stretch", "flip", "trip", "peekaboo", "balloon", "confetti", "dance", "game", "think" },
+            new[] { "Ready when you are.", "What are we playing?", "♪", "Pick something fun!", "I could play all day.", "Psst… that one looks good." }),
+        { IsDialog: true } => null,
+        StreamingScreen or CloudGameScreen or BrowserScreen or MediaViewerScreen or ViewerScreen or TrailerScreen or LaunchSplashScreen
+            or CaptureViewerScreen or TextEditorScreen or CountdownScreen or LockScreenScreen or OnboardingScreen or BusyScreen or GameBusyScreen => null,
+        CompanionScreen => ("wave", new[] { "flip", "juggle", "dance", "stretch" }, new[] { "That's me!", "Do I look good?" }),
+        SettingsScreen or AccessibilityScreen or PcSettingsScreen or ThemeScreen or UiStyleScreen or AccentScreen or HighlightEffectsScreen or SoundsScreen
+            or WallpaperScreen or ColorThemeScreen or StyleBuilderScreen or CoverLabsScreen
+            => ("tinker", new[] { "tinker", "think", "lookaround", "stretch" }, new[] { "Fiddling with settings?", "Ooh, new look?", "Careful with that one.", "I like this color." }),
+        LibraryScreen or SearchScreen or StoreSearchScreen or AllAppsScreen => ("search", new[] { "search", "read", "think", "lookaround" },
+            new[] { "So many games…", "Looking for something?", "This one!", "Have you finished that one?" }),
+        DetailsScreen or GameProfileScreen or GameNewsScreen or GameNotesScreen or GameDiaryScreen => ("read", new[] { "read", "think", "game" },
+            new[] { "Looks fun!", "Let's play it!", "Ooh, tell me more.", "I've heard good things." }),
+        GameAchievementsScreen or PlaytimeScreen or UnlocksScreen or UnlockablesScreen or StickerBookScreen or PassportScreen or LeaderboardScreen or BossScreen
+            => ("trophy", new[] { "trophy", "confetti", "flip" }, new[] { "Look at all that!", "You're on a roll.", "So proud of you!" }),
+        MediaScreen or MusicSearchScreen or MusicPlayersScreen => ("dance", new[] { "dance", "dance", "juggle" }, new[] { "♪ ♫", "Turn it up!", "This one's a bop." }),
+        StoresScreen or WishlistScreen or FreeGamesScreen or ReleaseCalendarScreen or AddStoresScreen or RecompZoneScreen or RecompGameScreen
+            => ("shop", new[] { "shop", "lookaround", "think" }, new[] { "Ooh, sales!", "Free games? Yes!", "Just one more…", "Add it to the wishlist!" }),
+        FriendsScreen or DiscordScreen or ShareScreen => ("wave", new[] { "wave", "hearts", "dance" }, new[] { "Say hi for me!", "Who's online?", "Play together?" }),
+        CapturesScreen => ("camera", new[] { "camera", "flip" }, new[] { "Say cheese!", "Great shot!", "Frame it!" }),
+        ExplorerScreen or StorageScreen or StorageAdvisorScreen or CleanupScreen or DiskCleanupScreen or MoveGameScreen or BackupScreen
+            => ("search", new[] { "search", "tinker", "read" }, new[] { "Digging through files…", "Tidy up time!", "Where did that go?" }),
+        BoostScreen or TaskManagerScreen or SpeedTestScreen or DriveSpeedScreen or StorageSpeedScreen or NetworkToolsScreen
+            => ("zoom", new[] { "zoom", "tinker" }, new[] { "Zoom zoom!", "Faster!", "Let's go fast." }),
+        BatteryScreen or BatteryHealthScreen or PowerMenuScreen or QuickSettingsScreen => ("stretch", new[] { "stretch", "yawn", "lookaround" },
+            new[] { "Need a charge?", "Keep me powered!", "Time for a nap?" }),
+        _ => ("lookaround", new[] { "lookaround", "think", "stretch", "read" }, new[] { "What's this page?", "Hmm…", "I'm right here." }),
+    };
+
+    private Screen? _companionPage;
+    private bool _companionPageSeen;
+
     /// <summary>Eyes follow the highlight as you move along the home row.</summary>
     private void CompanionLook(int direction)
     {
@@ -672,10 +854,30 @@ public partial class MainWindow
     private void CompanionTick()
     {
         if (_companion == null || _companionSprite == null) return;
-        // On Home, and on its own page so its reactions can be tried there.
-        bool home = (_screens.Count == 0 || _screens[^1] is CompanionScreen) && IntroLayer.Children.Count == 0;
-        _companion.Visibility = _companionBubble!.Visibility = home ? Visibility.Visible : Visibility.Collapsed;
-        if (!home) return;
+        // Everywhere in the launcher (doing what suits each page), except full-screen pages, pop-ups and the intro.
+        var top = _screens.Count == 0 ? null : _screens[^1];
+        var place = IntroLayer.Children.Count == 0 ? CompanionPlace(top) : null;
+        _companion.Visibility = _companionBubble!.Visibility = place != null ? Visibility.Visible : Visibility.Collapsed;
+        if (place == null) return;
+        bool home = top == null;
+        // Pages have a footer and a scroll bar on the right: it stands a little further in and a little smaller there.
+        _companion.Margin = home ? new Thickness(0, 0, 6, 74) : new Thickness(0, 0, 26, 64);
+        _companionBubble.Margin = home ? new Thickness(0, 0, 40, 206) : new Thickness(0, 0, 56, 186);
+        _companionSprite.Width = _companionSprite.Height = 72;
+        if (!ReferenceEquals(top, _companionPage) || !_companionPageSeen)
+        {
+            _companionPage = top;
+            _companionPageSeen = true;
+            // Arriving on a page: its move, and a line now and then.
+            if (_companionAction == null && !Theme.ReduceMotion && (top != null || _companionTicks > 4))
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+                {
+                    CompanionReact(place.Value.Arrive);
+                    if (Random.Shared.Next(3) == 0) CompanionSay(place.Value.Lines[Random.Shared.Next(place.Value.Lines.Length)]);
+                });
+            }
+        }
         _companionTicks++;
         string mood = Labs.CompanionMood(Playtime, Achievements, _celebratedAt);
         mood = _companionAction switch
@@ -685,7 +887,11 @@ public partial class MainWindow
             "worried" => "worried",
             "sleep" => "sleepy",
             "yawn" => "bored",
-            "dance" => "dance",
+            "dance" or "game" or "juggle" => "dance",
+            "flip" or "confetti" or "trophy" or "shop" or "camera" => "cheer",
+            "trip" or "zoom" => "worried",
+            "think" or "read" or "tinker" or "search" => "happy",
+            "balloon" => "love",
             _ => mood
         };
         int look = DateTime.Now < _companionLookUntil ? _companionLook : 0;
@@ -700,12 +906,19 @@ public partial class MainWindow
         if (_companionAction != null || Theme.ReduceMotion) return;
         // Idle: a gentle bob; now and then something on its own.
         _companionMove.Y = _companionTicks % 4 < 2 ? -2 : 0;
-        if (_companionTicks % 40 == 0)
+        // Now and then (a little more often on Home), something on its own: what suits the page, its mood, or the music.
+        int every = home ? 24 : 36;
+        if (_companionTicks % every == 0)
         {
             if (mood == "sleepy") CompanionReact("sleep");
-            else if (mood == "bored") CompanionReact("yawn");
-            else if (_menuMusicPlaying || LocalMusic.IsPlaying) CompanionReact("dance");
-            else CompanionSay(new[] { "Ready when you are.", "What are we playing?", "♪", "Pick something fun!" }[_companionTicks / 40 % 4]);
+            else if (mood == "bored" && Random.Shared.Next(2) == 0) CompanionReact("yawn");
+            else if ((_menuMusicPlaying || LocalMusic.IsPlaying) && Random.Shared.Next(2) == 0) CompanionReact("dance");
+            else
+            {
+                var idle = place.Value.Idle;
+                CompanionReact(idle[Random.Shared.Next(idle.Length)]);
+                if (Random.Shared.Next(3) == 0) CompanionSay(place.Value.Lines[Random.Shared.Next(place.Value.Lines.Length)]);
+            }
         }
     }
 }

@@ -18,6 +18,8 @@ public sealed class DownloadSheet : Grid
     private readonly TextBlock _title, _detail;
     private readonly Border _fill, _track;
     private readonly ProgressFill _barFill;
+    private long _done;
+    private long? _total; // set by Report: until then the line under the title is left as it is
     private readonly Grid _badge;
     private readonly Path _tick;
     private readonly Border _card;
@@ -77,6 +79,8 @@ public sealed class DownloadSheet : Grid
         _fill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
         _track.Child = _fill;
         _barFill = new ProgressFill(_track, _fill);
+        // The size line is written from the bar as it slides, so its percentage matches the bar on every frame.
+        _barFill.Shown = v => { if (_total != null || _done > 0) _detail.Text = _total is > 0 ? $"{Size((long)(_total.Value * v))} of {Size(_total.Value)}  ·  {Math.Floor(v * 100 + 0.0001):0}%" : Size(_done); };
         stack.Children.Add(_track);
 
         _card.Child = stack;
@@ -112,8 +116,8 @@ public sealed class DownloadSheet : Grid
         part = Math.Clamp(part, 0, 1);
         if (part < _shown) part = _shown;
         _shown = part;
+        _done = done; _total = total;
         _barFill.Set(part, 180);
-        _detail.Text = total is > 0 ? $"{Size(done)} of {Size(total.Value)}  ·  {part:P0}" : Size(done);
     }
 
     public void Status(string text) => _detail.Text = text;
@@ -122,6 +126,7 @@ public sealed class DownloadSheet : Grid
     public async Task DoneAsync(string title, string detail)
     {
         if (_fill.RenderTransform is TranslateTransform t) { t.BeginAnimation(TranslateTransform.XProperty, null); _fill.RenderTransform = null; }
+        _barFill.Shown = null;
         _barFill.Set(1, 200);
         _fill.Background = new SolidColorBrush(Color.FromRgb(0x2E, 0xB8, 0x72));
         _title.Text = title;
@@ -138,6 +143,7 @@ public sealed class DownloadSheet : Grid
     public async Task FailedAsync(string detail)
     {
         if (_fill.RenderTransform is TranslateTransform t) { t.BeginAnimation(TranslateTransform.XProperty, null); _fill.RenderTransform = null; }
+        _barFill.Shown = null;
         _barFill.Set(1, 0);
         _fill.Background = new SolidColorBrush(Color.FromRgb(0xE0, 0x4A, 0x3C));
         _title.Text = "Couldn't download that image";

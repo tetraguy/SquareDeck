@@ -40,6 +40,28 @@ public sealed class CreditsScreen : ListScreen
         ("At Rest, Daybreak and Thinking of You", "Kevin MacLeod (incompetech.com)", "Scholar's music, and in the music list", "Licensed under Creative Commons: By Attribution 4.0", "https://incompetech.com/"),
         ("Windows 2000 sounds", "Microsoft", "Windows 2000 sounds (Retro Windows)", "From Sample Focus", null),
         ("Ubuntu font", "Dalton Maag for Canonical", "The Ubuntu style's font", "Ubuntu Font Licence 1.0", "https://design.ubuntu.com/font"),
+        ("Marcellus font", "Brian J. Bonislawsky (Astigmatic)", "The Meridian style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Marcellus"),
+        ("Philosopher font", "Jovanny Lemonad", "The Atelier style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Philosopher"),
+        ("Play font", "Jonas Hecksher", "The Abyss style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Play"),
+        ("Crimson Text font", "Sebastian Kosch", "The Greenhouse style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Crimson+Text"),
+        ("Varela Round font", "Joe Prince", "The Origami style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Varela+Round"),
+        ("Spectral font", "Production Type", "The Sumi-e style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Spectral"),
+        ("Saira Condensed font", "Omnibus-Type", "The Forge style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Saira+Condensed"),
+        ("Didact Gothic font", "Daniel Johnson", "The Glacier style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Didact+Gothic"),
+        ("IM FELL English font", "Igino Marini", "The Cartographer style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/IM+FELL+English"),
+        ("Sniglet font", "Haley Fiege", "The Sweet Shop style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Sniglet"),
+        ("Poiret One font", "Denis Masharov", "The Gatsby style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Poiret+One"),
+        ("Cinzel font", "Natanael Gama", "The Stained Glass style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Cinzel"),
+        ("Comfortaa font", "Johan Aakerlund", "The Koi Pond style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Comfortaa"),
+        ("Share Tech Mono font", "Carrois Apostrophe", "The Blueprint style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Share+Tech+Mono"),
+        ("Josefin Sans font", "Santiago Orozco", "The Bauhaus style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Josefin+Sans"),
+        ("Tenor Sans font", "Denis Masharov", "The Mirage style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Tenor+Sans"),
+        ("El Messiri font", "Mohamed Gaber", "The Riad style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/El+Messiri"),
+        ("Chakra Petch font", "Cadson Demak", "The Circuit style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Chakra+Petch"),
+        ("Almendra font", "Ana Sanfelippo", "The Grimoire style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Almendra"),
+        ("Merienda font", "Eduardo Tunni", "The Autumn style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Merienda"),
+        ("Bangers font", "Vernon Adams", "The Halftone style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Bangers"),
+        ("VacuumTube", "shy and contributors", "Experimental: VacuumTube on the Music page (its page scripts, bundled in VacuumTube\\vacuumtube.js)", "MIT License", "https://github.com/shy1132/VacuumTube"),
         ("GamerPower", "GamerPower", "The free games list (Experimental > Free games tracker)", "Free API; data credited to GamerPower", "https://www.gamerpower.com/"),
         ("Windows 2000 icons", "Microsoft", "Retro Windows (Home button icons)", "Windows 2000's icons belong to Microsoft; from a Stardock IconPackager set", null),
         ("Windows XP sounds", "Microsoft", "Windows XP sounds (Luna XP)", "From the NullTale pack", null),
@@ -59,7 +81,7 @@ public sealed class CreditsScreen : ListScreen
 
     protected override void Build()
     {
-        AddNote("The Advanced styles are made from these UI kits, sound packs and fonts. Thank you to everyone who made them.");
+        AddNote("The Advanced and Legendary styles are made from these UI kits, sound packs and fonts. Thank you to everyone who made them.");
         Section("UI kits", "", Kits);
         Section("Sounds", "", Sounds);
         Section("Fonts", "", Fonts);

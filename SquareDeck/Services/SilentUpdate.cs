@@ -250,8 +250,8 @@ function IdleHaptic([datetime]$now, [double]$t) {
             </Border>
           </Canvas>
         </Border>
-        <Ellipse x:Name="Head" Width="18" Height="18" Fill="__ACCENT__" HorizontalAlignment="Left" Margin="-9,-4,0,-4" Opacity="0.9">
-          <Ellipse.Effect><DropShadowEffect Color="__ACCENT__" BlurRadius="16" ShadowDepth="0" Opacity="1"/></Ellipse.Effect>
+        <Ellipse x:Name="Head" Width="18" Height="18" Fill="__ACCENT__" HorizontalAlignment="Left" Margin="0,-4,0,-4" Opacity="0.9" Visibility="Hidden">
+          <Ellipse.Effect><DropShadowEffect Color="__ACCENT__" BlurRadius="10" ShadowDepth="0" Opacity="0.8"/></Ellipse.Effect>
         </Ellipse>
       </Grid>
       <Grid Width="480" Margin="0,12,0,0">
@@ -645,7 +645,10 @@ $timer.Add_Tick({
   }
   $width = 480 * [Math]::Min(1, $script:shown)
   $fill.Width = $width
-  $head.Margin = New-Object System.Windows.Thickness -ArgumentList ($width - 9), -4, 0, -4
+  # The glowing dot rides inside the end of the fill. Centred on the end, it and its glow reached past the fill, so the
+  # bar looked further along than the percentage said.
+  $head.Margin = New-Object System.Windows.Thickness -ArgumentList ([Math]::Max(0, $width - 18)), -4, 0, -4
+  $head.Visibility = if ($width -ge 18) { 'Visible' } else { 'Hidden' }
   # Rounded down, like the bar: 100% only once it's full.
   $percent.Text = '{0}%' -f [int][Math]::Floor([Math]::Min(100, $script:shown * 100 + 0.0001))
 })

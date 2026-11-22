@@ -32,6 +32,13 @@ public sealed class MusicSearchScreen : ListScreen
 
     private bool IsSpotify => Host.Settings.MusicService == "spotify";
 
+    /// <summary>YouTube Music: inside SquareDeck when the music services experiment is on, otherwise in the browser.</summary>
+    private void OpenYouTubeMusic()
+    {
+        if (Labs.On("musicstreams")) _ = StreamingScreen.OpenAsync(Host, StreamingService.All.First(s => s.Id == "ytmusic"));
+        else Host.Push(BrowserScreen.Open(Host, "https://music.youtube.com/"));
+    }
+
     protected override void Build()
     {
         var s = Host.Settings;
@@ -63,7 +70,7 @@ public sealed class MusicSearchScreen : ListScreen
         AddRow("My playlists", glyph: "", click: () => _ = PlaylistsAsync());
         if (!IsSpotify)
         {
-            AddRow("Open YouTube Music", glyph: "", click: () => Host.Push(BrowserScreen.Open(Host, "https://music.youtube.com/")));
+            AddRow("Open YouTube Music", glyph: "", click: () => OpenYouTubeMusic());
             AddNote("YouTube Music opens inside the launcher. Sign in there once and it stays signed in.");
             return;
         }

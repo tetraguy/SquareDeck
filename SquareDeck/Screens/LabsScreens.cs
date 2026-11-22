@@ -48,6 +48,7 @@ public sealed class MoveGameScreen : ListScreen
         bar.Children.Add(track);
         bar.Children.Add(_fill);
         _bar = new ProgressFill(bar, _fill);
+        _bar.Shown = v => _percent.Text = $"{Math.Floor(v * 100 + 0.0001):0}%"; // read off the bar as it slides
         var top = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
         DockPanel.SetDock(_percent, Dock.Right);
         top.Children.Add(_percent);
@@ -60,7 +61,6 @@ public sealed class MoveGameScreen : ListScreen
     private void ShowProgress(double fraction, string step)
     {
         _fraction = Math.Clamp(fraction, 0, 1);
-        _percent.Text = $"{Math.Floor(_fraction * 100):0}%";
         _step.Text = step;
         _bar.Set(_fraction, 300);
     }
@@ -1234,9 +1234,14 @@ public sealed class CompanionScreen : ListScreen
         AddHeader("Try a reaction");
         AddNote("It reacts by itself on Home: a wave when you come back from a game, a jump for achievements, a spin for milestones, " +
                 "hearts for new favorites, a worried shake at low battery, dancing to music, yawns when you haven't played for a while, " +
-                "sleep late at night, and its eyes follow you along the home row.");
+                "sleep late at night, and its eyes follow you along the home row. It comes along to every page, doing what suits it (tinkering in Settings, " +
+                "searching the Library, dancing on the Music page, shopping in the Stores…), gets up to all sorts on Home, and puts on a little show while a game starts.");
         foreach (var (id, label) in new[] { ("wave", "Wave"), ("jump", "Jump for joy"), ("spin", "Spin"), ("hearts", "Hearts"), ("worried", "Worried"),
-                                            ("dance", "Dance"), ("yawn", "Yawn"), ("sleep", "Sleep"), ("peek", "Peek"), ("bye", "Wave goodbye") })
+                                            ("dance", "Dance"), ("yawn", "Yawn"), ("sleep", "Sleep"), ("peek", "Peek"), ("bye", "Wave goodbye"),
+                                            ("walk", "Go for a walk"), ("juggle", "Juggle"), ("flip", "Somersault"), ("trip", "Trip over"), ("peekaboo", "Peekaboo"),
+                                            ("stretch", "Stretch"), ("lookaround", "Look around"), ("balloon", "Balloon"), ("confetti", "Confetti"),
+                                            ("tinker", "Tinker"), ("read", "Read"), ("search", "Search"), ("think", "Think"), ("game", "Play a game"),
+                                            ("shop", "Go shopping"), ("camera", "Take a picture"), ("trophy", "Trophy"), ("zoom", "Zoom") })
         {
             var action = id;
             AddRow(label, null, "", click: () => Host.CompanionReact(action));

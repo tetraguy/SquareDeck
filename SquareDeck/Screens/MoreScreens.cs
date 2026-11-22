@@ -1571,8 +1571,307 @@ public sealed class LaunchSplashScreen : Screen
         Content = root;
 
         if (!Theme.ReduceMotion) Animate(root, fx, cover, breathe, name);
+        if (Labs.On("companion") && !Theme.ReduceMotion) AddCompanion(root, cover);
 
         _timer.Tick += (_, _) => Tick();
+    }
+
+    // ---------------------------------------------------------------- the companion's act
+
+    /// <summary>The companion's acts while a game starts (with the Companion experiment on): one is picked each time.</summary>
+    public static readonly (string Id, string Name)[] CompanionActs =
+    {
+        ("hop", "Hops onto the cover and bounces on it"), ("run", "Runs back and forth under the cover, kicking up dust"),
+        ("rocket", "Blasts off from below and hovers beside the cover"), ("peek", "Peeks out from behind the cover and waves"),
+        ("drumroll", "A drumroll, then a jump for joy with stars"), ("orbit", "Flies round and round the cover"),
+        ("cheer", "Cheers with confetti, arms in the air"), ("nap", "Dozes off, wakes with a start, then cheers"),
+        ("dance", "Dances beside the cover with music notes"), ("parachute", "Floats down on a parachute and lands"),
+        ("skate", "Skates in from the side, does a trick and stops"), ("juggle", "Juggles little stars while it waits"),
+    };
+
+    private DispatcherTimer? _pal;
+
+    /// <summary>The companion in the launch animation: on a layer over everything, placed around the cover once it's laid out.</summary>
+    private void AddCompanion(Grid root, Border cover)
+    {
+        var layer = new Canvas { IsHitTestVisible = false, ClipToBounds = false };
+        root.Children.Add(layer);
+        // In front of the cover (6) or, for peeking and the far side of an orbit, just behind it (4).
+        foreach (var panel in root.Children.OfType<StackPanel>()) Panel.SetZIndex(panel, 5);
+        Panel.SetZIndex(layer, 6);
+        const double size = 96;
+        var sprite = new Canvas { Width = size, Height = size, RenderTransformOrigin = new Point(0.5, 1) };
+        var scale = new ScaleTransform(1, 1);
+        var turn = new RotateTransform();
+        var move = new TranslateTransform();
+        sprite.RenderTransform = new TransformGroup { Children = { scale, turn, move } };
+        layer.Children.Add(sprite);
+        string act = CompanionActs[Random.Shared.Next(CompanionActs.Length)].Id;
+        string mood = "happy";
+        int look = 0;
+        bool wave = false, blink = false;
+        int frame = 0;
+        void Redraw() => CompanionArt.Draw(sprite, CompanionArt.SpeciesId, CompanionArt.ColorHex, mood, blink, Labs.Outfit, look, wave, size / 12);
+        Redraw();
+        sprite.Opacity = 0;
+
+        // A little text symbol that flies off (stars, notes, dust, confetti).
+        void Puff(string symbol, string hex, double x, double y, double dx, double dy, double seconds, double sizePx = 18, double delay = 0)
+        {
+            var t = new TextBlock { Text = symbol, FontSize = sizePx, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)) };
+            Canvas.SetLeft(t, x); Canvas.SetTop(t, y);
+            layer.Children.Add(t);
+            var span = TimeSpan.FromSeconds(seconds);
+            var begin = TimeSpan.FromSeconds(delay);
+            t.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(x, x + dx, span) { BeginTime = begin });
+            t.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(y, y + dy, span) { BeginTime = begin, EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
+            var fade = new DoubleAnimation(1, 0, span) { BeginTime = begin };
+            fade.Completed += (_, _) => layer.Children.Remove(t);
+            t.BeginAnimation(OpacityProperty, fade);
+        }
+        DoubleAnimation A(double from, double to, double seconds, bool back = false, RepeatBehavior? repeat = null, IEasingFunction? ease = null, double delay = 0) =>
+            new(from, to, TimeSpan.FromSeconds(seconds)) { AutoReverse = back, RepeatBehavior = repeat ?? new RepeatBehavior(1), EasingFunction = ease, BeginTime = TimeSpan.FromSeconds(delay) };
+        var forever = RepeatBehavior.Forever;
+        var sine = new SineEase { EasingMode = EasingMode.EaseInOut };
+        var outEase = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+
+        // Frames: blinking, waving and act-specific moods, five times a second.
+        _pal = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        double elapsed = 0;
+        _pal.Tick += (_, _) =>
+        {
+            frame++;
+            elapsed += 0.2;
+            blink = mood is "happy" or "dance" && frame % 17 == 0;
+            if (act is "peek" or "rocket" or "parachute" or "skate") wave = elapsed > 1.6 && frame % 2 == 0;
+            if (act == "nap") mood = elapsed < 2.2 ? "sleepy" : elapsed < 2.8 ? "worried" : "cheer";
+            if (act == "drumroll") mood = elapsed < 1.6 ? "happy" : "cheer";
+            Redraw();
+        };
+        _pal.Start();
+
+        layer.Loaded += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            // Measured on the cover's stage, which doesn't move (the cover itself may be mid-animation).
+            var stage = cover.Parent as FrameworkElement ?? cover;
+            var topLeft = stage.TranslatePoint(new Point(0, 0), layer);
+            double cx = topLeft.X, cy = topLeft.Y, cw = stage.ActualWidth, ch = stage.ActualHeight;
+            double right = cx + cw + 28, ground = cy + ch - size, left = cx - size - 28;
+            void Place(double x, double y) { Canvas.SetLeft(sprite, x); Canvas.SetTop(sprite, y); }
+            sprite.BeginAnimation(OpacityProperty, A(0, 1, 0.3));
+            switch (act)
+            {
+                case "hop":
+                {
+                    // From the floor beside the cover, up in an arc onto its top edge, then bouncing there.
+                    Place(right, ground);
+                    mood = "cheer";
+                    var x = new DoubleAnimation(right, cx + cw / 2 - size / 2, TimeSpan.FromSeconds(0.7)) { BeginTime = TimeSpan.FromSeconds(0.4), EasingFunction = sine };
+                    var y = new DoubleAnimationUsingKeyFrames { BeginTime = TimeSpan.FromSeconds(0.4) };
+                    y.KeyFrames.Add(new EasingDoubleKeyFrame(cy - size - 120, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.38)), outEase));
+                    y.KeyFrames.Add(new EasingDoubleKeyFrame(cy - size + 6, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.7)), new QuadraticEase { EasingMode = EasingMode.EaseIn }));
+                    sprite.BeginAnimation(Canvas.LeftProperty, x);
+                    sprite.BeginAnimation(Canvas.TopProperty, y);
+                    move.BeginAnimation(TranslateTransform.YProperty, A(0, -26, 0.28, true, forever, outEase, 1.2));
+                    scale.BeginAnimation(ScaleTransform.ScaleYProperty, A(0.85, 1, 0.14, false, forever, null, 1.2));
+                    break;
+                }
+                case "run":
+                {
+                    Place(cx - size, cy + ch + 70);
+                    var x = new DoubleAnimationUsingKeyFrames { RepeatBehavior = forever };
+                    x.KeyFrames.Add(new EasingDoubleKeyFrame(cx + cw, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.6)), sine));
+                    x.KeyFrames.Add(new EasingDoubleKeyFrame(cx - size, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(3.2)), sine));
+                    sprite.BeginAnimation(Canvas.LeftProperty, x);
+                    move.BeginAnimation(TranslateTransform.YProperty, A(0, -12, 0.13, true, forever));
+                    var dust = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(260) };
+                    dust.Tick += (_, _) =>
+                    {
+                        if (!IsLoaded) { dust.Stop(); return; }
+                        double sx = Canvas.GetLeft(sprite);
+                        look = (frame / 8) % 2 == 0 ? 1 : -1;
+                        Puff("•", "#AAB4C8", sx + size / 2 - look * 30, cy + ch + 70 + size - 14, -look * 20, -14, 0.6, 14);
+                    };
+                    dust.Start();
+                    break;
+                }
+                case "rocket":
+                {
+                    Place(right, cy + ch + 200);
+                    sprite.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(cy + ch + 200, cy + ch / 2 - size / 2, TimeSpan.FromSeconds(1.2)) { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } });
+                    move.BeginAnimation(TranslateTransform.YProperty, A(0, -10, 0.9, true, forever, sine, 1.3));
+                    var flame = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(70) };
+                    flame.Tick += (_, _) =>
+                    {
+                        if (!IsLoaded) { flame.Stop(); return; }
+                        double sx = Canvas.GetLeft(sprite), sy = Canvas.GetTop(sprite) + move.Y;
+                        Puff(Random.Shared.Next(2) == 0 ? "▲" : "●", Random.Shared.Next(2) == 0 ? "#FFB347" : "#FF5A3C", sx + size / 2 - 8 + Random.Shared.Next(-10, 10), sy + size - 6, Random.Shared.Next(-12, 12), 40, 0.5, 14);
+                    };
+                    flame.Start();
+                    mood = "cheer";
+                    break;
+                }
+                case "peek":
+                {
+                    // Behind the cover's left edge: slides out, waves, ducks back, and again.
+                    Panel.SetZIndex(layer, 0);
+                    Place(cx + 10, cy + ch / 2 - size / 2);
+                    var x = new DoubleAnimationUsingKeyFrames { RepeatBehavior = forever };
+                    x.KeyFrames.Add(new LinearDoubleKeyFrame(cx + 10, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+                    x.KeyFrames.Add(new EasingDoubleKeyFrame(cx - size * 0.8, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.5)), new BackEase { EasingMode = EasingMode.EaseOut }));
+                    x.KeyFrames.Add(new LinearDoubleKeyFrame(cx - size * 0.8, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(2.2))));
+                    x.KeyFrames.Add(new EasingDoubleKeyFrame(cx + 10, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(2.6)), sine));
+                    x.KeyFrames.Add(new LinearDoubleKeyFrame(cx + 10, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(3.4))));
+                    sprite.BeginAnimation(Canvas.LeftProperty, x);
+                    look = -1;
+                    Panel.SetZIndex(layer, 4); // behind the cover
+                    break;
+                }
+                case "drumroll":
+                {
+                    Place(right, ground);
+                    move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-3, 3, TimeSpan.FromMilliseconds(50)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(TimeSpan.FromSeconds(1.6)) });
+                    var jump = new DoubleAnimation(0, -70, TimeSpan.FromSeconds(0.35)) { AutoReverse = true, BeginTime = TimeSpan.FromSeconds(1.7), EasingFunction = outEase };
+                    jump.Completed += (_, _) => move.BeginAnimation(TranslateTransform.YProperty, A(0, -14, 0.3, true, forever, outEase));
+                    move.BeginAnimation(TranslateTransform.YProperty, jump);
+                    for (int i = 0; i < 10; i++) Puff("★", "#FFD84D", right + size / 2, ground + 10, Random.Shared.Next(-120, 120), Random.Shared.Next(-140, -40), 1.1, 20, 1.75);
+                    break;
+                }
+                case "orbit":
+                {
+                    // An ellipse round the cover; it faces the way it flies and goes behind the cover on the far side.
+                    double ox = cx + cw / 2 - size / 2, oy = cy + ch / 2 - size / 2, rx = cw / 2 + 90, ry = 60;
+                    Place(ox, oy);
+                    var spin = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
+                    var start = DateTime.UtcNow;
+                    spin.Tick += (_, _) =>
+                    {
+                        if (!IsLoaded) { spin.Stop(); return; }
+                        double a = (DateTime.UtcNow - start).TotalSeconds / 3.6 * Math.PI * 2;
+                        Place(ox + rx * Math.Cos(a), oy + ry * Math.Sin(a) + 40);
+                        look = Math.Sin(a) > 0 ? 1 : -1;
+                        double depth = 0.75 + 0.25 * Math.Sin(a);
+                        scale.ScaleX = scale.ScaleY = depth;
+                        Panel.SetZIndex(layer, Math.Sin(a) < 0 ? 4 : 6);
+                    };
+                    spin.Start();
+                    mood = "cheer";
+                    break;
+                }
+                case "cheer":
+                {
+                    Place(left, ground);
+                    mood = "cheer";
+                    move.BeginAnimation(TranslateTransform.YProperty, A(0, -40, 0.3, true, forever, outEase));
+                    var confetti = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
+                    string[] colors = { "#FF6B8A", "#FFD84D", "#7FD8BE", "#7FB8FF", "#C3A6FF" };
+                    confetti.Tick += (_, _) =>
+                    {
+                        if (!IsLoaded) { confetti.Stop(); return; }
+                        Puff("■", colors[Random.Shared.Next(colors.Length)], left + size / 2 + Random.Shared.Next(-40, 40), ground - 20, Random.Shared.Next(-60, 60), Random.Shared.Next(-120, -40), 1.2, 10);
+                    };
+                    confetti.Start();
+                    break;
+                }
+                case "nap":
+                {
+                    Place(right, ground);
+                    turn.Angle = 0;
+                    var z = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+                    z.Tick += (_, _) =>
+                    {
+                        if (!IsLoaded) { z.Stop(); return; }
+                        if (elapsed < 2.2) Puff("z", "#AAB4C8", right + size - 10, ground, 20, -50, 1.4, 16);
+                        else if (elapsed < 2.8) Puff("!", "#FF6B6B", right + size / 2, ground - 30, 0, -20, 0.6, 28);
+                    };
+                    z.Start();
+                    var wake = new DoubleAnimation(0, -50, TimeSpan.FromSeconds(0.3)) { AutoReverse = true, BeginTime = TimeSpan.FromSeconds(2.3), EasingFunction = outEase };
+                    wake.Completed += (_, _) => move.BeginAnimation(TranslateTransform.YProperty, A(0, -24, 0.3, true, forever, outEase));
+                    move.BeginAnimation(TranslateTransform.YProperty, wake);
+                    break;
+                }
+                case "dance":
+                {
+                    Place(right, ground);
+                    mood = "dance";
+                    turn.BeginAnimation(RotateTransform.AngleProperty, A(-14, 14, 0.38, true, forever, sine));
+                    move.BeginAnimation(TranslateTransform.YProperty, A(0, -10, 0.19, true, forever));
+                    var notes = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
+                    notes.Tick += (_, _) =>
+                    {
+                        if (!IsLoaded) { notes.Stop(); return; }
+                        Puff(Random.Shared.Next(2) == 0 ? "♪" : "♫", "#C3A6FF", right + Random.Shared.Next(0, (int)size), ground, Random.Shared.Next(-30, 30), -80, 1.6, 22);
+                    };
+                    notes.Start();
+                    break;
+                }
+                case "parachute":
+                {
+                    // A little canopy over it while it drifts down, swaying, then folds away on landing.
+                    Place(right, -size - 120);
+                    var chute = new System.Windows.Shapes.Path
+                    {
+                        Data = Geometry.Parse("M 0,40 A 48,40 0 0 1 96,40 L 82,40 L 48,96 L 14,40 Z"), Width = 96, Height = 100,
+                        Fill = new SolidColorBrush(Color.FromArgb(0xEE, Accent.R, Accent.G, Accent.B)), Stroke = Brushes.White, StrokeThickness = 2
+                    };
+                    var chuteHolder = new Canvas { Width = size, Height = 100 };
+                    chuteHolder.Children.Add(chute);
+                    Canvas.SetTop(chuteHolder, -size * 0.9);
+                    sprite.Children.Add(chuteHolder);
+                    var fall = new DoubleAnimation(-size - 120, ground, TimeSpan.FromSeconds(2.4)) { EasingFunction = new SineEase { EasingMode = EasingMode.EaseOut } };
+                    fall.Completed += (_, _) =>
+                    {
+                        chuteHolder.BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromSeconds(0.4)));
+                        turn.BeginAnimation(RotateTransform.AngleProperty, null);
+                        mood = "cheer";
+                        move.BeginAnimation(TranslateTransform.YProperty, A(0, -18, 0.3, true, forever, outEase, 0.5));
+                    };
+                    sprite.BeginAnimation(Canvas.TopProperty, fall);
+                    turn.BeginAnimation(RotateTransform.AngleProperty, A(-10, 10, 0.8, true, new RepeatBehavior(3), sine));
+                    break;
+                }
+                case "skate":
+                {
+                    Place(-size * 2, ground + 40);
+                    var x = new DoubleAnimation(-size * 2, right, TimeSpan.FromSeconds(1.3)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+                    x.Completed += (_, _) =>
+                    {
+                        // The trick: a jump with a full spin.
+                        move.BeginAnimation(TranslateTransform.YProperty, A(0, -80, 0.4, true, null, outEase));
+                        turn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromSeconds(0.8)));
+                        for (int i = 0; i < 6; i++) Puff("✦", "#FFFFFF", right + size / 2, ground + 20, Random.Shared.Next(-80, 80), Random.Shared.Next(-100, -30), 0.9, 16, 0.3);
+                    };
+                    sprite.BeginAnimation(Canvas.LeftProperty, x);
+                    look = 1;
+                    var board = new Border { Width = size * 0.9, Height = 8, CornerRadius = new CornerRadius(4), Background = new SolidColorBrush(Color.FromRgb(0xE0, 0x6C, 0x3C)) };
+                    Canvas.SetLeft(board, size * 0.05); Canvas.SetTop(board, size - 4);
+                    sprite.Children.Add(board);
+                    break;
+                }
+                default: // juggle
+                {
+                    Place(right, ground);
+                    mood = "dance";
+                    move.BeginAnimation(TranslateTransform.YProperty, A(0, -4, 0.3, true, forever));
+                    for (int i = 0; i < 3; i++)
+                    {
+                        var star = new TextBlock { Text = "★", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(new[] { "#FFD84D", "#FF6B8A", "#7FB8FF" }[i])) };
+                        layer.Children.Add(star);
+                        var begin = TimeSpan.FromSeconds(i * 0.35);
+                        var sx = new DoubleAnimationUsingKeyFrames { BeginTime = begin, RepeatBehavior = forever };
+                        sx.KeyFrames.Add(new LinearDoubleKeyFrame(right + 10, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+                        sx.KeyFrames.Add(new LinearDoubleKeyFrame(right + size - 20, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.05))));
+                        var sy = new DoubleAnimationUsingKeyFrames { BeginTime = begin, RepeatBehavior = forever };
+                        sy.KeyFrames.Add(new LinearDoubleKeyFrame(ground + 30, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+                        sy.KeyFrames.Add(new EasingDoubleKeyFrame(ground - 90, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.52)), outEase));
+                        sy.KeyFrames.Add(new EasingDoubleKeyFrame(ground + 30, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.05)), new QuadraticEase { EasingMode = EasingMode.EaseIn }));
+                        star.BeginAnimation(Canvas.LeftProperty, sx);
+                        star.BeginAnimation(Canvas.TopProperty, sy);
+                    }
+                    break;
+                }
+            }
+        });
     }
 
     // ---------------------------------------------------------------- the animations
@@ -1859,6 +2158,7 @@ public sealed class LaunchSplashScreen : Screen
     public override void OnClosed()
     {
         _timer.Stop();
+        _pal?.Stop();
         _cts.Cancel();
         if (_held) { _held = false; Host.HoldVisible(false); }
     }

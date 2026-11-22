@@ -808,6 +808,8 @@ public sealed class StoresScreen : GridScreen
         string wish = onSale > 0 ? $"Wishlist · {onSale} on sale" : "Wishlist and sales";
         AddTile(GlyphBox(small, small, "\uE8EC"), _cine ? null : wish, small, () => Host.Push(new WishlistScreen()), wish, extras);
         AddTile(GlyphBox(small, small, "\uE787"), _cine ? null : "Release calendar", small, () => Host.Push(new ReleaseCalendarScreen()), "Release calendar", extras);
+        if (Labs.On("recomp"))
+            AddTile(GlyphBox(small, small, "\uE7FC"), _cine ? null : "Recomp Zone", small, () => Host.Push(new RecompZoneScreen()), "Recomp Zone", extras);
         if (Labs.On("freegames"))
             AddTile(GlyphBox(small, small, "\uE719"), _cine ? null : "Free games", small, () => Host.Push(new FreeGamesScreen()), "Free games", extras);
         AddTile(GlyphBox(small, small, "\uE710"), _cine ? null : "Add more stores", small, () => Host.Push(new AddStoresScreen()), "Add more stores", extras);
