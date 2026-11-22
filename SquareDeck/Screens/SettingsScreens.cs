@@ -2258,9 +2258,53 @@ public sealed class SettingsScreen : ListScreen
             AddRow("Open Adrenaline Hook", null, "\uE768", click: () => Host.Push(new AdrenalineHookScreen()),
                 subtitle: "Hook games, AMD per-game settings, the Radeon overlays, backups");
 
+        BuildLabs();
+
         // The handheld's own settings (moved here from their own section), with the supported devices at the bottom.
         if (Handheld.IsHandheld) BuildHandheld(s);
     }
+
+    /// <summary>The newer experimental features, by group: a switch for each, and its page once it's on.</summary>
+    private void BuildLabs()
+    {
+        foreach (var group in Labs.Features.GroupBy(f => f.Group))
+        {
+            AddHeader(group.Key);
+            foreach (var f in group)
+            {
+                var feature = f;
+                bool on = Labs.On(f.Id);
+                string? blocked = f.Id == "tilt" && Host?.HasMotionSensor == false ? "No motion sensor" : null;
+                AddRow(f.Name, blocked ?? OnOff(on), f.Glyph, click: () =>
+                {
+                    if (blocked != null && !on) { _ = Host.AskAsync(feature.Name, "This PC doesn't report a motion sensor, so the covers can't follow its tilt.", "OK"); return; }
+                    Labs.Set(feature.Id, !on);
+                    Rebuild();
+                }, subtitle: f.About);
+                if (on && LabPage(f.Id) is { } open) AddRow("Open " + f.Name.ToLowerInvariant(), null, "\uE768", click: open);
+            }
+        }
+    }
+
+    private Action? LabPage(string id) => id switch
+    {
+        "storage" => () => Host.Push(new StorageAdvisorScreen()),
+        "cleanup" => () => Host.Push(new CleanupScreen()),
+        "overnight" => () => Host.Push(new OvernightScreen()),
+        "bugreport" => () => Host.Push(new BugReportScreen()),
+        "refund" => () => Host.Push(new RefundScreen()),
+        "sticks" => () => Host.Push(new StickCheckScreen()),
+        "battery" => () => Host.Push(new BatteryHealthScreen()),
+        "freegames" => () => Host.Push(new FreeGamesScreen()),
+        "leaderboard" => () => Host.Push(new LeaderboardScreen()),
+        "styleschedule" => () => Host.Push(new StyleScheduleScreen()),
+        "wallpaperengine" => () => Host.Push(new WallpaperEngineScreen()),
+        "boss" => () => Host.Push(new BossScreen()),
+        "unlockables" => () => Host.Push(new UnlockablesScreen()),
+        "passport" => () => Host.Push(new PassportScreen()),
+        "mood" => () => Host.Push(new MoodScreen()),
+        _ => null
+    };
 
     private void BuildData(Settings s)
     {

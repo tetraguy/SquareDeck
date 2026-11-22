@@ -115,6 +115,7 @@ public partial class MainWindow : Window
         ApplyUiStyle();
         InitDynamicBackground();
         InitLeanMode();
+        InitLabs();
 
         GameList.ItemsSource = _view;
         RefreshHomeButtons();
@@ -479,6 +480,7 @@ public partial class MainWindow : Window
         }
         UpdateButtonHighlight();
         ScrollSelectionIntoView();
+        if (Labs.On("dust")) RefreshDust();
     }
 
     /// <summary>"Continue playing" (if on), the most recent games, then the Game library tile.</summary>
@@ -1486,6 +1488,8 @@ public partial class MainWindow : Window
             AddAsync(Mine, "Add to a collection", "\uE8F1", () => ChooseCollectionsAsync(item));
             AddAsync(Mine, "Set category", "\uE8EC", () => SetCategoryAsync(item));
             Add(Mine, "Notebook, rating and status", "\uE70B", () => Push(new GameNotesScreen(item)));
+            if (Labs.On("diary")) Add(Mine, "Game diary", "\uE787", () => Push(new GameDiaryScreen(item)));
+            if (Labs.On("stickers") && item.IsSteam) Add(Mine, "Sticker book", "\uE8EC", () => Push(new StickerBookScreen(item)));
         }
 
         Add(Look, item.IsApp ? "Change icon" : "Change artwork", "\uE8B9", () => Push(new CoverPickerScreen(item)));
@@ -1509,11 +1513,14 @@ public partial class MainWindow : Window
         else if (item.IsExternal)
         {
             if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
+            if (Labs.On("fixgame") && hasFolder) Add(Manage, "Fix this game", "\uE90F", () => Push(new FixGameScreen(item)));
             Add(Manage, "Remove from list", "\uE711", Hide, danger: true);
         }
         else if (item.IsSteam)
         {
             if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
+            if (Labs.On("move")) Add(Manage, "Move to another drive", "\uE8DE", () => Push(new MoveGameScreen(item)));
+            if (Labs.On("fixgame")) Add(Manage, "Fix this game", "\uE90F", () => Push(new FixGameScreen(item)));
             AddAsync(Manage, "Uninstall", "\uE74D", () => UninstallAsync(item), danger: true);
             Add(Manage, "Remove from list", "\uE711", Hide, danger: true);
         }
@@ -2188,6 +2195,7 @@ public partial class MainWindow : Window
         // The big title follows the info line; apps all share the same one, so it wouldn't change: update it here.
         if (InfoText.Text == before) UpdateStyleTitle();
         ScrollSelectionIntoView();
+        OnHomeSelectionForLabs();
         // The highlight ring breathes on the selected tile only.
         foreach (var old in e.RemovedItems)
         {

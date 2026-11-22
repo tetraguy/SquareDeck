@@ -537,8 +537,11 @@ public sealed class GameAchievementsScreen : ListScreen
         {
             var icon = new Image();
             if (a.Icon.Length > 0) _ = LoadAsync(icon, a.Icon);
+            var achievement = a;
+            bool guide = Labs.On("guides") && a.Unlocked != true;
             var row = AddRow(a.Description.Length > 0 ? a.Name + "  –  " + a.Description : a.Name,
-                a.Unlocked switch { true => "Unlocked ✓", false => "Locked", _ => null }, icon: icon);
+                a.Unlocked switch { true => "Unlocked ✓", false => guide ? "How to get this" : "Locked", _ => guide ? "How to get this" : null }, icon: icon,
+                click: guide ? () => ProcessUtil.Open(Labs.GuideSearch(_game, achievement.Name)) : null);
             if (a.Unlocked == false) row.Opacity = 0.6;
         }
     }
@@ -805,6 +808,8 @@ public sealed class StoresScreen : GridScreen
         string wish = onSale > 0 ? $"Wishlist · {onSale} on sale" : "Wishlist and sales";
         AddTile(GlyphBox(small, small, "\uE8EC"), _cine ? null : wish, small, () => Host.Push(new WishlistScreen()), wish, extras);
         AddTile(GlyphBox(small, small, "\uE787"), _cine ? null : "Release calendar", small, () => Host.Push(new ReleaseCalendarScreen()), "Release calendar", extras);
+        if (Labs.On("freegames"))
+            AddTile(GlyphBox(small, small, "\uE719"), _cine ? null : "Free games", small, () => Host.Push(new FreeGamesScreen()), "Free games", extras);
         AddTile(GlyphBox(small, small, "\uE710"), _cine ? null : "Add more stores", small, () => Host.Push(new AddStoresScreen()), "Add more stores", extras);
         int hiddenInstalled = _all.Count(s => s.Installed && hidden.Contains(s.Name));
         if (hiddenInstalled > 0)

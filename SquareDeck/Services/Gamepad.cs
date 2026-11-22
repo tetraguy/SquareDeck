@@ -55,7 +55,8 @@ public sealed class Gamepad
     private const ushort DpadUp = 0x0001, DpadDown = 0x0002, DpadLeft = 0x0004, DpadRight = 0x0008;
     private const ushort StartButton = 0x0010, ViewButton = 0x0020, LeftShoulder = 0x0100, RightShoulder = 0x0200;
     private const ushort Guide = 0x0400, A = 0x1000, B = 0x2000, X = 0x4000, Y = 0x8000;
-    private const short StickThreshold = 16000;
+    /// <summary>How far a stick must move to count as a direction in SquareDeck (49% by default; Experimental > Stick check changes it).</summary>
+    public static short StickThreshold { get; set; } = 16000;
 
     // Holding a direction: a short pause, then steady steps that speed up the longer it's held (long lists and rows).
     private static readonly TimeSpan FirstRepeat = TimeSpan.FromMilliseconds(320);

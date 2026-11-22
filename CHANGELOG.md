@@ -3,6 +3,60 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 6.37.2
+
+- Retro Windows: the Back sound no longer sounds like a phone ringing. It had been Windows 2000's "ring out" sound from its phone dialer. It's now the same Windows click as moving, played lower and a little softer, so going back sounds like the opposite of moving forward.
+
+## 6.37.1
+
+- Wallpaper Engine import (Experimental): choosing a wallpaper now asks what to do: import it into SquareDeck and apply it, just import it, or just apply it. Imported wallpapers are copied into SquareDeck, appear in Moving background alongside your own videos, keep working if you unsubscribe in Wallpaper Engine, and are marked "Imported" in the list.
+
+## 6.37.0
+
+28 new experimental features in Settings > Experimental. Each one is off until you turn it on, and the ones with a page get an "Open" row once they're on.
+
+**Storage and downloads**
+- Move games between drives: in a Steam game's options, "Move to another drive" shows each Steam library with its free space (microSD cards marked). It closes Steam, copies the game, its manifest and workshop items, checks every file, then removes the original and reopens Steam. If anything fails, the game stays where it was.
+- Storage advisor: games not played in six months, biggest first, with the space they use. Uninstall one or all of them through Steam; they stay in the library as not installed.
+- Install estimate: before installing, the size from the game's store page, about how long it takes at your measured internet speed, and the space left on each drive.
+- Library cleanup: custom games whose program is missing, games whose folder is gone, and leftover folders of uninstalled Steam games, which can be sent to the Recycle Bin.
+- Overnight downloads: keeps the PC awake while it's charging and Steam is downloading, then lets it sleep once everything has finished.
+- Download updates automatically: a new SquareDeck version downloads in the background first, so the update pop-up can install it straight away.
+
+**Tools**
+- One-tap bug report: builds a GitHub issue for tetraguy/SquareDeck with the version, Windows, device, style and the last logged error. Your user name, user-folder paths, API keys, Steam id and e-mail addresses are removed, and you see everything before it's sent. After a logged error, a notification points to it.
+- Steam refund reminder: warns over the game when a recently bought game is 20 minutes from Steam's 2-hour refund limit, and lists games still inside the window. The purchase date is estimated from when the game was installed or first seen.
+- Game diary: in a game's options, its sessions, the screenshots taken during them, and its notes, on one timeline by day.
+- Fix this game: in a game's options. Verify files, clear Steam's shader cache for the game, reset its settings (folders are renamed, not deleted), reinstall the Visual C++ and DirectX files it ships with, run it as administrator, and open its folders.
+- Stick check: live stick positions, a 3-second drift measurement, and the dead zone SquareDeck uses for moving around its menus.
+- Battery health: capacity compared with new, charge cycles and capacity over time, from Windows' battery report.
+- Achievement guides: each locked achievement opens a search for a guide to that exact achievement.
+
+**Stores and friends**
+- Free games tracker: a Free games tile on the Stores page with the current Epic, Prime Gaming and Steam giveaways, when each ends, and a link to claim it. The list comes from GamerPower.
+- Friends leaderboard: hours played by you and your Steam friends, ranked, with the games you share. Steam reports the last two weeks, and it needs your Steam Web API key.
+
+**Looks and sound**
+- Style schedule: one style by day and another by night (you choose the hours), one for weekdays and another for weekends, or a random Advanced style each day.
+- Wallpaper Engine import: video wallpapers you've subscribed to in Wallpaper Engine can be used as the moving background. Scene and web wallpapers can't be used.
+- Sound that follows the genre: Home music fades to a bundled track that suits the highlighted game's genre, such as Dreamcore for horror, Fraxsu for racing and Coffee Shop for simulation. It only applies while menu music is on.
+- Covers that tilt: with a motion sensor, tilting the handheld shifts the highlighted cover, and the "Continue" tile's logo and name move the other way, for a 3D effect.
+- Dusty tiles: games not played for two months gather a light dust, more after six months and a year, and a cobweb after a year. Playing a game clears it.
+- Companion: an original pixel creature in the corner of Home. It's sleepy late at night, cheers after achievements and celebrations, looks bored after three days without play, and wears outfits you unlock.
+
+**Play**
+- Screenshot on achievements: while a Steam game runs, new unlocks are checked once a minute. When one appears, Windows' Game Bar takes a screenshot, which is named after the achievement and filed with the game's captures. It can be up to a minute after the moment, and the Game Bar needs to be on.
+- Milestone celebrations: confetti and a banner for 10, 50, 100 or more hours in a game, every finished game, 50, 100 or more achievements, and each year with SquareDeck. Milestones already reached when it's turned on are skipped.
+- Backlog boss fight: unfinished games (by How Long To Beat main-story time, less time played) as a pixel monster with a health bar that shrinks as you play.
+- Unlockables: four highlight colours and four companion outfits, earned by finishing games, unlocking achievements, hours played and play streaks.
+- Achievement sticker book: in a Steam game's options, unlocked achievements become stickers on a corkboard that you can move and turn. Rare ones, unlocked by under 10% of players, have a holographic border.
+- Gamer passport: stamps for each genre, decade and store you've played, plus firsts like the 100-hour club and Night owl.
+- Mood picker: choose from Chill, Adrenaline, Story time, Quick laugh or Brain workout, and get three installed games that fit.
+
+## 6.36.15
+
+- Game library: the grid of games is centered, so the leftover space is split evenly instead of all sitting on the right. Every grid on the page has the same width, so grouped sections still line up, and their headings move in to match. The last row still starts at the left. Lists, shelves and the timeline are unchanged.
+
 ## 6.36.14
 
 - Updating SquareDeck: the progress bar now keeps in step with the percentage.

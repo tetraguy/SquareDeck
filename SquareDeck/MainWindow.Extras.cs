@@ -1302,8 +1302,9 @@ public partial class MainWindow
     private async Task OfferInstallAsync(Game game)
     {
         bool queued = InstallQueue.Contains(game);
+        string estimate = Labs.On("installestimate") ? await InstallEstimateAsync(game) : "";
         int choice = await AskAsync(game.Name,
-            "This game is in your Steam library but isn't installed on this PC. Steam asks you to confirm where to install it.",
+            "This game is in your Steam library but isn't installed on this PC. Steam asks you to confirm where to install it." + estimate,
             "Install now", queued ? "Remove from the install queue" : "Add to the install queue", "View the store page", "Cancel");
         switch (choice)
         {

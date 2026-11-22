@@ -198,6 +198,8 @@
                                                         </Image.Effect>
                                                     </Image>
                                                 </Border>
+                                                <!-- Experimental "Dusty tiles": dust on games not played for months -->
+                                                <Image Source="{Binding DustImage}" Stretch="Fill" IsHitTestVisible="False"/>
                                                 <Border x:Name="UpdateBadge" Background="#2B7DE0" CornerRadius="3" Padding="8,3"
                                                         Margin="8" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                                                         Visibility="Collapsed">

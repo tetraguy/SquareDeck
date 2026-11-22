@@ -2277,6 +2277,7 @@ public sealed class LibraryScreen : Screen
         // Showcase fits four banners to the row, so a change of width lays it out again.
         _groups.SizeChanged += (_, e) =>
         {
+            if (e.WidthChanged) CenterGrids();
             if (Layout == "showcase" && e.WidthChanged && Math.Abs(e.NewSize.Width - _showcaseWidth) > 8) Dispatcher.BeginInvoke(new Action(Rebuild));
         };
 
@@ -2472,6 +2473,7 @@ public sealed class LibraryScreen : Screen
 
     private void Rebuild()
     {
+        Dispatcher.BeginInvoke(new Action(CenterGrids), System.Windows.Threading.DispatcherPriority.Loaded);
         var everything = Host.AllGames.Concat(Host.NotInstalledGames).Concat(Host.WishlistGames).ToList();
 
         BuildTabs(everything);
@@ -3143,6 +3145,37 @@ public sealed class LibraryScreen : Screen
             });
         else _groups.Children.Add(panel);
         LoadArt();
+    }
+
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, object> _usualMargins = new();
+
+    /// <summary>
+    /// Centers the grids of tiles. Each row is only as wide as the tiles that fit, so a left-aligned grid left a gap
+    /// on the right. Every grid on the page gets the same width (the most whole tiles that fit), so with groups the
+    /// grids line up with each other, and the headings move in with them. The last row still starts at the left.
+    /// </summary>
+    private void CenterGrids()
+    {
+        double room = _groups.ActualWidth;
+        var grids = _groups.Children.OfType<WrapPanel>().Where(p => p.Children.Count > 0).ToList();
+        if (room <= 0 || grids.Count == 0) return;
+        double stride = grids.Select(p => p.Children[0].DesiredSize.Width).FirstOrDefault(w => w > 0);
+        if (stride <= 0) return;
+        int columns = Math.Max(1, (int)Math.Floor((room + 0.5) / stride));
+        double width = columns * stride;
+        foreach (var grid in grids)
+        {
+            grid.Width = width;
+            grid.HorizontalAlignment = HorizontalAlignment.Center;
+        }
+        // Headings, notes and buttons between the grids start where the tiles do.
+        double inset = Math.Max(0, Math.Floor((room - width) / 2));
+        foreach (var other in _groups.Children.OfType<FrameworkElement>().Where(e => e is not WrapPanel))
+        {
+            if (!_usualMargins.TryGetValue(other, out var usual)) { usual = other.Margin; _usualMargins.Add(other, usual); }
+            var m = (Thickness)usual;
+            other.Margin = new Thickness(m.Left + inset, m.Top, m.Right, m.Bottom);
+        }
     }
 
     /// <summary>Small markers in the corners of a cover: running, update waiting.</summary>

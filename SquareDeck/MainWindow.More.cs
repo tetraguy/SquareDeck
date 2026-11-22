@@ -844,6 +844,13 @@ public partial class MainWindow
                 return;
             }
             if (!manual && release.Tag == Settings.SkippedVersion) return;
+            // Experimental: download it first, so Install starts straight away.
+            bool ready = false;
+            if (Labs.On("autoupdate"))
+            {
+                if (manual) await RunBusyAsync("Downloading SquareDeck " + release.Tag, async () => ready = await Updater.PrefetchAsync(release, CancellationToken.None) != null);
+                else ready = await Task.Run(() => Updater.PrefetchAsync(release, CancellationToken.None)) != null;
+            }
 
             if (!manual)
             {
@@ -855,7 +862,7 @@ public partial class MainWindow
             }
 
             int choice = await AskWithIconsAsync("SquareDeck " + release.Tag + " is available",
-                $"You have version {Updater.Current}. See what's new and install it, or ignore this version.",
+                $"You have version {Updater.Current}. " + (ready ? "It's downloaded and ready to install. " : "") + "See what's new and install it, or ignore this version.",
                 ("Install", ""), ("Ignore this version", ""), ("Remind me later", ""));
             if (choice == 1)
             {
@@ -880,12 +887,17 @@ public partial class MainWindow
             await AskAsync(running.Name + " is running", "The launcher restarts to update. The game keeps running, but finish or save first to be safe.",
                 "Update anyway", "Cancel") != 0) return;
 
-        // A progress card with the bar, speed and time left; B cancels.
-        var download = new UpdateDownloadScreen(release);
-        Push(download);
-        string? file = await download.Result;
-        string? problem = download.Problem;
-        if (file == null && problem == null) return; // cancelled
+        // Already downloaded in the background (experimental), or a progress card with the bar, speed and time left; B cancels.
+        string? file = Labs.On("autoupdate") ? Updater.Prefetched(release) : null;
+        string? problem = null;
+        if (file == null)
+        {
+            var download = new UpdateDownloadScreen(release);
+            Push(download);
+            file = await download.Result;
+            problem = download.Problem;
+            if (file == null && problem == null) return; // cancelled
+        }
 
         if (file != null)
         {
@@ -1074,6 +1086,7 @@ public partial class MainWindow
     private void UpdateMenuMusic()
     {
         string choice = Settings.MenuMusic;
+        if (choice.Length > 0 && GenreMusic is { } genre) choice = genre; // experimental: music that follows the genre
         if (choice.Length == 0)
         {
             StopMenuMusic();

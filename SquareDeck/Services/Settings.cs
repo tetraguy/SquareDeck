@@ -389,6 +389,10 @@ public sealed class Settings
     public bool ShowMyDeviceButton { get; set; }
     /// <summary>Settings > Experimental: Adrenaline Hook (AMD graphics only).</summary>
     public bool ExperimentAdrenalineHook { get; set; }
+    /// <summary>Experimental features (Settings > Experimental) that are turned on, by id (see Labs.Features).</summary>
+    public List<string> Labs { get; set; } = new();
+    /// <summary>Choices and remembered state for the experimental features (style schedule, dead zone, celebrated milestones...).</summary>
+    public Dictionary<string, string> LabValues { get; set; } = new();
     /// <summary>Adrenaline Hook: add new games from the library to AMD Software by themselves.</summary>
     public bool AdrenalineAutoHook { get; set; }
 
@@ -551,6 +555,8 @@ public sealed class Settings
                     s.ThemeMode ??= s.DarkTheme ? "dark" : "light"; // saved before "follow system" existed
                     s.AccentColor ??= "";
                     s.SteamWebApiKey ??= "";
+                    s.Labs ??= new();
+                    s.LabValues ??= new();
                     s.Wallpaper ??= "";
                     s.ThemePalette ??= "";
                     s.LaunchChime ??= "rise";

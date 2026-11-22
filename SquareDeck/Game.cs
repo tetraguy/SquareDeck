@@ -203,6 +203,15 @@ public sealed class Game : INotifyPropertyChanged
     }
 
     /// <summary>Square cover art. Null until loaded (or if none exists).</summary>
+    private ImageSource? _dust;
+
+    /// <summary>Experimental "Dusty tiles": dust over the cover of a game not played for months (null for none).</summary>
+    public ImageSource? DustImage
+    {
+        get => _dust;
+        set { if (!ReferenceEquals(_dust, value)) { _dust = value; Changed(); } }
+    }
+
     public ImageSource? Cover
     {
         get => _cover;

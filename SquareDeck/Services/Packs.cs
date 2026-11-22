@@ -316,6 +316,41 @@ public static class Updater
         return path;
     }
 
+    private static string PrefetchFolder(ReleaseInfo release) =>
+        Path.Combine(Path.GetTempPath(), "SquareDeckUpdatePrefetch", string.Concat(release.Tag.Where(char.IsLetterOrDigit)));
+
+    /// <summary>The release's file if it has already been downloaded in the background (experimental), whole; null otherwise.</summary>
+    public static string? Prefetched(ReleaseInfo release)
+    {
+        if (release.AssetName == null) return null;
+        var path = Path.Combine(PrefetchFolder(release), Path.GetFileName(release.AssetName));
+        try
+        {
+            if (!File.Exists(path) || !File.Exists(path + ".done")) return null;
+            return release.AssetSize <= 0 || new FileInfo(path).Length == release.AssetSize ? path : null;
+        }
+        catch (Exception) { return null; }
+    }
+
+    /// <summary>Downloads a release in the background ahead of time (experimental "Download updates automatically").</summary>
+    public static async Task<string?> PrefetchAsync(ReleaseInfo release, CancellationToken ct)
+    {
+        if (Prefetched(release) is { } ready) return ready;
+        try
+        {
+            var file = await DownloadAsync(release, null, ct).ConfigureAwait(false);
+            var folder = PrefetchFolder(release);
+            var root = Path.GetDirectoryName(folder)!;
+            if (Directory.Exists(root)) { try { Directory.Delete(root, true); } catch (Exception) { } }
+            Directory.CreateDirectory(folder);
+            var path = Path.Combine(folder, Path.GetFileName(file));
+            File.Move(file, path, true);
+            File.WriteAllText(path + ".done", "");
+            return path;
+        }
+        catch (Exception) { return null; }
+    }
+
     /// <summary>
     /// Starts the installation. An installer (.exe / .msi) is simply run. A ZIP is unpacked and copied over the
     /// program's folder by a small script that waits for the launcher to close, then starts the new version.
