@@ -122,8 +122,10 @@ public sealed class UpdateDownloadScreen : Screen
     private void Show(double fraction, long total)
     {
         fraction = Math.Clamp(fraction, 0, 1);
-        _percent.Text = $"{fraction * 100:0}%";
-        _barFill?.Set(fraction, 160);
+        // The bar and the number move together. Downloads report many times a second, and restarting a slide on each one
+        // kept the bar trailing behind the percentage, so the bar is put straight at the same point instead.
+        _percent.Text = $"{Math.Floor(fraction * 100):0}%";
+        _barFill?.Snap(fraction);
         if (total <= 0) { _amount.Text = "Downloading…"; return; }
         long bytes = (long)(total * fraction);
         var now = DateTime.UtcNow;

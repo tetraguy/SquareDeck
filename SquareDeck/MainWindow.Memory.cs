@@ -30,6 +30,8 @@ public partial class MainWindow
     /// <summary>Called when SquareDeck goes behind a game, or comes back.</summary>
     private void UpdateLean(bool behindGame)
     {
+        // The game closed: back to normal now, even if SquareDeck isn't in front yet.
+        if (!AllGames.Any(g => g.IsRunning)) behindGame = false;
         if (behindGame && Settings.LeanWhilePlaying)
         {
             if (!_lean && !_leanDelay.IsEnabled) _leanDelay.Start();
@@ -82,16 +84,54 @@ public partial class MainWindow
         SetMemoryPriority(low: false);
         try
         {
-            // The visible tiles first, then the rest, a few at a time so SquareDeck stays responsive.
+            // The visible tiles first, then the rest, a few at a time so SquareDeck stays responsive. Each game on its
+            // own: one picture that fails doesn't leave every tile after it without art.
             var games = _view.Concat(AllGames).Concat(NotInstalledGames).Distinct().Where(g => g.Parked).ToList();
             foreach (var batch in games.Chunk(6))
             {
                 if (_lean) return; // back in a game already
-                await Task.WhenAll(batch.Select(g => g.UnparkAsync()));
+                await Task.WhenAll(batch.Select(async g =>
+                {
+                    try { await g.UnparkAsync(); }
+                    catch (Exception ex) { CrashLog.Write("Leaving lean mode: " + g.Name, ex); }
+                }));
             }
             _ = ShowStyleLogoAsync(GameList.SelectedItem as Game);
         }
         catch (Exception ex) { CrashLog.Write("Leaving lean mode", ex); }
+        RestoreMissingArt();
+    }
+
+    /// <summary>
+    /// After a game: any Home tile still without its picture gets it loaded again the usual way (saved covers come
+    /// straight from disk). This catches tiles the read-back missed, like the "Continue where you left off" tile made
+    /// while its game's cover was put away, or a cover file that changed while the game ran.
+    /// </summary>
+    private void RestoreMissingArt()
+    {
+        if (_lean) return;
+        try
+        {
+            if (_continueTile is { Cover: null, Target: { } target })
+            {
+                if (target.Cover != null) _continueTile.Cover = target.Cover;
+                else _ = LoadContinueArtAsync(_continueTile);
+            }
+            var missing = _view.Where(g => g.Cover == null && g.Kind is ItemKind.SteamGame or ItemKind.External or ItemKind.Custom).ToList();
+            if (missing.Count == 0) return;
+            EnsureCovers(missing.Where(g => g.IsSteam).ToList());
+            foreach (var g in missing.Where(g => !g.IsSteam)) _ = ReloadOwnCoverAsync(g);
+        }
+        catch (Exception ex) { CrashLog.Write("Restoring art after a game", ex); }
+    }
+
+    /// <summary>A game added by hand or from another store: its own cover file, if it has one.</summary>
+    private async Task ReloadOwnCoverAsync(Game game)
+    {
+        if (CustomCoverPath(game) is not string path) return;
+        if (SteamGridDbClient.IsIconFile(path)) { await ShowIconFileAsync(game, path); return; }
+        var image = await Task.Run(() => ImageLoader.FromFile(path, 640));
+        if (image != null && game.Cover == null) game.Cover = image;
     }
 
     // ---- memory priority: which program's memory Windows takes back first when it runs short

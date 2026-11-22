@@ -234,16 +234,21 @@ function IdleHaptic([datetime]$now, [double]$t) {
       <TextBlock x:Name="Version" Foreground="__FG__" Opacity="0.7" FontSize="17" HorizontalAlignment="Center" Margin="0,6,0,0"/>
       <Grid Width="480" Height="10" Margin="0,32,0,0">
         <Border CornerRadius="5" Background="__FG__" Opacity="0.15"/>
-        <Border x:Name="Fill" CornerRadius="5" Background="__ACCENT__" HorizontalAlignment="Left" Width="0"/>
-        <Border x:Name="Shine" CornerRadius="5" Width="90" HorizontalAlignment="Left" Opacity="0.55">
-          <Border.Background>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-              <GradientStop Color="#00FFFFFF" Offset="0"/>
-              <GradientStop Color="#CCFFFFFF" Offset="0.5"/>
-              <GradientStop Color="#00FFFFFF" Offset="1"/>
-            </LinearGradientBrush>
-          </Border.Background>
-          <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
+        <!-- The fill, with the shine sweeping inside it only: it used to run along the whole track, past the end of the
+             fill, so the bar looked out of step with the percentage. -->
+        <Border x:Name="Fill" CornerRadius="5" Background="__ACCENT__" HorizontalAlignment="Left" Width="0" ClipToBounds="True">
+          <Canvas>
+            <Border x:Name="Shine" Width="90" Height="10" Opacity="0.55">
+              <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                  <GradientStop Color="#00FFFFFF" Offset="0"/>
+                  <GradientStop Color="#CCFFFFFF" Offset="0.5"/>
+                  <GradientStop Color="#00FFFFFF" Offset="1"/>
+                </LinearGradientBrush>
+              </Border.Background>
+              <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
+            </Border>
+          </Canvas>
         </Border>
         <Ellipse x:Name="Head" Width="18" Height="18" Fill="__ACCENT__" HorizontalAlignment="Left" Margin="-9,-4,0,-4" Opacity="0.9">
           <Ellipse.Effect><DropShadowEffect Color="__ACCENT__" BlurRadius="16" ShadowDepth="0" Opacity="1"/></Ellipse.Effect>
@@ -633,6 +638,7 @@ $timer.Add_Tick({
     }
   }
   $script:shown += ($script:target - $script:shown) * 0.08
+  if ([Math]::Abs($script:target - $script:shown) -lt 0.002) { $script:shown = $script:target } # arrives, instead of creeping forever
   if ($script:shown -ge $script:nextMilestone -and $script:nextMilestone -lt 1) {
     $script:nextMilestone += 0.25
     if ($script:state -eq 'install') { Pop; MilestoneTap }
@@ -640,7 +646,8 @@ $timer.Add_Tick({
   $width = 480 * [Math]::Min(1, $script:shown)
   $fill.Width = $width
   $head.Margin = New-Object System.Windows.Thickness -ArgumentList ($width - 9), -4, 0, -4
-  $percent.Text = '{0:0}%' -f ([Math]::Min(100, $script:shown * 100))
+  # Rounded down, like the bar: 100% only once it's full.
+  $percent.Text = '{0}%' -f [int][Math]::Floor([Math]::Min(100, $script:shown * 100 + 0.0001))
 })
 $timer.Start()
 $null = $win.ShowDialog()

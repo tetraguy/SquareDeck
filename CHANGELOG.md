@@ -3,6 +3,29 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 6.36.14
+
+- Updating SquareDeck: the progress bar now keeps in step with the percentage.
+  - Installer screen: the moving shine sweeps only inside the filled part of the bar. It used to run along the whole track, past where the fill ended, so the bar looked further along than the percentage said.
+  - Installer screen: the number is rounded down like the bar, so it reads 100% only once the bar is full.
+  - Download screen: the bar is set to the same point as the number each time. It used to restart a short slide on every update, which kept it trailing behind the percentage.
+
+## 6.36.13
+
+- Game library: the controller now moves around the page properly in every layout (grids, posters, banners, lists, shelves and timeline). The page works out moves itself, from where things are on the page, even when they're scrolled out of sight.
+  - Up and down go to the closest item in the row above or below, including between the tiles and the tabs or chips at the top.
+  - Left and right move along the row, including to tiles further along a shelf that haven't scrolled in yet. In a grid they wrap from the end of one row to the start of the next.
+  - The item you move to is scrolled fully into view. Before, the highlight often stayed put while the page crept a little with each press.
+
+## 6.36.12
+
+- Game library: moving up and down through the tiles scrolls properly in the Posters layout (and in every other tile layout). The highlight goes to the closest tile in the next row, even when that row is off screen, and the page scrolls to show the whole tile. Before, tall poster rows were often out of sight, so the highlight stayed put and the page only crept down a little with each press.
+
+## 6.36.11
+
+- Home: game artwork comes back after you close a game. While a game runs, SquareDeck puts the covers away to save memory and reads them back afterwards. That read-back now handles each tile on its own, so one picture that fails no longer leaves the tiles after it blank. It also starts as soon as the game closes, even before SquareDeck is back in front.
+- Any Home tile still without art after a game now loads it again the usual way, from saved covers on disk. This includes the "Continue where you left off" tile when it was made while the game's cover was put away.
+
 ## 6.36.10
 
 - Luna XP: your name in the Power menu is black again. In Luna XP it sits below the blue title bar, not on it. Retro Windows keeps it white on its navy bar.

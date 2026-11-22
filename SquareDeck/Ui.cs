@@ -1255,6 +1255,14 @@ public sealed class ProgressFill
             { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
     }
 
+    /// <summary>Straight to a fraction (0–1), no slide.</summary>
+    public void Snap(double fraction)
+    {
+        _fraction = Math.Clamp(double.IsNaN(fraction) ? 0 : fraction, 0, 1);
+        _set = true;
+        if (Full > 0) Snap();
+    }
+
     /// <summary>Straight to the right width, ending any slide.</summary>
     public void Snap()
     {

@@ -2223,6 +2223,7 @@ public sealed class LibraryScreen : Screen
     private readonly System.Windows.Threading.DispatcherTimer _searchSoon = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly StackPanel _toolbar = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _groups = new();
+    private ScrollViewer? _pageScroll;
     private readonly Border _letterBadge = new()
     {
         Width = 150, Height = 150, CornerRadius = new CornerRadius(30), HorizontalAlignment = HorizontalAlignment.Center,
@@ -2272,6 +2273,7 @@ public sealed class LibraryScreen : Screen
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             PanningMode = PanningMode.VerticalOnly, Focusable = false, Content = content
         };
+        _pageScroll = scroll;
         // Showcase fits four banners to the row, so a change of width lays it out again.
         _groups.SizeChanged += (_, e) =>
         {
@@ -3207,6 +3209,7 @@ public sealed class LibraryScreen : Screen
             ChooseLayout();
             return true;
         }
+        if (action is NavAction.Up or NavAction.Down or NavAction.Left or NavAction.Right) return Navigate(action);
         // LB / RB: the section before or after, from anywhere on the page.
         if (action is NavAction.LB or NavAction.RB && _tabIds.Count > 0)
         {
@@ -3251,6 +3254,87 @@ public sealed class LibraryScreen : Screen
     {
         char c = g.Name.Length > 0 ? char.ToUpperInvariant(g.Name[0]) : '#';
         return char.IsLetter(c) ? c : '#';
+    }
+
+    /// <summary>
+    /// The controller's d-pad and stick on this page, worked out from where things are on the page, scrolled out of
+    /// sight or not. Windows' own moves only pick from what's already on screen, so with the next row (or the next
+    /// tile along a shelf) out of sight the highlight stayed put and the page crept a little with each press, in
+    /// every layout. Up / down go to the closest thing in the row above or below; left / right along the row, and in a
+    /// grid from the end of one row to the start of the next. The new one is then scrolled fully into view.
+    /// </summary>
+    private bool Navigate(NavAction action)
+    {
+        if (System.Windows.Input.Keyboard.FocusedElement is not FrameworkElement current || !IsAncestorOf(current)) return false;
+        // Typing in the search box: left / right move the caret.
+        if (current == _searchInput && action is NavAction.Left or NavAction.Right) return false;
+
+        Rect At(FrameworkElement e)
+        {
+            try { return e.IsVisible && e.ActualWidth > 0 ? new Rect(e.TranslatePoint(new Point(0, 0), this), e.RenderSize) : Rect.Empty; }
+            catch (InvalidOperationException) { return Rect.Empty; }
+        }
+        var here = At(current);
+        if (here.IsEmpty) return false;
+        var places = Focusables(this)
+            .Where(e => e != current)
+            .Select(e => (Item: e, At: At(e))).Where(x => !x.At.IsEmpty).ToList();
+        double cx = here.Left + here.Width / 2, cy = here.Top + here.Height / 2;
+
+        FrameworkElement? target = null;
+        if (action is NavAction.Up or NavAction.Down)
+        {
+            bool down = action == NavAction.Down;
+            // Things clearly above / below: their middle is past this one's edge.
+            var beyond = places.Where(x => down ? x.At.Top + x.At.Height / 2 > here.Bottom - 2 : x.At.Top + x.At.Height / 2 < here.Top + 2).ToList();
+            if (beyond.Count > 0)
+            {
+                // The nearest row, then the closest across in it.
+                double edge = down ? beyond.Min(x => x.At.Top) : beyond.Max(x => x.At.Bottom);
+                var row = beyond.Where(x => down ? x.At.Top < edge + Math.Max(12, x.At.Height / 2) : x.At.Bottom > edge - Math.Max(12, x.At.Height / 2));
+                target = row.OrderBy(x => Math.Max(0, Math.Max(x.At.Left - cx, cx - x.At.Right))) // overlapping across first
+                            .ThenBy(x => Math.Abs(x.At.Left + x.At.Width / 2 - cx)).First().Item;
+            }
+            else if (down && _pageScroll != null)
+            {
+                _pageScroll.ScrollToEnd(); // the last row: show the rest of it
+                return true;
+            }
+        }
+        else
+        {
+            bool right = action == NavAction.Right;
+            // Same row: overlapping up and down with this one.
+            var along = places.Where(x => x.At.Top < here.Bottom - 4 && x.At.Bottom > here.Top + 4 &&
+                                          (right ? x.At.Left + x.At.Width / 2 > cx + 1 : x.At.Left + x.At.Width / 2 < cx - 1)).ToList();
+            if (along.Count > 0)
+                target = along.OrderBy(x => Math.Abs(x.At.Left + x.At.Width / 2 - cx)).ThenBy(x => Math.Abs(x.At.Top + x.At.Height / 2 - cy)).First().Item;
+            else if (current is Button tile && Tiles() is var tiles && tiles.IndexOf(tile) is int i and >= 0)
+            {
+                // A grid: past the end of a row to the start of the next, and back.
+                int next = i + (right ? 1 : -1);
+                if (next >= 0 && next < tiles.Count) target = tiles[next];
+            }
+        }
+        if (target == null) return true; // nothing that way: stay put (don't let Windows scroll the page by bits)
+        target.Focus();
+        Host.Rumble();
+        // A little room around it for the highlight ring and a grown tile.
+        target.BringIntoView(new Rect(-12, -36, target.ActualWidth + 24, target.ActualHeight + 56));
+        return true;
+    }
+
+    /// <summary>Everything on the page the highlight can go to (buttons, the search box), on screen or scrolled away.</summary>
+    private static IEnumerable<FrameworkElement> Focusables(DependencyObject root)
+    {
+        int count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is UIElement { IsVisible: false }) continue;
+            if (child is Control { Focusable: true, IsTabStop: true, IsEnabled: true } control and (ButtonBase or TextBox)) { yield return control; continue; }
+            foreach (var inner in Focusables(child)) yield return inner;
+        }
     }
 
     /// <summary>Moves the highlight to the first tile of the next (or previous) starting letter.</summary>

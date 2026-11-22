@@ -149,13 +149,28 @@ public sealed class Game : INotifyPropertyChanged
     public bool Parked => _parkedCover != null || _parkedPortrait != null;
 
     /// <summary>Reads the parked pictures back in (off the interface thread) and puts them back on the tile.</summary>
+    /// A picture that can't be read back (its file was replaced or deleted meanwhile) is left empty; the caller then
+    /// loads that tile's art the usual way (see MainWindow.RestoreMissingArt).
     public async Task UnparkAsync()
     {
         var cover = _parkedCover;
         var portrait = _parkedPortrait;
         _parkedCover = _parkedPortrait = null;
-        if (cover is { } c && _cover == null) Cover = await Task.Run(() => Services.ImageLoader.FromFile(c.Path, c.Width)) ?? _cover;
-        if (portrait is { } p && _portraitCover == null) PortraitCover = await Task.Run(() => Services.ImageLoader.FromFile(p.Path, p.Width)) ?? _portraitCover;
+        try
+        {
+            if (cover is { } c && _cover == null)
+            {
+                var image = await Task.Run(() => Services.ImageLoader.FromFile(c.Path, c.Width));
+                if (_cover == null && image != null) Cover = image;
+            }
+            if (portrait is { } p && _portraitCover == null)
+            {
+                var image = await Task.Run(() => Services.ImageLoader.FromFile(p.Path, p.Width));
+                if (_portraitCover == null && image != null) PortraitCover = image;
+                else if (image == null) PortraitTried = false; // looked for again
+            }
+        }
+        catch (Exception) { }
     }
 
     /// <summary>True once the tall cover has been looked for (found or not), so it isn't asked for again.</summary>

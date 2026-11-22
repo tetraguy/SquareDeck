@@ -498,6 +498,7 @@ public partial class MainWindow : Window
                 _ = LoadContinueArtAsync(_continueTile);
             }
             _continueTile.Name = target.Name;
+            _continueTile.Cover ??= target.Cover; // made while the cover was put away during a game, or still loading
             _continueTile.IsRunning = target.IsRunning;
             _continueTile.Subtitle = ContinueSubtitle(target);
             row.Add(_continueTile);
