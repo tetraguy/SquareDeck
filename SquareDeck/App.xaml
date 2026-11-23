@@ -14,6 +14,7 @@
         <SolidColorBrush x:Key="FgBrush" Color="#2D2D2D"/>
         <SolidColorBrush x:Key="SubtleBrush" Color="#6B6B6B"/>
         <SolidColorBrush x:Key="AccentBrush" Color="#0AB9C9"/>
+        <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="AccentOnDarkBrush" Color="#0AB9C9"/>
         <!-- The home tile ring; the window swaps it for clear while a button has the focus -->
         <SolidColorBrush x:Key="RingActiveBrush" Color="#00BFD8"/>
@@ -294,7 +295,7 @@
 
         <!-- Large filled button (Play on the game page): the highlight color, with a ring when it has the focus -->
         <Style x:Key="AccentButton" TargetType="Button">
-            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}"/>
             <Setter Property="FontSize" Value="20"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>

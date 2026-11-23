@@ -302,7 +302,7 @@ public partial class MainWindow
         if (when == Labs.Get("crash.seen")) return;
         bool first = !Labs.Has("crash.seen");
         Labs.Put("crash.seen", when);
-        if (!first) Notifications.Add("info", "SquareDeck ran into a problem", "Report it in one tap from Settings > Experimental > One-tap bug report.");
+        if (!first) Notifications.Add("info", "SquareDeck ran into a problem", "Report it in one tap from Settings > Updates and data > One-tap bug report.");
     }
 
     // ---------------------------------------------------------------- milestones: confetti

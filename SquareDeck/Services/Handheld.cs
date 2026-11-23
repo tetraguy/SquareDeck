@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Win32;
 
 namespace SquareDeck.Services;
@@ -232,6 +233,29 @@ public static class Handheld
     }
 
     public static string Brand => Current?.Brand ?? (AllyKnown ? "ASUS" : "");
+
+    /// <summary>
+    /// A picture of this handheld for the My Device page (Devices\&lt;board&gt;.png next to SquareDeck), or null when there
+    /// isn't one for the model. Follows the model SquareDeck settled on, so choosing one in Settings changes it too.
+    /// </summary>
+    public static string? ImagePath
+    {
+        get
+        {
+            string? board = DisplayName switch
+            {
+                "ROG Xbox Ally X20" => "RC74XA",
+                "ROG Xbox Ally X" => "RC73XA",
+                "ROG Xbox Ally" => "RC73YA",
+                "ROG Ally X" => "RC72LA",
+                "ROG Ally" => "RC71L",
+                _ => null
+            };
+            if (board == null) return null;
+            string path = Path.Combine(AppContext.BaseDirectory, "Devices", board + ".png");
+            return File.Exists(path) ? path : null;
+        }
+    }
 
     public static HandheldVendor Vendor => Current?.Vendor ?? (AllyKnown ? HandheldVendor.Asus : HandheldVendor.Generic);
 

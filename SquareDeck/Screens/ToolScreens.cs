@@ -233,7 +233,7 @@ public sealed class GameProfileScreen : ListScreen
             AddHeader("Power");
             AddRow("TDP on battery", p.TdpWatts > 0 ? TdpControl.Clamp(p.TdpWatts) + " W" : "Default (" + TdpControl.Clamp(Host.Settings.TdpWatts) + " W)",
                 "\uE83F", click: () => TdpChoice(plugged: false),
-                subtitle: !TdpControl.Installed ? "Set up TDP control in Settings > Power and performance first"
+                subtitle: !TdpControl.Installed ? "Set up TDP control in Settings > " + SettingsScreen.TdpPlace + " first"
                         : !Host.Settings.TdpEnabled ? "TDP control is off in Settings" : null);
             var s = Host.Settings;
             int everydayPlugged = s.TdpPluggedWatts > 0 ? s.TdpPluggedWatts : s.TdpWatts;

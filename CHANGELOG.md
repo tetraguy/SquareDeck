@@ -12,6 +12,25 @@ Many experimental features have settled in and moved to where you'd look for the
 - **Switches in their new homes:** Overnight downloads, Discord, Screenshot on achievements, Watermark screenshots, Achievement guides, Trailers in SquareDeck, Open Steam in fullscreen, Steam refund reminder, Milestone celebrations, Game diary and Close store launchers after playing (Library and stores); Download updates automatically (Updates); Settings view style (Look and feel); Style schedule (Themes); Darken covers, Cover art effect, Covers that tilt, Dusty tiles and Companion (Home screen); Sound that follows the genre (Sound and music, off until you turn it on); Adrenaline Hook (System and tools, off until you turn it on).
 - **Covers that tilt** have options: strength (subtle to extreme), the effect (parallax shift, swing, 3D lean, or float with a moving shadow), zoom, and reversing the direction.
 
+**Game Genie, faster**
+- **Answers appear as they're written:** the summary, the facts and each question pop in one by one while Gemini is still working, with a small "still writing" line under them; you can open answers straight away, and the list doesn't jump or close what you've opened as more arrive. More questions work the same way, under the questions you already have.
+- **Less waiting:** the Genie asks Gemini to skip most of its "thinking" (these are look-up answers, not puzzles), which was often longer than writing the answers themselves.
+
+**Fixes**
+- **Play button on a light highlight color:** with Rewind's white highlight (or any very light one, like yellow or lime), the game page's Play button had white text on a white button. Text and icons on highlight-colored buttons now turn dark when the highlight is too light for white.
+- **Game Genie:** its robe no longer comes apart from the smoke below it while it floats and breathes; the smoke now rises straight up into the robe.
+
+**Your handheld has its own section in Settings**
+On a handheld, Settings now has a section named after it (for example *ROG Xbox Ally X20*), out of Experimental. It's the one place for the TDP: the limit, presets, the plugged-in limit, temperature limit, boost window and power profile, the Ryzen tuning (CPU boost, maximum speed, energy preference, cores, Windows power mode) and the TDP helper, next to the Ally's lights, performance and fans, battery care, controller and buttons, and the supported devices list. Power and performance no longer has its own copy of the TDP controls, and the Ally's Performance and fans page no longer has a separate TDP row. On a PC that isn't a recognized handheld, the TDP stays in Power and performance. My Device's Power limit, Temperature and Fan cards open the new section.
+
+**More out of Experimental**
+- **Wallpaper Engine import:** Home screen > Moving background.
+- **One-tap bug report:** Updates and data, in Updates.
+- **Achievement sticker book:** Library and stores, with the other library features.
+
+**Your handheld on My Device**
+The My Device page now shows a picture of your actual handheld, floating over a soft shadow next to its name: the ROG Ally, ROG Ally X, ROG Xbox Ally, ROG Xbox Ally X or ROG Xbox Ally X20, picked from the model SquareDeck detects (or the one chosen in Settings). Other devices keep the icon.
+
 **DeckTube**
 VacuumTube in SquareDeck is now called **DeckTube**, with its own logo: SquareDeck's chamfered frame in YouTube red with a white play button. It's still powered by [VacuumTube](https://github.com/shy1132/VacuumTube) by shy and contributors (MIT licence), credited on the DeckTube tab, its loading screen and in Credits.
 

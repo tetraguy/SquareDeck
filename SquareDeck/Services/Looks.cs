@@ -259,7 +259,9 @@ public static class Looks
         {
             style.Setters.Add(new Setter(Control.BackgroundProperty, fill));
             style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0)));
-            style.Setters.Add(new Setter(Control.ForegroundProperty, Sketch.Paint(d.PlayText)));
+            // White text on the highlight color follows it, so a light highlight gets dark text instead.
+            bool onAccent = d.PlayColors is not { Length: > 0 } && string.Equals(d.PlayText, "#FFFFFF", StringComparison.OrdinalIgnoreCase);
+            style.Setters.Add(new Setter(Control.ForegroundProperty, onAccent ? new DynamicResourceExtension("OnAccentBrush") : Sketch.Paint(d.PlayText)));
         }
         PlayStyles[Current.Id] = style;
         return style;

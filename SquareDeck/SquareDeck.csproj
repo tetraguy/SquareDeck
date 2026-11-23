@@ -36,6 +36,7 @@
     <None Update="CloudLogos\**\*" CopyToOutputDirectory="PreserveNewest" />
     <!-- Recomp Zone's emblem for its opening animation -->
     <None Update="RecompZone\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Devices\**\*" CopyToOutputDirectory="PreserveNewest" />
     <!-- Button pictures for the hints: Glyphs\<look>\<controller or keyboard>\<button>.png -->
     <None Update="Glyphs\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

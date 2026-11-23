@@ -78,7 +78,8 @@ public static partial class Labs
     public static readonly HashSet<string> Graduated = new(AlwaysOn.Concat(DefaultOn).Concat(new[]
     {
         "overnight", "discord", "achshot", "watermark", "guides", "trailers", "steamfullscreen", "refund", "milestones", "diary",
-        "closelaunchers", "autoupdate", "settingsview", "styleschedule", "coverdim", "covereffect", "tilt", "dust", "companion", "genresound"
+        "closelaunchers", "autoupdate", "settingsview", "styleschedule", "coverdim", "covereffect", "tilt", "dust", "companion", "genresound",
+        "wallpaperengine", "bugreport", "stickers"
     }));
 
     public static LabFeature? Feature(string id) => Features.FirstOrDefault(f => f.Id == id);

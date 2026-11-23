@@ -102,7 +102,7 @@ public static class GameGenie
         "Anything that gives away the story, an ending, a twist or a late surprise must be marked as a spoiler.";
 
     /// <summary>A new sheet for a game: a summary, key facts and about 14 questions with answers.</summary>
-    public static async Task<Sheet> MakeAsync(string gameKey, string name, string known, CancellationToken ct)
+    public static async Task<Sheet> MakeAsync(string gameKey, string name, string known, CancellationToken ct, Action<Sheet>? progress = null)
     {
         string prompt = Rules + "\n\nGame: " + name + "\nWhat the launcher knows about it:\n" + Trim(known, 6000) + "\n\n" +
             "Write a JSON object with exactly these fields:\n" +
@@ -112,7 +112,25 @@ public static class GameGenie
             " \"answers\": [{\"q\": \"question\", \"a\": \"answer\", \"category\": one of \"Getting started\", \"Tips\", \"Story\", \"Secrets\", \"Completion\", \"Technical\", \"spoiler\": true or false}, ...]}\n" +
             "Give 14 answers that a player would really ask, spread over the categories (at least 2 each for Getting started, Tips and Completion; " +
             "Technical covers settings, performance on a handheld PC, controls and saves). Story questions must be spoiler free unless marked as spoilers.";
-        var node = await AskJsonAsync(prompt, ct);
+        // While Gemini writes, the summary, facts and each finished answer are shown as they arrive.
+        int shown = -1;
+        void Partial(string text)
+        {
+            if (progress == null) return;
+            var partial = new Sheet
+            {
+                Game = name,
+                Summary = PartialString(text, "summary") ?? "",
+                Facts = ReadFacts(PartialArray(text, "facts")),
+                Answers = ReadAnswers(PartialArray(text, "answers")),
+                Made = DateTime.Now
+            };
+            int size = partial.Answers.Count * 100 + partial.Facts.Count * 2 + (partial.Summary.Length > 0 ? 1 : 0);
+            if (size == shown) return;
+            shown = size;
+            progress(partial);
+        }
+        var node = await AskJsonAsync(prompt, ct, progress == null ? null : Partial);
         var sheet = new Sheet
         {
             Game = name,
@@ -127,14 +145,23 @@ public static class GameGenie
     }
 
     /// <summary>More questions, different from the ones already on the sheet.</summary>
-    public static async Task<List<Answer>> MoreAsync(string gameKey, Sheet sheet, string known, CancellationToken ct)
+    public static async Task<List<Answer>> MoreAsync(string gameKey, Sheet sheet, string known, CancellationToken ct, Action<List<Answer>>? progress = null)
     {
         string asked = string.Join("\n", sheet.Answers.Select(a => "- " + a.Q));
         string prompt = Rules + "\n\nGame: " + sheet.Game + "\nWhat the launcher knows about it:\n" + Trim(known, 4000) + "\n\n" +
             "These questions are already answered:\n" + Trim(asked, 4000) + "\n\n" +
             "Write a JSON object {\"answers\": [{\"q\": ..., \"a\": ..., \"category\": one of \"Getting started\", \"Tips\", \"Story\", \"Secrets\", \"Completion\", \"Technical\", \"spoiler\": true or false}, ...]} " +
             "with 8 new, different questions players ask about this game, with answers.";
-        var node = await AskJsonAsync(prompt, ct);
+        int shown = -1;
+        void Partial(string text)
+        {
+            if (progress == null) return;
+            var found = ReadAnswers(PartialArray(text, "answers")).Where(n => !sheet.Answers.Any(a => a.Q.Equals(n.Q, StringComparison.OrdinalIgnoreCase))).ToList();
+            if (found.Count == shown) return;
+            shown = found.Count;
+            progress(found);
+        }
+        var node = await AskJsonAsync(prompt, ct, progress == null ? null : Partial);
         var more = ReadAnswers(node?["answers"]).Where(n => !sheet.Answers.Any(a => a.Q.Equals(n.Q, StringComparison.OrdinalIgnoreCase))).ToList();
         sheet.Answers.AddRange(more);
         Save(gameKey, sheet);
@@ -163,6 +190,58 @@ public static class GameGenie
         return answer;
     }
 
+    // ---------------------------------------------------------------- reading an answer that's still arriving
+
+    /// <summary>A top-level string field of JSON that's still being written, once its closing quote has arrived.</summary>
+    internal static string? PartialString(string text, string key)
+    {
+        int k = text.IndexOf("\"" + key + "\"", StringComparison.Ordinal);
+        if (k < 0) return null;
+        int colon = text.IndexOf(':', k + key.Length + 2);
+        if (colon < 0) return null;
+        int open = text.IndexOf('"', colon + 1);
+        if (open < 0) return null;
+        for (int i = open + 1; i < text.Length; i++)
+        {
+            if (text[i] == '\\') { i++; continue; }
+            if (text[i] != '"') continue;
+            try { return JsonNode.Parse(text[open..(i + 1)])?.GetValue<string>()?.Trim(); }
+            catch (Exception) { return null; }
+        }
+        return null;
+    }
+
+    /// <summary>The finished objects of an array field in JSON that's still being written (the one being written is left out).</summary>
+    internal static JsonArray PartialArray(string text, string key)
+    {
+        var result = new JsonArray();
+        int k = text.IndexOf("\"" + key + "\"", StringComparison.Ordinal);
+        if (k < 0) return result;
+        int open = text.IndexOf('[', k + key.Length + 2);
+        if (open < 0) return result;
+        bool inString = false;
+        int depth = 0, start = -1;
+        for (int i = open + 1; i < text.Length; i++)
+        {
+            char c = text[i];
+            if (inString)
+            {
+                if (c == '\\') i++;
+                else if (c == '"') inString = false;
+                continue;
+            }
+            if (c == '"') inString = true;
+            else if (c == '{') { if (depth++ == 0) start = i; }
+            else if (c == '}' && depth > 0 && --depth == 0 && start >= 0)
+            {
+                try { if (JsonNode.Parse(text[start..(i + 1)]) is JsonObject o) result.Add(o); } catch (Exception) { }
+                start = -1;
+            }
+            else if (c == ']' && depth == 0) break;
+        }
+        return result;
+    }
+
     private static List<Fact> ReadFacts(JsonNode? node) =>
         node is JsonArray a
             ? a.OfType<JsonObject>().Select(o => new Fact { Label = Str(o["label"]), Value = Str(o["value"]) }).Where(f => f.Label.Length > 0 && f.Value.Length > 0).Take(10).ToList()
@@ -187,9 +266,9 @@ public static class GameGenie
 
     private static string Trim(string text, int max) => text.Length <= max ? text : text[..max] + "…";
 
-    private static async Task<JsonNode?> AskJsonAsync(string prompt, CancellationToken ct)
+    private static async Task<JsonNode?> AskJsonAsync(string prompt, CancellationToken ct, Action<string>? partial = null)
     {
-        string text = await GenerateAsync(prompt, ct);
+        string text = await GenerateAsync(prompt, ct, partial);
         // Sometimes wrapped in a code fence despite asking for JSON.
         text = text.Trim();
         if (text.StartsWith("```")) text = text.Trim('`').Trim();
@@ -204,15 +283,25 @@ public static class GameGenie
     /// One request to Gemini. Keys that start with "AQ." are Vertex AI (Google Cloud) express-mode keys, so those try
     /// Vertex AI first; other keys (AIza…) go to the Gemini API. Each tries a few current models.
     /// </summary>
-    private static async Task<string> GenerateAsync(string prompt, CancellationToken ct)
+    private static async Task<string> GenerateAsync(string prompt, CancellationToken ct, Action<string>? partial = null)
     {
         string key = Key;
         if (key.Length == 0) throw new GenieException("Game Genie needs a Google Gemini API key. Add one under \"Gemini API key\" on the Genie's page.");
-        var body = new JsonObject
+        // Speed: these are look-up answers, not puzzles, so the model's "thinking" (which can take longer than the answer
+        // itself) is turned down to the least each model allows. A model that refuses the setting is asked again without it.
+        string Body(string model, bool thinking)
         {
-            ["contents"] = new JsonArray(new JsonObject { ["role"] = "user", ["parts"] = new JsonArray(new JsonObject { ["text"] = prompt }) }),
-            ["generationConfig"] = new JsonObject { ["temperature"] = 0.6, ["responseMimeType"] = "application/json", ["maxOutputTokens"] = 8192 }
-        }.ToJsonString();
+            var config = new JsonObject { ["temperature"] = 0.6, ["responseMimeType"] = "application/json", ["maxOutputTokens"] = 8192 };
+            if (thinking)
+                config["thinkingConfig"] = model.Contains("2.5") || model.Contains("2.0")
+                    ? new JsonObject { ["thinkingBudget"] = 0 }
+                    : new JsonObject { ["thinkingLevel"] = "low" };
+            return new JsonObject
+            {
+                ["contents"] = new JsonArray(new JsonObject { ["role"] = "user", ["parts"] = new JsonArray(new JsonObject { ["text"] = prompt }) }),
+                ["generationConfig"] = config
+            }.ToJsonString();
+        }
 
         // The Gemini API's own list for this key: the newest Flash models it really offers come first.
         var listed = await DiscoverAsync(key, ct);
@@ -230,30 +319,47 @@ public static class GameGenie
         int bestRank = -1;
         void Note(int rank, string text) { if (rank > bestRank) { bestRank = rank; best = text; } }
 
-        foreach (var (vertex, model) in routes)
+        for (int r = 0; r < routes.Count; r++)
         {
+            var (vertex, model) = routes[r];
             ct.ThrowIfCancellationRequested();
+            bool thinking = !NoThinking.Contains(model);
+            // Streamed, so each part of the answer can be shown as soon as it's written.
+            string method = partial != null ? "streamGenerateContent" : "generateContent";
             string url = vertex
-                ? $"https://aiplatform.googleapis.com/v1/publishers/google/models/{model}:generateContent?key={Uri.EscapeDataString(key)}"
-                : $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent";
-            using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+                ? $"https://aiplatform.googleapis.com/v1/publishers/google/models/{model}:{method}?{(partial != null ? "alt=sse&" : "")}key={Uri.EscapeDataString(key)}"
+                : $"https://generativelanguage.googleapis.com/v1beta/models/{model}:{method}{(partial != null ? "?alt=sse" : "")}";
+            using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(Body(model, thinking), Encoding.UTF8, "application/json") };
             if (!vertex) request.Headers.Add("x-goog-api-key", key);
             HttpResponseMessage response;
-            try { response = await Http.SendAsync(request, ct); }
+            try { response = await Http.SendAsync(request, partial != null ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, ct); }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex) { Note(1, "SquareDeck couldn't reach Google (" + ex.Message + "). Check the internet connection."); continue; }
             using (response)
             {
-                string json = await response.Content.ReadAsStringAsync(ct);
                 if (response.IsSuccessStatusCode)
                 {
-                    string text = ReadText(json);
+                    string text;
+                    if (partial != null)
+                    {
+                        try { text = await ReadStreamAsync(response, partial, ct); }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                        catch (Exception ex) { Note(1, "The connection to Google dropped (" + ex.Message + "). Try again."); continue; }
+                    }
+                    else text = ReadText(await response.Content.ReadAsStringAsync(ct));
                     if (text.Length > 0) { _working = (vertex, model); return text; }
                     Note(3, "Gemini didn't send an answer (it may have been blocked by its safety filter). Try again.");
                     continue;
                 }
+                string json = await response.Content.ReadAsStringAsync(ct);
                 int code = (int)response.StatusCode;
                 string message = ErrorMessage(json);
+                if (code == 400 && thinking && message.Contains("thinking", StringComparison.OrdinalIgnoreCase))
+                {
+                    NoThinking.Add(model); // this model doesn't take the setting: the same model again, without it
+                    r--;
+                    continue;
+                }
                 string where = vertex ? "Vertex AI" : "the Gemini API";
                 switch (code)
                 {
@@ -319,6 +425,29 @@ public static class GameGenie
         _discovered = found;
         _discoveredFor = key;
         return found;
+    }
+
+    /// <summary>Models that refused the thinking setting this session.</summary>
+    private static readonly HashSet<string> NoThinking = new();
+
+    /// <summary>
+    /// Reads a streamed answer (server-sent events, one JSON chunk per "data:" line), telling <paramref name="partial"/>
+    /// the text so far after each chunk.
+    /// </summary>
+    private static async Task<string> ReadStreamAsync(HttpResponseMessage response, Action<string> partial, CancellationToken ct)
+    {
+        var all = new StringBuilder();
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        while (await reader.ReadLineAsync(ct) is { } line)
+        {
+            if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+            string chunk = ReadText(line[5..].Trim());
+            if (chunk.Length == 0) continue;
+            all.Append(chunk);
+            try { partial(all.ToString()); } catch (Exception) { }
+        }
+        return all.ToString();
     }
 
     private static string ReadText(string json)

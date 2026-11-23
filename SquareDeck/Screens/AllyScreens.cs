@@ -129,16 +129,12 @@ public sealed class AllyControlScreen : ListScreen
         if (!acpi) AddNote("SquareDeck couldn't reach ASUS's firmware driver (ATKACPI, installed with Armoury Crate SE or the MyASUS drivers), so these settings can't be applied.");
         AddRow("ASUS mode", AllyControl.AsusModes.FirstOrDefault(m => m.Id == s.AllyAsusMode).Name ?? "Leave as it is", "",
             click: () => Pick("ASUS mode", AllyControl.AsusModes, m => m.Name, m => s.AllyAsusMode = m.Id, () => Task.Run(AllyControl.ApplyPower)),
-            subtitle: "The same as Armoury Crate's Silent, Performance and Turbo. SquareDeck's TDP limit, when on, is applied on top");
+            subtitle: "The same as Armoury Crate's Silent, Performance and Turbo. The TDP limit (Processor power, in this device's section of Settings), when on, is applied on top");
         var fan = AllyControl.FanCurves.FirstOrDefault(f => f.Id == s.AllyFan);
         AddRow("Fans", fan.Name ?? "Leave as it is", "",
             click: () => Pick("Fans", AllyControl.FanCurves, f => f.Name, f => s.AllyFan = f.Id, () => Task.Run(AllyControl.ApplyPower)),
             subtitle: string.IsNullOrEmpty(fan.About) ? null : fan.About);
         if (acpi && AsusAcpi.FanRpm(AsusAcpi.CpuFan) is int rpm) AddRow("Fan speed now", rpm.ToString("N0") + " RPM", "", click: Rebuild, subtitle: "Select to refresh");
-        AddRow("TDP (power limit)", TdpControl.Ready ? TdpControl.EffectiveWatts + " W" : "Off", "",
-            click: () => _ = Host.AskAsync("TDP", "Set the power limit in Settings > Power. " +
-                (acpi ? "On an Ally it can go through ASUS's firmware, with no setup." : ""), "OK"),
-            subtitle: TdpControl.UsesAsus ? "Through ASUS's firmware" : "Through RyzenAdj");
 
         // ---------------------------------------------------------------- battery
         AddHeader("Battery care");

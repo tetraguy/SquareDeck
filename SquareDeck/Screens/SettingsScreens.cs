@@ -25,6 +25,7 @@ public sealed class SettingsScreen : ListScreen
         ("library", "Library and stores", "\uE8F1", "Library layout and stores, achievements, play time, service keys"),
         ("controller", "Controller and quick menu", "\uE7FC", "Buttons, vibration, typing, the quick menu, handheld buttons"),
         ("power", "Power and performance", "\uEC4A", "Live hardware readouts, TDP limit, Ryzen tuning, launcher performance"),
+        ("handheld", "{device}", Ui.HandheldGlyph, "TDP limit and processor power, lights, fans, battery care and buttons for this device"),
         ("network", "Network and browser", "\uE774", "Wi-Fi, Bluetooth, troubleshooting, the web browser"),
         ("access", "Accessibility", "\uE776", "Text size, high contrast, reduced motion"),
         ("apps", "Apps", "\uE71D", "Installed apps: uninstall, repair, reset; startup and default apps"),
@@ -34,7 +35,8 @@ public sealed class SettingsScreen : ListScreen
     };
 
     /// <summary>
-    /// The sections shown. On a recognized handheld, Experimental also holds "&lt;model&gt; Specific Settings".
+    /// The sections shown. On a recognized handheld it has a section of its own, named after the model, which is the one
+    /// place for its TDP; on any other PC the TDP stays in Power and performance and that section isn't shown.
     /// </summary>
     private static (string Id, string Name, string Glyph, string About)[] VisibleCategories
     {
@@ -42,11 +44,13 @@ public sealed class SettingsScreen : ListScreen
         {
             // "{styles}" is the number of ready-made styles, counted when shown (see UiStyles.ReadyMadeCount).
             var all = Categories.Select(c => (c.Id, c.Name, c.Glyph, c.About.Replace("{styles}", UiStyles.ReadyMadeCount.ToString())));
-            if (!Handheld.IsHandheld) return all.ToArray();
-            // The handheld's own settings live in Experimental for now.
-            return all.Select(c => c.Id == "experimental"
-                ? (c.Id, c.Name, c.Glyph, Handheld.DisplayName + " Specific Settings and features still being tried out")
-                : c).ToArray();
+            if (!Handheld.IsHandheld) return all.Where(c => c.Id != "handheld").ToArray();
+            return all.Select(c => c.Id switch
+            {
+                "handheld" => (c.Id, Handheld.DisplayName, c.Glyph, c.Item4),
+                "power" => (c.Id, c.Name, c.Glyph, "Live hardware readouts, Performance Boost, the overlay, launcher performance"),
+                _ => c
+            }).ToArray();
         }
     }
 
@@ -58,7 +62,7 @@ public sealed class SettingsScreen : ListScreen
     {
         ["looks"] = new[] { ("looks", (string[]?)null) },
         ["look"] = new[] { ("look", (string[]?)new[] { "Background", "Colors", "Font", "Your looks", "Profile", "Artwork" }), ("look", new[] { "Top bar", "Display", "Settings view and unlockables" }) },
-        ["home"] = new[] { ("home", (string[]?)new[] { "Home row and buttons", "Buttons under the games", "Animations", "Covers and companion", "Screen saver", "Starting and closing" }) },
+        ["home"] = new[] { ("home", (string[]?)new[] { "Home row and buttons", "Buttons under the games", "Animations", "Covers and companion", "Moving background", "Screen saver", "Starting and closing" }) },
         ["sound"] = new[] { ("sound", (string[]?)null) },
         ["gaming"] = new[] { ("games", (string[]?)new[] { "Launching games", "While playing" }), ("power", new[] { "Performance Boost", "Performance overlay" }), ("games", new[] { "Cloud gaming" }) },
         ["library"] = new[] { ("games", (string[]?)new[] { "Library and stores", "Achievements, play time and captures", "Library and store features", "Pages and services", "Service keys" }) },
@@ -198,7 +202,7 @@ public sealed class SettingsScreen : ListScreen
         Labs.Put("settings.layout", Layouts[c].Id);
         // The layout is set up when the page opens, so open it again.
         Host.Pop(this);
-        Host.Push(new SettingsScreen("experimental"));
+        Host.Push(new SettingsScreen("look"));
     }
 
     // ---------------------------------------------------------------- two panes (console-style looks)
@@ -440,7 +444,8 @@ public sealed class SettingsScreen : ListScreen
     protected override void Build()
     {
         var s = Host.Settings;
-        if (_category == "handheld") _category = "experimental"; // the handheld's settings are in Experimental now
+        // The handheld's section only exists on a handheld; elsewhere its TDP settings are in Power and performance.
+        if (_category == "handheld" && !Handheld.IsHandheld) _category = "power";
         var cat = VisibleCategories.FirstOrDefault(c => c.Id == _category);
         if (cat.Id == null) { _category = "overview"; cat = Categories[0]; }
 
@@ -972,9 +977,9 @@ public sealed class SettingsScreen : ListScreen
         Rows.Children.Add(shelf);
         if (unlockable)
             AddNote("Unlockable styles are earned by playing: each one opens up when you reach its goal, and SquareDeck lets you know. " +
-                    "They're Advanced styles drawn by Claude, with their own artwork, font, sounds and music.");
+                    "They're Advanced styles with their own artwork, font, sounds and music.");
         else if (legendary)
-            AddNote("Legendary styles were drawn from scratch by Claude, SquareDeck's AI collaborator: every panel, button, pop-up, " +
+            AddNote("Legendary styles are drawn from scratch: every panel, button, pop-up, " +
                     "switch, check box, pointer, icon and wallpaper. They keep the Switch layout, and with matching on each brings its own " +
                     "theme, font, interface sounds and music.");
         else
@@ -1440,6 +1445,9 @@ public sealed class SettingsScreen : ListScreen
         if (Labs.On("tilt")) BuildTiltOptions();
         AddFeature("dust");
         AddFeature("companion");
+
+        AddHeader("Moving background");
+        AddFeature("wallpaperengine");
     }
 
     private void BuildSound(Settings s)
@@ -1565,13 +1573,13 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Quick menu takes the controller", OnOff(s.OverlayTakesController), "\uE7FC", click: () => Toggle(() => s.OverlayTakesController = !s.OverlayTakesController),
             subtitle: "While the menu is open, the game doesn't react to your buttons. Turn off if a game minimizes or goes black when the menu opens");
         AddRow("TDP in the quick menu", OnOff(s.OverlayTdp), "\uE945", click: () => Toggle(() => s.OverlayTdp = !s.OverlayTdp),
-            subtitle: TdpControl.Ready ? "Presets and a slider for the power limit while you play" : "Turn on TDP control in Settings > Power first");
+            subtitle: TdpControl.Ready ? "Presets and a slider for the power limit while you play" : "Turn on TDP control in Settings > " + TdpPlace + " first");
 
         if (Handheld.IsHandheld)
         {
             AddHeader("Handheld buttons");
-            AddRow(Handheld.DisplayName + " Specific Settings", null, Ui.HandheldGlyph, click: () => Show("experimental", focusContent: true),
-                subtitle: "The device's own buttons, lights and controls, in Settings > Experimental");
+            AddRow(Handheld.DisplayName + " Specific Settings", null, Ui.HandheldGlyph, click: () => Show("handheld", focusContent: true),
+                subtitle: "The device's own buttons, lights, power and controls");
         }
     }
 
@@ -1635,6 +1643,31 @@ public sealed class SettingsScreen : ListScreen
                 : "To show FPS, put Intel's PresentMon (free, github.com/GameTechDev/PresentMon) in SquareDeck's Tools\\PresentMon folder. Everything else works without it.");
             AddNote("The overlay shows over borderless and windowed games. Games in exclusive full-screen mode draw over everything, so switch them to borderless to see it.");
         }
+        // TDP and processor tuning: on a handheld they live in its own section of Settings, so there is one place for them.
+        if (!Handheld.IsHandheld) BuildTdp(s);
+
+        AddHeader("Launcher performance");
+        AddRow("Performance mode", Perf.Label(s.PerformanceMode), "\uEC4A", click: () =>
+        {
+            // Off -> on battery only -> always -> off
+            s.PerformanceMode = s.PerformanceMode switch { "off" => "battery", "battery" => "on", _ => "off" };
+            s.Save();
+            Host.ApplyPerformance();
+            Rebuild();
+        }, subtitle: Perf.Active ? "On now: lighter effects to save battery and graphics power" : "Uses less graphics power and battery");
+        AddNote("Turns off drop shadows, glows and live blurs (artwork is softened a cheaper way), the pulsing highlight and " +
+                "animated covers, and draws animations at 30 frames a second (from the next start). While a game runs and " +
+                "SquareDeck is in the background, it always stops drawing and gives the game its CPU and graphics time.");
+
+    }
+
+    /// <summary>
+    /// Processor power: the TDP limit (and its helper) and the Ryzen tuning. In the handheld's own section on a handheld,
+    /// in Power and performance on any other PC; never in both.
+    /// </summary>
+    private void BuildTdp(Settings s)
+    {
+        var chip = TdpControl.Chip;
         AddHeader("Processor power (TDP)");
         if (chip == null)
         {
@@ -1792,20 +1825,6 @@ public sealed class SettingsScreen : ListScreen
                 Rebuild();
             });
         }
-
-        AddHeader("Launcher performance");
-        AddRow("Performance mode", Perf.Label(s.PerformanceMode), "\uEC4A", click: () =>
-        {
-            // Off -> on battery only -> always -> off
-            s.PerformanceMode = s.PerformanceMode switch { "off" => "battery", "battery" => "on", _ => "off" };
-            s.Save();
-            Host.ApplyPerformance();
-            Rebuild();
-        }, subtitle: Perf.Active ? "On now: lighter effects to save battery and graphics power" : "Uses less graphics power and battery");
-        AddNote("Turns off drop shadows, glows and live blurs (artwork is softened a cheaper way), the pulsing highlight and " +
-                "animated covers, and draws animations at 30 frames a second (from the next start). While a game runs and " +
-                "SquareDeck is in the background, it always stops drawing and gives the game its CPU and graphics time.");
-
     }
 
     /// <summary>"How the limit is set": a choice when there's more than one way on this PC.</summary>
@@ -1882,6 +1901,12 @@ public sealed class SettingsScreen : ListScreen
     }
 
     // ---------------------------------------------------------------- <model> Specific Settings
+
+    /// <summary>Where the TDP settings are: the handheld's own section on a handheld, Power and performance elsewhere.</summary>
+    public static string TdpPlace => Handheld.IsHandheld ? Handheld.DisplayName : "Power and performance";
+
+    /// <summary>The section of Settings with the TDP settings.</summary>
+    public static string TdpSection => Handheld.IsHandheld ? "handheld" : "power";
 
     private void BuildHandheld(Settings s)
     {
@@ -1980,15 +2005,11 @@ public sealed class SettingsScreen : ListScreen
             }
         }
 
-        // Power, on every handheld.
-        AddHeader("Power");
-        var chip = TdpControl.Chip;
-        AddRow("TDP limit", TdpControl.Ready ? TdpControl.EffectiveWatts + " W" : TdpControl.CanApply ? "Off" : "Not set up", "\uE945",
-            click: () => Show("power", focusContent: true),
-            subtitle: chip != null ? $"{chip.Min}–{chip.Max} W on this device, set in Power and performance" : "Set in Power and performance");
-        AddTdpMethodRow(s);
+        // Processor power: the one place in Settings for the TDP limit on a handheld.
+        BuildTdp(s);
         if (HandheldVendors.Supported || TdpControl.IsIntel)
         {
+            if (DeviceHelper.Installed || !HandheldVendors.Supported) AddHeader("Device helper");
             if (DeviceHelper.Installed)
             {
                 AddRow("Device helper", "Set up", "\uE90F", click: async () =>
@@ -2238,7 +2259,7 @@ public sealed class SettingsScreen : ListScreen
 
         AddHeader("Library and store features");
         foreach (var id in new[] { "installestimate", "overnight", "closelaunchers", "steamfullscreen", "refund", "trailers", "diary", "guides",
-                                   "achshot", "watermark", "milestones", "discord" })
+                                   "achshot", "watermark", "milestones", "stickers", "discord" })
             AddFeature(id);
         AddHeader("Pages and services");
         foreach (var id in new[] { "recomp", "freegames", "vacuumtube", "musicstreams", "leaderboard", "boss", "mood", "passport" })
@@ -2401,9 +2422,6 @@ public sealed class SettingsScreen : ListScreen
                 "settled in have moved to their own places in Settings.");
 
         BuildLabs();
-
-        // The handheld's own settings (moved here from their own section), with the supported devices at the bottom.
-        if (Handheld.IsHandheld) BuildHandheld(s);
     }
 
     /// <summary>Adrenaline Hook (off until turned on): in System and tools.</summary>
@@ -2533,6 +2551,7 @@ public sealed class SettingsScreen : ListScreen
             Toggle(() => s.AutoUpdateCheck = !s.AutoUpdateCheck));
         AddRow("Check for updates now", glyph: "", click: () => _ = Host.CheckForUpdatesAsync(manual: true));
         AddFeature("autoupdate");
+        AddFeature("bugreport");
         if (s.SkippedVersion.Length > 0)
             AddRow("Stop ignoring " + s.SkippedVersion, glyph: "", click: () => Toggle(() => s.SkippedVersion = ""));
         AddRow("View changelogs", null, "\uE81C", subtitle: "What changed in each version", click: () => Host.Push(new ChangelogScreen()));

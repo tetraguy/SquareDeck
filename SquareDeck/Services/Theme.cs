@@ -436,6 +436,11 @@ public static class Theme
             var light = new SolidColorBrush(onDark);
             light.Freeze();
             Application.Current.Resources["AccentOnDarkBrush"] = light;
+            // Text and icons on an accent-filled button (Play): white, unless the accent is so light that white
+            // disappears on it (Rewind's white, a yellow or lime highlight), then near-black.
+            var on = new SolidColorBrush(lum > 0.72 ? Color.FromRgb(0x14, 0x16, 0x1C) : Colors.White);
+            on.Freeze();
+            Application.Current.Resources["OnAccentBrush"] = on;
         }
     }
 }

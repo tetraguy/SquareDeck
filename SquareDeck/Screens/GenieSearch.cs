@@ -513,8 +513,10 @@ public sealed class GenieSearch : Grid
         double sway = _calm ? 0 : Math.Sin(t * 1.8);
         var p0 = Spout;
         var p1 = new Point(336 + 10 * sway, 230);
-        var p2 = new Point(250 - 14 * sway, 252 + bob * 0.5);
-        var p3 = new Point(Waist.X, Waist.Y + bob);
+        // The smoke rises straight up into the robe and ends well inside it (behind it), so however the Genie bobs,
+        // sways or breathes, the robe's hem always sits on the smoke with no gap.
+        var p2 = new Point(Waist.X + 8 - 10 * sway, Waist.Y + 48 + bob * 0.8);
+        var p3 = new Point(Waist.X, Waist.Y - 16 + bob);
         const int n = 30;
         var left = new List<Point>();
         var right = new List<Point>();
@@ -528,7 +530,7 @@ public sealed class GenieSearch : Grid
             if (tan.Length < 0.001) tan = new Vector(0, -1);
             tan.Normalize();
             var normal = new Vector(-tan.Y, tan.X);
-            double half = 3 + 37 * Math.Pow(u, 1.6) + (_calm ? 0 : 1.5 * Math.Sin(u * 12 - t * 6) * u);
+            double half = 3 + 39 * Math.Pow(u, 1.6) + (_calm ? 0 : 1.5 * Math.Sin(u * 12 - t * 6) * u * (1 - u) * 2);
             left.Add(p + normal * half);
             right.Add(p - normal * half);
         }

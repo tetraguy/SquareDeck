@@ -2,6 +2,8 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using Path = System.Windows.Shapes.Path;
@@ -81,8 +83,8 @@ public sealed class MyDeviceScreen : ListScreen
         var live = new WrapPanel();
         GaugeTile(live, "cpu", "", "Processor", () => Host.Push(new TaskManagerScreen()));
         GaugeTile(live, "gpu", "", "Graphics", () => Host.Push(new TaskManagerScreen()));
-        GaugeTile(live, "temp", "", "Temperature", () => Host.Push(new SettingsScreen("experimental")));
-        GaugeTile(live, "fans", "", "Fan", () => Host.Push(new SettingsScreen("experimental")));
+        GaugeTile(live, "temp", "", "Temperature", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
+        GaugeTile(live, "fans", "", "Fan", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
         Rows.Children.Add(live);
 
         Section("Power");
@@ -90,7 +92,7 @@ public sealed class MyDeviceScreen : ListScreen
         CardTile(power, "draw", "", "Power draw", () => Host.Push(new BatteryScreen()), graph: true);
         CardTile(power, "health", "", "Battery health", () => Host.Push(new BatteryScreen()), bar: true);
         CardTile(power, "drain", "", "Battery pace", () => Host.Push(new BatteryScreen()));
-        CardTile(power, "tdp", "", "Power limit", () => Host.Push(new SettingsScreen("power")));
+        CardTile(power, "tdp", "", "Power limit", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
         CardTile(power, "pad", "", "Controller", () => Host.Push(new SettingsScreen("controller")));
         CardTile(power, "brightness", "", "Brightness", () => Host.Push(new QuickSettingsScreen()), bar: true);
         Rows.Children.Add(power);
@@ -111,10 +113,10 @@ public sealed class MyDeviceScreen : ListScreen
         Rows.Children.Add(system);
 
         AddHeader("More");
-        AddRow(Handheld.DisplayName + " Specific Settings", null, Ui.HandheldGlyph, click: () => Host.Push(new SettingsScreen("experimental")),
-            subtitle: "Lights, power modes, fans, charge limit and more for this device");
+        AddRow(Handheld.DisplayName + " Specific Settings", null, Ui.HandheldGlyph, click: () => Host.Push(new SettingsScreen("handheld")),
+            subtitle: "TDP limit, lights, power modes, fans, charge limit and more for this device");
         AddRow("Power and performance", null, "", click: () => Host.Push(new SettingsScreen("power")),
-            subtitle: "TDP limit, CPU boost, Windows power mode");
+            subtitle: "Live readouts, Performance Boost, the overlay, launcher performance");
         AddRow("Battery", null, "", click: () => Host.Push(new BatteryScreen()), subtitle: "Battery saver, charging and usage");
         AddRow("My Device on the home screen", Host.Settings.ShowMyDeviceButton ? "On" : "Off", "", click: () =>
         {
@@ -159,22 +161,29 @@ public sealed class MyDeviceScreen : ListScreen
         panel.Background = bg;
 
         var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var photo = DevicePhoto();
+        if (photo != null) grid.Children.Add(photo);
         // A soft circle of light behind the battery ring.
         var halo = new Ellipse { Width = 360, Height = 360, Margin = new Thickness(0, -120, -140, -120), HorizontalAlignment = HorizontalAlignment.Right, IsHitTestVisible = false,
             Fill = new RadialGradientBrush(Color.FromArgb(0x40, a.R, a.G, a.B), Color.FromArgb(0, a.R, a.G, a.B)) };
-        Grid.SetColumnSpan(halo, 2);
+        Grid.SetColumnSpan(halo, 3);
         grid.Children.Add(halo);
 
         var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var top = new StackPanel { Orientation = Orientation.Horizontal };
-        var badge = new Border { Width = 64, Height = 64, CornerRadius = new CornerRadius(20), Margin = new Thickness(0, 0, 16, 0), Background = new SolidColorBrush(a) };
-        var icon = Ui.Glyph(Ui.HandheldGlyph, 32, "BgBrush");
-        icon.HorizontalAlignment = HorizontalAlignment.Center;
-        icon.VerticalAlignment = VerticalAlignment.Center;
-        badge.Child = icon;
-        top.Children.Add(badge);
+        // The device's own picture stands in for the icon when there is one.
+        if (photo == null)
+        {
+            var badge = new Border { Width = 64, Height = 64, CornerRadius = new CornerRadius(20), Margin = new Thickness(0, 0, 16, 0), Background = new SolidColorBrush(a) };
+            var icon = Ui.Glyph(Ui.HandheldGlyph, 32, "BgBrush");
+            icon.HorizontalAlignment = HorizontalAlignment.Center;
+            icon.VerticalAlignment = VerticalAlignment.Center;
+            badge.Child = icon;
+            top.Children.Add(badge);
+        }
         var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         names.Children.Add(Ui.Text(Handheld.DisplayName, 34, "FgBrush", bold: true));
         if (Handheld.Brand.Length > 0) names.Children.Add(Ui.Text(Handheld.Brand, 15, "SubtleBrush"));
@@ -203,6 +212,7 @@ public sealed class MyDeviceScreen : ListScreen
         string bios = Bios("BIOSVersion");
         if (bios.Length > 0) Chip("", "BIOS " + bios);
         left.Children.Add(chips);
+        Grid.SetColumn(left, 1);
         grid.Children.Add(left);
 
         // The battery ring.
@@ -213,11 +223,77 @@ public sealed class MyDeviceScreen : ListScreen
         _batteryState.HorizontalAlignment = HorizontalAlignment.Center;
         _batteryState.Margin = new Thickness(0, 8, 0, 0);
         ringBox.Children.Add(_batteryState);
-        Grid.SetColumn(ringBox, 1);
+        Grid.SetColumn(ringBox, 2);
         grid.Children.Add(ringBox);
 
         panel.Child = grid;
         return panel;
+    }
+
+    /// <summary>
+    /// The handheld itself (the right picture for the model), floating gently over a soft shadow, sliding in when the
+    /// page opens. Null when SquareDeck has no picture of this device.
+    /// </summary>
+    private static UIElement? DevicePhoto()
+    {
+        string? path = Handheld.ImagePath;
+        if (path == null) return null;
+        BitmapImage bmp;
+        try
+        {
+            bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.DecodePixelWidth = 760;
+            bmp.UriSource = new Uri(path);
+            bmp.EndInit();
+            bmp.Freeze();
+        }
+        catch (Exception) { return null; }
+
+        const double width = 380;
+        double height = width * bmp.PixelHeight / Math.Max(1, bmp.PixelWidth);
+        var box = new Grid { Width = width, Margin = new Thickness(-6, -8, 26, -8), VerticalAlignment = VerticalAlignment.Center };
+        var shadow = new Ellipse
+        {
+            Width = width * 0.78, Height = 26, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, -6), IsHitTestVisible = false,
+            Fill = new RadialGradientBrush(Color.FromArgb(0x70, 0, 0, 0), Color.FromArgb(0, 0, 0, 0))
+        };
+        box.Children.Add(shadow);
+        var image = new Image { Source = bmp, Width = width, Height = height, Stretch = Stretch.Uniform, Margin = new Thickness(0, 0, 0, 14) };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+        var lift = new TranslateTransform();
+        image.RenderTransform = lift;
+        box.Children.Add(image);
+
+        // Slides up and fades in, then floats.
+        box.Opacity = 0;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        box.Loaded += (_, _) =>
+        {
+            box.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(450)));
+            var rise = new DoubleAnimation(28, 0, TimeSpan.FromMilliseconds(600)) { EasingFunction = ease };
+            rise.Completed += (_, _) =>
+            {
+                var bob = new DoubleAnimation(0, -7, TimeSpan.FromSeconds(2.6))
+                {
+                    AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                };
+                lift.BeginAnimation(TranslateTransform.YProperty, bob);
+                var breathe = new DoubleAnimation(1, 0.82, TimeSpan.FromSeconds(2.6))
+                {
+                    AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                };
+                shadow.BeginAnimation(FrameworkElement.WidthProperty, new DoubleAnimation(width * 0.78, width * 0.66, TimeSpan.FromSeconds(2.6))
+                {
+                    AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                });
+                shadow.BeginAnimation(UIElement.OpacityProperty, breathe);
+            };
+            lift.BeginAnimation(TranslateTransform.YProperty, rise);
+        };
+        return box;
     }
 
     private static string Bios(string name)
@@ -458,7 +534,7 @@ public sealed class MyDeviceScreen : ListScreen
             // Power limit.
             if (TdpControl.Ready)
                 Set("tdp", TdpControl.EffectiveWatts + " W", TdpControl.MethodName(TdpControl.Method) + (TdpControl.Chip is { } chip ? $"  ·  {chip.Min}–{chip.Max} W" : ""));
-            else Set("tdp", TdpControl.CanApply ? "Off" : "—", TdpControl.CanApply ? "TDP control is off" : "Set up in Power");
+            else Set("tdp", TdpControl.CanApply ? "Off" : "—", TdpControl.CanApply ? "TDP control is off" : "Set up in Settings");
 
             // Controller battery (a wireless pad connected), and brightness.
             string? pad = Host.ControllerBattery;
