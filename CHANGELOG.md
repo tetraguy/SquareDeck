@@ -3,14 +3,7 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
-## 7.2.0
-
-**Out of Experimental**
-Many experimental features have settled in and moved to where you'd look for them. Settings > Experimental now only holds what's still being tried out.
-- **Always there now:** Move games between drives and **Fix this game** (in a game's options, right under Show in folder), Storage advisor and Library cleanup (System and tools), Stick check and dead zone (Controller and quick menu), Battery health (on the Battery page), **Game Genie** (an Ask Genie button on every game's page) and **Unlockables** (Look and feel).
-- **On for everyone, with a switch in Library and stores:** Install estimate, Recomp Zone, Free games tracker, DeckTube, YouTube Music and Apple Music, Friends leaderboard, Backlog boss fight, Mood picker and Gamer passport.
-- **Switches in their new homes:** Overnight downloads, Discord, Screenshot on achievements, Watermark screenshots, Achievement guides, Trailers in SquareDeck, Open Steam in fullscreen, Steam refund reminder, Milestone celebrations, Game diary and Close store launchers after playing (Library and stores); Download updates automatically (Updates); Settings view style (Look and feel); Style schedule (Themes); Darken covers, Cover art effect, Covers that tilt, Dusty tiles and Companion (Home screen); Sound that follows the genre (Sound and music, off until you turn it on); Adrenaline Hook (System and tools, off until you turn it on).
-- **Covers that tilt** have options: strength (subtle to extreme), the effect (parallax shift, swing, 3D lean, or float with a moving shadow), zoom, and reversing the direction.
+## 7.3.0
 
 **Game Genie, faster**
 - **Answers appear as they're written:** the summary, the facts and each question pop in one by one while Gemini is still working, with a small "still writing" line under them; you can open answers straight away, and the list doesn't jump or close what you've opened as more arrive. More questions work the same way, under the questions you already have.
@@ -36,6 +29,15 @@ VacuumTube in SquareDeck is now called **DeckTube**, with its own logo: SquareDe
 
 **An easy way out of streaming services**
 Like DeckTube, every streaming service now has quick ways back to SquareDeck (the service stays open, paused): press **View + Menu** together from anywhere, **Ctrl+Q** on a keyboard, or tap the **← SquareDeck** button that appears in the corner with touch or a mouse. A reminder shows each time a service opens. View or Menu alone wait a moment so pressing both doesn't also open quick settings or go full screen. (View + Menu now works in DeckTube even when SquareDeck is reading the controller.)
+
+## 7.2.0
+
+**Out of Experimental**
+Many experimental features have settled in and moved to where you'd look for them. Settings > Experimental now only holds what's still being tried out.
+- **Always there now:** Move games between drives and **Fix this game** (in a game's options, right under Show in folder), Storage advisor and Library cleanup (System and tools), Stick check and dead zone (Controller and quick menu), Battery health (on the Battery page), **Game Genie** (an Ask Genie button on every game's page) and **Unlockables** (Look and feel).
+- **On for everyone, with a switch in Library and stores:** Install estimate, Recomp Zone, Free games tracker, VacuumTube (now DeckTube), YouTube Music and Apple Music, Friends leaderboard, Backlog boss fight, Mood picker and Gamer passport.
+- **Switches in their new homes:** Overnight downloads, Discord, Screenshot on achievements, Watermark screenshots, Achievement guides, Trailers in SquareDeck, Open Steam in fullscreen, Steam refund reminder, Milestone celebrations, Game diary and Close store launchers after playing (Library and stores); Download updates automatically (Updates); Settings view style (Look and feel); Style schedule (Themes); Darken covers, Cover art effect, Covers that tilt, Dusty tiles and Companion (Home screen); Sound that follows the genre (Sound and music, off until you turn it on); Adrenaline Hook (System and tools, off until you turn it on).
+- **Covers that tilt** have options: strength (subtle to extreme), the effect (parallax shift, swing, 3D lean, or float with a moving shadow), zoom, and reversing the direction.
 
 **New buttons**
 - **Library:** next to Collections, *How are you feeling?* (the mood picker), *Fight the Backlog Boss* and *My Gamer Passport* (with a passport icon).
