@@ -3,6 +3,16 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 7.3.13
+
+**Sign in with Steam to get your API key**
+No more copying a key by hand: *Sign in with Steam* opens Steam's own sign-in with its QR code. Scan it with the Steam app on your phone (Steam Guard > Scan a QR code), or sign in with your name and password, and SquareDeck reads your Steam Web API key from Steam's page, or registers one for you (if Steam asks, approve it in the Steam app). The key is saved straight away, turning on Friends and every game you own. It's the first choice under Settings > Library and stores > Service keys > Steam Web API key, and a card on the Games step of setup. (Steam only gives keys to accounts that have spent at least $5 in its store; SquareDeck says so if that's the case.)
+
+## 7.3.12
+
+**Switch off ASUS Optimization**
+When the ASUS Optimization service is installed, your Ally's section of Settings has an **ASUS software** group with a switch for it. ASUS's background service handles the Ally's special buttons and puts back ASUS's own power limits, so it can take over the buttons SquareDeck maps and the TDP SquareDeck sets. Switching it off stops it and keeps it from starting with Windows (Windows asks for permission); switch it back on at any time from the same place.
+
 ## 7.3.11
 
 **A new first-time setup**

@@ -2301,6 +2301,32 @@ public sealed class SettingsScreen : ListScreen
                 subtitle: "For a long trip: charges fully now; the limit comes back next time SquareDeck starts");
         AddRow("Battery health", null, "", click: () => Host.Push(new BatteryScreen()), subtitle: "Wear, charge cycles and how long a charge lasts");
 
+        // ---- ASUS software: the ASUS Optimization service, when it's installed
+        if (AsusOptimization.Installed)
+        {
+            AddHeader("ASUS software");
+            bool on = AsusOptimization.Enabled;
+            AddRow("ASUS Optimization service", on ? (AsusOptimization.Running ? "On (running)" : "On") : "Off", "\uE912", click: async () =>
+            {
+                if (on && await Host.AskAsync("Switch off ASUS Optimization?",
+                        "ASUS's background service handles the Ally's special buttons and puts back ASUS's own power limits, so it can take over " +
+                        "the buttons SquareDeck maps and the TDP SquareDeck sets. Switching it off stops it and keeps it from starting with Windows. " +
+                        "Armoury Crate SE's own button features need it; you can switch it back on here at any time. Windows will ask for permission.",
+                        "Switch it off", "Cancel") != 0) return;
+                Host.ShowToast("ROG ALLY", on ? "Switching off ASUS Optimization…" : "Switching on ASUS Optimization…", "", "", "info", remember: false);
+                var error = await AsusOptimization.SetEnabledAsync(!on);
+                if (error != null) await Host.AskAsync("ASUS Optimization", error, "OK");
+                else
+                {
+                    Host.ShowToast("ROG ALLY", on ? "ASUS Optimization is off" : "ASUS Optimization is on",
+                        on ? "SquareDeck's buttons and TDP won't be overridden" : "ASUS's own button features are back", "", "info", remember: false);
+                    if (on && TdpControl.Ready) _ = TdpControl.ApplyAsync(quiet: true); // SquareDeck's limit, now that nothing puts ASUS's back
+                    Host.ApplyAllyButtons();
+                }
+                Rebuild();
+            }, subtitle: on ? "Switch off to stop it overriding SquareDeck's button mapping and TDP" : "Off: SquareDeck's buttons and TDP aren't overridden. Select to switch it back on");
+        }
+
         AddNote("The firmware and controller messages come from HandheldCompanion by Valkirie (github.com/Valkirie/HandheldCompanion). " +
                 "Armoury Crate SE can change the same settings; if it's running, the last one to change something wins.");
     }
@@ -3067,6 +3093,7 @@ public sealed class SettingsScreen : ListScreen
         bool has = host.Settings.SteamWebApiKey.Length > 0;
         var options = new List<(string, string)>
         {
+            ("Sign in with Steam (scan a QR code with the Steam app)", "\uE8D7"),
             (copied.Length > 0 ? "Use the key I copied" : "Enter my key", copied.Length > 0 ? "\uE77F" : "\uE765"),
             ("Get a key from Steam (opens in the browser)", "\uE774")
         };
@@ -3075,6 +3102,15 @@ public sealed class SettingsScreen : ListScreen
             "A free key from Steam lets SquareDeck list your friends and the games you own but haven't installed. " +
             "On Steam's page, sign in, type any domain name (for example \"localhost\"), agree, and copy the key. " +
             "It's stored only on this PC.", options.ToArray());
+        if (choice == 0)
+        {
+            // Steam's own sign-in (a QR code for the Steam app), then SquareDeck reads or registers the key itself.
+            var signIn = new SteamSignInScreen();
+            host.Push(signIn);
+            if (await signIn.Result) done();
+            return;
+        }
+        choice--; // the rest as before
         if (choice == 1)
         {
             host.Push(BrowserScreen.Open(host, SteamKeyPage));

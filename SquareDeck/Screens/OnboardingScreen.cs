@@ -794,7 +794,7 @@ public sealed class OnboardingScreen : Screen
             {
                 double t = Math.Min(1, (DateTime.UtcNow - started).TotalMilliseconds / 1100);
                 count.Text = ((int)Math.Round(games.Count * (1 - Math.Pow(1 - t, 3)))).ToString();
-                if (t >= 1 || _step != 5) timer.Stop();
+                if (t >= 1 || Steps[_step].Id != "games") timer.Stop();
             };
             timer.Start();
         }
@@ -821,9 +821,21 @@ public sealed class OnboardingScreen : Screen
 
         var toggles = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
         toggles.Children.Add(Toggle("", "Other launchers", "Epic, GOG, Ubisoft, EA, Xbox / Game Pass, Battle.net and Steam shortcuts.", s.OtherStores, () => s.OtherStores = !s.OtherStores));
-        var key = Toggle("", "Steam Web API key", string.IsNullOrWhiteSpace(s.SteamWebApiKey) ? "Optional: for Friends and games you own but haven't installed." : "Saved. Friends and your whole Steam library are on.",
-            !string.IsNullOrWhiteSpace(s.SteamWebApiKey), () => { });
-        key.Click += async (_, _) => { await SettingsScreen.EditSteamKeyAsync(Host, () => { }); Go(_step, keep: true); };
+        bool hasKey = !string.IsNullOrWhiteSpace(s.SteamWebApiKey);
+        var key = Toggle("\uE8D7", "Sign in with Steam", hasKey ? "Done: Friends and your whole Steam library are on." : "Scan a QR code with the Steam app for Friends and every game you own.",
+            hasKey, () => { });
+        key.Click += async (_, _) =>
+        {
+            if (!string.IsNullOrWhiteSpace(Host.Settings.SteamWebApiKey)) await SettingsScreen.EditSteamKeyAsync(Host, () => { });
+            else
+            {
+                // Steam's sign-in page with its QR code; the key is fetched by itself once you're in.
+                var signIn = new SteamSignInScreen();
+                Host.Push(signIn);
+                await signIn.Result;
+            }
+            Go(_step, keep: true);
+        };
         toggles.Children.Add(key);
         body.Children.Add(toggles);
         return page;
