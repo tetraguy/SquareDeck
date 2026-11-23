@@ -23,7 +23,7 @@ public partial class MainWindow
         {
             (HomeBtn, "home"), (FavBtn, "favorites"), (AppsBtn, "apps"), (CapturesBtn, "captures"), (MusicBtn, "music"),
             (FriendsBtn, "friends"), (NewsBtn, "news"), (BrowserBtn, "browser"), (ExplorerBtn, "explorer"),
-            (StoresBtn, "stores"), (MyDeviceBtn, "device"), (SettingsBtn, "settings"), (PowerBtn, "power")
+            (MyDeviceBtn, "device"), (StoresBtn, "stores"), (SettingsBtn, "settings"), (PowerBtn, "power")
         })
         {
             SkinParts.SetIconScaling(button, scaling);

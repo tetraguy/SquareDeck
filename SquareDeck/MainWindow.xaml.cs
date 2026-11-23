@@ -2457,11 +2457,19 @@ public partial class MainWindow : Window
         {
             _scrollAnimating = true;
             _scrollLastFrame = TimeSpan.Zero;
+            _scrollPos = _scroll.HorizontalOffset;
             CompositionTarget.Rendering += AnimateScroll;
         }
     }
 
     private TimeSpan _scrollLastFrame;
+
+    /// <summary>
+    /// Where the glide is, kept here rather than read back from the row: the row only takes a new offset at its next
+    /// layout, so reading it every frame got last frame's value, and the glide stuttered and fought the selection when
+    /// the stick was held.
+    /// </summary>
+    private double _scrollPos;
 
     /// <summary>
     /// Glides the row to the selection. Timed by the clock rather than by frames, so it's just as quick when frames
@@ -2475,18 +2483,20 @@ public partial class MainWindow : Window
         double ms = _scrollLastFrame == TimeSpan.Zero ? 16.7 : Math.Clamp((frameTime - _scrollLastFrame).TotalMilliseconds, 1, 100);
         _scrollLastFrame = frameTime;
 
-        double current = _scroll.HorizontalOffset;
-        double target = Math.Min(_scrollTarget, _scroll.ScrollableWidth);
-        double diff = target - current;
-        if (Math.Abs(diff) < 0.75)
+        double target = Math.Min(_scrollTarget, Math.Max(0, _scroll.ScrollableWidth));
+        double diff = target - _scrollPos;
+        if (Math.Abs(diff) < 0.5)
         {
+            _scrollPos = target;
             _scroll.ScrollToHorizontalOffset(target);
             _scrollAnimating = false;
             CompositionTarget.Rendering -= AnimateScroll;
             return;
         }
-        double step = 1 - Math.Exp(-ms / 38.0);
-        _scroll.ScrollToHorizontalOffset(current + diff * step);
+        double step = 1 - Math.Exp(-ms / 45.0);
+        _scrollPos += diff * step;
+        // Whole device pixels: a fractional offset makes every cover resample (and shimmer) on each frame.
+        _scroll.ScrollToHorizontalOffset(Math.Round(_scrollPos));
     }
 
     // ================================================================ round buttons

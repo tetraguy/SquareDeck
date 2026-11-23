@@ -24,7 +24,6 @@ public sealed class SettingsScreen : ListScreen
         ("gaming", "Gaming", "\uE768", "Launching games, while you play, Performance Boost, the overlay, cloud gaming"),
         ("library", "Library and stores", "\uE8F1", "Library layout and stores, achievements, play time, service keys"),
         ("controller", "Controller and quick menu", "\uE7FC", "Buttons, vibration, typing, the quick menu, handheld buttons"),
-        ("power", "Power and performance", "\uEC4A", "Live hardware readouts, TDP limit, Ryzen tuning, launcher performance"),
         ("handheld", "{device}", Ui.HandheldGlyph, "TDP limit and processor power, lights, fans, battery care and buttons for this device"),
         ("network", "Network and browser", "\uE774", "Wi-Fi, Bluetooth, troubleshooting, the web browser"),
         ("access", "Accessibility", "\uE776", "Seeing, motion, hearing, controls and timing, reading aloud"),
@@ -48,7 +47,6 @@ public sealed class SettingsScreen : ListScreen
             return all.Select(c => c.Id switch
             {
                 "handheld" => (c.Id, Handheld.DisplayName, c.Glyph, c.Item4),
-                "power" => (c.Id, c.Name, c.Glyph, "Live hardware readouts, Performance Boost, the overlay, launcher performance"),
                 _ => c
             }).ToArray();
         }
@@ -64,10 +62,11 @@ public sealed class SettingsScreen : ListScreen
         ["look"] = new[] { ("look", (string[]?)new[] { "Background", "Colors", "Font", "Your looks", "Profile", "Artwork" }), ("look", new[] { "Top bar", "Display", "Settings view and unlockables" }) },
         ["home"] = new[] { ("home", (string[]?)new[] { "Home row and buttons", "Buttons under the games", "Animations", "Covers and companion", "Moving background", "Screen saver", "Starting and closing" }) },
         ["sound"] = new[] { ("sound", (string[]?)null) },
-        ["gaming"] = new[] { ("games", (string[]?)new[] { "Launching games", "While playing" }), ("power", new[] { "Performance Boost", "Performance overlay" }), ("games", new[] { "Cloud gaming" }) },
+        ["gaming"] = new[] { ("games", (string[]?)new[] { "Launching games", "While playing" }), ("power", new[] { "Performance Boost", "Performance overlay" }), ("games", new[] { "Cloud gaming" }),
+                             // On a PC that isn't a recognized handheld, the TDP (on a handheld it's in the handheld's own section).
+                             ("power", new[] { "Processor power (TDP)", "Processor (Ryzen Z1 / Z2)", "TDP helper" }) },
         ["library"] = new[] { ("games", (string[]?)new[] { "Library and stores", "Achievements, play time and captures", "Library and store features", "Pages and services", "Service keys" }) },
         ["controller"] = new[] { ("controller", (string[]?)null) },
-        ["power"] = new[] { ("power", (string[]?)new[] { "This device", "Processor power (TDP)", "Processor (Ryzen Z1 / Z2)", "TDP helper", "Launcher performance" }) },
         ["network"] = new[] { ("network", (string[]?)null) },
         ["access"] = new[] { ("access", (string[]?)null) },
         ["apps"] = new[] { ("apps", (string[]?)null) },
@@ -78,7 +77,13 @@ public sealed class SettingsScreen : ListScreen
     };
 
     /// <summary>Section ids from earlier versions.</summary>
-    private static string Upgrade(string id) => id switch { "games" => "gaming", _ => id };
+    private static string Upgrade(string id) => id switch
+    {
+        "games" => "gaming",
+        // Power and performance is gone: its TDP is in the handheld's section (or Gaming elsewhere), the rest in Gaming.
+        "power" => Handheld.IsHandheld ? "handheld" : "gaming",
+        _ => id
+    };
 
     private string _category;
     private readonly StackPanel _nav = new();
@@ -445,7 +450,7 @@ public sealed class SettingsScreen : ListScreen
     {
         var s = Host.Settings;
         // The handheld's section only exists on a handheld; elsewhere its TDP settings are in Power and performance.
-        if (_category == "handheld" && !Handheld.IsHandheld) _category = "power";
+        if (_category == "handheld" && !Handheld.IsHandheld) _category = "gaming";
         var cat = VisibleCategories.FirstOrDefault(c => c.Id == _category);
         if (cat.Id == null) { _category = "overview"; cat = Categories[0]; }
 
@@ -1045,7 +1050,7 @@ public sealed class SettingsScreen : ListScreen
     }
 
     /// <summary>An Advanced style's card: a picture of its artwork, its name in its own font, and its colors.</summary>
-    private static Button AdvancedCard(UiStyle st, string? variant, bool inUse, double W, StyleUnlocks.Progress? locked = null)
+    internal static Button AdvancedCard(UiStyle st, string? variant, bool inUse, double W, StyleUnlocks.Progress? locked = null)
     {
         var card = new StackPanel { Width = W };
         var frame = new Grid { Width = W, Height = W * 191 / 340, ClipToBounds = true };
@@ -1126,7 +1131,7 @@ public sealed class SettingsScreen : ListScreen
     }
 
     /// <summary>A style's card: a little picture of its home screen, its name in its own font, and what it's like.</summary>
-    private static Button StyleCard(UiStyle st, bool inUse, double W)
+    internal static Button StyleCard(UiStyle st, bool inUse, double W)
     {
         var card = new StackPanel { Width = W };
         var frame = new Grid();
@@ -1670,6 +1675,18 @@ public sealed class SettingsScreen : ListScreen
             subtitle: s.RumbleStrength > 0 ? "Each animation has its own pattern, timed to it" : "Turn on vibration in Controller settings to feel it");
         AddRow("Try it", glyph: "\uE768", click: () => Host.Push(new BoostScreen(null, s.BoostAnimation, s.BoostRumble, preview: true)),
             subtitle: "Plays the animation without freeing anything");
+        // SquareDeck's own lighter mode (it was in Power and performance, now gone).
+        AddRow("SquareDeck performance mode", Perf.Label(s.PerformanceMode), "\uEC4A", click: () =>
+        {
+            // Off -> on battery only -> always -> off
+            s.PerformanceMode = s.PerformanceMode switch { "off" => "battery", "battery" => "on", _ => "off" };
+            s.Save();
+            Host.ApplyPerformance();
+            Rebuild();
+        }, subtitle: Perf.Active ? "On now: lighter effects to save battery and graphics power" : "Uses less graphics power and battery");
+        AddNote("Turns off drop shadows, glows and live blurs (artwork is softened a cheaper way), the pulsing highlight and " +
+                "animated covers, and draws animations at 30 frames a second (from the next start). While a game runs and " +
+                "SquareDeck is in the background, it always stops drawing and gives the game its CPU and graphics time.");
         AddHeader("Performance overlay");
         AddRow("Performance overlay", OnOff(s.OsdEnabled), "\uE9D9",
             click: () => Toggle(() => s.OsdEnabled = !s.OsdEnabled),
@@ -1701,18 +1718,6 @@ public sealed class SettingsScreen : ListScreen
         // TDP and processor tuning: on a handheld they live in its own section of Settings, so there is one place for them.
         if (!Handheld.IsHandheld) BuildTdp(s);
 
-        AddHeader("Launcher performance");
-        AddRow("Performance mode", Perf.Label(s.PerformanceMode), "\uEC4A", click: () =>
-        {
-            // Off -> on battery only -> always -> off
-            s.PerformanceMode = s.PerformanceMode switch { "off" => "battery", "battery" => "on", _ => "off" };
-            s.Save();
-            Host.ApplyPerformance();
-            Rebuild();
-        }, subtitle: Perf.Active ? "On now: lighter effects to save battery and graphics power" : "Uses less graphics power and battery");
-        AddNote("Turns off drop shadows, glows and live blurs (artwork is softened a cheaper way), the pulsing highlight and " +
-                "animated covers, and draws animations at 30 frames a second (from the next start). While a game runs and " +
-                "SquareDeck is in the background, it always stops drawing and gives the game its CPU and graphics time.");
 
     }
 
@@ -1968,10 +1973,10 @@ public sealed class SettingsScreen : ListScreen
     // ---------------------------------------------------------------- <model> Specific Settings
 
     /// <summary>Where the TDP settings are: the handheld's own section on a handheld, Power and performance elsewhere.</summary>
-    public static string TdpPlace => Handheld.IsHandheld ? Handheld.DisplayName : "Power and performance";
+    public static string TdpPlace => Handheld.IsHandheld ? Handheld.DisplayName : "Gaming";
 
     /// <summary>The section of Settings with the TDP settings.</summary>
-    public static string TdpSection => Handheld.IsHandheld ? "handheld" : "power";
+    public static string TdpSection => Handheld.IsHandheld ? "handheld" : "gaming";
 
     // ---------------------------------------------------------------- the handheld's own section
     //
@@ -2096,17 +2101,6 @@ public sealed class SettingsScreen : ListScreen
             }
         }
 
-        // Every handheld SquareDeck knows, by maker.
-        AddHeader("Supported handhelds");
-        AddNote("SquareDeck recognizes these handhelds (the list comes from HandheldCompanion) and uses each one's own power range. " +
-                "TDP works on all of them; the ROG Ally family, Legion Go and MSI Claw also get their own controls.");
-        foreach (var brand in Handheld.Models.GroupBy(m => m.Brand))
-        {
-            string b = brand.Key;
-            var names = brand.Select(m => m.Name).Distinct().ToList();
-            AddRow(b, names.Count + (names.Count == 1 ? " model" : " models"), Ui.HandheldGlyph,
-                click: () => Host.Push(new SupportedHandheldsScreen(b)), subtitle: string.Join(", ", names));
-        }
     }
 
     /// <summary>The top of the handheld's section: its picture, name, processor and power range, and what it's set to now.</summary>

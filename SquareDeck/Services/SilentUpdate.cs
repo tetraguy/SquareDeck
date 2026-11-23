@@ -180,11 +180,11 @@ function IdleHaptic([datetime]$now, [double]$t) {
     'heartbeat' {
       if (($now - $script:lastBeat).TotalMilliseconds -gt 2400) { $script:lastBeat = $now; Pattern @(0.14, 0, 70, 110, 0.22, 0, 90, 0) }  # lub-dub
     }
-    'engine' { $l = 0.04 + 0.2 * [Math]::Min(1, $script:shown); Hum $l ($l * 0.35) }   # a hum that rises with the bar
+    'engine' { $l = 0.04 + 0.2 * [Math]::Min([double]1, [double]$script:shown); Hum $l ($l * 0.35) }   # a hum that rises with the bar
     'ticks' {
       if (($now - $script:lastBeat).TotalMilliseconds -gt 1000) { $script:lastBeat = $now; Buzz 0 0.22 30 }  # a clock
     }
-    'waves' { $w = [Math]::Sin($t * 2.1); Hum (0.13 * [Math]::Max(0, $w)) (0.13 * [Math]::Max(0, -$w)) }  # swells side to side
+    'waves' { $w = [Math]::Sin($t * 2.1); Hum (0.13 * [Math]::Max([double]0, [double]$w)) (0.13 * [Math]::Max([double]0, [double](-$w))) }  # swells side to side
     default { }  # fanfare: quiet until the milestones
   }
 }
@@ -406,7 +406,7 @@ function SetUpBackground {
 
 function MoveBackground([double]$t) {
   $w = $win.ActualWidth; $h = $win.ActualHeight; $cx = $w / 2; $cy = $h / 2
-  $boost = 1 + [Math]::Min(1, $script:shown) * 2
+  $boost = 1 + [Math]::Min([double]1, [double]$script:shown) * 2
   switch ($style) {
     'warp' {
       $max = [Math]::Sqrt($cx * $cx + $cy * $cy)
@@ -414,7 +414,7 @@ function MoveBackground([double]$t) {
         $s.D += $s.V * (1 + $s.D / 160) * $boost * 0.6
         if ($s.D -gt $max) { $s.D = $rand.NextDouble() * 30; $s.A = $rand.NextDouble() * 6.2832 }
         $size = 1.5 + $s.D / 220
-        $s.E.Width = $size; $s.E.Height = $size; $s.E.Opacity = [Math]::Min(0.9, $s.D / 260)
+        $s.E.Width = $size; $s.E.Height = $size; $s.E.Opacity = [Math]::Min([double]0.9, [double]($s.D / 260))
         [System.Windows.Controls.Canvas]::SetLeft($s.E, $cx + [Math]::Cos($s.A) * $s.D - $size / 2)
         [System.Windows.Controls.Canvas]::SetTop($s.E, $cy + [Math]::Sin($s.A) * $s.D - $size / 2)
       }
@@ -433,13 +433,13 @@ function MoveBackground([double]$t) {
       foreach ($s in @($script:things)) {
         $s.R += 4 + $boost * 2
         $size = $s.R * 2
-        $s.E.Width = $size; $s.E.Height = $size; $s.E.Opacity = [Math]::Max(0, 0.5 * (1 - $s.R / $max))
+        $s.E.Width = $size; $s.E.Height = $size; $s.E.Opacity = [Math]::Max([double]0, [double](0.5 * (1 - $s.R / $max)))
         [System.Windows.Controls.Canvas]::SetLeft($s.E, $cx - $s.R); [System.Windows.Controls.Canvas]::SetTop($s.E, $cy - $s.R)
         if ($s.R -gt $max) { $sky.Children.Remove($s.E); $script:things.Remove($s) }
       }
     }
     'blocks' {
-      $want = [Math]::Floor([Math]::Min(1, $script:shown) * $script:things.Count)
+      $want = [Math]::Floor([Math]::Min([double]1, [double]$script:shown) * $script:things.Count)
       while ($script:litCount -lt $want) {
         $tile = $script:things[$script:litCount]; $script:litCount++
         Animate $tile ([System.Windows.UIElement]::OpacityProperty) 0.5 0.18 0.6
@@ -455,7 +455,7 @@ function MoveBackground([double]$t) {
         $x = $cx + [Math]::Sin($t * $s.S + $s.P) * $w * 0.28 - $s.E.Width / 2
         $y = $cy + [Math]::Cos($t * $s.S * 0.8 + $s.P * 1.3) * $h * 0.22 - $s.E.Height / 2
         [System.Windows.Controls.Canvas]::SetLeft($s.E, $x); [System.Windows.Controls.Canvas]::SetTop($s.E, $y)
-        $s.E.Opacity = 0.16 + 0.1 * [Math]::Sin($t * 0.7 + $s.P) + 0.08 * [Math]::Min(1, $script:shown)
+        $s.E.Opacity = 0.16 + 0.1 * [Math]::Sin($t * 0.7 + $s.P) + 0.08 * [Math]::Min([double]1, [double]$script:shown)
       }
     }
     default {
@@ -643,14 +643,16 @@ $timer.Add_Tick({
     $script:nextMilestone += 0.25
     if ($script:state -eq 'install') { Pop; MilestoneTap }
   }
-  $width = 480 * [Math]::Min(1, $script:shown)
+  # Every number here is a [double] on purpose: with a whole number first, PowerShell picked [Math]::Min(int, int),
+  # which rounded the progress to 0 or 1, so the bar stayed empty (then jumped full) while the percentage counted up.
+  $width = 480 * [Math]::Min([double]1, [double]$script:shown)
   $fill.Width = $width
   # The glowing dot rides inside the end of the fill. Centred on the end, it and its glow reached past the fill, so the
   # bar looked further along than the percentage said.
-  $head.Margin = New-Object System.Windows.Thickness -ArgumentList ([Math]::Max(0, $width - 18)), -4, 0, -4
+  $head.Margin = New-Object System.Windows.Thickness -ArgumentList ([Math]::Max([double]0, [double]($width - 18))), -4, 0, -4
   $head.Visibility = if ($width -ge 18) { 'Visible' } else { 'Hidden' }
   # Rounded down, like the bar: 100% only once it's full.
-  $percent.Text = '{0}%' -f [int][Math]::Floor([Math]::Min(100, $script:shown * 100 + 0.0001))
+  $percent.Text = '{0}%' -f [int][Math]::Floor([Math]::Min([double]100, [double]($script:shown * 100 + 0.0001)))
 })
 $timer.Start()
 $null = $win.ShowDialog()

@@ -154,6 +154,12 @@
                                         <Border Grid.Row="1" Margin="{DynamicResource TileInnerMargin}" Background="{DynamicResource TileBrush}"
                                                 CornerRadius="{DynamicResource TileCorner}" Effect="{DynamicResource TileShadow}"
                                                 BorderBrush="{DynamicResource PanelStroke}" BorderThickness="{DynamicResource PanelStrokeThickness}">
+                                            <!-- Drawn once and reused while the row glides: the rounded mask, shadow and cover were redrawn
+                                                 for every tile on every frame, which made scrolling sluggish. A little
+                                                 over full size so the highlighted tile stays sharp as it grows. -->
+                                            <Border.CacheMode>
+                                                <BitmapCache RenderAtScale="1.15" SnapsToDevicePixels="True" EnableClearType="False"/>
+                                            </Border.CacheMode>
                                             <Grid>
                                             <!-- Everything on the tile is clipped to this rounded shape -->
                                             <Border x:Name="CornerMask" Background="{DynamicResource TileMaskBrush}"
@@ -417,10 +423,11 @@
                         ToolTip="Web browser" Click="Browser_Click"/>
                 <Button x:Name="ExplorerBtn" Style="{StaticResource RoundButton}" Content="&#xEC50;" Foreground="#0AA5B8"
                         ToolTip="Explorer" Click="Explorer_Click"/>
-                <Button x:Name="StoresBtn" Style="{StaticResource RoundButton}" Content="&#xE7BF;" Foreground="{DynamicResource SubtleBrush}"
-                        ToolTip="Stores" Click="Stores_Click"/>
+                <!-- My Device (when it's on) sits to the left of Stores -->
                 <Button x:Name="MyDeviceBtn" Style="{StaticResource RoundButton}" Content="&#xE7FC;" Foreground="#E23D7A"
                         ToolTip="My Device" Click="MyDevice_Click" Visibility="Collapsed"/>
+                <Button x:Name="StoresBtn" Style="{StaticResource RoundButton}" Content="&#xE7BF;" Foreground="{DynamicResource SubtleBrush}"
+                        ToolTip="Stores" Click="Stores_Click"/>
                 <Button x:Name="SettingsBtn" Style="{StaticResource RoundButton}" Content="&#xE713;" Foreground="{DynamicResource SubtleBrush}"
                         ToolTip="Settings" Click="Settings_Click"/>
                 <Button x:Name="PowerBtn" Style="{StaticResource RoundButton}" Content="&#xE7E8;" Foreground="{DynamicResource SubtleBrush}"

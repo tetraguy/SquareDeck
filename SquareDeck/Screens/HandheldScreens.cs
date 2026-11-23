@@ -52,10 +52,27 @@ public sealed class MyDeviceScreen : ListScreen
         _timer.Tick += (_, _) => Refresh();
     }
 
+    private bool _opened;
+
     public override void OnShown()
     {
         _monitor ??= new HardwareMonitor();
+        // The first time it opens, start at the top: the list would otherwise put the highlight on its first row,
+        // which is under "More" at the very bottom (the tiles above aren't rows), and scroll all the way down to it.
+        bool first = !_opened;
+        _opened = true;
+        if (first) SuppressAutoFocus = true;
         base.OnShown();
+        if (first)
+        {
+            SuppressAutoFocus = false;
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            {
+                RowsScroll.ScrollToTop();
+                FocusDefault(); // the first tile (Processor), just under the device card
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => RowsScroll.ScrollToTop()));
+            }));
+        }
         Refresh();
         _timer.Start();
     }
@@ -115,8 +132,8 @@ public sealed class MyDeviceScreen : ListScreen
         AddHeader("More");
         AddRow(Handheld.DisplayName + " Specific Settings", null, Ui.HandheldGlyph, click: () => Host.Push(new SettingsScreen("handheld")),
             subtitle: "TDP limit, lights, power modes, fans, charge limit and more for this device");
-        AddRow("Power and performance", null, "", click: () => Host.Push(new SettingsScreen("power")),
-            subtitle: "Live readouts, Performance Boost, the overlay, launcher performance");
+        AddRow("Performance Boost and the overlay", null, "", click: () => Host.Push(new SettingsScreen("gaming")),
+            subtitle: "Performance Boost, SquareDeck performance mode and the performance overlay, in Gaming");
         AddRow("Battery", null, "", click: () => Host.Push(new BatteryScreen()), subtitle: "Battery saver, charging and usage");
         AddRow("My Device on the home screen", Host.Settings.ShowMyDeviceButton ? "On" : "Off", "", click: () =>
         {

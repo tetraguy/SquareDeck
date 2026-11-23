@@ -13,18 +13,22 @@ namespace SquareDeck.Screens;
 
 /// <summary>
 /// The first time SquareDeck opens: a full-screen, one-thing-at-a-time setup over a slowly drifting aurora.
-/// Hello (in a few languages) → you (picture and greeting) → a look (a carousel of every UI style, applied live) →
+/// Hello (in a few languages) → your device (the detected ROG Ally, with its picture and a few one-tap settings) → you
+/// (picture and greeting) → a style (the favorites first, applied live, and every other one a press away) →
 /// background → controller → games (found covers pop in) → extras → done (confetti). Steps slide left and right;
 /// dots along the top show where you are. Every choice applies straight away, "Use recommended settings" skips to
 /// the end, and all of it can be changed in Settings or run again from Settings > Updates, backup and reset.
 /// </summary>
 public sealed class OnboardingScreen : Screen
 {
-    private static readonly (string Name, string Glyph)[] Steps =
-    {
-        ("Hello", ""), ("You", ""), ("Look", ""), ("Background", ""),
-        ("Controller", ""), ("Games", ""), ("Extras", ""), ("Ready", "")
-    };
+    /// <summary>The steps, by id. "Your device" is only there on a recognized handheld.</summary>
+    private readonly (string Id, string Name)[] Steps;
+
+    /// <summary>The styles offered first, in this order (the rest are behind "Show every style").</summary>
+    private static readonly string[] FeaturedStyles =
+        { "switch", "frosted-dark", "first-light", "plumbers-holiday", "the-view", "adv-retro-windows", "adv-tropical-night", "adv-cozy-place", "adv-meridian" };
+    private bool _allStyles;
+    private Grid? _root;
     private static readonly string[] Hellos = { "Hello", "Hola", "Bonjour", "Olá", "Ciao", "Hallo", "こんにちは", "안녕하세요", "Привет", "你好" };
     private static readonly string[] SuggestedBackgrounds = { "", "Blue Wave", "Black Wave", "Green Blades", "Lofi City", "Night River", "La Fuente", "Analog" };
 
@@ -41,6 +45,11 @@ public sealed class OnboardingScreen : Screen
     public OnboardingScreen(TaskCompletionSource done)
     {
         _done = done;
+        var steps = new List<(string, string)> { ("hello", "Hello") };
+        if (Handheld.IsHandheld) steps.Add(("device", "Your device"));
+        steps.AddRange(new[] { ("you", "You"), ("look", "Style"), ("background", "Background"), ("controller", "Controller"),
+                               ("games", "Games"), ("extras", "Extras"), ("ready", "Ready") });
+        Steps = steps.ToArray();
         _back = Ui.PanelButton("", "Back");
         _back.Click += (_, _) => Go(_step - 1);
         _skip = Ui.PanelButton("Skip setup");
@@ -94,6 +103,7 @@ public sealed class OnboardingScreen : Screen
         Content = root;
 
         _helloTimer.Tick += (_, _) => NextHello();
+        _root = root;
         root.Loaded += (_, _) => StartAurora(root);
     }
 
@@ -221,15 +231,16 @@ public sealed class OnboardingScreen : Screen
         _next.Visibility = _step == 0 ? Visibility.Hidden : Visibility.Visible;
         _next.Content = _step == Steps.Length - 1 ? "Start playing" : "Next";
 
-        FrameworkElement page = _step switch
+        FrameworkElement page = Steps[_step].Id switch
         {
-            0 => HelloPage(),
-            1 => YouPage(),
-            2 => LookPage(),
-            3 => BackgroundPage(),
-            4 => ControllerPage(),
-            5 => GamesPage(),
-            6 => ExtrasPage(),
+            "hello" => HelloPage(),
+            "device" => DevicePage(),
+            "you" => YouPage(),
+            "look" => LookPage(),
+            "background" => BackgroundPage(),
+            "controller" => ControllerPage(),
+            "games" => GamesPage(),
+            "extras" => ExtrasPage(),
             _ => ReadyPage()
         };
 
@@ -530,17 +541,141 @@ public sealed class OnboardingScreen : Screen
 
     private FrameworkElement LookPage()
     {
-        // The choice of UI style was taken out with the styles themselves (only Switch is left while theming is
-        // rebuilt); light or dark is what's left to pick here.
         var s = Host.Settings;
-        var (page, body) = Page("Pick a look", "Light or dark, or follow Windows. You'll see it change behind this page.");
-        body.Children.Add(Section("Light or dark"));
-        body.Children.Add(Choices(new[] { ("system", "Follow Windows"), ("light", "Light"), ("dark", "Dark"), ("oled", "Black (OLED)") }, s.ThemeMode, m =>
+        var (page, body) = Page("Pick a style", "Each style dresses all of SquareDeck: colors, fonts, sounds, music and a background. It changes right behind this page as you pick.");
+        const double W = 330;
+        var current = UiStyles.Find(s.UiStyle);
+
+        Button StyleTile(UiStyle st)
         {
-            s.ThemeMode = m;
-            s.DarkTheme = Theme.ShouldBeDark(s);
-            Host.ApplyLook();
+            s.SkinVariants.TryGetValue(st.Id, out var variant);
+            bool inUse = st.Id == current.Id;
+            var tile = st.Skin != null ? SettingsScreen.AdvancedCard(st, variant, inUse, W) : SettingsScreen.StyleCard(st, inUse, W);
+            if (inUse) tile.Tag = "current";
+            tile.Click += (_, _) =>
+            {
+                if (st.Id == UiStyles.Find(Host.Settings.UiStyle).Id) return;
+                Host.UseStyle(st);
+                UiSound.Select();
+                if (_root != null) StartAurora(_root); // the aurora takes the new highlight color
+                Go(_step, keep: true);
+                FocusStyle(st.Id);
+            };
+            tile.DataContext = "style:" + st.Id;
+            return tile;
+        }
+
+        var available = UiStyles.All.Concat(UiStyles.Advanced).Where(x => !StyleUnlocks.IsLocked(x)).GroupBy(x => x.Id).Select(g => g.First()).ToList();
+        body.Children.Add(Section("Favorites"));
+        var featured = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = (W + 10) * 3 + 4 };
+        foreach (var id in FeaturedStyles)
+            if (available.FirstOrDefault(x => x.Id == id) is { } st) featured.Children.Add(StyleTile(st));
+        body.Children.Add(featured);
+
+        // Light or dark: Switch lets you choose; the other styles bring their own.
+        if (current.Id == "switch")
+        {
+            body.Children.Add(Section("Switch: light or dark"));
+            body.Children.Add(Choices(new[] { ("system", "Follow Windows"), ("light", "Light"), ("dark", "Dark"), ("oled", "Black (OLED)") }, s.ThemeMode, m =>
+            {
+                s.ThemeMode = m;
+                s.DarkTheme = Theme.ShouldBeDark(s);
+                Host.ApplyLook();
+            }));
+        }
+
+        var rest = available.Where(x => !FeaturedStyles.Contains(x.Id)).ToList();
+        if (rest.Count > 0)
+        {
+            if (!_allStyles)
+            {
+                var more = Ui.PanelButton("", $"Show every style ({rest.Count} more)");
+                more.HorizontalAlignment = HorizontalAlignment.Center;
+                more.Margin = new Thickness(0, 18, 0, 0);
+                more.Click += (_, _) => { _allStyles = true; Go(_step, keep: true); };
+                body.Children.Add(more);
+            }
+            else
+            {
+                body.Children.Add(Section("Every other style"));
+                var all = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = (W + 10) * 3 + 4 };
+                foreach (var st in rest) all.Children.Add(StyleTile(st));
+                body.Children.Add(all);
+            }
+        }
+        var note = Ui.Text("Your own styles, and the ones you unlock by playing, are in Settings > Themes.", 14, "SubtleBrush");
+        note.HorizontalAlignment = HorizontalAlignment.Center;
+        note.Margin = new Thickness(0, 16, 0, 0);
+        body.Children.Add(note);
+        return page;
+    }
+
+    private void FocusStyle(string id) =>
+        Dispatcher.BeginInvoke(() =>
+        {
+            var b = _stage.FindDescendants<Button>().FirstOrDefault(x => x.DataContext as string == "style:" + id);
+            b?.Focus();
+            b?.BringIntoView();
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
+
+    /// <summary>
+    /// The handheld SquareDeck found: its picture and what's inside, and a few settings that suit it, one tap each.
+    /// </summary>
+    private FrameworkElement DevicePage()
+    {
+        var s = Host.Settings;
+        bool ally = Handheld.Vendor == HandheldVendor.Asus;
+        var (page, body) = Page("Hello, " + Handheld.DisplayName,
+            "SquareDeck found your " + Handheld.DisplayName + " and is set up for it. Its power, lights, fans, controller and battery care are all in Settings, in its own section.");
+
+        // The device, floating, with what's inside as chips.
+        var hero = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 10) };
+        if (MyDeviceScreen.DevicePhoto(460) is FrameworkElement photo)
+        {
+            photo.HorizontalAlignment = HorizontalAlignment.Center;
+            hero.Children.Add(photo);
+        }
+        var chips = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) };
+        void Chip(string glyph, string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var g = Ui.Glyph(glyph, 14, "AccentBrush");
+            g.Margin = new Thickness(0, 1, 8, 0);
+            row.Children.Add(g);
+            row.Children.Add(Ui.Text(text, 15, "FgBrush"));
+            var chip = new Border { CornerRadius = new CornerRadius(16), Padding = new Thickness(14, 7, 14, 8), Margin = new Thickness(0, 0, 8, 8), Child = row };
+            chip.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+            chips.Children.Add(chip);
+        }
+        Chip("", TdpControl.CpuName);
+        if (Handheld.Current is { } device) Chip("", $"{device.TdpMin}–{device.TdpMax} W");
+        if (DisplaySettings.Current() is { } screen) Chip("", $"{screen.Resolution}  ·  {screen.RefreshRate} Hz");
+        if (Battery.GetPercent() is int battery) Chip("", battery + "% battery");
+        hero.Children.Add(chips);
+        body.Children.Add(hero);
+
+        body.Children.Add(Section("A few things to start with"));
+        var cards = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 1020 };
+        if (ally)
+        {
+            cards.Children.Add(Toggle("", "Battery care", "Stop charging at 80%, kinder to the battery when it's mostly plugged in", s.AllyChargeLimit is > 0 and < 100, () =>
+            {
+                s.AllyChargeLimit = s.AllyChargeLimit is > 0 and < 100 ? 0 : 80;
+                Task.Run(AllyControl.ApplyBattery);
+            }));
+            cards.Children.Add(Toggle("", "Lights match SquareDeck", "The rings around the sticks take the style's highlight color", s.AllyLights == "accent", () =>
+            {
+                s.AllyLights = s.AllyLights == "accent" ? "" : "accent";
+                AllyControl.ApplyLights(force: true);
+            }));
+        }
+        cards.Children.Add(Toggle("", "My Device on the home screen", "A button for live temperatures, fans, battery health and power draw", s.ShowMyDeviceButton, () =>
+        {
+            s.ShowMyDeviceButton = !s.ShowMyDeviceButton;
+            Host.RefreshHomeButtonsPublic();
         }));
+        body.Children.Add(cards);
         return page;
     }
 

@@ -3,6 +3,38 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 7.3.11
+
+**A new first-time setup**
+- **Your device:** on a handheld, setup now greets it by name (for example *Hello, ROG Xbox Ally X20*) with a picture of it, its processor, power range, screen and battery, and a few one-tap choices: battery care (stop charging at 80%), lights that match SquareDeck's color, and the My Device button on the home screen.
+- **Pick a style:** the favorites come first, as big previews you can try on live: **Switch, Frosted Dark, First Light, Plumber's Holiday, The View, Retro Windows, Tropical Night, Cozy Place and Meridian**. Every other style is one press away under *Show every style*, and Switch still lets you pick light or dark.
+
+## 7.3.10
+
+**Smoother scrolling through your games**
+Scrolling the game row on the home screen is smoother and steadier. Each cover's rounded corners, shadow and art are now drawn once and reused while the row glides, instead of being redrawn for every tile on every frame, and the glide keeps track of where it is itself, so holding the stick or d-pad no longer makes it stutter or tug back and forth.
+
+## 7.3.9
+
+**Update screen: the bar keeps up with the percentage**
+The progress bar on the update screen stayed empty (and then jumped to full) while the percentage counted up. It now fills smoothly in step with the number, and the glowing dot, the background effects and the hum follow it too. (The update screen comes from the version you're updating from, so you'll see the fix on the update after this one.)
+
+## 7.3.8
+
+**My Device opens at the top**
+Opening My Device now starts at the top of the page, with your device's card and battery ring in view and the first live tile highlighted, instead of jumping to the bottom.
+
+## 7.3.7
+
+**My Device button placement**
+When it's turned on, the My Device button on the home screen now sits to the left of Stores.
+
+## 7.3.6
+
+**Settings, simplified**
+- **Power and performance is gone.** On a handheld the TDP and processor tuning are in the handheld's own section; **SquareDeck performance mode** (lighter effects to save battery) moved into Gaming > Performance Boost, next to Performance Boost itself. Old links to the page open the right place.
+- **Supported handhelds** is no longer in the handheld's section, while SquareDeck is tuned for the ROG Ally family first.
+
 ## 7.3.5
 
 **Your handheld's settings, reorganized**
