@@ -98,6 +98,7 @@ public partial class MainWindow : Window
         System.Windows.Input.Stylus.SetIsFlicksEnabled(this, false);
         System.Windows.Input.Stylus.SetIsTapFeedbackEnabled(this, false);
         Theme.Apply(Settings);
+        UiSound.Alerted += FlashForAlert;
         Hints.Map = Settings.ButtonMap;
         Hints.SetStyle(Settings.GlyphStyle);
         // The keyboard choice from the start (it used to be applied only after a setting changed, so after a restart
@@ -1301,7 +1302,8 @@ public partial class MainWindow : Window
                 slide.BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(30, 0, quick));
                 UiSound.Toast();
 
-                await Task.WhenAny(Task.Delay(4500), tapped.Task);
+                // Accessibility can keep them up longer, to read them.
+                await Task.WhenAny(Task.Delay(Settings.ToastSeconds > 0 ? Settings.ToastSeconds * 1000 : 4500), tapped.Task);
                 toast.IsHitTestVisible = false;
                 toast.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0, quick));
                 await Task.Delay(340);
@@ -2104,8 +2106,8 @@ public partial class MainWindow : Window
             {
                 scroller.ScrollToVerticalOffset(scroller.VerticalOffset + (direction == FocusNavigationDirection.Down ? 120 : -120));
             }
-            // Pages made of tiles (library, captures, pickers, Explorer) buzz like the home row does.
-            if (top is GridScreen or LibraryScreen or ExplorerScreen && !ReferenceEquals(Keyboard.FocusedElement, focused)) Rumble();
+            // Pages made of tiles (library, captures, pickers, Explorer, Multimedia) buzz like the home row does.
+            if (top is GridScreen or LibraryScreen or ExplorerScreen or MediaScreen && !ReferenceEquals(Keyboard.FocusedElement, focused)) Rumble();
         }
     }
 

@@ -163,6 +163,21 @@ public static class AllyControl
         // Only touch the controller's layout when something here asks for it; it resets Armoury Crate's mappings.
         if (s.AllyBackKeys || _backKeysWereOn) AllyHid.ConfigureController(s.AllyBackKeys, _mouse);
         _backKeysWereOn = s.AllyBackKeys;
+        ApplyTuning();
+    }
+
+    /// <summary>Whether the controller tuning differs from ASUS's defaults (or was changed this run, so it's sent back).</summary>
+    private static bool _tuned;
+
+    /// <summary>Rumble strength and the stick and trigger dead zones, into the controller's firmware.</summary>
+    public static bool ApplyTuning()
+    {
+        var s = _settings;
+        if (s == null) return false;
+        bool custom = s.AllyVibration != 100 || s.AllyStickInner != 0 || s.AllyStickOuter != 100 || s.AllyTriggerInner != 0 || s.AllyTriggerOuter != 100;
+        if (!custom && !_tuned) return true; // nothing to change: leave the controller alone
+        _tuned = custom;
+        return AllyHid.SetTuning(s.AllyVibration, s.AllyStickInner, s.AllyStickOuter, s.AllyTriggerInner, s.AllyTriggerOuter);
     }
 
     private static bool _backKeysWereOn;

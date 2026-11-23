@@ -386,11 +386,41 @@ public static class AllyHid
     private static readonly byte[] BackDefault = { 0x5A, 0xD1, 0x02, 0x08, 0x2C, 0x02, 0x00, 0x8E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x8E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x8F };
     private static readonly byte[] BackAsKeys = { 0x5A, 0xD1, 0x02, 0x08, 0x2C, 0x02, 0x00, 0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x30 };
     private static readonly byte[] Triggers = { 0x5A, 0xD1, 0x02, 0x09, 0x2C, 0x01, 0x0D, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x0E };
-    private static readonly byte[][] CommitController =
+    // The commit messages (as HandheldCompanion sends them): turbo off, then vibration strength and the stick and trigger
+    // dead zones. Those three are SquareDeck's own settings (ASUS's defaults: 100% vibration, no dead zones).
+    private static byte[][] CommitController => new[]
     {
-        new byte[] { 0x5A, 0xD1, 0x0F, 0x20 }, new byte[] { 0x5A, 0xD1, 0x06, 0x02, 0x64, 0x64 },
-        new byte[] { 0x5A, 0xD1, 0x04, 0x04, 0x00, 0x64, 0x00, 0x64 }, new byte[] { 0x5A, 0xD1, 0x05, 0x04, 0x00, 0x64, 0x00, 0x64 },
+        new byte[] { 0x5A, 0xD1, 0x0F, 0x20 }, VibrationMessage, StickMessage, TriggerMessage,
     };
+
+    /// <summary>The controller's own tuning, kept so the commit after a layout change sends it too. Percentages.</summary>
+    private static (int Left, int Right) _vibration = (100, 100);
+    private static (int Inner, int Outer) _sticks = (0, 100), _triggers = (0, 100);
+
+    private static byte P(int percent) => (byte)Math.Clamp(percent, 0, 100);
+    private static byte[] VibrationMessage => new byte[] { 0x5A, 0xD1, 0x06, 0x02, P(_vibration.Left), P(_vibration.Right) };
+    private static byte[] StickMessage => new byte[] { 0x5A, 0xD1, 0x04, 0x04, P(_sticks.Inner), P(_sticks.Outer), P(_sticks.Inner), P(_sticks.Outer) };
+    private static byte[] TriggerMessage => new byte[] { 0x5A, 0xD1, 0x05, 0x04, P(_triggers.Inner), P(_triggers.Outer), P(_triggers.Inner), P(_triggers.Outer) };
+
+    /// <summary>
+    /// The built-in controller's own tuning, in its firmware (so it works in every game, not just SquareDeck):
+    /// rumble strength of the left and right motors, and the inner (dead zone) and outer (reach full at) limits of
+    /// both sticks and both triggers, in percent.
+    /// </summary>
+    public static bool SetTuning(int vibration, int stickInner, int stickOuter, int triggerInner, int triggerOuter)
+    {
+        lock (Lock)
+        {
+            _vibration = (vibration, vibration);
+            _sticks = (stickInner, Math.Max(stickInner + 5, stickOuter));
+            _triggers = (triggerInner, Math.Max(triggerInner + 5, triggerOuter));
+            Scan();
+            if (_input == null) return false;
+            bool ok = Feature(_input, VibrationMessage) & Feature(_input, StickMessage) & Feature(_input, TriggerMessage);
+            if (!ok) Drop(ref _input);
+            return ok;
+        }
+    }
 
     /// <summary>
     /// The controller's layout back to ASUS's defaults, in game or mouse mode, with M1 / M2 sending F18 / F17 when

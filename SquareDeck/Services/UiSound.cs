@@ -261,19 +261,25 @@ public static class UiSound
     public static void Move() { if (MoveEnabled) Play(MoveClip); }
     public static void Select() { if (SelectEnabled) Play(SelectClip); }
     public static void Back() { if (SelectEnabled) Play(BackClip); }
-    public static void Error() => Play(ErrorClip);
+    public static void Error() { Alerted?.Invoke("error"); Play(ErrorClip); }
+
+    /// <summary>
+    /// An alert sound was asked for (a notification, an error, low battery), whether or not sounds are on: for
+    /// Accessibility's "Flash the screen for alerts".
+    /// </summary>
+    public static event Action<string>? Alerted;
 
     /// <summary>Moving between pages with LB / RB.</summary>
     public static void Page() { if (PageEnabled) Play(PageClip); }
 
     /// <summary>Achievement pop-up.</summary>
-    public static void Toast() { if (ToastEnabled) Play(ToastClip); }
+    public static void Toast() { Alerted?.Invoke("toast"); if (ToastEnabled) Play(ToastClip); }
 
     /// <summary>The low-battery alert: the sound pack's own when it has one, otherwise the error sound.</summary>
     public static void Battery(bool critical)
     {
         var clip = critical ? BatteryCriticalClip : BatteryLowClip;
-        if (clip != null) Play(clip, force: true);
+        if (clip != null) { Alerted?.Invoke("battery"); Play(clip, force: true); }
         else Error();
     }
 

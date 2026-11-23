@@ -2126,14 +2126,9 @@ public sealed class AddAppScreen : ListScreen
 
     private async void ChooseProgram()
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = "Choose a program to add",
-            Filter = "Programs and shortcuts (*.exe;*.lnk;*.bat;*.cmd;*.url)|*.exe;*.lnk;*.bat;*.cmd;*.url|All files|*.*",
-            CheckFileExists = true
-        };
-        if (dialog.ShowDialog() != true) return;
-        var path = dialog.FileName;
+        // SquareDeck's own file picker (works with the controller), not Windows' file dialog.
+        var path = await Host.PickFileAsync("Choose a program to add", new[] { ".exe", ".lnk", ".bat", ".cmd", ".url" });
+        if (string.IsNullOrEmpty(path)) return;
         var suggested = System.IO.Path.GetFileNameWithoutExtension(path);
         try { if (path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && System.Diagnostics.FileVersionInfo.GetVersionInfo(path).FileDescription is { Length: > 0 } d) suggested = d; }
         catch (Exception) { }

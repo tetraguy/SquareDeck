@@ -394,6 +394,14 @@ public sealed class Settings
     public int AllyChargeLimit { get; set; }
     /// <summary>M1 / M2 send F18 / F17, so they can be given actions in ROG Ally buttons.</summary>
     public bool AllyBackKeys { get; set; }
+    /// <summary>The built-in controller's rumble strength, in its firmware (percent; ASUS's default is 100).</summary>
+    public int AllyVibration { get; set; } = 100;
+    /// <summary>The sticks' dead zone (inner) and where they reach full (outer), in the controller's firmware, percent.</summary>
+    public int AllyStickInner { get; set; }
+    public int AllyStickOuter { get; set; } = 100;
+    /// <summary>The triggers' dead zone (inner) and where they reach full (outer), percent.</summary>
+    public int AllyTriggerInner { get; set; }
+    public int AllyTriggerOuter { get; set; } = 100;
     // ---- Handheld Specific Settings (Legion Go, MSI Claw: through the device helper)
     /// <summary>The maker's performance mode to set at start; -1 = leave as it is.</summary>
     public int HandheldPowerMode { get; set; } = -1;
@@ -475,6 +483,14 @@ public sealed class Settings
 
     /// <summary>Fewer moving parts: no pulsing highlight, slides, fades or intro animation.</summary>
     public bool ReduceMotion { get; set; }
+    /// <summary>Accessibility: a thicker highlight ring around the selected item.</summary>
+    public bool ThickFocusRing { get; set; }
+    /// <summary>Accessibility: holding a direction repeats "normal", "slow" or "off".</summary>
+    public string NavRepeat { get; set; } = "normal";
+    /// <summary>Accessibility: how long pop-up notifications stay, in seconds (0 = the usual 4.5).</summary>
+    public int ToastSeconds { get; set; }
+    /// <summary>Accessibility: interface sounds also flash the screen's edge (for people who can't hear them).</summary>
+    public bool VisualSounds { get; set; }
 
     /// <summary>Home screen buttons grow when highlighted and spring when pressed.</summary>
     public bool ButtonAnimations { get; set; } = true;

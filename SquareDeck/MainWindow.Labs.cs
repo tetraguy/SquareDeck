@@ -530,6 +530,7 @@ public partial class MainWindow
     private Grid? _companion;
     private Canvas? _companionSprite, _companionFx;
     private Border? _companionBubble;
+    private Border? _companionBubbleText;
     private readonly ScaleTransform _companionScale = new(1, 1);
     private readonly RotateTransform _companionTurn = new(0);
     private readonly TranslateTransform _companionMove = new();
@@ -561,9 +562,21 @@ public partial class MainWindow
             _companion.Children.Add(_companionSprite);
             _companion.Children.Add(_companionFx);
             Panel.SetZIndex(_companion, 40);
-            _companionBubble = new Border { CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 4, 10, 5), HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 40, 206), Opacity = 0, IsHitTestVisible = false };
-            _companionBubble.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+            // The speech bubble sits just above its head (the sprite is 72 tall at the bottom of its 74-up box), with a
+            // little tail pointing down at it, so the words clearly come from the companion.
+            _companionBubbleText = new Border { CornerRadius = new CornerRadius(10), Padding = new Thickness(10, 4, 10, 5) };
+            _companionBubbleText.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
+            var tail = new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse("M 0,0 L 14,0 L 4,9 Z"), HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                Margin = new Thickness(0, -1, 22, 0)
+            };
+            tail.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "DialogBrush");
+            var bubble = new StackPanel();
+            bubble.Children.Add(_companionBubbleText);
+            bubble.Children.Add(tail);
+            _companionBubble = new Border { Child = bubble, HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 40, 150), Opacity = 0, IsHitTestVisible = false };
             Panel.SetZIndex(_companionBubble, 40);
             _companion.RenderTransform = _companionPos;
             _companionBubble.RenderTransform = _companionPos;
@@ -584,6 +597,7 @@ public partial class MainWindow
             if (_companionBubble != null) RootGrid.Children.Remove(_companionBubble);
             _companion = null;
             _companionBubble = null;
+            _companionBubbleText = null;
         }
     }
 
@@ -955,13 +969,13 @@ public partial class MainWindow
 
     private void CompanionSay(string text)
     {
-        if (_companionBubble == null) return;
+        if (_companionBubble == null || _companionBubbleText == null) return;
         var line = new TextBlock();
         line.Inlines.Add(new System.Windows.Documents.Run(CompanionArt.Name + ": ") { FontWeight = FontWeights.Normal });
         line.Inlines.Add(new System.Windows.Documents.Run(text) { FontWeight = FontWeights.Bold });
         line.FontSize = 14;
         line.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
-        _companionBubble.Child = line;
+        _companionBubbleText.Child = line;
         var show = new DoubleAnimationUsingKeyFrames();
         show.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.25))));
         show.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(3))));

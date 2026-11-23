@@ -3,6 +3,56 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 7.3.5
+
+**Your handheld's settings, reorganized**
+The handheld's section of Settings is now one tidy page: a card at the top with a picture of your device, its processor and power range, and what it's set to right now (TDP, ASUS mode, fans, lights, charge limit, refresh rate), then a group for each kind of setting that opens on its own: **Performance**, **Processor tuning**, **Fans and temperature**, **Lights**, **Controller**, **Buttons**, **Battery care**, **Screen**, **This device**, **Advanced** and **Supported handhelds**. Everything is right there in its group instead of on separate pages, and the ASUS operating mode now sits with the TDP.
+
+New for the ROG Ally family, in the controller's own firmware (so they work in every game), as HandheldCompanion does:
+- **Rumble strength** of the built-in controller, from off to 100%.
+- **Stick dead zone** and **where the sticks reach full**, for drift or sticks that never quite reach the edge.
+- **Trigger dead zone** and **where the triggers reach full**, for hair triggers or a quicker full press.
+- A one-press way to put the controller back to ASUS's defaults, and Stick check right there to see the result.
+
+And for every handheld, a **Screen** group: the refresh rate (60 / 120 Hz and the rest) and resolution, kept after a restart.
+
+**More accessibility options**
+Settings > Accessibility now has groups for Seeing, Motion, Hearing, Controls and timing, and Reading aloud:
+- **Thicker highlight:** a bolder ring around whatever is selected.
+- **Flash the screen for alerts:** the screen's edge glows with notifications (and red for errors and low battery), even with sounds off.
+- **Holding a direction:** normal, slower, or off (one step per press), for steadier control of the highlight.
+- **Notifications stay on screen:** 4½, 9 or 15 seconds.
+- Shortcuts to Windows' Magnifier, mouse pointer size, Live captions, mono audio, the on-screen keyboard and sticky keys, and Narrator, plus quick ways to the font, button layout (swap A and B), vibration, interface sounds and covers that tilt.
+
+## 7.3.4
+
+**Choose a program, with the controller**
+In Add apps, *Choose a program…* now opens SquareDeck's own file picker instead of Windows' file window, so you can find a program with the controller. It shows programs, shortcuts and scripts, and its list of places includes the Start menu's programs and Program Files. (The Windows file window is still there at the bottom of the picker for a mouse or touch.)
+
+## 7.3.3
+
+**Pluto TV instead of YouTube**
+On the Multimedia page's streaming services, YouTube is replaced by **Pluto TV** (free live channels, movies and shows), with its logo. YouTube itself is DeckTube now, so it isn't there twice.
+
+**Rumble on the Multimedia page**
+The controller now gives a light buzz as you move around the Multimedia page and switch its tabs with LB / RB, like the home screen and the library.
+
+## 7.3.2
+
+**Trailers show when they're loading**
+While a trailer loads, the player shows a spinning ring in your highlight color with a play symbol and a film strip rolling under it, and "Loading trailer…". If it stops to wait for more of the video, "Buffering…" comes up over the picture until it carries on. If the trailer can't load, the player says so.
+
+## 7.3.1
+
+**Music openings for YouTube Music and Apple Music**
+The music services now open with their own music animations instead of the movie ones, one at random each time: a **turntable** (a record slides on, spins up and the tonearm drops), an **equalizer** bouncing to the beat, **sheet music** (notes hop along a staff, then float away) and a thumping **speaker** sending out sound waves, each in the service's own color. Setting the streaming opening animation to None turns these off too.
+
+**Game Genie's key is in Settings**
+The Gemini API key button is gone from the Game Genie page. To use your own key, go to Settings > Library and stores > Service keys > Gemini API key (Game Genie).
+
+**Fixes**
+- **Companion:** its speech bubble sits right above its head now, with a little tail pointing at it, instead of floating too high above.
+
 ## 7.3.0
 
 **Game Genie, faster**

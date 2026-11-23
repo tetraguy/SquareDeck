@@ -27,7 +27,7 @@ public sealed class SettingsScreen : ListScreen
         ("power", "Power and performance", "\uEC4A", "Live hardware readouts, TDP limit, Ryzen tuning, launcher performance"),
         ("handheld", "{device}", Ui.HandheldGlyph, "TDP limit and processor power, lights, fans, battery care and buttons for this device"),
         ("network", "Network and browser", "\uE774", "Wi-Fi, Bluetooth, troubleshooting, the web browser"),
-        ("access", "Accessibility", "\uE776", "Text size, high contrast, reduced motion"),
+        ("access", "Accessibility", "\uE776", "Seeing, motion, hearing, controls and timing, reading aloud"),
         ("apps", "Apps", "\uE71D", "Installed apps: uninstall, repair, reset; startup and default apps"),
         ("system", "System and tools", "\uE7F8", "Notifications, disk cleanup, tools, Xbox mode, starting with Windows"),
         ("data", "Updates and data", "\uE777", "New versions, backup, downloaded art, start over"),
@@ -611,6 +611,9 @@ public sealed class SettingsScreen : ListScreen
         var all = Rows.Children.Cast<UIElement>().Skip(1).ToList();
         int backAt = backRow != null ? all.IndexOf(backRow) : -1;
         var body = backAt < 0 ? all : all.Where((e, i) => i != backAt && i != backAt + 1).ToList();
+        // Pinned parts (a section's own header card, like the handheld's picture) stay at the top of the hub, in no group.
+        var pinned = body.Where(e => e is FrameworkElement { Tag: "pinned" }).ToList();
+        body = body.Except(pinned).ToList();
         var groups = new List<(string Name, List<UIElement> Items)>();
         foreach (var e in body)
         {
@@ -652,6 +655,7 @@ public sealed class SettingsScreen : ListScreen
         Rows.Children.Clear();
         Rows.Children.Add(top);
         if (backRow != null) { Rows.Children.Add(backRow); Rows.Children.Add(new Border { Height = 6 }); }
+        foreach (var p in pinned) Rows.Children.Add(p);
         Rows.Children.Add(new Border { Height = 4 });
         foreach (var g in groups)
         {
@@ -805,13 +809,64 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Color filters (Windows)", glyph: "\uE790", click: () => ProcessUtil.Open("ms-settings:easeofaccess-colorfilter"));
         AddNote("Grayscale, inverted and color-blindness filters for the whole screen, games included. Win+Ctrl+C switches them on and off.");
 
+        AddRow("Thicker highlight", OnOff(s.ThickFocusRing), "", click: () =>
+        {
+            s.ThickFocusRing = !s.ThickFocusRing;
+            Apply();
+        }, subtitle: "A bolder ring around whatever is selected, so it's easier to find");
+        AddRow("Magnifier (Windows)", glyph: "", click: () => ProcessUtil.Open("ms-settings:easeofaccess-magnifier"),
+            subtitle: "Zoom into any part of the screen. Win+Plus starts it, Win+Esc stops it");
+        AddRow("Mouse pointer size and color (Windows)", glyph: "", click: () => ProcessUtil.Open("ms-settings:easeofaccess-mousepointer"));
+        AddRow("Font", glyph: "", click: () => Show("look", focusContent: true), subtitle: "Pick an easier-to-read font in Look and feel");
+
         AddHeader("Motion");
-        AddRow("Reduce motion", OnOff(s.ReduceMotion), "\uE916", click: () =>
+        AddRow("Reduce motion", OnOff(s.ReduceMotion), "", click: () =>
         {
             s.ReduceMotion = !s.ReduceMotion;
             Apply();
         });
         AddNote("Stops the pulsing highlight, page slides, fades, animated covers and the startup animation.");
+        AddRow("Covers that tilt", Labs.On("tilt") ? "On" : "Off", "", click: () => { Labs.Set("tilt", !Labs.On("tilt")); Rebuild(); },
+            subtitle: "Turn off if movement on screen makes you uncomfortable");
+
+        AddHeader("Hearing");
+        AddRow("Flash the screen for alerts", OnOff(s.VisualSounds), "", click: () =>
+        {
+            s.VisualSounds = !s.VisualSounds;
+            s.Save();
+            Rebuild();
+            if (s.VisualSounds) UiSound.Toast(); // shows what it looks like
+        }, subtitle: "The edge of the screen glows with notifications, and red for errors and low battery, even with sounds off");
+        AddRow("Live captions (Windows)", glyph: "", click: () => ProcessUtil.Open("ms-settings:easeofaccess-hearing"),
+            subtitle: "Captions for any sound on the PC, games and videos included. Win+Ctrl+L turns them on");
+        AddRow("Mono audio (Windows)", glyph: "", click: () => ProcessUtil.Open("ms-settings:easeofaccess-audio"),
+            subtitle: "Both ears hear everything: for one earbud or hearing in one ear");
+        AddRow("Interface sounds", glyph: "", click: () => Show("sound", focusContent: true), subtitle: "Turn them up, down or off in Sound and music");
+
+        AddHeader("Controls and timing");
+        string pace = s.NavRepeat switch { "slow" => "Slower", "off" => "Off (one step per press)", _ => "Normal" };
+        AddRow("Holding a direction", pace, "", click: () =>
+        {
+            s.NavRepeat = s.NavRepeat switch { "normal" => "slow", "slow" => "off", _ => "normal" };
+            Apply();
+        }, subtitle: "How fast the highlight keeps moving while you hold the d-pad or a stick. Slower is easier to stop where you want");
+        string toast = s.ToastSeconds switch { >= 15 => "15 seconds", >= 9 => "9 seconds", _ => "4½ seconds (usual)" };
+        AddRow("Notifications stay on screen", toast, "", click: () =>
+        {
+            s.ToastSeconds = s.ToastSeconds switch { >= 15 => 0, >= 9 => 15, _ => 9 };
+            s.Save();
+            Rebuild();
+        }, subtitle: "Longer gives more time to read them");
+        AddRow("Swap A and B, or other buttons", glyph: "", click: () => Show("controller", focusContent: true),
+            subtitle: "Which button selects and which goes back, in Controller and quick menu");
+        AddRow("Vibration", s.RumbleStrength > 0 ? s.RumbleStrength + "%" : "Off", "", click: () => Show("controller", focusContent: true),
+            subtitle: "How strongly the controller buzzes, or off, in Controller and quick menu");
+        AddRow("On-screen keyboard and typing (Windows)", glyph: "", click: () => ProcessUtil.Open("ms-settings:easeofaccess-keyboard"),
+            subtitle: "Sticky keys, filter keys and the on-screen keyboard");
+
+        AddHeader("Reading aloud");
+        AddRow("Narrator (Windows)", glyph: "", click: () => ProcessUtil.Open("ms-settings:easeofaccess-narrator"),
+            subtitle: "Reads out what's on screen. Win+Ctrl+Enter turns it on and off");
     }
 
     private static string _lastCategory = "overview";
@@ -1481,7 +1536,7 @@ public sealed class SettingsScreen : ListScreen
         AddHeader("Multimedia page");
         AddRow("Streaming opening animation", StreamingIntro.Styles.FirstOrDefault(c => c.Id == s.StreamingIntro).Name ?? "Surprise me", "\uE714",
             click: () => Pick("Streaming opening animation", StreamingIntro.Styles, id => s.StreamingIntro = id),
-            subtitle: "Plays while Netflix, Hulu and the other streaming services open");
+            subtitle: "Plays while Netflix, Hulu and the other streaming services open. YouTube Music and Apple Music have their own music ones (None turns those off too)");
         AddRow("Search Spotify and YouTube Music", OnOff(s.MusicServices), "\uE721", click: () => Toggle(() => s.MusicServices = !s.MusicServices));
         if (s.MusicServices)
         {
@@ -1665,10 +1720,13 @@ public sealed class SettingsScreen : ListScreen
     /// Processor power: the TDP limit (and its helper) and the Ryzen tuning. In the handheld's own section on a handheld,
     /// in Power and performance on any other PC; never in both.
     /// </summary>
-    private void BuildTdp(Settings s)
+    private void BuildTdp(Settings s, bool handheld = false, Action? first = null)
     {
         var chip = TdpControl.Chip;
-        AddHeader("Processor power (TDP)");
+        // In the handheld's own section the groups read as Performance, Processor tuning and Advanced; the device's own
+        // power mode (from <paramref name="first"/>) leads the Performance group.
+        AddHeader(handheld ? "Performance" : "Processor power (TDP)");
+        first?.Invoke();
         if (chip == null)
         {
             AddNote("TDP control works with AMD and Intel processors. This PC has " +
@@ -1754,7 +1812,7 @@ public sealed class SettingsScreen : ListScreen
             }
         }
 
-        AddHeader("Processor (Ryzen Z1 / Z2)");
+        AddHeader(handheld ? "Processor tuning" : "Processor (Ryzen Z1 / Z2)");
         AddRow("CPU boost", OnOff(s.CpuBoost), "\uE9F5", click: () => { s.CpuBoost = !s.CpuBoost; SaveTdp(); },
             subtitle: "Short bursts above the base speed. Off saves battery and heat; most games barely notice");
         AddRow("Maximum CPU speed", s.MaxCpu >= 100 ? "No limit" : s.MaxCpu + "%", "\uEC48", click: async () =>
@@ -1800,15 +1858,22 @@ public sealed class SettingsScreen : ListScreen
         AddNote("Games can have their own TDP, CPU boost, speed and power mode: open a game's options (Y) > Game profile. " +
                 "The TDP can also be changed while playing from the Guide menu or Quick settings, until the game closes.");
 
+        if (!handheld) BuildTdpHelper(s, "TDP helper");
+    }
+
+    /// <summary>The TDP helper (RyzenAdj): set it up too, keep re-applying, update or remove it. Under <paramref name="header"/>, if given.</summary>
+    private void BuildTdpHelper(Settings s, string? header)
+    {
+        var chip = TdpControl.Chip;
         if (!TdpControl.Installed && TdpControl.Method is "asus" or "lenovo" or "msi" && !TdpControl.IsIntel && chip != null)
         {
-            AddHeader("TDP helper");
+            if (header != null) AddHeader(header);
             AddRow("Set up RyzenAdj too", "Optional", "\uE896", click: SetUpTdp,
                 subtitle: "Not needed on this device. Adds the temperature limit and power profile, which the firmware can't set");
         }
         if (TdpControl.Installed)
         {
-            AddHeader("TDP helper");
+            if (header != null) AddHeader(header);
             AddRow("Keep re-applying", OnOff(s.TdpReapply), "\uE72C", click: () => { s.TdpReapply = !s.TdpReapply; SaveTdp(); },
                 subtitle: "Every 15 seconds, for devices whose own software puts its limit back (Armoury Crate, Legion Space)");
             AddRow("Apply now", TdpControl.LastResult, "\uE768", click: async () => { await TdpControl.ApplyAsync(); Rebuild(); });
@@ -1908,51 +1973,33 @@ public sealed class SettingsScreen : ListScreen
     /// <summary>The section of Settings with the TDP settings.</summary>
     public static string TdpSection => Handheld.IsHandheld ? "handheld" : "power";
 
+    // ---------------------------------------------------------------- the handheld's own section
+    //
+    // One place for everything about this device, as a hub of groups (each opens on its own): Performance, Processor
+    // tuning, Fans and temperature, Lights, Controller, Buttons, Battery, Screen, This device and Advanced. On the ROG
+    // Ally family it covers what HandheldCompanion offers for it: TDP and the ASUS modes, fan curves, the RGB rings,
+    // the controller's firmware settings (rumble strength, stick and trigger dead zones, M1 / M2, mouse mode), the
+    // charge limit, and the screen's refresh rate and resolution.
+
     private void BuildHandheld(Settings s)
     {
-        var device = Handheld.Current;
-        string name = Handheld.DisplayName;
+        bool ally = Handheld.Vendor == HandheldVendor.Asus;
+        Rows.Children.Add(HandheldHero(s, ally));
 
-        AddHeader(name + " Specific Settings");
-        var facts = new List<string>();
-        if (Handheld.Brand.Length > 0) facts.Add(Handheld.Brand);
-        if (TdpControl.CpuName.Length > 0) facts.Add(TdpControl.CpuName);
-        if (device != null) facts.Add($"{device.TdpMin}–{device.TdpMax} W");
-        AddRow(name, null, Ui.HandheldGlyph, click: () => Host.Push(new MyDeviceScreen()),
-            subtitle: string.Join("   \u00B7   ", facts));
-        AddRow("My Device", null, "\uE950", click: () => Host.Push(new MyDeviceScreen()),
-            subtitle: "Temperatures, fan speed, battery health, power draw and more, live");
-        AddRow("My Device on the home screen", OnOff(s.ShowMyDeviceButton), "\uE8A9", click: () =>
+        // ---- Performance: the device's own power mode first, then the TDP; Processor tuning; Advanced (the helper).
+        BuildTdp(s, handheld: true, first: ally ? () =>
         {
-            s.ShowMyDeviceButton = !s.ShowMyDeviceButton;
-            s.Save();
-            Host.RefreshHomeButtonsPublic();
-            Rebuild();
-        }, subtitle: "A button beside the others under the games row");
-        if (device != null)
-            AddNote("SquareDeck can change: " + Handheld.ControlsText(device) + ".");
+            AddRow("Operating mode", AllyControl.AsusModes.FirstOrDefault(m => m.Id == s.AllyAsusMode).Name ?? "Leave as it is", "",
+                click: () => AllyPick("Operating mode", AllyControl.AsusModes, m => m.Name, m => s.AllyAsusMode = m.Id, () => Task.Run(AllyControl.ApplyPower)),
+                subtitle: "Silent, Performance or Turbo, as in Armoury Crate. The TDP limit below, when on, is applied on top");
+        } : null);
 
-        // ROG Ally family: every Ally setting lives here now.
-        if (Handheld.Vendor == HandheldVendor.Asus)
-        {
-            AddHeader("ROG Ally");
-            AddRow("Lights", AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights).Name ?? "Leave as it is", "\uE781",
-                click: () => Host.Push(new AllyControlScreen("lights")), subtitle: "Effects, colors, brightness, game lights");
-            AddRow("Performance and fans", AllyControl.AsusModes.FirstOrDefault(m => m.Id == s.AllyAsusMode).Name ?? "Leave as it is", "\uE9CA",
-                click: () => Host.Push(new AllyControlScreen("performance")), subtitle: "ASUS mode, fan curves, fan speed");
-            AddRow("Battery care", s.AllyChargeLimit is > 0 and < 100 ? "Stop at " + s.AllyChargeLimit + "%" : "Off", "\uEBB5",
-                click: () => Host.Push(new AllyControlScreen("battery")), subtitle: "Charge limit, charge to full once");
-            AddRow("Controller", AllyControl.MouseMode ? "Mouse mode" : null, "\uE7FC",
-                click: () => Host.Push(new AllyControlScreen("controller")), subtitle: "M1 / M2 back buttons, mouse mode, the built-in controller");
-            AddRow("Buttons", s.AllyRemap ? "Remapped" : "Off", "\uE765", click: () => Host.Push(new AllyButtonsScreen()),
-                subtitle: "Armoury Crate, Command Center, Xbox Library, M1 / M2, the quick-menu button, button test");
-        }
-
+        if (ally) BuildAllyHardware(s);
         // Legion Go / MSI Claw: through the device helper.
         if (HandheldVendors.Supported)
         {
             bool lenovo = Handheld.Vendor == HandheldVendor.Lenovo;
-            AddHeader(lenovo ? "Legion" : "MSI Claw");
+            AddHeader(lenovo ? "Legion modes and fans" : "MSI Claw modes and fans");
             if (!DeviceHelper.Installed)
             {
                 AddRow("Set up the device helper", "Not set up", "\uE896", click: () => _ = SetUpDeviceHelperAsync(),
@@ -2005,11 +2052,29 @@ public sealed class SettingsScreen : ListScreen
             }
         }
 
-        // Processor power: the one place in Settings for the TDP limit on a handheld.
-        BuildTdp(s);
+
+        // ---- Screen (every handheld): refresh rate and resolution of the built-in display.
+        BuildHandheldScreen();
+
+        // ---- This device
+        AddHeader("This device");
+        AddRow("My Device", null, "", click: () => Host.Push(new MyDeviceScreen()),
+            subtitle: "Temperatures, fan speed, battery health, power draw and more, live");
+        AddRow("My Device on the home screen", OnOff(s.ShowMyDeviceButton), "", click: () =>
+        {
+            s.ShowMyDeviceButton = !s.ShowMyDeviceButton;
+            s.Save();
+            Host.RefreshHomeButtonsPublic();
+            Rebuild();
+        }, subtitle: "A button beside the others under the games row");
+        AddRow("Battery", null, "", click: () => Host.Push(new BatteryScreen()), subtitle: "Battery saver, health, charging and usage");
+        if (Handheld.Current is { } device) AddNote("SquareDeck can change: " + Handheld.ControlsText(device) + ".");
+
+        // ---- Advanced: the helpers (the TDP helper's rows were added to it by BuildTdp)
+        AddHeader("Advanced");
+        BuildTdpHelper(s, null);
         if (HandheldVendors.Supported || TdpControl.IsIntel)
         {
-            if (DeviceHelper.Installed || !HandheldVendors.Supported) AddHeader("Device helper");
             if (DeviceHelper.Installed)
             {
                 AddRow("Device helper", "Set up", "\uE90F", click: async () =>
@@ -2032,7 +2097,7 @@ public sealed class SettingsScreen : ListScreen
         }
 
         // Every handheld SquareDeck knows, by maker.
-        AddHeader("Supported Windows Handheld Devices");
+        AddHeader("Supported handhelds");
         AddNote("SquareDeck recognizes these handhelds (the list comes from HandheldCompanion) and uses each one's own power range. " +
                 "TDP works on all of them; the ROG Ally family, Legion Go and MSI Claw also get their own controls.");
         foreach (var brand in Handheld.Models.GroupBy(m => m.Brand))
@@ -2042,6 +2107,264 @@ public sealed class SettingsScreen : ListScreen
             AddRow(b, names.Count + (names.Count == 1 ? " model" : " models"), Ui.HandheldGlyph,
                 click: () => Host.Push(new SupportedHandheldsScreen(b)), subtitle: string.Join(", ", names));
         }
+    }
+
+    /// <summary>The top of the handheld's section: its picture, name, processor and power range, and what it's set to now.</summary>
+    private UIElement HandheldHero(Settings s, bool ally)
+    {
+        var a = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.DeepSkyBlue;
+        var panel = new Border
+        {
+            CornerRadius = new CornerRadius(22), Padding = new Thickness(22, 16, 22, 18), Margin = new Thickness(0, 8, 0, 14), Tag = "pinned",
+            Background = new LinearGradientBrush(Color.FromArgb(0x55, a.R, a.G, a.B), Color.FromArgb(0x12, a.R, a.G, a.B), 20)
+        };
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        if (MyDeviceScreen.DevicePhoto(260) is { } photo) grid.Children.Add(photo);
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(Ui.Text(Handheld.DisplayName, 28, "FgBrush", bold: true));
+        var facts = new List<string>();
+        if (Handheld.Brand.Length > 0) facts.Add(Handheld.Brand);
+        if (TdpControl.CpuName.Length > 0) facts.Add(TdpControl.CpuName);
+        if (Handheld.Current is { } device) facts.Add($"{device.TdpMin}–{device.TdpMax} W");
+        var line = Ui.Text(string.Join("   ·   ", facts), 14, "SubtleBrush");
+        line.TextWrapping = TextWrapping.Wrap;
+        line.Margin = new Thickness(0, 4, 0, 12);
+        text.Children.Add(line);
+
+        // What it's set to right now, as chips.
+        var chips = new WrapPanel();
+        void Chip(string glyph, string label)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var g = Ui.Glyph(glyph, 13, "AccentBrush");
+            g.Margin = new Thickness(0, 1, 7, 0);
+            row.Children.Add(g);
+            row.Children.Add(Ui.Text(label, 13, "FgBrush"));
+            chips.Children.Add(new Border
+            {
+                CornerRadius = new CornerRadius(14), Padding = new Thickness(12, 6, 12, 7), Margin = new Thickness(0, 0, 8, 8), Child = row,
+                Background = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF))
+            });
+        }
+        Chip("", TdpControl.Ready ? TdpControl.EffectiveWatts + " W TDP" : "TDP not set");
+        if (ally)
+        {
+            Chip("", AllyControl.AsusModes.FirstOrDefault(m => m.Id == s.AllyAsusMode).Name is { } mode && s.AllyAsusMode.Length > 0 ? mode : "ASUS mode as it is");
+            var fan = AllyControl.FanCurves.FirstOrDefault(f => f.Id == s.AllyFan);
+            Chip("", s.AllyFan.Length > 0 ? fan.Name + " fans" : "Fans as they are");
+            Chip("", "Lights: " + (AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights).Name ?? "as they are"));
+            Chip("", s.AllyChargeLimit is > 0 and < 100 ? "Charges to " + s.AllyChargeLimit + "%" : "Charges to 100%");
+        }
+        if (DisplaySettings.Current() is { } screen) Chip("", $"{screen.RefreshRate} Hz");
+        text.Children.Add(chips);
+        Grid.SetColumn(text, 1);
+        grid.Children.Add(text);
+        panel.Child = grid;
+        return panel;
+    }
+
+    /// <summary>Saves a setting, applies it, and redraws.</summary>
+    private void AllySave(Action change, Action? apply = null)
+    {
+        change();
+        Host.Settings.Save();
+        apply?.Invoke();
+        Rebuild();
+    }
+
+    private async void AllyPick<T>(string title, T[] options, Func<T, string> name, Action<T> store, Action? apply = null)
+    {
+        int choice = await Host.AskAsync(title, null, options.Select(name).ToArray());
+        if (choice < 0 || choice >= options.Length) return;
+        AllySave(() => store(options[choice]), apply);
+    }
+
+    /// <summary>The ROG Ally family's own hardware: fans, lights, the controller's firmware, buttons and battery care.</summary>
+    private void BuildAllyHardware(Settings s)
+    {
+        bool acpi = AsusAcpi.Available;
+        bool lights = AllyHid.HasLights;
+        bool pad = AllyHid.HasController;
+
+        // ---- Fans and temperature
+        AddHeader("Fans and temperature");
+        var fan = AllyControl.FanCurves.FirstOrDefault(f => f.Id == s.AllyFan);
+        AddRow("Fan curve", fan.Name ?? "Leave as it is", "",
+            click: () => AllyPick("Fan curve", AllyControl.FanCurves, f => f.Name + (f.About.Length > 0 ? "  ·  " + f.About : ""), f => s.AllyFan = f.Id, () => Task.Run(AllyControl.ApplyPower)),
+            subtitle: string.IsNullOrEmpty(fan.About) ? "How fast the fans spin as it warms up" : fan.About);
+        if (acpi)
+        {
+            var now = new List<string>();
+            if (AsusAcpi.FanRpm(AsusAcpi.CpuFan) is int rpm) now.Add(rpm.ToString("N0") + " RPM");
+            if (AsusAcpi.FanPercent() is int pct) now.Add(pct + "%");
+            if (now.Count > 0) AddRow("Fans now", string.Join("  ·  ", now), "", click: Rebuild, subtitle: "Select to refresh. My Device shows them live, with the temperature");
+        }
+        else AddNote("SquareDeck couldn't reach ASUS's firmware driver (ATKACPI, installed with Armoury Crate SE or the MyASUS drivers), so the operating mode, fans and charge limit can't be changed.");
+
+        // ---- Lights
+        AddHeader("Lights");
+        if (!lights) AddNote("SquareDeck couldn't find the Ally's light controller. These settings apply once it's found.");
+        var mode = AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights);
+        AddRow("Effect", mode.Name ?? "Leave as it is", "", click: () => _ = ChooseLightEffectAsync(),
+            subtitle: string.IsNullOrEmpty(mode.About) ? "The rings around the sticks" : mode.About);
+        if (s.AllyLights is "solid" or "breathing" or "sticks")
+        {
+            bool sticks = s.AllyLights == "sticks";
+            AddRow(sticks ? "Left stick color" : "Color", AllyControlScreen.ColorName(s.AllyLightColor), "",
+                click: () => Host.Push(new LedColorScreen(sticks ? "Left stick color" : "Light color", s.AllyLightColor,
+                    hex => { s.AllyLightColor = hex; s.Save(); AllyControl.ApplyLights(force: true); })));
+            if (s.AllyLights is "breathing" or "sticks")
+                AddRow(sticks ? "Right stick color" : "Second color", AllyControlScreen.ColorName(s.AllyLightColor2), "",
+                    click: () => Host.Push(new LedColorScreen(sticks ? "Right stick color" : "Second light color", s.AllyLightColor2,
+                        hex => { s.AllyLightColor2 = hex; s.Save(); AllyControl.ApplyLights(force: true); })));
+        }
+        if (s.AllyLights is "breathing" or "rainbow" or "wheel")
+            AddRow("Speed", AllyControl.Speeds.FirstOrDefault(x => x.Id == s.AllyLightSpeed).Name ?? "Medium", "",
+                click: () => AllySave(() => s.AllyLightSpeed = s.AllyLightSpeed switch { "slow" => "medium", "medium" => "fast", _ => "slow" }, () => AllyControl.ApplyLights(force: true)));
+        if (s.AllyLights is not ("" or "off"))
+        {
+            AddRow("Brightness", AllyControl.BrightnessPercent(s) + "%", "",
+                click: () => AllyPick("Brightness", AllyControl.Brightness, b => b + "%", b => s.AllyLightPercent = b, () => AllyControl.ApplyLights(force: true)));
+            AddRow("Off while playing", OnOff(s.AllyLightsOffPlaying), "",
+                click: () => AllySave(() => s.AllyLightsOffPlaying = !s.AllyLightsOffPlaying, () => AllyControl.ApplyLights(force: true)),
+                subtitle: s.AllyGameLights ? "Game lights are on, so they win: turn those off to use this" : "Saves a little battery; they come back when the game closes");
+        }
+        AddRow("Game lights while playing", OnOff(s.AllyGameLights), "",
+            click: () => AllySave(() => s.AllyGameLights = !s.AllyGameLights, () => AllyControl.ApplyLights(force: true)),
+            subtitle: "The game's colors from its cover, or the effect in its game profile");
+        AddRow("Pulse red when the battery is low", OnOff(s.AllyLowBatteryFlash), "",
+            click: () => AllySave(() => s.AllyLowBatteryFlash = !s.AllyLowBatteryFlash, () => AllyControl.ApplyLights(force: true)),
+            subtitle: "At 15% or less, until you plug in");
+
+        // ---- Controller: the built-in controller's own firmware settings (they work in every game)
+        AddHeader("Controller");
+        if (!pad) AddNote("SquareDeck couldn't find the Ally's controller settings device. These settings apply once it's found.");
+        AddRow("Rumble strength", s.AllyVibration == 0 ? "Off" : s.AllyVibration + "%", "", click: async () =>
+        {
+            var dialog = new SliderDialog("Rumble strength", "How strongly the built-in controller vibrates, in every game. ASUS's default is 100%.",
+                "Strength", "", s.AllyVibration, null, 0, 100, v => v == 0 ? "Off" : v + "%");
+            Host.Push(dialog);
+            int v = await dialog.Result;
+            AllySave(() => s.AllyVibration = Math.Clamp(v, 0, 100), () => Task.Run(AllyControl.ApplyTuning));
+        }, subtitle: "The controller's own strength, for every game. SquareDeck's menu buzz is in Controller and quick menu");
+        AddRow("Stick dead zone", s.AllyStickInner + "%", "", click: () => _ = PickPercentAsync("Stick dead zone",
+            "How far the sticks move before anything happens. Raise it if a worn stick drifts on its own.", s.AllyStickInner, 0, 30,
+            v => s.AllyStickInner = v), subtitle: "Both sticks, in the controller itself. 0% is ASUS's default");
+        AddRow("Stick reaches full at", s.AllyStickOuter + "%", "", click: () => _ = PickPercentAsync("Stick reaches full at",
+            "How far the sticks travel to count as pushed all the way. Lower it if a stick never quite reaches full.", s.AllyStickOuter, 70, 100,
+            v => s.AllyStickOuter = v), subtitle: "100% is ASUS's default");
+        AddRow("Trigger dead zone", s.AllyTriggerInner + "%", "", click: () => _ = PickPercentAsync("Trigger dead zone",
+            "How far the triggers press before they register. Raise it for hair triggers you brush by accident.", s.AllyTriggerInner, 0, 40,
+            v => s.AllyTriggerInner = v), subtitle: "Both triggers. 0% is ASUS's default");
+        AddRow("Trigger reaches full at", s.AllyTriggerOuter + "%", "", click: () => _ = PickPercentAsync("Trigger reaches full at",
+            "How far the triggers press to count as fully pressed. Lower it for faster full throttle or a quicker shot.", s.AllyTriggerOuter, 60, 100,
+            v => s.AllyTriggerOuter = v), subtitle: "100% is ASUS's default");
+        if (s.AllyVibration != 100 || s.AllyStickInner != 0 || s.AllyStickOuter != 100 || s.AllyTriggerInner != 0 || s.AllyTriggerOuter != 100)
+            AddRow("Put the controller back to ASUS's defaults", null, "", click: () => AllySave(() =>
+            {
+                s.AllyVibration = 100; s.AllyStickInner = 0; s.AllyStickOuter = 100; s.AllyTriggerInner = 0; s.AllyTriggerOuter = 100;
+            }, () => Task.Run(AllyControl.ApplyTuning)));
+        if (Labs.Feature("sticks") is not null && LabPage("sticks") is { } sticksPage)
+            AddRow("Stick check", null, "", click: sticksPage, subtitle: "See exactly where each stick and trigger is, to set the dead zones");
+        AddRow("Mouse mode", OnOff(AllyControl.MouseMode), "",
+            click: () => { if (!AllyControl.ToggleMouseMode()) Host.ShowToast("ROG ALLY", "Couldn't change the mode", "", "", "info"); Rebuild(); },
+            subtitle: "The right stick moves the pointer and the triggers click, for the desktop. Game mode comes back when SquareDeck closes");
+        AddRow("Switch off the built-in controller", null, "", click: async () =>
+        {
+            if (await Host.AskAsync("Switch off the built-in controller?",
+                    "For when you play with another controller, so the Ally's own doesn't also count as a player. " +
+                    "Make sure the other controller is connected: the touch screen still works, and the built-in controller comes back when SquareDeck closes or the Ally restarts.",
+                    "Switch off", "Switch back on", "Cancel") is int pick and (0 or 1))
+            {
+                bool ok = AllyHid.SetBuiltInController(pick == 1);
+                Host.ShowToast("ROG ALLY", ok ? (pick == 1 ? "Built-in controller on" : "Built-in controller off") : "Couldn't change the controller", "", "", "info");
+            }
+        }, subtitle: "When another controller is player one");
+
+        // ---- Buttons
+        AddHeader("Buttons");
+        AddRow("ROG Ally buttons", s.AllyRemap ? "On" : "Off", "", click: () => Host.Push(new AllyButtonsScreen()),
+            subtitle: "What Armoury Crate, Command Center, the Xbox Library button" + (s.AllyBackKeys ? ", M1 and M2" : "") + " do; a button test");
+        AddRow("M1 and M2 back buttons", s.AllyBackKeys ? "Usable" : "As ASUS set them", "", click: async () =>
+        {
+            if (!s.AllyBackKeys && await Host.AskAsync("Use the back buttons?",
+                    "M1 and M2 will send the F18 and F17 keys, so you can give them actions in ROG Ally buttons (and games can bind them). " +
+                    "This puts the controller's other buttons back to ASUS's defaults, undoing mappings made in Armoury Crate SE.",
+                    "Use them", "Cancel") != 0) return;
+            AllySave(() => s.AllyBackKeys = !s.AllyBackKeys, () => { Task.Run(AllyControl.ApplyController); Host.ApplyAllyButtons(); });
+        }, subtitle: s.AllyBackKeys ? "Give them actions in ROG Ally buttons. Put back as ASUS ships them when SquareDeck closes" : "Turn on to give them actions");
+
+        // ---- Battery care
+        AddHeader("Battery care");
+        AddRow("Stop charging at", s.AllyChargeLimit is > 0 and < 100 ? s.AllyChargeLimit + "%" : s.AllyChargeLimit == 100 ? "100%" : "Leave as it is", "",
+            click: () => AllyPick("Stop charging at", AllyControl.ChargeLimits, l => l == 0 ? "Leave as it is" : l + "%", l => s.AllyChargeLimit = l, () => Task.Run(AllyControl.ApplyBattery)),
+            subtitle: "80% is kinder to the battery when the Ally is mostly plugged in");
+        if (s.AllyChargeLimit is > 0 and < 100)
+            AddRow("Charge to 100% this once", AllyControl.ChargingFullOnce ? "Until SquareDeck restarts" : null, "",
+                click: () => { AllyControl.ChargeFullOnce(); Rebuild(); },
+                subtitle: "For a long trip: charges fully now; the limit comes back next time SquareDeck starts");
+        AddRow("Battery health", null, "", click: () => Host.Push(new BatteryScreen()), subtitle: "Wear, charge cycles and how long a charge lasts");
+
+        AddNote("The firmware and controller messages come from HandheldCompanion by Valkirie (github.com/Valkirie/HandheldCompanion). " +
+                "Armoury Crate SE can change the same settings; if it's running, the last one to change something wins.");
+    }
+
+    private async Task PickPercentAsync(string title, string message, int value, int min, int max, Action<int> store)
+    {
+        var dialog = new SliderDialog(title, message, "Percent", "", Math.Clamp(value, min, max), null, min, max, v => v + "%");
+        Host.Push(dialog);
+        int v = await dialog.Result;
+        AllySave(() => store(Math.Clamp(v, min, max)), () => Task.Run(AllyControl.ApplyTuning));
+    }
+
+    /// <summary>Picks a light effect and applies it straight away, saying whether the lights took it.</summary>
+    private async Task ChooseLightEffectAsync()
+    {
+        var s = Host.Settings;
+        var modes = AllyControl.LightModes;
+        int choice = await Host.AskAsync("Light effect", null, modes.Select(m => m.Name).ToArray());
+        if (choice < 0 || choice >= modes.Length) return;
+        s.AllyLights = modes[choice].Id;
+        s.Save();
+        Rebuild();
+        if (s.AllyLights.Length == 0) return;
+        if (!await AllyControl.ApplyLightsAsync(force: true))
+            Host.ShowToast("ROG ALLY", "Couldn't reach the lights", "SquareDeck will keep trying. Armoury Crate SE may be holding them.", "", "info");
+    }
+
+    /// <summary>The built-in screen: refresh rate and resolution, kept after a restart.</summary>
+    private void BuildHandheldScreen()
+    {
+        var now = DisplaySettings.Current();
+        if (now == null) return;
+        var modes = DisplaySettings.All();
+        AddHeader("Screen");
+        var rates = modes.Where(m => m.Width == now.Width && m.Height == now.Height).Select(m => m.RefreshRate).Distinct().OrderByDescending(r => r).ToArray();
+        AddRow("Refresh rate", now.RefreshRate + " Hz", "", click: async () =>
+        {
+            if (rates.Length < 2) { await Host.AskAsync("Refresh rate", "This screen only offers " + now.RefreshRate + " Hz at this resolution.", "OK"); return; }
+            int choice = await Host.AskAsync("Refresh rate", "Higher is smoother; lower saves battery.", rates.Select(r => r + " Hz").ToArray());
+            if (choice < 0) return;
+            if (!DisplaySettings.Apply(new DisplayMode(now.Width, now.Height, rates[choice]), keep: true))
+                Host.ShowToast("SCREEN", "Couldn't change the refresh rate", "", "", "info");
+            Rebuild();
+        }, subtitle: rates.Length > 1 ? string.Join(" or ", rates.Select(r => r + " Hz")) + " on this screen" : null);
+        var sizes = modes.Select(m => (m.Width, m.Height)).Distinct().Take(8).ToArray();
+        AddRow("Resolution", now.Resolution, "", click: async () =>
+        {
+            int choice = await Host.AskAsync("Resolution", "Lower resolutions run games faster on battery. Windows keeps the change.",
+                sizes.Select(z => $"{z.Width} × {z.Height}" + (z.Width == now.Width && z.Height == now.Height ? "  (now)" : "")).ToArray());
+            if (choice < 0) return;
+            var size = sizes[choice];
+            int rate = modes.Where(m => m.Width == size.Width && m.Height == size.Height).Select(m => m.RefreshRate)
+                            .OrderBy(r => Math.Abs(r - now.RefreshRate)).FirstOrDefault(now.RefreshRate);
+            if (!DisplaySettings.Apply(new DisplayMode(size.Width, size.Height, rate), keep: true))
+                Host.ShowToast("SCREEN", "Couldn't change the resolution", "", "", "info");
+            Rebuild();
+        });
+        AddRow("Brightness, night light and more", null, "", click: () => Host.Push(new QuickSettingsScreen()), subtitle: "In quick settings");
     }
 
     private void SaveTdp()
@@ -2269,6 +2592,21 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Steam Web API key (friends, not-installed games)", s.SteamWebApiKey.Length > 0 ? Mask(s.SteamWebApiKey) : "Not set", "",
             click: () => _ = EditSteamKeyAsync(Host, Rebuild));
         AddRow("SteamGridDB API key (cover art)", Mask(s.SteamGridDbApiKey), "", click: EditApiKey);
+        // Game Genie's key lives only here. The key itself is never shown (the built-in one or yours): only which one is in use.
+        AddRow("Gemini API key (Game Genie)", GameGenie.UsingOwnKey ? "Yours" : GameGenie.HasKey ? "Built in" : "Not set", "\uE8D7", click: async () =>
+        {
+            string now = GameGenie.UsingOwnKey
+                ? "You're using your own key. Enter a new one to replace it, or leave it empty to go back to the built-in key."
+                : "You're using the key built into this copy of SquareDeck. Enter your own (from aistudio.google.com) to use it instead.";
+            string? key = await Host.PromptAsync("Gemini API key", now, "", "Save");
+            if (key == null) return;
+            key = key.Trim();
+            // Typing the built-in key again is the same as using the built-in key: it isn't stored as yours.
+            if (key == ApiKeys.Gemini) key = "";
+            s.GeminiApiKey = key;
+            s.Save();
+            Rebuild();
+        }, subtitle: "Your own Google Gemini key for Game Genie's answers, instead of the one built in");
     }
 
     private void BuildNetwork(Settings s)

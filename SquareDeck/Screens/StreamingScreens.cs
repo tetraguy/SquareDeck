@@ -20,10 +20,9 @@ public sealed record StreamingService(string Id, string Name, string Url, string
     {
         new("netflix", "Netflix", "https://www.netflix.com/browse",
             new[] { "netflix.com" }, Color.FromRgb(0xE5, 0x09, 0x14), Colors.White),
-        new("youtube", "YouTube", "https://www.youtube.com/",
-            // Signing in goes through Google's accounts pages and comes back.
-            new[] { "youtube.com", "youtu.be", "accounts.google.com", "consent.google.com", "consent.youtube.com", "accounts.youtube.com" },
-            Color.FromRgb(0xFF, 0x00, 0x33), Colors.White),
+        // Free live TV channels and on-demand movies and shows. (YouTube itself is DeckTube now, on the Music page.)
+        new("plutotv", "Pluto TV", "https://pluto.tv/us/home/",
+            new[] { "pluto.tv" }, Color.FromRgb(0xFF, 0xF2, 0x00), Color.FromRgb(0x10, 0x10, 0x10)),
         new("hulu", "Hulu", "https://www.hulu.com/hub/home",
             new[] { "hulu.com" }, Color.FromRgb(0x1C, 0xE7, 0x83), Color.FromRgb(0x04, 0x12, 0x0A)),
         new("primevideo", "Prime Video", "https://www.primevideo.com/",

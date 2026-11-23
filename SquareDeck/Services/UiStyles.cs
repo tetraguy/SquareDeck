@@ -1571,9 +1571,11 @@ public static class UiStyles
             : res["TileBrush"];
 
         res["RowCorner"] = new CornerRadius(s.RowCorner);
-        res["RingThickness"] = new Thickness(s.RingThickness);
+        // Accessibility's thicker highlight ring: well over the style's own, so the selected item is easy to find.
+        double ringWidth = Theme.ThickRing ? Math.Max(7, s.RingThickness * 1.8) : s.RingThickness;
+        res["RingThickness"] = new Thickness(ringWidth);
         res["TileRingMargin"] = new Thickness(s.TileGap);
-        res["TileInnerMargin"] = new Thickness(s.TileGap + s.RingThickness + 4);
+        res["TileInnerMargin"] = new Thickness(s.TileGap + ringWidth + 4);
         res["TileTitleOpacity"] = s.Title == "above" ? 1.0 : 0.0;
         res["TileNameOpacity"] = s.Title == "inside" ? 1.0 : 0.0;
 

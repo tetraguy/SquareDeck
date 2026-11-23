@@ -286,7 +286,7 @@ public static class GameGenie
     private static async Task<string> GenerateAsync(string prompt, CancellationToken ct, Action<string>? partial = null)
     {
         string key = Key;
-        if (key.Length == 0) throw new GenieException("Game Genie needs a Google Gemini API key. Add one under \"Gemini API key\" on the Genie's page.");
+        if (key.Length == 0) throw new GenieException("Game Genie needs a Google Gemini API key. Add your own in Settings > Library and stores > Service keys.");
         // Speed: these are look-up answers, not puzzles, so the model's "thinking" (which can take longer than the answer
         // itself) is turned down to the least each model allows. A model that refuses the setting is asked again without it.
         string Body(string model, bool thinking)

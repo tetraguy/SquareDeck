@@ -295,6 +295,8 @@ public static class Theme
         CurrentIsDark = dark;
 
         ReduceMotion = settings.ReduceMotion;
+        ThickRing = settings.ThickFocusRing;
+        Gamepad.RepeatPace = settings.NavRepeat is "slow" or "off" ? settings.NavRepeat : "normal";
         HighContrast = settings.ThemeMode is "hc-dark" or "hc-light";
         HighlightEffects.Load(settings);
         TextScale = Math.Clamp(settings.TextScale, 100, 200) / 100.0;
@@ -359,6 +361,9 @@ public static class Theme
     public static bool UserAccent { get; private set; }
 
     /// <summary>A high-contrast theme is on (highlight effects are left out).</summary>
+    /// <summary>Accessibility: the highlight ring is drawn thicker.</summary>
+    public static bool ThickRing { get; private set; }
+
     public static bool HighContrast { get; private set; }
 
     public static void ApplyAccent(Settings settings)

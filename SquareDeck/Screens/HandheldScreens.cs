@@ -234,7 +234,7 @@ public sealed class MyDeviceScreen : ListScreen
     /// The handheld itself (the right picture for the model), floating gently over a soft shadow, sliding in when the
     /// page opens. Null when SquareDeck has no picture of this device.
     /// </summary>
-    private static UIElement? DevicePhoto()
+    internal static UIElement? DevicePhoto(double width = 380)
     {
         string? path = Handheld.ImagePath;
         if (path == null) return null;
@@ -251,7 +251,6 @@ public sealed class MyDeviceScreen : ListScreen
         }
         catch (Exception) { return null; }
 
-        const double width = 380;
         double height = width * bmp.PixelHeight / Math.Max(1, bmp.PixelWidth);
         var box = new Grid { Width = width, Margin = new Thickness(-6, -8, 26, -8), VerticalAlignment = VerticalAlignment.Center };
         var shadow = new Ellipse

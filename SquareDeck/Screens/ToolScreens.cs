@@ -111,6 +111,14 @@ public sealed class FilePickerScreen : ListScreen
         Place("Pictures", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "");
         Place("Videos", Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "");
         Place("Music", Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "");
+        // Choosing a program: where programs and their shortcuts live, too.
+        if (_extensions != null && _extensions.Any(e => e is ".exe" or ".lnk"))
+        {
+            Place("Start menu programs", Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), "\uE8FC");
+            Place("Your Start menu programs", Environment.GetFolderPath(Environment.SpecialFolder.Programs), "\uE8FC");
+            Place("Program Files", Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "\uE8B7");
+            Place("Program Files (x86)", Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "\uE8B7");
+        }
 
         AddHeader("Drives");
         try

@@ -59,9 +59,13 @@ public sealed class Gamepad
     public static short StickThreshold { get; set; } = 16000;
 
     // Holding a direction: a short pause, then steady steps that speed up the longer it's held (long lists and rows).
-    private static readonly TimeSpan FirstRepeat = TimeSpan.FromMilliseconds(320);
-    private static readonly TimeSpan NextRepeat = TimeSpan.FromMilliseconds(85);
-    private static readonly TimeSpan FastRepeat = TimeSpan.FromMilliseconds(55);
+    // Accessibility (Settings > Accessibility > Holding a direction): "normal", "slow" (a longer pause, slower steps
+    // that don't speed up) or "off" (one step per press).
+    public static string RepeatPace { get; set; } = "normal";
+    private static bool Slow => RepeatPace == "slow";
+    private static TimeSpan FirstRepeat => TimeSpan.FromMilliseconds(Slow ? 650 : 320);
+    private static TimeSpan NextRepeat => TimeSpan.FromMilliseconds(Slow ? 260 : 85);
+    private static TimeSpan FastRepeat => TimeSpan.FromMilliseconds(Slow ? 260 : 55);
     private const int RepeatsBeforeFast = 8;
     private int _repeats;
 
@@ -214,7 +218,7 @@ public sealed class Gamepad
             _nextRepeatAt = now + FirstRepeat;
             actions.Add(direction.Value);
         }
-        else if (now >= _nextRepeatAt)
+        else if (RepeatPace != "off" && now >= _nextRepeatAt)
         {
             _repeats++;
             _nextRepeatAt = now + (_repeats >= RepeatsBeforeFast ? FastRepeat : NextRepeat);

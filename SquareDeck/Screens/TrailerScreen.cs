@@ -229,13 +229,47 @@ public sealed class TrailerScreen : Screen
         string src = t.Url ?? t.Stream!;
         bool hls = t.Url == null;
         // One video, no browser controls (SquareDeck's buttons drive it). Streams play through hls.js where needed.
+        // The player is a window of its own (nothing SquareDeck draws can sit on top of it), so the loading animation is
+        // part of the page: a spinning ring in the highlight color with a film strip running under it, "Loading trailer…"
+        // until it plays, and "Buffering…" whenever it stops to wait for more.
+        var accent = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Color.FromRgb(0x20, 0xE0, 0xD0);
+        string ac = $"#{accent.R:X2}{accent.G:X2}{accent.B:X2}";
+        string loader =
+            "<div id='ld'><div class='ring'><i></i><b>\u25B6</b></div>" +
+            "<div class='strip'><div class='holes'></div></div>" +
+            "<div id='lt'>Loading trailer<span class='d'>.</span><span class='d'>.</span><span class='d'>.</span></div></div>";
+        string loaderCss =
+            "#ld{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;" +
+            "background:radial-gradient(circle at 50% 45%,#1a1d26 0%,#000 70%);transition:opacity .35s;pointer-events:none;font-family:'Segoe UI',sans-serif}" +
+            "#ld.off{opacity:0}#ld.soft{background:rgba(0,0,0,.45)}" +
+            ".ring{position:relative;width:96px;height:96px}" +
+            ".ring i{position:absolute;inset:0;border-radius:50%;border:7px solid rgba(255,255,255,.12);border-top-color:" + ac + ";border-right-color:" + ac + ";animation:spin .9s linear infinite;box-shadow:0 0 24px " + ac + "55}" +
+            ".ring b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;padding-left:6px;animation:pulse 1.2s ease-in-out infinite}" +
+            ".strip{width:240px;height:26px;border-radius:5px;background:#111;overflow:hidden;border:2px solid #2a2a30}" +
+            ".holes{width:200%;height:100%;background:repeating-linear-gradient(90deg,transparent 0 8px,#fff2 8px 18px,transparent 18px 26px)," +
+            "linear-gradient(90deg," + ac + "33," + ac + "aa," + ac + "33);background-size:26px 8px,100% 100%;background-repeat:repeat-x,no-repeat;background-position:0 3px,0 0;animation:roll 1s linear infinite}" +
+            "#lt{color:#fff;font-size:22px;font-weight:600;letter-spacing:.5px}" +
+            ".d{animation:blink 1.2s infinite}.d:nth-child(2){animation-delay:.2s}.d:nth-child(3){animation-delay:.4s}" +
+            "@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{50%{transform:scale(.85);opacity:.7}}" +
+            "@keyframes roll{to{transform:translateX(-26px)}}@keyframes blink{0%,100%{opacity:.2}50%{opacity:1}}";
+        string loaderJs =
+            "var ld=document.getElementById('ld'),lt=document.getElementById('lt'),started=false;" +
+            "function busy(t){lt.firstChild.nodeValue=t;ld.className=started?'soft':''}" +
+            "function idle(){started=true;ld.className='off'}" +
+            "v.addEventListener('playing',idle);" +
+            "v.addEventListener('waiting',function(){busy('Buffering')});" +
+            "v.addEventListener('stalled',function(){if(v.readyState<3)busy('Buffering')});" +
+            "v.addEventListener('seeking',function(){if(v.readyState<3)busy('Buffering')});" +
+            "v.addEventListener('canplay',function(){if(v.paused&&started)ld.className='off'});" +
+            "v.addEventListener('error',function(){busy(\"Couldn't load the trailer\");ld.querySelector('.ring').style.display='none'});";
         string page = "<!doctype html><html><head><meta charset='utf-8'><style>html,body{margin:0;height:100%;background:#000;overflow:hidden;cursor:pointer}" +
-                      "video{width:100%;height:100%;object-fit:contain;background:#000}</style>" +
+                      "video{width:100%;height:100%;object-fit:contain;background:#000}" + loaderCss + "</style>" +
                       (hls ? "<script src='https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js'></script>" : "") +
-                      "</head><body><video id='v' autoplay playsinline></video><script>" +
+                      "</head><body><video id='v' autoplay playsinline></video>" + loader + "<script>" +
                       $"var v=document.getElementById('v'),s={JsonSerializer.Serialize(src)};" +
                       (hls ? "if(v.canPlayType('application/vnd.apple.mpegurl')){v.src=s}else if(window.Hls&&Hls.isSupported()){var h=new Hls();h.loadSource(s);h.attachMedia(v)}else{v.src=s}"
                            : "v.src=s;") +
+                      loaderJs +
                       (_muted ? "v.muted=true;" : "") +
                       "v.addEventListener('click',function(){v.paused?v.play():v.pause()});" +
                       "v.play().catch(function(){});</script></body></html>";

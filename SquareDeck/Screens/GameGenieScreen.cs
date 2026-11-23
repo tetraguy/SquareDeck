@@ -210,10 +210,6 @@ public sealed class GameGenieScreen : Screen
             await MakeAsync();
         };
         tools.Children.Add(again);
-        var key = Ui.PanelButton("", GameGenie.UsingOwnKey ? "Gemini API key: yours" : "Gemini API key");
-        key.Margin = new Thickness(0, 0, 10, 10);
-        key.Click += (_, _) => _ = ChangeKeyAsync();
-        tools.Children.Add(key);
         _list.Children.Add(tools);
 
         Button? first = null, focusButton = null, keepButton = null;
@@ -385,10 +381,6 @@ public sealed class GameGenieScreen : Screen
         retry.Margin = new Thickness(0, 0, 0, 10);
         retry.Click += (_, _) => _ = MakeAsync();
         _list.Children.Add(retry);
-        var key = Ui.PanelButton("", "Gemini API key");
-        key.HorizontalAlignment = HorizontalAlignment.Left;
-        key.Click += (_, _) => _ = ChangeKeyAsync();
-        _list.Children.Add(key);
         FocusLater(retry);
     }
 
@@ -435,21 +427,6 @@ public sealed class GameGenieScreen : Screen
         catch (GameGenie.GenieException ex) { _arriving = null; ShowProblem(ex.Message); }
         catch (Exception ex) { _arriving = null; CrashLog.Write("Game Genie", ex); ShowProblem("Something went wrong: " + ex.Message); }
         finally { _busy = false; _arriving = null; }
-    }
-
-    private async Task ChangeKeyAsync()
-    {
-        // The key itself is never shown (neither the one built in nor yours): only which one is in use.
-        string now = GameGenie.UsingOwnKey ? "You're using your own key. Enter a new one to replace it, or leave it empty to go back to the built-in key."
-                                           : "You're using the key built into this copy of SquareDeck. Enter your own (from aistudio.google.com) to use it instead.";
-        string? key = await Host.PromptAsync("Gemini API key", now, "", "Save");
-        if (key == null) return;
-        key = key.Trim();
-        // Typing the built-in key again is the same as using the built-in key: it isn't stored as yours.
-        if (key == ApiKeys.Gemini) key = "";
-        Host.Settings.GeminiApiKey = key;
-        Host.Settings.Save();
-        if (_sheet != null) Show(); else _ = MakeAsync();
     }
 
     public override bool OnAction(NavAction action)

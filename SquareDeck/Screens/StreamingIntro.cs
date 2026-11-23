@@ -11,7 +11,8 @@ namespace SquareDeck.Screens;
 /// <summary>
 /// Short "show is starting" animations for the streaming services (Netflix, Hulu and the rest), about two seconds
 /// each, drawn while the service's page loads: theater curtains, a film countdown, a clapperboard, a marquee of
-/// lights, or popcorn. The service's own tile is the star at the end of each.
+/// lights, or popcorn. The service's own tile is the star at the end of each. The music services (YouTube Music,
+/// Apple Music) have their own, about music: a record on a turntable, an equalizer, notes off a staff, or a speaker.
 /// </summary>
 public static class StreamingIntro
 {
@@ -26,6 +27,15 @@ public static class StreamingIntro
         ("none", "None", "Just the logo"),
     };
 
+    /// <summary>The music services' own openings (one of these at random; "None" in Settings still turns them off).</summary>
+    public static readonly (string Id, string Name, string About)[] MusicStyles =
+    {
+        ("vinyl", "Turntable", "A record slides onto the turntable, spins up and the tonearm drops"),
+        ("equalizer", "Equalizer", "Equalizer bars bounce to the beat as the logo comes up"),
+        ("staff", "Sheet music", "A staff draws across the screen and notes hop along it, then float away"),
+        ("speaker", "Speaker", "A speaker thumps and sound waves ripple out from it"),
+    };
+
     public const int Length = 2300;
 
     private static DoubleAnimation A(double from, double to, int ms, int delay = 0, IEasingFunction? ease = null) =>
@@ -34,6 +44,8 @@ public static class StreamingIntro
     public static FrameworkElement Build(string style, StreamingService service, FrameworkElement logo)
     {
         if (style == "random" || Styles.All(s => s.Id != style)) style = Styles[Random.Shared.Next(5)].Id;
+        // Music gets music: one of its own openings (unless they're turned off altogether).
+        if (service.Music && style != "none") style = MusicStyles[Random.Shared.Next(MusicStyles.Length)].Id;
         var root = new Grid { ClipToBounds = true, Background = new SolidColorBrush(Color.FromRgb(0x07, 0x07, 0x0B)) };
         var canvas = new Canvas { IsHitTestVisible = false };
         root.Children.Add(canvas);
@@ -73,6 +85,10 @@ public static class StreamingIntro
                 case "clapper": Clapper(canvas, w, h, easeIn); PopLogo(1250); break;
                 case "marquee": Marquee(canvas, w, h, service); PopLogo(250); break;
                 case "popcorn": Popcorn(canvas, w, h); PopLogo(1000); break;
+                case "vinyl": Vinyl(canvas, w, h, service.Brand, easeOut); PopLogo(1150); break;
+                case "equalizer": Equalizer(canvas, w, h, service.Brand); PopLogo(650); break;
+                case "staff": Staff(canvas, w, h, service.Brand); PopLogo(1350); break;
+                case "speaker": Speaker(canvas, w, h, service.Brand, easeOut); PopLogo(700); break;
             }
         };
         logo.Opacity = 0;
@@ -359,5 +375,279 @@ public static class StreamingIntro
             group.Children.Add(new EllipseGeometry(new Point(size / 2 + (rand.NextDouble() - 0.5) * size * 0.45, size / 2 + (rand.NextDouble() - 0.5) * size * 0.45), rx, ry));
         }
         return group;
+    }
+
+    // ================================================================ music
+
+    private static Color Mix(Color a, Color b, double t) =>
+        Color.FromRgb((byte)(a.R + (b.R - a.R) * t), (byte)(a.G + (b.G - a.G) * t), (byte)(a.B + (b.B - a.B) * t));
+
+    private static SolidColorBrush Brush(Color c, byte alpha = 0xFF) => new(Color.FromArgb(alpha, c.R, c.G, c.B));
+
+    /// <summary>A record slides onto the platter and spins up, the tonearm swings in and drops, notes rise, and the logo lands on the label.</summary>
+    private static void Vinyl(Canvas canvas, double w, double h, Color brand, IEasingFunction easeOut)
+    {
+        double r = Math.Min(w, h) * 0.36, cx = w / 2, cy = h / 2;
+        // The platter under it.
+        var platter = new Ellipse { Width = r * 2.16, Height = r * 2.16, Fill = new RadialGradientBrush(Color.FromRgb(0x3A, 0x3A, 0x42), Color.FromRgb(0x18, 0x18, 0x1E)) };
+        Canvas.SetLeft(platter, cx - r * 1.08);
+        Canvas.SetTop(platter, cy - r * 1.08);
+        platter.Opacity = 0;
+        canvas.Children.Add(platter);
+        platter.BeginAnimation(UIElement.OpacityProperty, A(0, 1, 300));
+
+        // The record: black with grooves, a colored label, and a light streak (the streak stays put as it spins).
+        var disc = new Grid { Width = r * 2, Height = r * 2 };
+        disc.Children.Add(new Ellipse { Fill = new RadialGradientBrush(Color.FromRgb(0x22, 0x22, 0x26), Color.FromRgb(0x08, 0x08, 0x0A)) });
+        for (double g = 0.42; g < 0.98; g += 0.045)
+            disc.Children.Add(new Ellipse { Width = r * 2 * g, Height = r * 2 * g, Stroke = new SolidColorBrush(Color.FromArgb((byte)(0x28 + (int)(g * 30) % 20), 0xFF, 0xFF, 0xFF)), StrokeThickness = 1, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        var spinning = new Grid();
+        var label = new Ellipse { Width = r * 0.74, Height = r * 0.74, Fill = new RadialGradientBrush(Mix(brand, Colors.White, 0.25), brand), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        spinning.Children.Add(label);
+        // A mark on the label, so the spin shows.
+        spinning.Children.Add(new Rectangle { Width = r * 0.24, Height = 6, RadiusX = 3, RadiusY = 3, Fill = new SolidColorBrush(Color.FromArgb(0xC0, 0xFF, 0xFF, 0xFF)), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(r * 0.3, 0, 0, 0) });
+        spinning.Children.Add(new Ellipse { Width = 12, Height = 12, Fill = new SolidColorBrush(Color.FromRgb(0x10, 0x10, 0x10)), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        var spin = new RotateTransform();
+        spinning.RenderTransformOrigin = new Point(0.5, 0.5);
+        spinning.RenderTransform = spin;
+        disc.Children.Add(spinning);
+        disc.Children.Add(new Path
+        {
+            Data = new PathGeometry(new[] { new PathFigure(new Point(r, r), new PathSegment[] { new LineSegment(new Point(r - r * 0.35, 0.05 * r), true), new ArcSegment(new Point(r + r * 0.35, 0.05 * r), new Size(r, r), 0, false, SweepDirection.Clockwise, true) }, true) }),
+            Fill = new LinearGradientBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF), Color.FromArgb(0, 0xFF, 0xFF, 0xFF), 90)
+        });
+        var slide = new TranslateTransform();
+        disc.RenderTransform = slide;
+        Canvas.SetLeft(disc, cx - r);
+        Canvas.SetTop(disc, cy - r);
+        canvas.Children.Add(disc);
+        slide.BeginAnimation(TranslateTransform.XProperty, A(-w / 2 - r * 2, 0, 520, 0, easeOut));
+        // Spins up to 33⅓, then keeps going.
+        var up = new DoubleAnimationUsingKeyFrames();
+        up.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(450))));
+        up.KeyFrames.Add(new EasingDoubleKeyFrame(360, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1100)), new QuadraticEase { EasingMode = EasingMode.EaseIn }));
+        up.KeyFrames.Add(new LinearDoubleKeyFrame(360 * 3.2, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2400))));
+        spin.BeginAnimation(RotateTransform.AngleProperty, up);
+
+        // The tonearm swings over from its rest and lowers onto the record.
+        double px = cx + r * 1.18, py = cy - r * 0.95;
+        var arm = new Canvas();
+        arm.Children.Add(new Ellipse { Width = 34, Height = 34, Fill = new SolidColorBrush(Color.FromRgb(0xB8, 0xBC, 0xC6)), Stroke = new SolidColorBrush(Color.FromRgb(0x60, 0x64, 0x6E)), StrokeThickness = 2 });
+        Canvas.SetLeft(arm.Children[0], -17);
+        Canvas.SetTop(arm.Children[0], -17);
+        var rod = new Line { X1 = 0, Y1 = 0, X2 = -r * 0.32, Y2 = r * 1.15, Stroke = new SolidColorBrush(Color.FromRgb(0xD8, 0xDC, 0xE4)), StrokeThickness = 6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
+        arm.Children.Add(rod);
+        var head = new Rectangle { Width = 22, Height = 36, RadiusX = 4, RadiusY = 4, Fill = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x30)), Stroke = new SolidColorBrush(Color.FromRgb(0xD8, 0xDC, 0xE4)), StrokeThickness = 2, RenderTransform = new RotateTransform(18, 11, 0) };
+        Canvas.SetLeft(head, -r * 0.32 - 11);
+        Canvas.SetTop(head, r * 1.15 - 6);
+        arm.Children.Add(head);
+        var swing = new RotateTransform(-38);
+        var lift = new ScaleTransform(1.06, 1.06);
+        arm.RenderTransform = new TransformGroup { Children = { lift, swing } };
+        Canvas.SetLeft(arm, px);
+        Canvas.SetTop(arm, py);
+        arm.Opacity = 0;
+        canvas.Children.Add(arm);
+        arm.BeginAnimation(UIElement.OpacityProperty, A(0, 1, 200, 350));
+        swing.BeginAnimation(RotateTransform.AngleProperty, A(-38, 0, 500, 520, easeOut));
+        lift.BeginAnimation(ScaleTransform.ScaleXProperty, A(1.06, 1, 160, 1020));
+        lift.BeginAnimation(ScaleTransform.ScaleYProperty, A(1.06, 1, 160, 1020));
+
+        // Once the needle drops: notes drift up, and the record dims behind the logo.
+        FloatNotes(canvas, w, h, brand, 1150, 10, cx, cy);
+        disc.BeginAnimation(UIElement.OpacityProperty, A(1, 0.45, 500, 1150));
+        platter.BeginAnimation(UIElement.OpacityProperty, A(1, 0.45, 500, 1150));
+    }
+
+    /// <summary>A row of equalizer bars springs up and bounces to a beat, with a glow pulsing behind the logo.</summary>
+    private static void Equalizer(Canvas canvas, double w, double h, Color brand)
+    {
+        var rand = new Random();
+        // The glow, pulsing on the beat.
+        var glow = new Ellipse { Width = h * 0.9, Height = h * 0.9, Fill = new RadialGradientBrush(Color.FromArgb(0x70, brand.R, brand.G, brand.B), Color.FromArgb(0, brand.R, brand.G, brand.B)), RenderTransformOrigin = new Point(0.5, 0.5) };
+        var pulse = new ScaleTransform(0.6, 0.6);
+        glow.RenderTransform = pulse;
+        Canvas.SetLeft(glow, w / 2 - h * 0.45);
+        Canvas.SetTop(glow, h / 2 - h * 0.45);
+        canvas.Children.Add(glow);
+        var beat = new DoubleAnimation(0.85, 1.08, TimeSpan.FromMilliseconds(240)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, BeginTime = TimeSpan.FromMilliseconds(300), EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
+        pulse.BeginAnimation(ScaleTransform.ScaleXProperty, beat);
+        pulse.BeginAnimation(ScaleTransform.ScaleYProperty, beat);
+
+        // The bars, top and bottom, mirrored, in the brand's color fading to white at the tips.
+        int n = 32;
+        double gap = 6, barW = (w - gap * (n + 1)) / n, maxH = h * 0.3;
+        for (int mirror = 0; mirror < 2; mirror++)
+            for (int i = 0; i < n; i++)
+            {
+                double centre = 1 - Math.Abs(i - (n - 1) / 2.0) / (n / 2.0); // taller in the middle
+                var bar = new Rectangle
+                {
+                    Width = barW, Height = maxH, RadiusX = Math.Min(4, barW / 2), RadiusY = Math.Min(4, barW / 2),
+                    Fill = new LinearGradientBrush(Mix(brand, Colors.White, 0.55), brand, mirror == 0 ? 90 : 270),
+                    Opacity = mirror == 0 ? 0.95 : 0.35, RenderTransformOrigin = new Point(0.5, mirror == 0 ? 1 : 0)
+                };
+                var size = new ScaleTransform(1, 0.02);
+                bar.RenderTransform = size;
+                Canvas.SetLeft(bar, gap + i * (barW + gap));
+                Canvas.SetTop(bar, mirror == 0 ? h - maxH - 8 : 8);
+                canvas.Children.Add(bar);
+                double peak = 0.25 + 0.75 * (0.35 + 0.65 * centre) * (0.55 + rand.NextDouble() * 0.45);
+                var dance = new DoubleAnimationUsingKeyFrames { BeginTime = TimeSpan.FromMilliseconds(i * 12 % 160), RepeatBehavior = RepeatBehavior.Forever };
+                int t = 0;
+                dance.KeyFrames.Add(new LinearDoubleKeyFrame(0.02, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+                for (int k = 0; k < 6; k++)
+                {
+                    t += 120 + rand.Next(120);
+                    double v = k % 2 == 0 ? peak * (0.6 + rand.NextDouble() * 0.4) : peak * (0.15 + rand.NextDouble() * 0.3);
+                    dance.KeyFrames.Add(new EasingDoubleKeyFrame(v, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(t)), new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+                }
+                size.BeginAnimation(ScaleTransform.ScaleYProperty, dance);
+            }
+    }
+
+    /// <summary>A five-line staff draws across, notes hop along it one after another, then lift off and float away.</summary>
+    private static void Staff(Canvas canvas, double w, double h, Color brand)
+    {
+        double top = h / 2 - 60, space = 30, left = w * 0.08, width = w * 0.84;
+        var lines = new List<Line>();
+        for (int i = 0; i < 5; i++)
+        {
+            var line = new Line { X1 = 0, Y1 = 0, X2 = width, Y2 = 0, Stroke = new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0xFF, 0xFF)), StrokeThickness = 2 };
+            var grow = new ScaleTransform(0, 1);
+            line.RenderTransform = grow;
+            Canvas.SetLeft(line, left);
+            Canvas.SetTop(line, top + i * space);
+            canvas.Children.Add(line);
+            grow.BeginAnimation(ScaleTransform.ScaleXProperty, A(0, 1, 520, i * 50, new CubicEase { EasingMode = EasingMode.EaseOut }));
+            line.BeginAnimation(UIElement.OpacityProperty, A(1, 0, 400, 1300));
+            lines.Add(line);
+        }
+        // A treble clef at the start.
+        var clef = new TextBlock { Text = "\U0001D11E", FontFamily = new FontFamily("Segoe UI Symbol"), FontSize = space * 5.4, Foreground = Brushes.White, Opacity = 0 };
+        Canvas.SetLeft(clef, left + 6);
+        Canvas.SetTop(clef, top - space * 2.1);
+        canvas.Children.Add(clef);
+        var clefFade = new DoubleAnimationUsingKeyFrames();
+        clefFade.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(200))));
+        clefFade.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(450))));
+        clefFade.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1300))));
+        clefFade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1700))));
+        clef.BeginAnimation(UIElement.OpacityProperty, clefFade);
+
+        // The notes: a little melody, each landing on its line or space, then rising off the page.
+        string[] glyphs = { "\u2669", "\u266A", "\u266B", "\u266C", "\u266A", "\u2669", "\u266B", "\u266A", "\u266C", "\u266A" };
+        int[] steps = { 4, 3, 5, 2, 4, 6, 3, 5, 1, 4 };
+        for (int i = 0; i < glyphs.Length; i++)
+        {
+            var note = new TextBlock
+            {
+                Text = glyphs[i], FontFamily = new FontFamily("Segoe UI Symbol"), FontSize = space * 2.2, FontWeight = FontWeights.Bold,
+                Foreground = i % 3 == 1 ? new SolidColorBrush(Mix(brand, Colors.White, 0.2)) : Brushes.White, Opacity = 0
+            };
+            var move = new TranslateTransform();
+            note.RenderTransform = move;
+            double x = left + width * (0.16 + 0.8 * i / glyphs.Length);
+            Canvas.SetLeft(note, x);
+            Canvas.SetTop(note, top + steps[i] * space / 2 - space * 1.9);
+            canvas.Children.Add(note);
+            int land = 320 + i * 85;
+            note.BeginAnimation(UIElement.OpacityProperty, A(0, 1, 90, land));
+            // Hop in from above, then (after the melody) float up and away.
+            var y = new DoubleAnimationUsingKeyFrames();
+            y.KeyFrames.Add(new DiscreteDoubleKeyFrame(-40, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(land))));
+            y.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(land + 200)), new BounceEase { Bounces = 1, Bounciness = 3, EasingMode = EasingMode.EaseOut }));
+            y.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1250 + i * 25))));
+            y.KeyFrames.Add(new EasingDoubleKeyFrame(-h * 0.5 - i * 10, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2250 + i * 25)), new QuadraticEase { EasingMode = EasingMode.EaseIn }));
+            move.BeginAnimation(TranslateTransform.YProperty, y);
+            move.BeginAnimation(TranslateTransform.XProperty, A(0, (i % 2 == 0 ? -1 : 1) * (30 + i * 4), 1000, 1250 + i * 25));
+            var fade = new DoubleAnimationUsingKeyFrames();
+            fade.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+            fade.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(land + 90))));
+            fade.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1700))));
+            fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2250))));
+            note.BeginAnimation(UIElement.OpacityProperty, fade);
+        }
+    }
+
+    /// <summary>A speaker thumps to a beat and rings of sound ripple out across the screen; the logo bumps with it.</summary>
+    private static void Speaker(Canvas canvas, double w, double h, Color brand, IEasingFunction easeOut)
+    {
+        double cx = w / 2, cy = h / 2, r = Math.Min(w, h) * 0.24;
+        // Sound waves: rings leaving the speaker on every beat.
+        for (int i = 0; i < 9; i++)
+        {
+            var ring = new Ellipse { Width = r * 2, Height = r * 2, Stroke = Brush(Mix(brand, Colors.White, i % 2 * 0.4)), StrokeThickness = 5, Opacity = 0, RenderTransformOrigin = new Point(0.5, 0.5) };
+            var grow = new ScaleTransform(1, 1);
+            ring.RenderTransform = grow;
+            Canvas.SetLeft(ring, cx - r);
+            Canvas.SetTop(ring, cy - r);
+            canvas.Children.Add(ring);
+            int at = 200 + i * 230;
+            grow.BeginAnimation(ScaleTransform.ScaleXProperty, A(1, 3.6, 1100, at, easeOut));
+            grow.BeginAnimation(ScaleTransform.ScaleYProperty, A(1, 3.6, 1100, at, easeOut));
+            var fade = new DoubleAnimationUsingKeyFrames();
+            fade.KeyFrames.Add(new DiscreteDoubleKeyFrame(0.9, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(at))));
+            fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(at + 1100))));
+            ring.BeginAnimation(UIElement.OpacityProperty, fade);
+        }
+        // The speaker: a dark cabinet circle, the cone and the dust cap, pumping on each beat.
+        var cone = new Grid { Width = r * 2, Height = r * 2, RenderTransformOrigin = new Point(0.5, 0.5) };
+        cone.Children.Add(new Ellipse { Fill = new RadialGradientBrush(Color.FromRgb(0x2C, 0x2C, 0x34), Color.FromRgb(0x0C, 0x0C, 0x10)), Stroke = Brush(Color.FromRgb(0x50, 0x50, 0x5A)), StrokeThickness = 8 });
+        cone.Children.Add(new Ellipse { Width = r * 1.5, Height = r * 1.5, Fill = new RadialGradientBrush(Color.FromRgb(0x14, 0x14, 0x18), Color.FromRgb(0x30, 0x30, 0x38)), Stroke = Brush(brand, 0xA0), StrokeThickness = 3 });
+        cone.Children.Add(new Ellipse { Width = r * 0.5, Height = r * 0.5, Fill = new RadialGradientBrush(Mix(brand, Colors.White, 0.3), brand) });
+        var thump = new ScaleTransform(0.2, 0.2);
+        cone.RenderTransform = thump;
+        Canvas.SetLeft(cone, cx - r);
+        Canvas.SetTop(cone, cy - r);
+        canvas.Children.Add(cone);
+        thump.BeginAnimation(ScaleTransform.ScaleXProperty, A(0.2, 1, 300, 0, new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut }));
+        thump.BeginAnimation(ScaleTransform.ScaleYProperty, A(0.2, 1, 300, 0, new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut }));
+        var beat = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever };
+        beat.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        beat.KeyFrames.Add(new EasingDoubleKeyFrame(1.1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(60)), new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+        beat.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(230)), new QuadraticEase { EasingMode = EasingMode.EaseIn }));
+        // Hand over from the pop-in to the beat.
+        var after = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        after.Tick += (_, _) =>
+        {
+            after.Stop();
+            thump.BeginAnimation(ScaleTransform.ScaleXProperty, beat);
+            thump.BeginAnimation(ScaleTransform.ScaleYProperty, beat);
+        };
+        after.Start();
+        // It steps back behind the logo once the logo arrives.
+        cone.BeginAnimation(UIElement.OpacityProperty, A(1, 0.4, 400, 700));
+        FloatNotes(canvas, w, h, brand, 500, 8, cx, cy);
+    }
+
+    /// <summary>Music notes drifting up and out from a point, fading as they go.</summary>
+    private static void FloatNotes(Canvas canvas, double w, double h, Color brand, int start, int count, double fromX, double fromY)
+    {
+        var rand = new Random();
+        string[] glyphs = { "\u266A", "\u266B", "\u2669", "\u266C" };
+        for (int i = 0; i < count; i++)
+        {
+            double size = 34 + rand.NextDouble() * 30;
+            var note = new TextBlock { Text = glyphs[rand.Next(glyphs.Length)], FontFamily = new FontFamily("Segoe UI Symbol"), FontSize = size, FontWeight = FontWeights.Bold,
+                                       Foreground = i % 2 == 0 ? Brushes.White : new SolidColorBrush(Mix(brand, Colors.White, 0.25)), Opacity = 0 };
+            var move = new TranslateTransform();
+            var tilt = new RotateTransform();
+            note.RenderTransform = new TransformGroup { Children = { tilt, move } };
+            Canvas.SetLeft(note, fromX - size / 3);
+            Canvas.SetTop(note, fromY - size / 2);
+            canvas.Children.Add(note);
+            int at = start + i * 90 + rand.Next(60);
+            double dx = (rand.NextDouble() - 0.5) * w * 0.8, dy = -(h * 0.3 + rand.NextDouble() * h * 0.3);
+            move.BeginAnimation(TranslateTransform.XProperty, A(0, dx, 1100, at, new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+            move.BeginAnimation(TranslateTransform.YProperty, A(0, dy, 1100, at, new QuadraticEase { EasingMode = EasingMode.EaseOut }));
+            tilt.BeginAnimation(RotateTransform.AngleProperty, A(0, (rand.NextDouble() - 0.5) * 50, 1100, at));
+            var fade = new DoubleAnimationUsingKeyFrames();
+            fade.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+            fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(at))));
+            fade.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(at + 150))));
+            fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(at + 1100))));
+            note.BeginAnimation(UIElement.OpacityProperty, fade);
+        }
     }
 }

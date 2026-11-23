@@ -943,11 +943,20 @@ public sealed class MediaScreen : Screen
     {
         var tabs = Tabs;
         int index = Math.Max(0, Array.FindIndex(tabs, t => t.Id == _tab));
-        if (action == NavAction.RB) { ShowTab(tabs[(index + 1) % tabs.Length].Id, focus: true); UiSound.Page(); return true; }
-        if (action == NavAction.LB) { ShowTab(tabs[(index + tabs.Length - 1) % tabs.Length].Id, focus: true); UiSound.Page(); return true; }
-        if (_tab == "local" && _local != null) return _local.OnAction(action);
-        if (_tab == "spotify" && _spotify != null) return _spotify.OnAction(action);
-        if (_tab == "streaming") return _streaming?.Move(action) ?? false;
+        // A buzz on every move, like the home row: a tab change, or the highlight moving inside a tab.
+        if (action == NavAction.RB) { ShowTab(tabs[(index + 1) % tabs.Length].Id, focus: true); UiSound.Page(); Host.Rumble(); return true; }
+        if (action == NavAction.LB) { ShowTab(tabs[(index + tabs.Length - 1) % tabs.Length].Id, focus: true); UiSound.Page(); Host.Rumble(); return true; }
+        var before = System.Windows.Input.Keyboard.FocusedElement;
+        bool handled = _tab switch
+        {
+            "local" when _local != null => _local.OnAction(action),
+            "spotify" when _spotify != null => _spotify.OnAction(action),
+            "streaming" => _streaming?.Move(action) ?? false,
+            _ => false
+        };
+        if (handled && action is NavAction.Up or NavAction.Down or NavAction.Left or NavAction.Right &&
+            !ReferenceEquals(System.Windows.Input.Keyboard.FocusedElement, before)) Host.Rumble();
+        if (_tab is "local" or "spotify" or "streaming") return handled;
         // Now playing: X play / pause, LT / RT previous / next.
         switch (action)
         {
