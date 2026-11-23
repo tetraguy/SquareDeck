@@ -33,21 +33,21 @@ public sealed class VacuumTubeView : Grid
         if (LoadIcon() is ImageSource icon) badge.Child = new Image { Source = icon, Stretch = Stretch.Uniform, Margin = new Thickness(10) };
         else badge.Child = Ui.Glyph("", 54, "FgBrush");
         left.Children.Add(badge);
-        var title = Ui.Text("VacuumTube", 32, "FgBrush", bold: true);
+        var title = Ui.Text("DeckTube", 32, "FgBrush", bold: true);
         title.Margin = new Thickness(0, 22, 0, 6);
         left.Children.Add(title);
-        var about = Ui.Text("YouTube's TV and console app, made for the controller, with VacuumTube's ad blocking and extras. " +
+        var about = Ui.Text("YouTube's TV and console app, made for the controller, with ad blocking and extras from VacuumTube. " +
                             "Sign in with a code on your phone, or watch as a guest.", 16, "SubtleBrush");
         about.TextWrapping = TextWrapping.Wrap;
         about.TextTrimming = TextTrimming.None;
         about.LineHeight = 23;
         left.Children.Add(about);
-        _open = Ui.PanelButton("", "Open VacuumTube");
+        _open = Ui.PanelButton("", "Open DeckTube");
         _open.HorizontalAlignment = HorizontalAlignment.Left;
         _open.Margin = new Thickness(0, 24, 0, 0);
         _open.Click += (_, _) => Open();
         left.Children.Add(_open);
-        var credit = Ui.Text($"VacuumTube {VacuumTube.Version} by shy · github.com/shy1132/VacuumTube · MIT licence", 13, "SubtleBrush");
+        var credit = Ui.Text($"Powered by VacuumTube {VacuumTube.Version} by shy and contributors · github.com/shy1132/VacuumTube · MIT licence", 13, "SubtleBrush");
         credit.TextWrapping = TextWrapping.Wrap;
         credit.Margin = new Thickness(0, 18, 0, 0);
         credit.Opacity = 0.8;
@@ -55,9 +55,9 @@ public sealed class VacuumTubeView : Grid
         Children.Add(left);
 
         var right = new StackPanel();
-        right.Children.Add(Ui.Header("VacuumTube settings"));
+        right.Children.Add(Ui.Header("DeckTube settings"));
         right.Children.Add(_switches);
-        var note = Ui.Text("The rest of VacuumTube's settings (more SponsorBlock choices, video codecs, the screensaver, music mode) are in " +
+        var note = Ui.Text("The rest of DeckTube's settings (more SponsorBlock choices, video codecs, the screensaver, music mode) are in " +
                            "YouTube's own Settings once it's open, under VacuumTube.",
                            15, "SubtleBrush");
         note.TextWrapping = TextWrapping.Wrap;
@@ -115,12 +115,12 @@ public sealed class VacuumTubeView : Grid
     {
         try
         {
-            if (!File.Exists(VacuumTube.IconPath)) return null;
+            if (!File.Exists(VacuumTube.LogoPath)) return null;
             var bmp = new BitmapImage();
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad;
             bmp.DecodePixelWidth = 264;
-            bmp.UriSource = new Uri(VacuumTube.IconPath);
+            bmp.UriSource = new Uri(VacuumTube.LogoPath);
             bmp.EndInit();
             bmp.Freeze();
             return bmp;

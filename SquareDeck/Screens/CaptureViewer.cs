@@ -60,6 +60,7 @@ public sealed class CaptureViewerScreen : Screen
     private Image? _picture;
     private MediaElement? _video;
     private bool _playing, _chromeShown = true;
+    private bool _padInput; // the controller (or keyboard) was used last: the controls stay up instead of fading
     private int _index, _zoomLevel, _direction;
 
     /// <summary>Set when something was deleted, so the page behind reloads.</summary>
@@ -84,7 +85,7 @@ public sealed class CaptureViewerScreen : Screen
         _stage.RenderTransform = _slide;
         root.Children.Add(_stage);
         root.MouseWheel += (_, e) => { Zoom(e.Delta > 0 ? +1 : -1); e.Handled = true; };
-        root.MouseMove += (_, _) => Wake();
+        root.MouseMove += (_, _) => { _padInput = false; Wake(); };
 
         // Header: game and date on the left, zoom and "3 / 12" on the right, over a soft shade.
         var head = new Grid { VerticalAlignment = VerticalAlignment.Top, Height = 110 };
@@ -197,7 +198,9 @@ public sealed class CaptureViewerScreen : Screen
 
     public override bool OnAction(NavAction action)
     {
-        // The first press after the controls faded away only brings them back (B still closes).
+        // With the controller the controls stay up (Menu switches to full screen for a clean look).
+        _padInput = true;
+        // The first press after the controls were hidden only brings them back (B still closes).
         bool wasHidden = !_chromeShown;
         Wake();
         if (wasHidden && action is NavAction.Accept or NavAction.Left or NavAction.Right or NavAction.Up or NavAction.Down) return true;
@@ -463,8 +466,8 @@ public sealed class CaptureViewerScreen : Screen
     private void HideChrome(bool force = false)
     {
         _hideTimer.Stop();
-        // Stay up while a clip is paused or nothing is showing.
-        if (!force && (_paths.Count == 0 || (_video != null && !_playing))) return;
+        // Stay up while a clip is paused or nothing is showing, and while the controller is in use (outside full screen).
+        if (!force && (_paths.Count == 0 || (_video != null && !_playing) || (_padInput && !_fullScreen))) return;
         _chromeShown = false;
         _chrome.IsHitTestVisible = false;
         Fade(0);

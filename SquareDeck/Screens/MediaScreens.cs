@@ -837,7 +837,7 @@ public sealed class MediaScreen : Screen
     private static readonly (string Id, string Name, string Glyph)[] AllTabs =
     {
         ("now", "Now playing", "\uE8D6"), ("local", "My music", "\uE8B7"), ("spotify", "Spotify", "\uE93C"),
-        ("vacuumtube", "VacuumTube", "\uE714"), ("streaming", "Streaming", "\uE714")
+        ("vacuumtube", "DeckTube", "\uE714"), ("streaming", "Streaming", "\uE714")
     };
 
     /// <summary>The tabs shown: VacuumTube's only with its experiment on.</summary>
@@ -1002,6 +1002,18 @@ public sealed class MediaScreen : Screen
         _timer.Stop();
         _visualTimer.Stop();
         _spotify?.Stop();
+    }
+
+    // In the background the visualizer and the now-playing refresh pause (the music itself plays on).
+    public override void OnAppRest(bool resting)
+    {
+        if (resting) { _timer.Stop(); _visualTimer.Stop(); return; }
+        if (_tab == "now" && Host.IsTop(this))
+        {
+            _timer.Start();
+            _visualTimer.Start();
+            _ = RefreshAsync();
+        }
     }
 
     /// <summary>Back from a streaming service (kept open, or closed): the Streaming tab shows which.</summary>

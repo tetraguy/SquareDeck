@@ -13,7 +13,7 @@ using SquareDeck.Services;
 namespace SquareDeck.Screens;
 
 /// <summary>
-/// VacuumTube, full screen (Experimental, from the Music page): YouTube's TV interface, made for a controller, with
+/// DeckTube, full screen (from the Music page; powered by VacuumTube by shy, MIT): YouTube's TV interface, made for a controller, with
 /// VacuumTube's ad blocking, SponsorBlock, DeArrow, dislikes and its own settings page (Y, or YouTube's settings).
 ///
 /// The page reads the controller itself, through VacuumTube's controller support, so every button does what it does on
@@ -28,10 +28,10 @@ public sealed class VacuumTubeScreen : Screen, IPagePad
 
     private readonly WebView2 _web = new() { Visibility = Visibility.Hidden, DefaultBackgroundColor = System.Drawing.Color.FromArgb(0x28, 0x28, 0x28) };
     private readonly Grid _splash = new();
-    private readonly TextBlock _status = Ui.Text("Opening VacuumTube…", 18, "SubtleBrush");
+    private readonly TextBlock _status = Ui.Text("Opening DeckTube…", 18, "SubtleBrush");
     private readonly Border _spinnerRing = new() { Width = 64, Height = 64, CornerRadius = new CornerRadius(32), BorderThickness = new Thickness(4) };
     private DateTime _padAliveAt = DateTime.MinValue;
-    private DateTime _viewAt = DateTime.MinValue, _startAt = DateTime.MinValue;
+    private DateTime _viewAt = DateTime.MinValue, _startAt = DateTime.MaxValue;
     private bool _started, _ready, _disposed;
 
     /// <summary>The page is reading the controller itself, so SquareDeck's own controller handling waits.</summary>
@@ -43,7 +43,7 @@ public sealed class VacuumTubeScreen : Screen, IPagePad
 
         // While Leanback loads: VacuumTube's icon, a ring turning, and what's happening.
         var middle = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        if (File.Exists(VacuumTube.IconPath))
+        if (File.Exists(VacuumTube.LogoPath))
         {
             try
             {
@@ -51,7 +51,7 @@ public sealed class VacuumTubeScreen : Screen, IPagePad
                 bmp.BeginInit();
                 bmp.CacheOption = BitmapCacheOption.OnLoad;
                 bmp.DecodePixelWidth = 256;
-                bmp.UriSource = new Uri(VacuumTube.IconPath);
+                bmp.UriSource = new Uri(VacuumTube.LogoPath);
                 bmp.EndInit();
                 bmp.Freeze();
                 middle.Children.Add(new Image { Source = bmp, Width = 128, Height = 128, Margin = new Thickness(0, 0, 0, 26) });
@@ -69,7 +69,20 @@ public sealed class VacuumTubeScreen : Screen, IPagePad
         _status.MaxWidth = 760;
         _status.Margin = new Thickness(0, 24, 0, 0);
         middle.Children.Add(_status);
+        var powered = Ui.Text("Powered by VacuumTube, by shy and contributors", 13, "SubtleBrush");
+        powered.Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
+        powered.HorizontalAlignment = HorizontalAlignment.Center;
+        powered.Margin = new Thickness(0, 10, 0, 0);
+        middle.Children.Add(powered);
         _splash.Children.Add(middle);
+        var hint = Ui.Text("To come back to SquareDeck: press View + Menu together, Ctrl+Q, or the ← SquareDeck button in the corner.", 16, "SubtleBrush");
+        hint.Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0x9A));
+        hint.HorizontalAlignment = HorizontalAlignment.Center;
+        hint.VerticalAlignment = VerticalAlignment.Bottom;
+        hint.TextWrapping = TextWrapping.Wrap;
+        hint.TextAlignment = TextAlignment.Center;
+        hint.Margin = new Thickness(40, 0, 40, 46);
+        _splash.Children.Add(hint);
 
         root.Children.Add(_web);
         root.Children.Add(_splash);
@@ -90,7 +103,7 @@ public sealed class VacuumTubeScreen : Screen, IPagePad
     {
         if (!VacuumTube.Installed)
         {
-            Fail("VacuumTube's files are missing from SquareDeck's folder (VacuumTube\\vacuumtube.js). Reinstalling SquareDeck puts them back.");
+            Fail("DeckTube's files are missing from SquareDeck's folder (VacuumTube\\vacuumtube.js). Reinstalling SquareDeck puts them back.");
             return;
         }
         try
@@ -134,7 +147,7 @@ public sealed class VacuumTubeScreen : Screen, IPagePad
             core.ProcessFailed += (_, e) =>
             {
                 if (e.ProcessFailedKind is CoreWebView2ProcessFailedKind.BrowserProcessExited or CoreWebView2ProcessFailedKind.RenderProcessExited)
-                    Dispatcher.BeginInvoke(() => { if (!_disposed) Fail("VacuumTube stopped unexpectedly. Open it again from the Music page."); });
+                    Dispatcher.BeginInvoke(() => { if (!_disposed) Fail("DeckTube stopped unexpectedly. Open it again from the Music page."); });
             };
             core.Navigate(VacuumTube.LeanbackUrl);
         }
@@ -142,7 +155,7 @@ public sealed class VacuumTubeScreen : Screen, IPagePad
         {
             _environment = null;
             CrashLog.Write("VacuumTube", ex);
-            Fail("VacuumTube couldn't open. It needs the Microsoft Edge WebView2 Runtime, which comes with Windows 11 and current " +
+            Fail("DeckTube couldn't open. It needs the Microsoft Edge WebView2 Runtime, which comes with Windows 11 and current " +
                  "Windows 10 (microsoft.com/edge/webview2).\n\n" + ex.Message);
         }
     }
@@ -192,6 +205,34 @@ public sealed class VacuumTubeScreen : Screen, IPagePad
         if (_disposed || !Host.IsTop(this)) return;
         _web.Visibility = Visibility.Visible;
         _web.Focus();
+        ShowQuitHint();
+    }
+
+    /// <summary>
+    /// How to come back, shown over the page for a few seconds each time it opens. (Drawn by the page itself: the
+    /// page is a window of its own, so nothing SquareDeck draws can sit on top of it.)
+    /// </summary>
+    private void ShowQuitHint()
+    {
+        const string js = """
+            (() => {
+              const old = document.getElementById('sd-quit-hint'); if (old) old.remove();
+              const d = document.createElement('div');
+              d.id = 'sd-quit-hint';
+              d.innerHTML = '<b style="font-size:26px;display:block;margin-bottom:8px">To come back to SquareDeck</b>' +
+                'Press <kbd>View</kbd> + <kbd>Menu</kbd> together &nbsp;·&nbsp; or <kbd>Ctrl</kbd> + <kbd>Q</kbd> &nbsp;·&nbsp; or tap <b>← SquareDeck</b> in the corner';
+              d.style.cssText = 'position:fixed;left:50%;bottom:7vh;transform:translateX(-50%) translateY(20px);z-index:2147483647;' +
+                'background:rgba(16,16,20,.92);color:#fff;font:500 21px/1.5 "Segoe UI",Roboto,sans-serif;padding:22px 34px;border-radius:20px;' +
+                'box-shadow:0 12px 40px rgba(0,0,0,.55);text-align:center;opacity:0;transition:opacity .35s,transform .35s;pointer-events:none;max-width:86vw';
+              const st = document.createElement('style');
+              st.textContent = '#sd-quit-hint kbd{display:inline-block;background:#fff;color:#111;border-radius:8px;padding:1px 10px;font:700 18px "Segoe UI",sans-serif;margin:0 2px}';
+              d.appendChild(st);
+              document.documentElement.appendChild(d);
+              requestAnimationFrame(() => { d.style.opacity = '1'; d.style.transform = 'translateX(-50%)'; });
+              setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 500); }, 6500);
+            })();
+            """;
+        try { _ = _web.CoreWebView2?.ExecuteScriptAsync(js); } catch (Exception) { }
     }
 
     private void Fail(string text)
@@ -247,13 +288,19 @@ public sealed class VacuumTubeScreen : Screen, IPagePad
         {
             // Still opening (or it failed): B goes back to the Music page.
             if (action == NavAction.Back) { UiSound.Back(); Host.Pop(this); }
-            return true;
+            return action != NavAction.View;
         }
         if (!_web.IsKeyboardFocusWithin) _web.Focus();
         // View + Menu together goes back to SquareDeck, as it does when the page reads the controller itself.
         if (action == NavAction.View) _viewAt = DateTime.UtcNow;
         if (action == NavAction.Start) _startAt = DateTime.UtcNow;
-        if (action is NavAction.View or NavAction.Start && (_viewAt - _startAt).Duration() < TimeSpan.FromMilliseconds(400)) { Leave(); return true; }
+        if (action is NavAction.View or NavAction.Start && (_viewAt - _startAt).Duration() < TimeSpan.FromMilliseconds(400))
+        {
+            _viewAt = DateTime.MinValue; _startAt = DateTime.MaxValue;
+            Leave();
+            return true;
+        }
+        if (action == NavAction.View) return false; // alone: quick settings, a moment later
         if (ButtonCode(action) is int code)
         {
             _ = _web.CoreWebView2?.ExecuteScriptAsync(

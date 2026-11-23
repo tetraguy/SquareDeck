@@ -45,7 +45,7 @@ public sealed class SettingsScreen : ListScreen
             if (!Handheld.IsHandheld) return all.ToArray();
             // The handheld's own settings live in Experimental for now.
             return all.Select(c => c.Id == "experimental"
-                ? (c.Id, c.Name, c.Glyph, Handheld.DisplayName + " Specific Settings, Adrenaline Hook and other features still being tried out")
+                ? (c.Id, c.Name, c.Glyph, Handheld.DisplayName + " Specific Settings and features still being tried out")
                 : c).ToArray();
         }
     }
@@ -57,11 +57,11 @@ public sealed class SettingsScreen : ListScreen
     private static readonly Dictionary<string, (string Part, string[]? Groups)[]> Sections = new()
     {
         ["looks"] = new[] { ("looks", (string[]?)null) },
-        ["look"] = new[] { ("look", (string[]?)new[] { "Background", "Colors", "Font", "Your looks", "Profile", "Artwork" }), ("look", new[] { "Top bar", "Display" }) },
-        ["home"] = new[] { ("home", (string[]?)new[] { "Home row and buttons", "Buttons under the games", "Animations", "Screen saver", "Starting and closing" }) },
+        ["look"] = new[] { ("look", (string[]?)new[] { "Background", "Colors", "Font", "Your looks", "Profile", "Artwork" }), ("look", new[] { "Top bar", "Display", "Settings view and unlockables" }) },
+        ["home"] = new[] { ("home", (string[]?)new[] { "Home row and buttons", "Buttons under the games", "Animations", "Covers and companion", "Screen saver", "Starting and closing" }) },
         ["sound"] = new[] { ("sound", (string[]?)null) },
         ["gaming"] = new[] { ("games", (string[]?)new[] { "Launching games", "While playing" }), ("power", new[] { "Performance Boost", "Performance overlay" }), ("games", new[] { "Cloud gaming" }) },
-        ["library"] = new[] { ("games", (string[]?)new[] { "Library and stores", "Achievements, play time and captures", "Service keys" }) },
+        ["library"] = new[] { ("games", (string[]?)new[] { "Library and stores", "Achievements, play time and captures", "Library and store features", "Pages and services", "Service keys" }) },
         ["controller"] = new[] { ("controller", (string[]?)null) },
         ["power"] = new[] { ("power", (string[]?)new[] { "This device", "Processor power (TDP)", "Processor (Ryzen Z1 / Z2)", "TDP helper", "Launcher performance" }) },
         ["network"] = new[] { ("network", (string[]?)null) },
@@ -291,7 +291,7 @@ public sealed class SettingsScreen : ListScreen
         {
             var from = _category;
             Show("overview", focusContent: false);
-            if (Rows.Children.OfType<Button>().FirstOrDefault(b => b.DataContext as string == "section:" + from) is { } card) FocusLater(card);
+            ReturnScroll(Rows.Children.OfType<Button>().FirstOrDefault(b => b.DataContext as string == "section:" + from));
             return true;
         }
         return false;
@@ -422,6 +422,7 @@ public sealed class SettingsScreen : ListScreen
     private void Show(string id, bool focusContent)
     {
         _switchSoon.Stop();
+        RememberScroll();
         if (_category != id) _group = null;
         _category = id;
         _lastCategory = id;
@@ -697,8 +698,25 @@ public sealed class SettingsScreen : ListScreen
         return found;
     }
 
+    /// <summary>How far each section (and group) was scrolled, so stepping back returns to the same place.</summary>
+    private readonly Dictionary<string, double> _scrolled = new();
+    private string ViewKey => _category + "|" + (_group ?? "");
+    private void RememberScroll() => _scrolled[ViewKey] = RowsScroll.VerticalOffset;
+
+    /// <summary>After stepping back: the page scrolled as it was, then the highlight on the row you came from.</summary>
+    private void ReturnScroll(Button? row)
+    {
+        double at = _scrolled.TryGetValue(ViewKey, out var v) ? v : 0;
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
+        {
+            RowsScroll.ScrollToVerticalOffset(at);
+            if (row != null) Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() => { row.Focus(); row.BringIntoView(); }));
+        }));
+    }
+
     private void EnterGroup(string name)
     {
+        RememberScroll();
         _group = name;
         ForgetRow();
         Rebuild();
@@ -713,7 +731,7 @@ public sealed class SettingsScreen : ListScreen
         _group = null;
         ForgetRow();
         Rebuild();
-        if (Rows.Children.OfType<Button>().FirstOrDefault(b => LabelOf(b)?.Label == name) is { } card) FocusLater(card);
+        ReturnScroll(Rows.Children.OfType<Button>().FirstOrDefault(b => LabelOf(b)?.Label == name));
     }
 
     /// <summary>The section's banner: a big icon in a highlight-colored badge, its name, and what it covers.</summary>
@@ -807,7 +825,7 @@ public sealed class SettingsScreen : ListScreen
         // Basic: the styles drawn by SquareDeck (and yours). Advanced: styles made from UI kits, with their own
         // panels, buttons, switches, pointer and icons.
         var tabs = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 2) };
-        foreach (var (id, label, glyph) in new[] { ("basic", "Basic", "\uE771"), ("advanced", "Advanced", "\uE7F4"), ("legendary", "Legendary", "\uE734") })
+        foreach (var (id, label, glyph) in new[] { ("basic", "Basic", "\uE771"), ("advanced", "Advanced", "\uE7F4"), ("legendary", "Legendary", "\uE734"), ("unlockable", "Unlockable", "\uE72E") })
         {
             var chip = new Button
             {
@@ -838,6 +856,7 @@ public sealed class SettingsScreen : ListScreen
         const double W = 296;
         if (_stylesTab == "advanced") { BuildAdvancedStyles(s, W, legendary: false); return; }
         if (_stylesTab == "legendary") { BuildAdvancedStyles(s, W, legendary: true); return; }
+        if (_stylesTab == "unlockable") { BuildAdvancedStyles(s, W, legendary: false, unlockable: true); return; }
 
         AddRow("Surprise me", null, "\uE8B1", subtitle: "Switch to a random style you're not using now", click: () =>
         {
@@ -892,6 +911,7 @@ public sealed class SettingsScreen : ListScreen
                 "on, it also brings its own theme (light, dark or OLED), wallpaper or moving background, interface sounds and music.");
 
         AddHeader("More");
+        AddFeature("styleschedule");
         AddRow("Colors, wallpaper and more", null, "\uE790", click: () => Show("look", focusContent: true),
             subtitle: "Light or dark, color themes, the highlight color, wallpaper and the moving background");
         AddRow("Sounds and music", null, "\uE767", click: () => Show("sound", focusContent: true),
@@ -899,16 +919,22 @@ public sealed class SettingsScreen : ListScreen
     }
 
     /// <summary>Which tab of Themes is showing: the Basic styles, the Advanced ones or the Legendary ones.</summary>
-    private static string _stylesTab = UiStyles.IsLegendary(UiStyles.Current.Id) ? "legendary" : UiStyles.IsAdvanced(UiStyles.Current.Id) ? "advanced" : "basic";
+    private static string _stylesTab = UiStyles.Current.Unlock != null ? "unlockable" : UiStyles.IsLegendary(UiStyles.Current.Id) ? "legendary" : UiStyles.IsAdvanced(UiStyles.Current.Id) ? "advanced" : "basic";
 
     /// <summary>
     /// The Advanced tab (styles made from UI kits, each with a color choice where the kit has several) or the Legendary
     /// tab (Advanced styles whose artwork was drawn from scratch by Claude). Both are UiStyles.Advanced, split by Legendary.
     /// </summary>
-    private void BuildAdvancedStyles(Settings s, double W, bool legendary)
+    private void BuildAdvancedStyles(Settings s, double W, bool legendary, bool unlockable = false)
     {
         var current = UiStyles.Current;
-        var list = UiStyles.Advanced.Where(x => x.Legendary == legendary).ToList();
+        var list = unlockable ? UiStyles.Advanced.Where(x => x.Unlock != null).ToList()
+                              : UiStyles.Advanced.Where(x => x.Legendary == legendary && x.Unlock == null).ToList();
+        if (unlockable)
+        {
+            foreach (var st in StyleUnlocks.Update(Host.AllGames, Host.Playtime, Host.Achievements, Host.Library))
+                Host.ShowToast("Themes", "New style unlocked: " + st.Name, "It's yours to use now.", "", "info");
+        }
         if (list.Any(x => x.Id == current.Id) && current.Skin is { Variants.Length: > 1 } skin)
         {
             AddHeader(current.Name);
@@ -924,23 +950,30 @@ public sealed class SettingsScreen : ListScreen
             });
         }
 
-        AddHeader((legendary ? "Legendary styles  ·  " : "Advanced styles  ·  ") + list.Count);
+        AddHeader((unlockable ? $"Unlockable styles  ·  {list.Count(x => !StyleUnlocks.IsLocked(x))} of {list.Count} unlocked"
+                   : legendary ? "Legendary styles  ·  " + list.Count : "Advanced styles  ·  " + list.Count));
         var shelf = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         foreach (var style in list)
         {
             var st = style;
             bool inUse = st.Id == current.Id;
             s.SkinVariants.TryGetValue(st.Id, out var variant);
-            var tile = AdvancedCard(st, variant, inUse, W);
+            StyleUnlocks.Progress? progress = st.Unlock != null && StyleUnlocks.IsLocked(st)
+                ? StyleUnlocks.Check(st, Host.AllGames, Host.Playtime, Host.Achievements, Host.Library) : null;
+            var tile = AdvancedCard(st, variant, inUse, W, progress);
             tile.Click += (_, _) =>
             {
+                if (progress is { } p) { UiSound.Back(); Host.ShowToast("Themes", st.Name + " is locked", p.Goal + "  (" + p.Have + ")", "", "info", remember: false); return; }
                 if (inUse) { Host.ShowToast("Themes", st.Name + " is in use", "It's the style SquareDeck has now.", "", "info", remember: false); return; }
                 UseSwitchStyle(st);
             };
             shelf.Children.Add(tile);
         }
         Rows.Children.Add(shelf);
-        if (legendary)
+        if (unlockable)
+            AddNote("Unlockable styles are earned by playing: each one opens up when you reach its goal, and SquareDeck lets you know. " +
+                    "They're Advanced styles drawn by Claude, with their own artwork, font, sounds and music.");
+        else if (legendary)
             AddNote("Legendary styles were drawn from scratch by Claude, SquareDeck's AI collaborator: every panel, button, pop-up, " +
                     "switch, check box, pointer, icon and wallpaper. They keep the Switch layout, and with matching on each brings its own " +
                     "theme, font, interface sounds and music.");
@@ -952,7 +985,7 @@ public sealed class SettingsScreen : ListScreen
     }
 
     /// <summary>An Advanced style's card: a picture of its artwork, its name in its own font, and its colors.</summary>
-    private static Button AdvancedCard(UiStyle st, string? variant, bool inUse, double W)
+    private static Button AdvancedCard(UiStyle st, string? variant, bool inUse, double W, StyleUnlocks.Progress? locked = null)
     {
         var card = new StackPanel { Width = W };
         var frame = new Grid { Width = W, Height = W * 191 / 340, ClipToBounds = true };
@@ -994,12 +1027,32 @@ public sealed class SettingsScreen : ListScreen
             badge.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
             frame.Children.Add(badge);
         }
+        if (locked is { } lp)
+        {
+            // Locked: the picture dimmed, a lock, and how close it is.
+            frame.Children.Add(new Border { CornerRadius = new CornerRadius(10), Background = new SolidColorBrush(Color.FromArgb(0xB0, 0x0C, 0x0E, 0x14)) });
+            var center = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            var lockIcon = Ui.Glyph("\uE72E", 34, "FgBrush");
+            lockIcon.Foreground = Brushes.White;
+            lockIcon.HorizontalAlignment = HorizontalAlignment.Center;
+            center.Children.Add(lockIcon);
+            var have = Ui.Text(lp.Have, 14, "FgBrush", bold: true);
+            have.Foreground = Brushes.White;
+            have.HorizontalAlignment = HorizontalAlignment.Center;
+            have.Margin = new Thickness(0, 8, 0, 6);
+            center.Children.Add(have);
+            var track = new Border { Width = W * 0.6, Height = 6, CornerRadius = new CornerRadius(3), Background = new SolidColorBrush(Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF)) };
+            var fill = new Border { Width = Math.Max(6, W * 0.6 * lp.Fraction), Height = 6, CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left };
+            fill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+            center.Children.Add(new Grid { Children = { track, fill }, Width = W * 0.6 });
+            frame.Children.Add(center);
+        }
         card.Children.Add(frame);
         var name = Ui.Text(st.Name, 18, "FgBrush", bold: true);
         name.Margin = new Thickness(4, 10, 0, 2);
         try { name.FontFamily = Services.AppFonts.Family(st.Font); } catch (Exception) { }
         card.Children.Add(name);
-        string about = st.Description;
+        string about = locked is { } goal ? "To unlock: " + goal.Goal + ". " + st.Description : st.Description;
         if (st.Skin is { Variants.Length: > 1 } many) about += " · " + many.Variants.Length + " colors";
         var text = Ui.Text(about, 13, "SubtleBrush");
         text.TextWrapping = TextWrapping.Wrap;
@@ -1267,6 +1320,10 @@ public sealed class SettingsScreen : ListScreen
             click: () => Toggle(() => s.AspectRatio = s.AspectRatio switch { "16:9" => "16:10", "16:10" => "auto", _ => "16:9" }));
         AddNote("16:10 fills handhelds and laptops with taller screens (1280 x 800, 1920 x 1200, 2560 x 1600) edge to edge " +
                 "instead of leaving bars at the top and bottom.");
+
+        AddHeader("Settings view and unlockables");
+        AddFeature("settingsview");
+        AddFeaturePage("unlockables", "Unlockables", "Highlight colors and companion outfits you earn by playing, and the ones still locked");
     }
 
     internal static readonly (string Id, string Name)[] ButtonStyles =
@@ -1375,6 +1432,14 @@ public sealed class SettingsScreen : ListScreen
             Toggle(() => s.ExitAnimation = !s.ExitAnimation));
         AddRow("Closing animation style", MainWindow.ExitStyles.FirstOrDefault(x => x.Id == s.ExitStyle).Name ?? "Logo goodbye", "",
             click: ChooseExitStyle);
+
+        AddHeader("Covers and companion");
+        AddFeature("coverdim");
+        AddFeature("covereffect");
+        AddFeature("tilt");
+        if (Labs.On("tilt")) BuildTiltOptions();
+        AddFeature("dust");
+        AddFeature("companion");
     }
 
     private void BuildSound(Settings s)
@@ -1440,6 +1505,9 @@ public sealed class SettingsScreen : ListScreen
         AddHeader("Sound output");
         AddRow("Volume, brightness and radios", glyph: "", click: () => Host.Push(new QuickSettingsScreen()));
         AddRow("Sound output device", glyph: "", click: () => Host.Push(new PcSettingsScreen()));
+
+        AddHeader("Music that follows the game");
+        AddFeature("genresound");
     }
 
     private void BuildController(Settings s)
@@ -1472,6 +1540,7 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Vibrate while moving through menus", OnOff(s.RumbleInSettings), "\uE7FC",
             click: () => Toggle(() => s.RumbleInSettings = !s.RumbleInSettings), subtitle: "A light tick from row to row in Settings, quick settings and the power menu");
         AddRow("Controller test", glyph: "", click: () => Host.Push(new ControllerTestScreen()));
+        AddFeaturePage("sticks", "Stick check and dead zone");
 
         AddHeader("Typing");
         AddRow("Keyboard for typing", s.TouchKeyboard == "windows" ? "Windows touch keyboard" : "SquareDeck keyboard", "\uE765",
@@ -2055,6 +2124,10 @@ public sealed class SettingsScreen : ListScreen
             AddRow("Close open pages while playing", OnOff(s.ClosePagesWhilePlaying), "\uE8BB", click: () =>
                 Toggle(() => s.ClosePagesWhilePlaying = !s.ClosePagesWhilePlaying),
                 subtitle: "Frees the most memory. After the game you come back to Home instead of the page you left");
+        AddRow("Free memory when SquareDeck is out of sight", OnOff(s.LeanInBackground), "\uE964", click: () =>
+            Toggle(() => s.LeanInBackground = !s.LeanInBackground),
+            subtitle: "After a minute behind another app or minimized, SquareDeck lets go of covers, the moving background and the " +
+                      "menu music. They come back when you return; music you're listening to keeps playing");
         AddNote("While a game runs, the launcher stops using the graphics card and lets go of its pictures, so the game gets the " +
                 "video memory. Recommended; turn off only if switching back to the launcher feels slow.");
         AddRow("Do not disturb (hide Windows notifications)", OnOff(s.DoNotDisturb), "", click: () =>
@@ -2163,6 +2236,14 @@ public sealed class SettingsScreen : ListScreen
             click: () => Toggle(() => s.CaptureAlbumIcons = !s.CaptureAlbumIcons),
             subtitle: "In the Captures albums, for games in your library");
 
+        AddHeader("Library and store features");
+        foreach (var id in new[] { "installestimate", "overnight", "closelaunchers", "steamfullscreen", "refund", "trailers", "diary", "guides",
+                                   "achshot", "watermark", "milestones", "discord" })
+            AddFeature(id);
+        AddHeader("Pages and services");
+        foreach (var id in new[] { "recomp", "freegames", "vacuumtube", "musicstreams", "leaderboard", "boss", "mood", "passport" })
+            AddFeature(id);
+
         AddHeader("Service keys");
         AddRow("Steam Web API key (friends, not-installed games)", s.SteamWebApiKey.Length > 0 ? Mask(s.SteamWebApiKey) : "Not set", "",
             click: () => _ = EditSteamKeyAsync(Host, Rebuild));
@@ -2264,6 +2345,9 @@ public sealed class SettingsScreen : ListScreen
         AddHeader("Tools");
         AddRow("Task Manager", "Apps, processes, performance", "", click: () => Host.Push(new TaskManagerScreen()));
         AddRow("File explorer", glyph: "", click: () => Host.Push(new ExplorerScreen()));
+        AddFeaturePage("storage", "Storage advisor");
+        AddFeaturePage("cleanup", "Library cleanup");
+        BuildAdrenalineHook(s);
         AddRow("Open Terminal", "Command Prompt or PowerShell", "\uE756", click: async () =>
         {
             int shell = await Host.AskWithIconsAsync("Open Terminal", "Runs inside SquareDeck. Type with the keyboard, or press A for the touch keyboard.",
@@ -2313,9 +2397,18 @@ public sealed class SettingsScreen : ListScreen
     {
         AddHeader("Experimental features");
         AddNote("Features that are still being tried out live here first. They may change, move or go away, and " +
-                "they might not work everywhere yet. Nothing here is turned on unless you turn it on.");
+                "they might not work everywhere yet. Nothing here is turned on unless you turn it on. Features that have " +
+                "settled in have moved to their own places in Settings.");
 
-        AddHeader("Adrenaline Hook");
+        BuildLabs();
+
+        // The handheld's own settings (moved here from their own section), with the supported devices at the bottom.
+        if (Handheld.IsHandheld) BuildHandheld(s);
+    }
+
+    /// <summary>Adrenaline Hook (off until turned on): in System and tools.</summary>
+    private void BuildAdrenalineHook(Settings s)
+    {
         bool amd = AdrenalineHook.HasAmdGraphics;
         AddRow("Adrenaline Hook", amd ? OnOff(s.ExperimentAdrenalineHook) : "Needs AMD graphics", "\uE7F4", click: () =>
         {
@@ -2332,17 +2425,12 @@ public sealed class SettingsScreen : ListScreen
         if (amd && s.ExperimentAdrenalineHook)
             AddRow("Open Adrenaline Hook", null, "\uE768", click: () => Host.Push(new AdrenalineHookScreen()),
                 subtitle: "Hook games, AMD per-game settings, the Radeon overlays, backups");
-
-        BuildLabs();
-
-        // The handheld's own settings (moved here from their own section), with the supported devices at the bottom.
-        if (Handheld.IsHandheld) BuildHandheld(s);
     }
 
     /// <summary>The newer experimental features, by group: a switch for each, and its page once it's on.</summary>
     private void BuildLabs()
     {
-        foreach (var group in Labs.Features.GroupBy(f => f.Group))
+        foreach (var group in Labs.Features.Where(f => !Labs.Graduated.Contains(f.Id)).GroupBy(f => f.Group))
         {
             AddHeader(group.Key);
             foreach (var f in group)
@@ -2396,6 +2484,46 @@ public sealed class SettingsScreen : ListScreen
         _ => null
     };
 
+    /// <summary>A feature that has left Experimental: its switch, and a row to open its page while it's on.</summary>
+    private void AddFeature(string id, string? name = null)
+    {
+        if (Labs.Feature(id) is not { } f) return;
+        bool on = Labs.On(id);
+        string label = name ?? f.Name;
+        string? blocked = id == "tilt" && Host?.HasMotionSensor == false ? "No motion sensor" : null;
+        AddRow(label, blocked ?? OnOff(on), f.Glyph, click: () =>
+        {
+            if (blocked != null && !on) { _ = Host.AskAsync(label, "This PC doesn't report a motion sensor, so the covers can't follow its tilt.", "OK"); return; }
+            Labs.Set(id, !on);
+            Rebuild();
+        }, subtitle: f.About);
+        if (on && LabPage(id) is { } open) AddRow("Open " + label.ToLowerInvariant(), null, "", click: open);
+    }
+
+    /// <summary>A feature that's always there now: a row that opens its page.</summary>
+    private void AddFeaturePage(string id, string label, string? subtitle = null)
+    {
+        if (Labs.Feature(id) is not { } f || LabPage(id) is not { } open) return;
+        AddRow(label, null, f.Glyph, click: open, subtitle: subtitle ?? f.About);
+    }
+
+    /// <summary>Covers that tilt: how far they move, how they move, the zoom, and which way.</summary>
+    private void BuildTiltOptions()
+    {
+        string strength = Labs.Get("tilt.strength", "1");
+        AddRow("Tilt strength", strength switch { "0.5" => "Subtle", "1.6" => "Strong", "2.4" => "Extreme", _ => "Normal" }, "",
+            click: () => { Labs.Put("tilt.strength", strength switch { "0.5" => "1", "1" => "1.6", "1.6" => "2.4", _ => "0.5" }); Rebuild(); });
+        string style = Labs.Get("tilt.style", "shift");
+        AddRow("Tilt effect", style switch { "swing" => "Swing", "skew" => "3D lean", "float" => "Float with shadow", _ => "Parallax shift" }, "",
+            click: () => { Labs.Put("tilt.style", style switch { "shift" => "swing", "swing" => "skew", "skew" => "float", _ => "shift" }); Rebuild(); },
+            subtitle: "Parallax shift slides the art, Swing turns it, 3D lean leans it like a card, Float lifts it with a moving shadow");
+        bool zoom = Labs.Get("tilt.zoom", "1") == "1";
+        AddRow("Zoom the tilted cover", OnOff(zoom), "", click: () => { Labs.Put("tilt.zoom", zoom ? "0" : "1"); Rebuild(); },
+            subtitle: "A little larger, so its edges never show while it moves");
+        bool invert = Labs.Get("tilt.invert") == "1";
+        AddRow("Reverse the direction", OnOff(invert), "", click: () => { Labs.Put("tilt.invert", invert ? "0" : "1"); Rebuild(); });
+    }
+
     private void BuildData(Settings s)
     {
         AddHeader("Updates");
@@ -2404,6 +2532,7 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Check for updates automatically", OnOff(s.AutoUpdateCheck), "", click: () =>
             Toggle(() => s.AutoUpdateCheck = !s.AutoUpdateCheck));
         AddRow("Check for updates now", glyph: "", click: () => _ = Host.CheckForUpdatesAsync(manual: true));
+        AddFeature("autoupdate");
         if (s.SkippedVersion.Length > 0)
             AddRow("Stop ignoring " + s.SkippedVersion, glyph: "", click: () => Toggle(() => s.SkippedVersion = ""));
         AddRow("View changelogs", null, "\uE81C", subtitle: "What changed in each version", click: () => Host.Push(new ChangelogScreen()));
@@ -3570,12 +3699,24 @@ public sealed class QuickSettingsScreen : Screen
         _side = LookChrome.SheetSide(power: false);
         switch (_side)
         {
-            case "left":
-            case "right":
+            case "bottom":
+                break;
+            default:
+                // A full-height blade the same size as the Wi-Fi / Bluetooth blade on the home screen (520 wide), on
+                // the side the look puts it (floating looks: the left).
+                if (_side is not ("left" or "right")) _side = "left";
+                _sheet.Width = 520;
                 _sheet.Margin = new Thickness(0);
                 _sheet.VerticalAlignment = VerticalAlignment.Stretch;
                 _sheet.HorizontalAlignment = _side == "left" ? HorizontalAlignment.Left : HorizontalAlignment.Right;
-                _sheet.Padding = new Thickness(34, 40, 30, 28);
+                _sheet.Padding = new Thickness(30, 34, 30, 26);
+                _sheet.CornerRadius = _side == "left" ? new CornerRadius(0, Round(26), Round(26), 0) : new CornerRadius(Round(26), 0, 0, Round(26));
+                break;
+        }
+        switch (_side)
+        {
+            case "left":
+            case "right":
                 break;
             case "bottom":
                 _sheet.Margin = new Thickness(0);

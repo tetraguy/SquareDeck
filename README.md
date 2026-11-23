@@ -51,7 +51,13 @@ one home screen in front of all of it: pick it up, press A, play.
 - Home row art as Square, Tall grid or Rectangle, in Small, Medium or Large, with fifteen highlight animations
 - **Wishlist and sales:** your Steam wishlist and games you watch, with prices, discounts and the lowest price seen, a
   notification when one goes on sale, and a month-view **release calendar**
-- Install stores from SquareDeck, including RecompLauncher (PC recomps) straight from its GitHub releases
+- Install stores from SquareDeck with the Windows Package Manager
+- **Recomp Zone**: browse native PC recompilations of console games with Windows builds, filter by
+  platform and genre or sort by stars, read Library-style pages about each, and install, update, play or locate them
+- **Game Genie**: facts and questions and answers about any game, written by Google Gemini, from an
+  Ask Genie button on its page
+- A mood picker: choose how you feel and get three games from your library that fit, with their artwork and play time
+- **Backlog Boss:** your unfinished games as a monster to defeat an hour at a time, and **My Gamer Passport:** ink stamps for every genre, era and store you've played
 - Launch splash that covers store pop-ups until the game is on screen, with six animations and an optional countdown
 - How long to beat (from HowLongToBeat.com) on every game's page, next to your own play time
 - Start Steam games straight from their .exe to skip Steam's launch pop-up
@@ -71,7 +77,7 @@ one home screen in front of all of it: pick it up, press A, play.
   for power draw, battery health and pace, the power limit, controller battery, memory, every drive, display, network
   and sound (a home screen button, off by default)
 - **Legion Go and MSI Claw:** Legion modes / MSI user scenarios, fan boost, charge limit and TDP through their firmware
-- **VacuumTube** (experimental): YouTube's TV and console app, made for the controller, with VacuumTube's ad blocking,
+- **DeckTube**: YouTube's TV and console app, made for the controller, with VacuumTube's ad blocking,
   SponsorBlock, DeArrow and Return YouTube Dislike. It gets its own tab on the Music page, next to Spotify
 - **Adrenaline Hook** (experimental, AMD graphics): adds Xbox, Store and other games to AMD Software so its per-game
   settings work for them, with Adrenalin switches per game, repair after updates, backups and the Radeon overlay shortcuts
@@ -91,17 +97,19 @@ one home screen in front of all of it: pick it up, press A, play.
   mouse mode and switching off the built-in controller
 - Lean mode while a game runs: lets go of covers, pages and caches, frees graphics memory and lets Windows reclaim
   its memory first, then comes back with focus when the game closes
-- Rests while another app is in front: music, moving backgrounds and animated covers pause
+- Rests while another app is in front: music, moving backgrounds, animations and animated covers pause, and after a
+  minute in the background it frees memory too
 - Performance mode, low-battery notice and Do not disturb while playing
 
 ### Look and feel
-- Themes, in three tabs:
+- Themes, in four tabs:
   - **Basic:** 100 styles of the Switch design, each with its own colors, type, corners, buttons, wallpaper or moving
     background, sounds and music
   - **Advanced:** 18 styles made from UI kits, with the kit's own panels, buttons, dialogs, switches, mouse pointer and
     (for some) icons. Several come in more than one color
   - **Legendary:** 21 styles drawn from scratch by Claude: every panel, button, pop-up, switch, check box, pointer,
     icon and wallpaper, each with its own font, sounds and music
+  - **Unlockable:** 6 styles you earn by playing (hours, achievements, finished games, late nights and streaks)
 - Create your own styles: background, music, interface and navigation sounds, colors, font, button shape and look,
   shelf, effects (halftone, comic book, synthwave, Y2K, dreamcore and more), game art, animations and the Windows lock
   screen picture. Save them with your own name, and export or import them as .sdstyle files
@@ -119,7 +127,8 @@ one home screen in front of all of it: pick it up, press A, play.
   screen, with the controller read by the page itself, and a now-playing pill on the home screen while one is open
 - Captures gallery for Game Bar screenshots and clips, grouped by game into albums you can export as a ZIP or delete,
   with a built-in share sheet and 3 to 6 captures per row
-- File explorer, task manager, Wi-Fi, Bluetooth, display and sound settings
+- File explorer with tabs (drag files between them), a fold-away sidebar and the Recycle Bin; task manager, display and sound settings
+- Wi-Fi and Bluetooth in a blade from the right of the home screen: join networks, pair and connect devices
 - Terminal (Command Prompt or PowerShell) inside the launcher, and a storage speed test for drives and memory cards
 - Steam friends, game news, search across everything
 - Backup and restore of settings and library
@@ -236,7 +245,7 @@ More notes on individual features are in the [changelog](CHANGELOG.md).
   Intel commands (`Services/DeviceHelper.cs`, `Services/HandheldVendors.cs`), which follow it too. Intel power limits
   use KX.exe from your own HandheldCompanion install; SquareDeck doesn't include it
 - Adrenaline Hook (Settings > Experimental) is rebuilt from [Adrenaline Hook](https://github.com/tetraguy/Adrenaline-Hook) by tetraguy
-- VacuumTube (Settings > Experimental) runs the page scripts of [VacuumTube](https://github.com/shy1132/VacuumTube) by shy
+- DeckTube (Settings > Library and stores) runs the page scripts of [VacuumTube](https://github.com/shy1132/VacuumTube) by shy
   (MIT licence), bundled in `SquareDeck/VacuumTube` by `tools/vacuumtube/build.js`; its licence is in that folder
 - The Advanced styles use these UI kits (in `SquareDeck/Skins`), each under its own terms:
   NEONIX UI assets by GONKEN Games — https://gonkengames.itch.io/ ; Free Hologram Interface by Wenrexa; Glowing UI icons;

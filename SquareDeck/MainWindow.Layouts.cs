@@ -421,7 +421,7 @@ public partial class MainWindow
         if (_subtitle!.Visibility == Visibility.Visible || s.Layout == "stage")
         {
             _subtitle.Text = game == null ? "" : game.IsSteam ? "Steam" : game.Source.Length > 0 ? game.Source
-                : game.Kind == ItemKind.App ? "App" : game.IsGame ? "Added by you" : "";
+                : game.Kind == ItemKind.App ? "App" : game.IsRecomp ? "Recomp Zone" : game.IsGame ? "Added by you" : "";
             _subtitle.Visibility = s.Layout == "stage" && _subtitle.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 

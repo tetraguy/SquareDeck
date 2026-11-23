@@ -223,7 +223,7 @@
                                                         <TextBlock Text="CONTINUE WHERE YOU LEFT OFF" FontSize="14" FontWeight="Bold"
                                                                    Foreground="{DynamicResource AccentOnDarkBrush}"/>
                                                         <!-- The game's logo when SteamGridDB has one, else its name -->
-                                                        <Image Source="{Binding ContinueLogo}" MaxHeight="92" MaxWidth="360" Stretch="Uniform"
+                                                        <Image Source="{Binding ContinueLogo}" MaxHeight="80" MaxWidth="360" Stretch="Uniform"
                                                                HorizontalAlignment="Left" Margin="0,8,0,6" RenderOptions.BitmapScalingMode="HighQuality">
                                                             <Image.Style>
                                                                 <Style TargetType="Image">
@@ -253,6 +253,35 @@
                                                         </TextBlock>
                                                         <TextBlock Text="{Binding Subtitle}" FontSize="16" Foreground="#E0FFFFFF"
                                                                    TextTrimming="CharacterEllipsis"/>
+                                                        <!-- More about it: play time, achievements, status, rating, the last note -->
+                                                        <TextBlock Text="{Binding ContinueDetail}" FontSize="14" Foreground="#B8FFFFFF" Margin="0,3,0,0"
+                                                                   TextTrimming="CharacterEllipsis">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding HasContinueDetail}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <Grid Width="220" Height="5" HorizontalAlignment="Left" Margin="0,8,0,0">
+                                                            <Grid.Style>
+                                                                <Style TargetType="Grid">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding HasContinueProgress}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Grid.Style>
+                                                            <Border CornerRadius="2.5" Background="#40FFFFFF"/>
+                                                            <Border CornerRadius="2.5" HorizontalAlignment="Left" Width="{Binding ContinueProgressWidth}"
+                                                                    Background="{DynamicResource AccentOnDarkBrush}"/>
+                                                        </Grid>
                                                     </StackPanel>
                                                 </Grid>
                                                 <Border x:Name="RunBadge" Background="#2EB872" CornerRadius="3" Padding="8,3"

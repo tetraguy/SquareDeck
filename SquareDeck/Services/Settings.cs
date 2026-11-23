@@ -78,6 +78,10 @@ public sealed class Settings
     public string ExplorerSort { get; set; } = "name";
     public bool ExplorerSortDescending { get; set; }
     public bool ExplorerShowHidden { get; set; }
+    /// <summary>The features that left Experimental in 7.2 have been turned on once (those meant to be on by default).</summary>
+    public bool LabsGraduated72 { get; set; }
+    /// <summary>Explorer's sidebar is open (L1 or F1 folds it away).</summary>
+    public bool ExplorerSidebarOpen { get; set; } = true;
 
     // Task Manager: the tab it opens on, the sort, and how often it updates (0 = paused).
     public string TaskManagerTab { get; set; } = "Apps";
@@ -272,6 +276,8 @@ public sealed class Settings
 
     /// <summary>The color variant chosen for each Advanced style that has some (style id → variant id).</summary>
     public Dictionary<string, string> SkinVariants { get; set; } = new();
+    public HashSet<string> UnlockedStyles { get; set; } = new();   // Unlockable styles earned (Themes > Unlockable)
+    public bool UnlocksChecked { get; set; }                        // the first check unlocks quietly what was already earned
 
     /// <summary>Loudness of the menu music, in percent.</summary>
     public int MenuMusicVolume { get; set; } = 30;
@@ -429,6 +435,7 @@ public sealed class Settings
 
     /// <summary>Hand the graphics card back to the game: draw the launcher in software while a game runs.</summary>
     public bool FreeGpuDuringGames { get; set; } = true;
+    public bool LeanInBackground { get; set; } = true;      // the same after a minute out of sight behind another app or minimized
     public bool LeanWhilePlaying { get; set; } = true;      // let go of covers, pages and caches while a game runs in front
     public bool ClosePagesWhilePlaying { get; set; } = true; // part of the above: open pages close (you come back to Home)
 
@@ -525,6 +532,7 @@ public sealed class Settings
 
     /// <summary>The user's own Steam Web API key, for the Friends page. Empty until they add one.</summary>
     public string SteamWebApiKey { get; set; } = "";
+    public string GeminiApiKey { get; set; } = "";          // Game Genie: your own Google Gemini key (empty: the one built into this copy)
     /// <summary>A notification when a wishlist or watched game goes on sale (at least <see cref="SaleAlertMin"/>% off).</summary>
     public bool SaleAlerts { get; set; } = true;
     public int SaleAlertMin { get; set; } = 1;
@@ -668,6 +676,7 @@ public sealed class Settings
                     if (!Hints.IsValidMap(s.ButtonMap)) s.ButtonMap = "ABXY";
                     s.NavSoundSet ??= "";
                     s.SkinVariants ??= new();
+                    s.UnlockedStyles ??= new();
                     s.CustomStyles ??= new();
                     s.CustomStyles.RemoveAll(c => c == null);
                     MyStyles.Load(s);

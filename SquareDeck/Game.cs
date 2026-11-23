@@ -69,7 +69,10 @@ public sealed class Game : INotifyPropertyChanged
     public bool IsGame => IsSteam || IsCustom || IsExternal;
 
     /// <summary>Where the game comes from, for the library's filter.</summary>
-    public string SourceName => IsSteam ? "Steam" : IsCustom ? "Custom" : Source;
+    public string SourceName => IsSteam ? "Steam" : IsRecomp ? "Recomp Zone" : IsCustom ? "Custom" : Source;
+
+    /// <summary>A recomp added to Home from Recomp Zone (its id starts with "recomp-").</summary>
+    public bool IsRecomp => IsCustom && LaunchId.StartsWith("recomp-", StringComparison.Ordinal);
     public bool IsApp => Kind == ItemKind.App;
     public bool IsAddTile => Kind == ItemKind.AddTile;
     public bool IsLibraryTile => Kind == ItemKind.LibraryTile;
@@ -93,6 +96,25 @@ public sealed class Game : INotifyPropertyChanged
     }
     private ImageSource? _continueLogo;
     public bool HasContinueLogo => _continueLogo != null;
+
+    /// <summary>The "Continue" tile's details line: total play time, achievements, status and the last note.</summary>
+    public string ContinueDetail
+    {
+        get => _continueDetail;
+        set { _continueDetail = value; Changed(); Changed(nameof(HasContinueDetail)); }
+    }
+    private string _continueDetail = "";
+    public bool HasContinueDetail => _continueDetail.Length > 0;
+
+    /// <summary>The "Continue" tile's progress (achievements unlocked, 0–1), or -1 for none.</summary>
+    public double ContinueProgress
+    {
+        get => _continueProgress;
+        set { _continueProgress = value; Changed(); Changed(nameof(HasContinueProgress)); Changed(nameof(ContinueProgressWidth)); }
+    }
+    private double _continueProgress = -1;
+    public bool HasContinueProgress => _continueProgress >= 0;
+    public double ContinueProgressWidth => Math.Max(6, 220 * Math.Clamp(_continueProgress, 0, 1));
 
     public string Subtitle
     {
@@ -328,6 +350,7 @@ public sealed class Game : INotifyPropertyChanged
             if (IsLibraryTile) return "All installed games, with filters and categories";
             if (IsMoreAppsTile) return "Every app you have added";
             if (IsApp) return "App";
+            if (IsRecomp) return "Recomp Zone";
             if (IsCustom) return "Custom game";
             if (!IsInstalled) return "Not installed";
             if (IsExternal) return Source;

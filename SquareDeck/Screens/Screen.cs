@@ -22,6 +22,9 @@ public abstract class Screen : UserControl
 
     internal IInputElement? LastFocus { get; set; }
 
+    /// <summary>How far each of the page's scrolling areas was scrolled when another page opened over it (put back on return).</summary>
+    internal List<double>? SavedScroll { get; set; }
+
     protected Screen()
     {
         Focusable = false;
@@ -77,6 +80,12 @@ public abstract class Screen : UserControl
 
     /// <summary>Called when another page or pop-up opens on top of this one.</summary>
     public virtual void OnCovered() { }
+
+    /// <summary>
+    /// SquareDeck went to the background (true) or came back (false): pause and resume anything the page animates or
+    /// refreshes on its own. Music or video the person chose to play keeps going.
+    /// </summary>
+    public virtual void OnAppRest(bool resting) { }
 
     private Grid? _pageRoot;
 

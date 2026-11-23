@@ -119,6 +119,7 @@ public partial class MainWindow : Window
         ApplyUiStyle();
         InitDynamicBackground();
         InitLeanMode();
+        InitRest();
         InitLabs();
 
         GameList.ItemsSource = _view;
@@ -507,6 +508,7 @@ public partial class MainWindow : Window
             _continueTile.Cover ??= target.Cover; // made while the cover was put away during a game, or still loading
             _continueTile.IsRunning = target.IsRunning;
             _continueTile.Subtitle = ContinueSubtitle(target);
+            FillContinueDetail(_continueTile, target);
             row.Add(_continueTile);
             row.AddRange(recent.Skip(1).Take(HomeGameCount - 1));
         }
@@ -524,10 +526,40 @@ public partial class MainWindow : Window
     {
         if (target.IsRunning) return "Running now";
         var parts = new List<string> { "Last played " + Ui.Ago(target.RecentAt) };
+        // The last session: how long it lasted.
+        var last = Playtime.Sessions.LastOrDefault(x => x.Key == target.Key);
+        if (last != null && last.Seconds >= 60) parts.Add(PlaytimeStore.Format(last.Seconds) + " last session");
         double week = Playtime.GamesInWeek(PlaytimeStore.WeekStart(DateTime.Now))
             .FirstOrDefault(g => g.Key == target.Key).Seconds;
         if (week >= 60) parts.Add(PlaytimeStore.Format(week) + " this week");
         return string.Join("  \u00B7  ", parts);
+    }
+
+    /// <summary>
+    /// The Continue tile's second line and bar: play time in total, achievements (with a bar), where you are in it
+    /// (the status you gave it), your rating, and the start of your newest note for it.
+    /// </summary>
+    private void FillContinueDetail(Game tile, Game target)
+    {
+        var parts = new List<string>();
+        double total = Playtime.TotalSeconds(target.Key);
+        if (total >= 60) parts.Add(PlaytimeStore.Format(total) + " played");
+        double progress = -1;
+        if (target.IsSteam && Achievements.ProgressOf(target.AppId) is { Total: > 0 } a)
+        {
+            parts.Add($"{a.Unlocked} of {a.Total} achievements");
+            progress = (double)a.Unlocked / a.Total;
+        }
+        var o = Library.Find(target.Key);
+        if (o?.Status is { Length: > 0 } status) parts.Add(char.ToUpper(status[0]) + status[1..]);
+        if (o is { Rating: > 0 }) parts.Add(new string('\u2605', Math.Clamp(o.Rating, 1, 5)));
+        if (o?.Notes is { Length: > 0 } notes)
+        {
+            string line = notes.Split('\n').Select(l => l.Trim()).LastOrDefault(l => l.Length > 0 && !l.EndsWith(":")) ?? "";
+            if (line.Length > 0) parts.Add("\u201C" + (line.Length > 48 ? line[..48] + "\u2026" : line) + "\u201D");
+        }
+        tile.ContinueDetail = string.Join("  \u00B7  ", parts);
+        tile.ContinueProgress = progress;
     }
 
     /// <summary>The wide tile looks best with wide artwork; until it arrives it shows the square cover.</summary>
@@ -1519,19 +1551,20 @@ public partial class MainWindow : Window
         if (item.IsCustom)
         {
             if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => ProcessUtil.Open("explorer.exe", "/select,\"" + item.LaunchPath + "\""));
+            if (hasFolder) Add(Manage, "Fix this game", "\uE90F", () => Push(new FixGameScreen(item)));
             Add(Manage, "Remove from library", "\uE711", () => RemoveCustomGame(item), danger: true);
         }
         else if (item.IsExternal)
         {
             if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
-            if (Labs.On("fixgame") && hasFolder) Add(Manage, "Fix this game", "\uE90F", () => Push(new FixGameScreen(item)));
+            if (hasFolder) Add(Manage, "Fix this game", "\uE90F", () => Push(new FixGameScreen(item)));
             Add(Manage, "Remove from list", "\uE711", Hide, danger: true);
         }
         else if (item.IsSteam)
         {
             if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
-            if (Labs.On("move")) Add(Manage, "Move to another drive", "\uE8DE", () => Push(new MoveGameScreen(item)));
-            if (Labs.On("fixgame")) Add(Manage, "Fix this game", "\uE90F", () => Push(new FixGameScreen(item)));
+            Add(Manage, "Fix this game", "\uE90F", () => Push(new FixGameScreen(item)));
+            Add(Manage, "Move to another drive", "\uE8DE", () => Push(new MoveGameScreen(item)));
             AddAsync(Manage, "Uninstall", "\uE74D", () => UninstallAsync(item), danger: true);
             Add(Manage, "Remove from list", "\uE711", Hide, danger: true);
         }
@@ -1542,7 +1575,7 @@ public partial class MainWindow : Window
         }
 
         // A line about the game under its logo.
-        string source = item.IsSteam ? "Steam" : item.IsApp ? "App" : item.Source.Length > 0 ? item.Source : "Added by you";
+        string source = item.IsSteam ? "Steam" : item.IsApp ? "App" : item.IsRecomp ? "Recomp Zone" : item.Source.Length > 0 ? item.Source : "Added by you";
         string subtitle = item.IsRunning ? "Running now  ·  " + source : source;
         var sheet = new GameOptionsScreen(item, options.Select(o => o.Option).ToList(), subtitle);
         Push(sheet);
@@ -1621,6 +1654,7 @@ public partial class MainWindow : Window
         {
             var below = _screens[^1];
             below.LastFocus = Keyboard.FocusedElement;
+            below.SavedScroll = ScrollersOf(below).Select(v => v.VerticalOffset).ToList();
             below.OnCovered();
             if (!screen.IsDialog) below.Visibility = Visibility.Collapsed;
         }
@@ -1654,7 +1688,7 @@ public partial class MainWindow : Window
         for (int i = _screens.Count - 1; i >= index; i--)
         {
             var closing = _screens[i];
-            closedConnectionPage |= closing is WifiScreen or BluetoothScreen;
+            closedConnectionPage |= closing is WifiScreen or BluetoothScreen or ConnectionBladeScreen;
             _screens.RemoveAt(i);
             ScreenLayer.Children.Remove(closing);
             closing.OnClosed();
@@ -1679,6 +1713,71 @@ public partial class MainWindow : Window
             if (top.LastFocus is UIElement last && top.IsAncestorOf(last) && last.Focus()) return;
             top.FocusDefault();
         }));
+        // Back where you were: the page scrolled as it was when you left it, with the highlight on something in view
+        // (a page that rebuilt itself on return would otherwise start again from the top).
+        if (top.SavedScroll is { Count: > 0 } saved)
+        {
+            top.SavedScroll = null;
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => RestoreScroll(top, saved)));
+        }
+    }
+
+    /// <summary>The vertically scrolling areas inside a page, in order.</summary>
+    private static List<ScrollViewer> ScrollersOf(DependencyObject root)
+    {
+        var list = new List<ScrollViewer>();
+        void Walk(DependencyObject d)
+        {
+            int n = VisualTreeHelper.GetChildrenCount(d);
+            for (int i = 0; i < n; i++)
+            {
+                var child = VisualTreeHelper.GetChild(d, i);
+                if (child is ScrollViewer { VerticalScrollBarVisibility: not ScrollBarVisibility.Disabled } v) list.Add(v);
+                Walk(child);
+            }
+        }
+        Walk(root);
+        return list;
+    }
+
+    private void RestoreScroll(Screen top, List<double> saved)
+    {
+        if (!IsTop(top)) return;
+        var scrollers = ScrollersOf(top);
+        ScrollViewer? main = null;
+        for (int i = 0; i < scrollers.Count && i < saved.Count; i++)
+        {
+            if (saved[i] <= 1 || Math.Abs(scrollers[i].VerticalOffset - saved[i]) <= 1) continue;
+            scrollers[i].ScrollToVerticalOffset(saved[i]);
+            main ??= scrollers[i];
+        }
+        if (main == null) return;
+        top.UpdateLayout();
+        // If the highlight is off screen now, move it to the first button in view instead of scrolling back to it.
+        bool Visible(FrameworkElement e)
+        {
+            try
+            {
+                if (!e.IsVisible || !main.IsAncestorOf(e)) return false;
+                var r = e.TransformToAncestor(main).TransformBounds(new Rect(e.RenderSize));
+                return r.Bottom > 0 && r.Top < main.ViewportHeight;
+            }
+            catch (InvalidOperationException) { return false; }
+        }
+        if (Keyboard.FocusedElement is FrameworkElement f && (!main.IsAncestorOf(f) || Visible(f))) return;
+        var first = FindVisualChildren<Button>(main).FirstOrDefault(b => b.Focusable && b.IsEnabled && Visible(b));
+        first?.Focus();
+    }
+
+    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject d) where T : DependencyObject
+    {
+        int n = VisualTreeHelper.GetChildrenCount(d);
+        for (int i = 0; i < n; i++)
+        {
+            var child = VisualTreeHelper.GetChild(d, i);
+            if (child is T t) yield return t;
+            foreach (var deeper in FindVisualChildren<T>(child)) yield return deeper;
+        }
     }
 
     /// <summary>Shows a dialog with choices. Returns the chosen index, or -1 if dismissed.</summary>
@@ -1859,6 +1958,20 @@ public partial class MainWindow : Window
 
         if (action == NavAction.View)
         {
+            // A full-screen web page (DeckTube, a streaming service): View + Menu together goes back to SquareDeck, so
+            // View alone waits a moment before quick settings, in case Menu follows.
+            if (_screens.Count > 0 && _screens[^1] is IPagePad and Screen pagePad)
+            {
+                if (pagePad.OnAction(action)) return;
+                var wait = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(260) };
+                wait.Tick += (_, _) =>
+                {
+                    wait.Stop();
+                    if (_screens.Count > 0 && ReferenceEquals(_screens[^1], pagePad)) Push(new QuickSettingsScreen());
+                };
+                wait.Start();
+                return;
+            }
             if (_screens.Count > 0 && _screens[^1] is QuickSettingsScreen quick) Pop(quick);
             else if (_screens.Count == 0 || !_screens[^1].IsDialog) Push(new QuickSettingsScreen());
             return;
@@ -1991,8 +2104,8 @@ public partial class MainWindow : Window
             {
                 scroller.ScrollToVerticalOffset(scroller.VerticalOffset + (direction == FocusNavigationDirection.Down ? 120 : -120));
             }
-            // Pages made of tiles (library, captures, pickers) buzz like the home row does.
-            if (top is GridScreen or LibraryScreen && !ReferenceEquals(Keyboard.FocusedElement, focused)) Rumble();
+            // Pages made of tiles (library, captures, pickers, Explorer) buzz like the home row does.
+            if (top is GridScreen or LibraryScreen or ExplorerScreen && !ReferenceEquals(Keyboard.FocusedElement, focused)) Rumble();
         }
     }
 
@@ -2440,9 +2553,9 @@ public partial class MainWindow : Window
 
     private void Quick_Click(object sender, RoutedEventArgs e) => Push(new QuickSettingsScreen());
 
-    private void Wifi_Click(object sender, RoutedEventArgs e) => Push(new WifiScreen());
+    private void Wifi_Click(object sender, RoutedEventArgs e) => Push(new ConnectionBladeScreen(bluetooth: false));
 
-    private void Bluetooth_Click(object sender, RoutedEventArgs e) => Push(new BluetoothScreen());
+    private void Bluetooth_Click(object sender, RoutedEventArgs e) => Push(new ConnectionBladeScreen(bluetooth: true));
 
     private DateTime _phonesCheckedAt;
     private (string Name, int Percent)? _phones;

@@ -6,7 +6,7 @@ namespace SquareDeck.Screens;
 /// moves a highlight between links, buttons and tiles. A chooses, B goes back (then out to SquareDeck), X plays or
 /// pauses, and LB / RB skip 10 seconds. While a video is playing full screen, the d-pad seeks and changes the volume.
 /// LT / RT scroll, Start goes full screen, the right stick moves a pointer (A or R3 clicks), Y opens the menu and View
-/// opens quick settings. It also reports what's playing (for the pill on the home screen), and says it's alive, so
+/// opens quick settings. View + Menu together, Ctrl+Q or the corner "SquareDeck" button go back to SquareDeck. It also reports what's playing (for the pill on the home screen), and says it's alive, so
 /// SquareDeck's own controller handling takes over again if the page ever stops hearing the controller.
 /// </summary>
 public static class StreamingPad
@@ -225,15 +225,74 @@ public static class StreamingPad
       if (edge('rb', pressed(gp, 5))) { var v2 = video(); if (v2) seek(v2, 10); }
       if (edge('lt', pressed(gp, 6))) window.scrollBy({ top: -innerHeight * 0.8, behavior: 'smooth' });
       if (edge('rt', pressed(gp, 7))) window.scrollBy({ top: innerHeight * 0.8, behavior: 'smooth' });
-      if (edge('view', pressed(gp, 8))) post('sd:quick');
-      if (edge('start', pressed(gp, 9))) {
-        var v3 = video();
-        if (document.fullscreenElement) document.exitFullscreen(); else if (v3 && v3.requestFullscreen) v3.requestFullscreen();
+      // View + Menu together: back to SquareDeck (kept open, paused). Alone, each waits a moment first, so pressing
+      // both doesn't also open quick settings or go full screen.
+      var vw = pressed(gp, 8), st = pressed(gp, 9);
+      if (vw && st) { if (!pad.combo) { pad.combo = true; pad.pending = null; post('sd:leave'); } }
+      else if (!vw && !st) pad.combo = false;
+      var vwDown = edge('view', vw), stDown = edge('start', st);
+      if (!pad.combo) {
+        if (vwDown) pad.pending = { b: 'view', at: t };
+        if (stDown) pad.pending = { b: 'start', at: t };
+      }
+      if (pad.pending && !pad.combo && t - pad.pending.at > 180) {
+        var which = pad.pending.b; pad.pending = null;
+        if (which === 'view') post('sd:quick');
+        else {
+          var v3 = video();
+          if (document.fullscreenElement) document.exitFullscreen(); else if (v3 && v3.requestFullscreen) v3.requestFullscreen();
+        }
       }
     }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+
+  // ---- ways back to SquareDeck, as in DeckTube: Ctrl+Q, and a corner button with touch or a mouse
+  addEventListener('keydown', function (e) {
+    if (e.ctrlKey && (e.key === 'q' || e.key === 'Q')) { e.preventDefault(); e.stopImmediatePropagation(); post('sd:leave'); }
+  }, true);
+  function addLeave() {
+    if (!document.body || document.getElementById('sd-leave')) return;
+    var b = document.createElement('div');
+    b.id = 'sd-leave';
+    b.textContent = '\u2190  SquareDeck';
+    b.style.cssText = 'position:fixed;top:24px;left:24px;z-index:2147483647;padding:14px 26px;border-radius:32px;' +
+      'background:rgba(16,16,20,.85);color:#fff;font:600 21px/1 "Segoe UI",sans-serif;border:2px solid ' + ACCENT + ';' +
+      'box-shadow:0 4px 18px rgba(0,0,0,.45);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .25s;user-select:none';
+    function stop(e) { e.preventDefault(); e.stopPropagation(); }
+    b.addEventListener('pointerdown', stop, true);
+    b.addEventListener('click', function (e) { stop(e); post('sd:leave'); }, true);
+    document.body.appendChild(b);
+    var hideAt = 0;
+    function showLeave() {
+      b.style.opacity = '1'; b.style.pointerEvents = 'auto';
+      clearTimeout(hideAt);
+      hideAt = setTimeout(function () { b.style.opacity = '0'; b.style.pointerEvents = 'none'; }, 3500);
+    }
+    addEventListener('pointermove', function (e) { if (e.pointerType !== 'mouse' || e.movementX || e.movementY) showLeave(); }, true);
+    addEventListener('pointerdown', showLeave, true);
+  }
+  if (document.body) addLeave(); else document.addEventListener('DOMContentLoaded', addLeave);
+  // How to come back, shown over the page when SquareDeck asks (each time the service opens).
+  pad.quitHint = function () {
+    var old = document.getElementById('sd-quit-hint'); if (old) old.remove();
+    var d = document.createElement('div');
+    d.id = 'sd-quit-hint';
+    d.innerHTML = '<b style="font-size:26px;display:block;margin-bottom:8px">To come back to SquareDeck</b>' +
+      'Press <kbd>View</kbd> + <kbd>Menu</kbd> together &nbsp;\u00b7&nbsp; or <kbd>B</kbd> from the first page &nbsp;\u00b7&nbsp; ' +
+      'or <kbd>Ctrl</kbd> + <kbd>Q</kbd> &nbsp;\u00b7&nbsp; or tap <b>\u2190 SquareDeck</b> in the corner';
+    d.style.cssText = 'position:fixed;left:50%;bottom:7vh;transform:translateX(-50%) translateY(20px);z-index:2147483647;' +
+      'background:rgba(16,16,20,.92);color:#fff;font:500 21px/1.5 "Segoe UI",sans-serif;padding:22px 34px;border-radius:20px;' +
+      'border:2px solid ' + ACCENT + ';box-shadow:0 12px 40px rgba(0,0,0,.55);text-align:center;opacity:0;transition:opacity .35s,transform .35s;pointer-events:none;max-width:86vw';
+    var css = document.createElement('style');
+    css.textContent = '#sd-quit-hint kbd{display:inline-block;background:#fff;color:#111;border-radius:8px;padding:1px 10px;font:700 18px "Segoe UI",sans-serif;margin:0 2px}';
+    d.appendChild(css);
+    document.documentElement.appendChild(d);
+    requestAnimationFrame(function () { d.style.opacity = '1'; d.style.transform = 'translateX(-50%)'; });
+    setTimeout(function () { d.style.opacity = '0'; setTimeout(function () { d.remove(); }, 500); }, 6500);
+  };
+
   addEventListener('scroll', function () { if (pad.cur) setTimeout(keepRing, 60); }, true);
   addEventListener('resize', keepRing);
   // The mouse or a finger: the ring steps aside.

@@ -1118,6 +1118,9 @@ public sealed class DetailsScreen : Screen
         int inCollections = Host.Library.Collections.Count(c => c.Games.Contains(_game.Key));
         Pill("", inCollections == 0 ? "Collections" : $"Collections ({inCollections})",
             inCollections == 0 ? "Add to a collection" : $"In {inCollections} {(inCollections == 1 ? "collection" : "collections")}", () => _ = CollectionsAsync());
+        // Experimental: Game Genie, questions and answers about the game by Google Gemini.
+        if (Labs.On("gamegenie") && _game.IsGame)
+            Pill("", "Ask Genie", "Questions and answers about this game, by Game Genie", () => Host.Push(new GameGenieScreen(_game, _details, _wiki)), wand: true);
         if (_details is { Trailers.Count: > 0 }) Pill("", "Trailer", "Watch the trailer", WatchTrailer);
         Pill("", "Notebook", "Notebook, rating and status", () => Host.Push(new GameNotesScreen(_game)));
         if (_storeId > 0) Pill("\uE719", "Store", _game.IsSteam ? "Open the Steam store page" : "Open its page on the Steam store", () => ProcessUtil.Open("steam://store/" + _storeId));
@@ -1141,9 +1144,21 @@ public sealed class DetailsScreen : Screen
         return row;
     }
 
-    private void Pill(string glyph, string label, string description, Action click, bool highlight = false)
+    private void Pill(string glyph, string label, string description, Action click, bool highlight = false, bool wand = false)
     {
         var content = GlyphLabel(glyph, label, 16);
+        if (wand)
+        {
+            // A magic wand (the icon font has none), in the button's own text color like the other icons.
+            var icon = GameGenieScreen.Wand(15, null);
+            icon.Margin = new Thickness(0, 1, 10, 0);
+            icon.VerticalAlignment = VerticalAlignment.Center;
+            foreach (var path in ((Canvas)icon.Child).Children.OfType<System.Windows.Shapes.Path>())
+                path.SetBinding(System.Windows.Shapes.Shape.FillProperty, new System.Windows.Data.Binding("Foreground")
+                    { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.FindAncestor, typeof(Button), 1) });
+            content.Children.RemoveAt(0);
+            content.Children.Insert(0, icon);
+        }
         var button = new Button { Style = Ui.StyleOf("PillButton"), Content = content, Margin = new Thickness(0, 0, 10, 10) };
         if (highlight) button.SetResourceReference(ForegroundProperty, "AccentBrush");
         button.Click += (_, _) => click();
@@ -2315,9 +2330,20 @@ public sealed class LibraryScreen : Screen
         header.Children.Add(tabScroll);
         header.Children.Add(second);
 
-        var content = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+        // Room above the first row: a highlighted tile that lifts or floats (some styles' highlight) isn't cut off.
+        var content = new StackPanel { Margin = new Thickness(0, 22, 0, 10) };
         content.Children.Add(_spotlight);
         content.Children.Add(_groups);
+        // Scrolling to a tile leaves the same headroom, so its lift stays in view as you move up the page.
+        bool widening = false;
+        content.RequestBringIntoView += (_, e) =>
+        {
+            if (widening || e.TargetObject is not FrameworkElement fe || fe is not Button) return;
+            e.Handled = true;
+            widening = true;
+            try { fe.BringIntoView(new Rect(-12, -30, fe.ActualWidth + 24, fe.ActualHeight + 42)); }
+            finally { widening = false; }
+        };
         var scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
@@ -3023,6 +3049,24 @@ public sealed class LibraryScreen : Screen
         int updates = installed.Count(g => g.HasUpdate);
         if (updates > 0 || _filter == "updates") Tab("updates", "", updates);
         Tab("collections", "", Host.Library.Collections.Count);
+
+        // Next to Collections: the mood picker, the backlog boss and your passport (each opens its own page).
+        void Action(string glyph, string label, string tip, Func<Screen> page, UIElement? icon = null)
+        {
+            var b = Chip(glyph, label, null, false, 15);
+            b.Padding = new Thickness(13, 5, 13, 5);
+            b.ToolTip = tip;
+            if (icon != null && b.Content is StackPanel row && row.Children.Count > 0) { row.Children.RemoveAt(0); row.Children.Insert(0, icon); }
+            string id = "act:" + label;
+            b.DataContext = id;
+            b.Click += (_, _) => Host.Push(page());
+            b.GotKeyboardFocus += (_, _) => _lastFocus = id;
+            _tabs.Children.Add(b);
+        }
+        if (Labs.On("mood")) Action("\uE76E", "How are you feeling?", "Pick a mood, get three games that fit", () => new MoodScreen());
+        if (Labs.On("boss")) Action("\uE7EF", "Fight the Backlog Boss", "Your unfinished games as a boss to defeat, an hour at a time", () => new BossScreen());
+        if (Labs.On("passport")) Action("", "My Gamer Passport", "Stamps for every genre, decade and store you've played", () => new PassportScreen(),
+            PassportArt.Icon(16, Brushes.Transparent));
     }
 
     /// <summary>

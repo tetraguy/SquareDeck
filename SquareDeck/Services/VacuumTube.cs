@@ -28,6 +28,10 @@ public static class VacuumTube
     public static string Folder => Path.Combine(AppContext.BaseDirectory, "VacuumTube");
     public static string ScriptPath => Path.Combine(Folder, "vacuumtube.js");
     public static string IconPath => Path.Combine(Folder, "icon.png");
+    /// <summary>DeckTube's own logo (SquareDeck's frame, YouTube's red and play button); VacuumTube's icon if it's missing.</summary>
+    public static string LogoPath => File.Exists(Path.Combine(Folder, "decktube.png")) ? Path.Combine(Folder, "decktube.png") : IconPath;
+    /// <summary>The name SquareDeck shows. VacuumTube (by shy, MIT) powers it, and the identity YouTube sees stays VacuumTube's.</summary>
+    public const string Name = "DeckTube";
     public static bool Installed => File.Exists(ScriptPath);
 
     /// <summary>Its sign-in, history and settings, kept apart from the other web pages in SquareDeck.</summary>

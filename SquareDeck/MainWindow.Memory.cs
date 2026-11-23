@@ -7,7 +7,8 @@ using SquareDeck.Services;
 namespace SquareDeck;
 
 /// <summary>
-/// Lean mode: while a game is being played (SquareDeck behind it), SquareDeck gives back as much memory as it can.
+/// Lean mode: while a game is being played (SquareDeck behind it), or after a minute with SquareDeck out of sight
+/// behind another app or minimized, SquareDeck gives back as much memory as it can.
 /// The covers are let go of (their files are remembered and read back afterwards), open pages close, caches of
 /// pictures are emptied, an idle built-in Spotify player stops, and Windows is told SquareDeck's memory is the first
 /// to reclaim. It all comes back within a second or two of SquareDeck being in front again.
@@ -27,14 +28,18 @@ public partial class MainWindow
         _leanTrim.Tick += (_, _) => ProcessUtil.TrimWorkingSet();
     }
 
-    /// <summary>Called when SquareDeck goes behind a game, or comes back.</summary>
-    private void UpdateLean(bool behindGame)
+    /// <summary>Called when SquareDeck goes out of sight (behind a game or another app, or minimized), or comes back.</summary>
+    private void UpdateLean(bool hidden)
     {
-        // The game closed: back to normal now, even if SquareDeck isn't in front yet.
-        if (!AllGames.Any(g => g.IsRunning)) behindGame = false;
-        if (behindGame && Settings.LeanWhilePlaying)
+        bool game = AllGames.Any(g => g.IsRunning);
+        if (hidden && (game ? Settings.LeanWhilePlaying : Settings.LeanInBackground))
         {
-            if (!_lean && !_leanDelay.IsEnabled) _leanDelay.Start();
+            // Behind a game: after 15 seconds. Behind anything else: after a minute, so a quick look elsewhere costs nothing.
+            if (!_lean && !_leanDelay.IsEnabled)
+            {
+                _leanDelay.Interval = TimeSpan.FromSeconds(game ? 15 : 60);
+                _leanDelay.Start();
+            }
             return;
         }
         _leanDelay.Stop();
@@ -43,13 +48,14 @@ public partial class MainWindow
 
     private void EnterLean()
     {
-        if (_lean || !_backgroundMode || !AllGames.Any(g => g.IsRunning)) return;
+        if (_lean || !_backgroundMode) return;
+        bool game = AllGames.Any(g => g.IsRunning);
         _lean = true;
         try
         {
             // Open pages close, unless one is doing something that must finish (a download, a question, the
-            // launch splash) or is worth keeping (a video or web page, a cloud game).
-            if (Settings.ClosePagesWhilePlaying && _screens.Count > 0 &&
+            // launch splash) or is worth keeping (a video or web page, a cloud game). Only behind a game.
+            if (game && Settings.ClosePagesWhilePlaying && _screens.Count > 0 &&
                 !_screens.Any(x => x.IsDialog || x is LaunchSplashScreen or UpdateDownloadScreen or BusyScreen or BoostScreen
                                                  or CloudGameScreen or StreamingScreen or BrowserScreen) &&
                 RootScreen is { } root)
@@ -64,6 +70,18 @@ public partial class MainWindow
 
             // The built-in Spotify player is a whole web browser: stop it if it isn't playing (it starts again when used).
             if (SpotifyPlayer.IsRunning && !SpotifyPlayer.IsPlaying) SpotifyPlayer.Stop();
+
+            // Out of sight without a game (behind a game, UpdateGameMemory has done these already): the moving
+            // background's video, the menu music player and pages kept in memory go too. Music you're listening to
+            // (your own, Spotify, a music service) keeps playing.
+            if (!game)
+            {
+                StopDynamicBackground();
+                SuspendMenuMusic();
+                if (!_screens.OfType<BrowserScreen>().Any()) BrowserScreen.DisposeKept();
+                if (!_screens.OfType<StreamingScreen>().Any() && StreamingScreen.Current?.Service.Music != true) StreamingScreen.CloseKept();
+                _idleUnloaded = true;
+            }
         }
         catch (Exception ex) { CrashLog.Write("Lean mode", ex); }
 
@@ -77,11 +95,19 @@ public partial class MainWindow
         _leanTrim.Start();
     }
 
+    private bool _idleUnloaded;
+
     private async void LeaveLean()
     {
         _lean = false;
         _leanTrim.Stop();
         SetMemoryPriority(low: false);
+        if (_idleUnloaded && !AllGames.Any(g => g.IsRunning))
+        {
+            _idleUnloaded = false;
+            RestoreDynamicBackground(); // once SquareDeck is in front (it waits for that itself)
+            UpdateMenuMusic();          // carries on from the same spot
+        }
         try
         {
             // The visible tiles first, then the rest, a few at a time so SquareDeck stays responsive. Each game on its

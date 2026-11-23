@@ -39,7 +39,8 @@ public static partial class Labs
         new("trailers", "Trailers in SquareDeck", "\u201CWatch the trailer\u201D plays it here in a pop-up window that can be expanded, instead of opening Steam's page", "\uE714", Tools),
         new("watermark", "Watermark screenshots", "Put the game's logo on a screenshot, in a corner and size you choose. In Captures, when viewing a screenshot", "\uE8B9", Tools),
         new("guides", "Achievement guides", "A \u201CHow to get this\u201D search for every locked achievement", "\uE897", Tools),
-        new("vacuumtube", "VacuumTube", "YouTube's TV app with VacuumTube's ad blocking, SponsorBlock and DeArrow, made for the controller: a VacuumTube tab on the Music page, next to Spotify", "\uE714", Stores),
+        new("gamegenie", "Game Genie", "An \u201CAsk Genie\u201D button on a game's page: its key facts and questions and answers about it, written by Google Gemini, and answers to your own questions", "\uE945", Play),
+        new("vacuumtube", "DeckTube", "YouTube's TV app, made for the controller, with ad blocking, SponsorBlock and DeArrow from VacuumTube: a DeckTube tab on the Music page, next to Spotify", "\uE714", Stores),
         new("musicstreams", "YouTube Music and Apple Music", "Both play inside SquareDeck from Multimedia > Streaming, made for the controller, and keep playing while you browse or play a game", "\uE93C", Stores),
         new("discord", "Discord", "Your Discord status shows the game you're playing from SquareDeck, and the Friends page gets a Discord button to open Discord or your messages", "\uE8BD", Stores),
         new("recomp", "Recomp Zone", "Native PC versions of console games, rebuilt from their code: browse, install, update and play them (from the recomplauncher.com list), on the Stores page", "\uE7FC", Stores),
@@ -65,10 +66,36 @@ public static partial class Labs
 
     private static Settings? _settings;
 
-    /// <summary>Called once at startup with the settings in use.</summary>
-    public static void Init(Settings settings) => _settings = settings;
+    // ---- features that have left Experimental (7.2)
 
-    public static bool On(string id) => _settings?.Labs.Contains(id) == true;
+    /// <summary>Always on: they're simply part of SquareDeck now, with no switch.</summary>
+    public static readonly HashSet<string> AlwaysOn = new() { "move", "storage", "cleanup", "fixgame", "sticks", "battery", "gamegenie", "unlockables" };
+
+    /// <summary>On for everyone once (when updating to 7.2), with a switch in their new place in Settings.</summary>
+    public static readonly HashSet<string> DefaultOn = new() { "installestimate", "boss", "mood", "passport", "vacuumtube", "musicstreams", "recomp", "freegames", "leaderboard" };
+
+    /// <summary>Every feature that has moved out of Settings > Experimental to its own place (these, and the two lists above).</summary>
+    public static readonly HashSet<string> Graduated = new(AlwaysOn.Concat(DefaultOn).Concat(new[]
+    {
+        "overnight", "discord", "achshot", "watermark", "guides", "trailers", "steamfullscreen", "refund", "milestones", "diary",
+        "closelaunchers", "autoupdate", "settingsview", "styleschedule", "coverdim", "covereffect", "tilt", "dust", "companion", "genresound"
+    }));
+
+    public static LabFeature? Feature(string id) => Features.FirstOrDefault(f => f.Id == id);
+
+    /// <summary>Called once at startup with the settings in use.</summary>
+    public static void Init(Settings settings)
+    {
+        _settings = settings;
+        if (!settings.LabsGraduated72)
+        {
+            foreach (var id in DefaultOn) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
+            settings.LabsGraduated72 = true;
+            settings.Save();
+        }
+    }
+
+    public static bool On(string id) => AlwaysOn.Contains(id) || _settings?.Labs.Contains(id) == true;
 
     public static void Set(string id, bool on)
     {

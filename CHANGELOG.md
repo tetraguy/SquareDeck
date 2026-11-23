@@ -3,6 +3,94 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 7.2.0
+
+**Out of Experimental**
+Many experimental features have settled in and moved to where you'd look for them. Settings > Experimental now only holds what's still being tried out.
+- **Always there now:** Move games between drives and **Fix this game** (in a game's options, right under Show in folder), Storage advisor and Library cleanup (System and tools), Stick check and dead zone (Controller and quick menu), Battery health (on the Battery page), **Game Genie** (an Ask Genie button on every game's page) and **Unlockables** (Look and feel).
+- **On for everyone, with a switch in Library and stores:** Install estimate, Recomp Zone, Free games tracker, DeckTube, YouTube Music and Apple Music, Friends leaderboard, Backlog boss fight, Mood picker and Gamer passport.
+- **Switches in their new homes:** Overnight downloads, Discord, Screenshot on achievements, Watermark screenshots, Achievement guides, Trailers in SquareDeck, Open Steam in fullscreen, Steam refund reminder, Milestone celebrations, Game diary and Close store launchers after playing (Library and stores); Download updates automatically (Updates); Settings view style (Look and feel); Style schedule (Themes); Darken covers, Cover art effect, Covers that tilt, Dusty tiles and Companion (Home screen); Sound that follows the genre (Sound and music, off until you turn it on); Adrenaline Hook (System and tools, off until you turn it on).
+- **Covers that tilt** have options: strength (subtle to extreme), the effect (parallax shift, swing, 3D lean, or float with a moving shadow), zoom, and reversing the direction.
+
+**DeckTube**
+VacuumTube in SquareDeck is now called **DeckTube**, with its own logo: SquareDeck's chamfered frame in YouTube red with a white play button. It's still powered by [VacuumTube](https://github.com/shy1132/VacuumTube) by shy and contributors (MIT licence), credited on the DeckTube tab, its loading screen and in Credits.
+
+**An easy way out of streaming services**
+Like DeckTube, every streaming service now has quick ways back to SquareDeck (the service stays open, paused): press **View + Menu** together from anywhere, **Ctrl+Q** on a keyboard, or tap the **← SquareDeck** button that appears in the corner with touch or a mouse. A reminder shows each time a service opens. View or Menu alone wait a moment so pressing both doesn't also open quick settings or go full screen. (View + Menu now works in DeckTube even when SquareDeck is reading the controller.)
+
+**New buttons**
+- **Library:** next to Collections, *How are you feeling?* (the mood picker), *Fight the Backlog Boss* and *My Gamer Passport* (with a passport icon).
+- **Friends:** a Leaderboard button next to Steam chat.
+
+**Backlog Boss, redone**
+Your unfinished games become a horned monster whose body is a mosaic of their covers, glowing eyes and all, breathing and hovering in an arena of rising embers. It gets angrier, then cracked and ashen as its health drops. Its health bar is the hours left to finish them; come back after playing and the damage lands: the boss flinches, the bar drains, the hours fly off and the controller rumbles. Weak points (the three games closest to done) are a press away from playing, the rest of the backlog is its army, finished games are your trophies, and defeating it brings confetti.
+
+**My Gamer Passport, redone**
+A passport identity page (your picture under a moving hologram, name, passport number, issue date, hours played, favorite genre and a machine-readable line) and a ring showing how complete it is, then visa pages of ink stamps: round for genres, framed for eras, octagonal for stores and starbursts for milestones, each with the artwork of the game that earned it. They thump onto the page one after another, with a light tap on the controller.
+
+**Game Genie at work**
+While Gemini is working, the Genie rises from its lamp on a curl of smoke and tries one thing after another: peering through a spyglass, flipping through a book of lore, gazing into a crystal ball, unrolling a long scroll, and having an idea (question marks rise until a light bulb flashes), blinking and glancing about as stars twinkle and the line underneath changes.
+
+**The Genie, rebuilt**
+The Genie is now drawn in one piece: a tapering curl of smoke runs from the lamp's spout up into the robe, the head sits on a neck under the turban, and each arm is jointed at the shoulder (under a sleeve) and the elbow, bending so the hands reach for things. Seven acts: a spyglass, a book (pages turning), circling a crystal ball, unrolling a scroll, sweeping a magnifying glass over question cards, casting a spell with sparks flying from both hands, and an idea (question marks, a bulb, eyebrows jumping). Meanwhile it floats, breathes, blinks, tilts its head, its plume sways, wisps rise from the lamp, a glint runs across it, and its mouth smiles, hums, gasps and grins.
+
+**Keyboard, mouse and controller**
+The button reminders added in this version (trailers, Recomp Zone's opening, the Wi-Fi and Bluetooth blade, Explorer's controls) show keys while you use the keyboard or mouse and your controller's buttons while you use the controller, switching as you go. Recomp Zone's opening can also be skipped with a click.
+
+**Going back keeps your place**
+Coming back to a page (in Settings and elsewhere) returns to where you were, scrolled as you left it and on the row you opened, instead of the top.
+
+**Smaller things**
+- **Recomp Zone:** the opening animation vibrates with the build (a tick per tile, a thump per stage, a rumble when it completes). Game pages open at the top, with more room under the install options.
+- **Library:** a highlighted tile that lifts or floats (some styles' highlight) is no longer cut off at the top of the list.
+- **Captures:** with a controller, the controls stay on screen instead of fading away (they still fade with a mouse; Menu goes full screen for a clean view).
+
+**Recomp Zone, richer (Experimental)**
+- **Game pages like the Library's:** the game's backdrop with its cover and logo, numbers at a glance (stars, downloads, PCs that played it in the last 90 days, releases, last update), badges for "Great on handhelds", its status and genre, the summary, and two fact cards: the recomp's (who made it, version, size, release dates, licence, systems it runs on) and the original game's (release, developer, publisher, series, genres, modes, rating).
+- **Filter and sort:** chips along the top (or X) for Platform, Genre and Sort (by console, most stars, recently updated, newest in the list, A to Z), plus search, which now also finds series and genres. Tiles show their star count.
+- **Windows only:** only recomps with a Windows build are listed.
+- **Faster covers:** each cover now comes as the site's small copy, a few at a time, only as it scrolls into view, decoded at the size it's shown, and kept on disk, so the page opens light and shows them at once next time (offline too).
+- **An opening that does the work:** while the list, the covers and the page load, a console cartridge streams its machine code into the Recomp emblem, which sends rebuilt C code out to a PC window whose build tiles light up as loading really progresses, then completes with a flash. The list is now read off the screen's thread and the page is built in small batches, so the launcher no longer freezes. A skips the rest of the covers (they load as you scroll).
+- **Back from a game keeps your place:** the grid stays as it was, at the same game, instead of being rebuilt (only an install or uninstall refreshes it). Game pages show the install options right under the banner. Changing a filter shows a short loading animation.
+- **Locate installed copy:** already have a recomp? Choose its program and play it, add it to Home or open its folder from Recomp Zone. "Forget this copy" removes it from the list without touching its files.
+
+**Game Genie (Experimental)**
+A page for any game with its facts and a good set of questions and answers about it, written by Google Gemini: what it is, how to get started, tips, secrets and more, with spoilers hidden until you press again. Ask your own question with X, get more with Y. Turn it on in Settings > Experimental, and game pages get an **Ask Genie** button (with a magic wand) between Collections and Notebook. You can use your own Gemini API key in its settings.
+
+**Unlockable styles**
+A fourth tab in Themes, **Unlockable**, with six styles you earn by playing: Bronze (10 hours played), Silver (50 hours), Gold (100 achievements), Platinum (10 games finished), Night Owl (5 late-night sessions) and Ember (a 7-day streak). Locked ones show how close you are, and a celebration plays when one unlocks.
+
+**Wi-Fi and Bluetooth blade**
+Pressing the Wi-Fi or Bluetooth icon at the top of the home screen now slides a blade in from the right: switch the radio, join a network (with its password), connect, pair or remove Bluetooth devices, all without leaving the home screen. LB / RB switch between Wi-Fi and Bluetooth, Y opens the full page.
+
+**File Explorer**
+- **Tabs, like Windows 11's:** each with its own folder and its own back and forward. + or Ctrl+T opens one, Ctrl+W closes it, RB or Ctrl+Tab moves between them.
+- **Drag and drop between tabs:** drag files onto a tab to move them into its folder (hold Ctrl to copy; onto another drive it copies), or hover a tab to open it and drop into the folder. Files can be dropped on folders too. With the controller, X on a file offers Move or Copy to another tab.
+- **The sidebar is a blade:** L1 (or F1) folds it away and brings it back, and it stays the way you left it.
+- **Recycle Bin** under Videos in the sidebar: see what's in it and where each came from, restore things, delete them for good, or empty it.
+- **Vibration:** moving through files now buzzes like the other tile pages.
+
+**Companion**
+More to do: it walks around the page, hops, cartwheels, slides, moonwalks, sneezes, plays with a ball, blows bubbles, does magic, meditates, wobbles, cheers and nods. Changing page no longer cuts off what it's doing: it finishes, then glides to its new spot and does the next thing.
+
+**Continue where you left off**
+The tile says more again: how long the last session was, play time this week and in total, achievements (with a progress bar), the status and rating you gave it, and your latest note for it.
+
+**Mood picker, redone**
+The moods are a row of colored cards, and the three games that fit come as big cards with their artwork, cover, genre, how long they take to finish, your play time and achievements. The page takes on the highlighted game's artwork. Y picks again.
+
+**Background rest**
+When another window covers SquareDeck, or it's minimized, it now rests completely: menu music, the moving background, animations, the companion and the tilt effect pause, and drawing stops. After a minute in the background with no game running, it also lets go of the moving background, kept web pages and other memory (Settings > Power and performance > "Free memory when SquareDeck is out of sight"), and everything comes back when you return.
+
+**Smaller things**
+- **Closing software:** the pop-up shows the game's square art, with a light running around its edge, instead of a round picture.
+- **VacuumTube:** a reminder of how to come back to SquareDeck shows each time it opens.
+- **RecompLauncher** can no longer be installed from the Stores page (Recomp Zone does its job inside SquareDeck). A copy you already have still shows there.
+- **Game Genie** never shows a Gemini API key: the key button says which one is in use (yours or the built-in one) and asks for a new one with an empty box.
+- **Trailers** play in a pop-up drawn in your UI style, with a progress bar and real buttons (previous, back 10 seconds, play / pause, forward 10 seconds, next, sound, expand) that the controller moves between.
+- **Quick settings** is now a full-height blade the same size as the Wi-Fi and Bluetooth blade.
+- **YouTube Music and Apple Music** have their real logos, and sit above the video services on the Streaming tab.
+
 ## 7.1.0
 
 **VacuumTube (Experimental)**

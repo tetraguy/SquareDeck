@@ -723,6 +723,9 @@ public sealed class ControllerTestScreen : Screen
 
     public override void OnClosed() => _timer.Stop();
 
+    // Nothing to read with SquareDeck in the background: the readout pauses.
+    public override void OnAppRest(bool resting) { if (resting) _timer.Stop(); else if (Host.IsTop(this)) _timer.Start(); }
+
     private static void Place(Ellipse dot, short x, short y)
     {
         double half = StickSize / 2, reach = half - 16;
@@ -809,7 +812,18 @@ public sealed class StoresScreen : GridScreen
         AddTile(GlyphBox(small, small, "\uE8EC"), _cine ? null : wish, small, () => Host.Push(new WishlistScreen()), wish, extras);
         AddTile(GlyphBox(small, small, "\uE787"), _cine ? null : "Release calendar", small, () => Host.Push(new ReleaseCalendarScreen()), "Release calendar", extras);
         if (Labs.On("recomp"))
-            AddTile(GlyphBox(small, small, "\uE7FC"), _cine ? null : "Recomp Zone", small, () => Host.Push(new RecompZoneScreen()), "Recomp Zone", extras);
+        {
+            // Recomp Zone's own emblem (the SquareDeck mark in Recomp Zone's colors), or a plain icon without it.
+            string emblem = System.IO.Path.Combine(AppContext.BaseDirectory, "RecompZone", "logo.png");
+            FrameworkElement face = GlyphBox(small, small, "\uE7FC");
+            if (System.IO.File.Exists(emblem) && ImageLoader.FromFile(emblem, (int)(small * 2)) is { } picture)
+            {
+                var box = ImageBox(small, small, out var image);
+                image.Source = picture;
+                face = box;
+            }
+            AddTile(face, _cine ? null : "Recomp Zone", small, () => Host.Push(new RecompZoneScreen()), "Recomp Zone", extras);
+        }
         if (Labs.On("freegames"))
             AddTile(GlyphBox(small, small, "\uE719"), _cine ? null : "Free games", small, () => Host.Push(new FreeGamesScreen()), "Free games", extras);
         AddTile(GlyphBox(small, small, "\uE710"), _cine ? null : "Add more stores", small, () => Host.Push(new AddStoresScreen()), "Add more stores", extras);

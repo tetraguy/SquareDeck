@@ -30,7 +30,7 @@ public sealed partial class ExplorerScreen : Screen
     }
 
     private Settings _settings => Host.Settings;
-    private readonly Stack<string?> _back = new(), _forward = new();
+    private Stack<string?> _back = new(), _forward = new(); // the current tab's
     private readonly HashSet<string> _checked = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _clipboard = new();
     private bool _clipboardIsCut;
@@ -60,6 +60,8 @@ public sealed partial class ExplorerScreen : Screen
     public ExplorerScreen(string? startFolder = null)
     {
         _folder = startFolder;
+        var tabArea = BuildTabArea(startFolder);
+        PreviewKeyDown += OnExplorerKeys;
         _refreshSoon.Tick += (_, _) => { _refreshSoon.Stop(); _ = LoadAsync(keepFocus: true); };
 
         // Sidebar
@@ -111,13 +113,18 @@ public sealed partial class ExplorerScreen : Screen
 
         var content = new Grid();
         content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.Children.Add(tabArea);
+        Grid.SetRow(top, 1);
         content.Children.Add(top);
-        Grid.SetRow(filesHost, 1);
+        Grid.SetRow(filesHost, 2);
         content.Children.Add(filesHost);
-        Grid.SetRow(_status, 2);
+        Grid.SetRow(_status, 3);
         content.Children.Add(_status);
+        HookFilesDrop();
+        _sidebar.ClipToBounds = true;
 
         _layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -126,7 +133,7 @@ public sealed partial class ExplorerScreen : Screen
         _layout.Children.Add(content);
 
         SetPage("Explorer", _layout,
-            "{Select}  Open      {Back}  Back      {Details}  Actions      {Options}  Select      LB RB  Back / forward", wide: true);
+            "{Select}  Open      {Back}  Back      {Details}  Actions      {Options}  Select      LB  Sidebar      RB  Next tab", wide: true);
         CompactHeader();
     }
 
@@ -149,7 +156,9 @@ public sealed partial class ExplorerScreen : Screen
 
     public override void OnShown()
     {
+        if (!_settings.ExplorerSidebarOpen) SetSidebar(false, animate: false);
         BuildSidebar();
+        RenderTabs();
         _ = LoadAsync(keepFocus: false);
     }
 
@@ -159,6 +168,7 @@ public sealed partial class ExplorerScreen : Screen
     {
         _loadCts.Cancel();
         _refreshSoon.Stop();
+        _dragHover.Stop();
         _watcher?.Dispose();
     }
 
@@ -178,7 +188,8 @@ public sealed partial class ExplorerScreen : Screen
         switch (action)
         {
             case NavAction.X:
-                if (focused != null || _checked.Count > 0) _ = ActionsAsync(focused);
+                if (RecycleBin.Is(_folder)) _ = RecycleActionsAsync(focused);
+                else if (focused != null || _checked.Count > 0) _ = ActionsAsync(focused);
                 return true;
             case NavAction.Y:
                 if (focused != null && _folder != null) ToggleCheck(focused);
@@ -190,10 +201,11 @@ public sealed partial class ExplorerScreen : Screen
                 ToggleView();
                 return true;
             case NavAction.LB:
-                GoBack();
+                ToggleSidebar(); // L1 folds the sidebar away (or brings it back)
                 return true;
             case NavAction.RB:
-                GoForward();
+                if (_tabs.Count > 1) NextTab(1);
+                else GoForward();
                 return true;
             case NavAction.LT:
                 Page(-1);
@@ -268,6 +280,7 @@ public sealed partial class ExplorerScreen : Screen
     private void GoUp()
     {
         if (_folder == null) return;
+        if (RecycleBin.Is(_folder)) { NavigateTo(null); return; }
         if (NetworkPlaces.IsFtp(_folder))
         {
             string from = _folder;
@@ -297,7 +310,7 @@ public sealed partial class ExplorerScreen : Screen
         string? error = null;
         try
         {
-            entries = await Task.Run(() => folder == null ? new List<Entry>() : NetworkPlaces.IsFtp(folder) ? ReadFtp(folder, hidden) : Read(folder, hidden), ct);
+            entries = await Task.Run(() => folder == null ? new List<Entry>() : RecycleBin.Is(folder) ? ReadRecycleBin() : NetworkPlaces.IsFtp(folder) ? ReadFtp(folder, hidden) : Read(folder, hidden), ct);
         }
         catch (OperationCanceledException) { return; }
         catch (Exception ex)
@@ -310,6 +323,8 @@ public sealed partial class ExplorerScreen : Screen
         Watch(folder);
         BuildCrumbs();
         BuildSidebar();
+        SaveTab();
+        RenderTabs();
         Show(error);
     }
 
@@ -339,7 +354,7 @@ public sealed partial class ExplorerScreen : Screen
     {
         _watcher?.Dispose();
         _watcher = null;
-        if (folder == null || NetworkPlaces.IsFtp(folder)) return;
+        if (folder == null || NetworkPlaces.IsFtp(folder) || RecycleBin.Is(folder)) return;
         try
         {
             _watcher = new FileSystemWatcher(folder) { IncludeSubdirectories = false, EnableRaisingEvents = true };
@@ -381,7 +396,7 @@ public sealed partial class ExplorerScreen : Screen
             _shown.Add((entry, button, icon, check));
         }
 
-        _empty.Text = error ?? (_filter.Length > 0 ? $"Nothing here matches \"{_filter}\"." : "This folder is empty.");
+        _empty.Text = error ?? (_filter.Length > 0 ? $"Nothing here matches \"{_filter}\"." : RecycleBin.Is(_folder) ? "The Recycle Bin is empty." : "This folder is empty.");
         _empty.Visibility = _shown.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (sorted.Count > MaxShown)
         {
@@ -503,14 +518,15 @@ public sealed partial class ExplorerScreen : Screen
     private void Hook(Button button, Entry entry)
     {
         button.Tag = entry.Path;
+        HookDrag(button, entry);
         button.Click += (_, _) => Open(entry);
         button.GotKeyboardFocus += (_, _) => { _focusPath = entry.Path; UpdateStatus(); };
-        button.MouseRightButtonUp += (_, e) => { button.Focus(); e.Handled = true; _ = ActionsAsync(entry); };
+        button.MouseRightButtonUp += (_, e) => { button.Focus(); e.Handled = true; _ = RecycleBin.Is(_folder) ? RecycleActionsAsync(entry) : ActionsAsync(entry); };
         // Touch: press and hold for actions.
         button.PreviewTouchDown += (_, _) =>
         {
             var hold = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
-            hold.Tick += (_, _) => { hold.Stop(); button.Focus(); _ = ActionsAsync(entry); };
+            hold.Tick += (_, _) => { hold.Stop(); button.Focus(); _ = RecycleBin.Is(_folder) ? RecycleActionsAsync(entry) : ActionsAsync(entry); };
             button.PreviewTouchUp += (_, _) => hold.Stop();
             hold.Start();
         };
@@ -627,6 +643,7 @@ public sealed partial class ExplorerScreen : Screen
         }
 
         if (_folder == null) { Crumb("This PC", null, true); return; }
+        if (RecycleBin.Is(_folder)) { Crumb("Recycle Bin", RecycleBin.Key, true); return; }
         Crumb("This PC", null, false);
         if (NetworkPlaces.IsFtp(_folder))
         {
@@ -656,6 +673,7 @@ public sealed partial class ExplorerScreen : Screen
         Nav("", "Pictures", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
         Nav("", "Music", Environment.GetFolderPath(Environment.SpecialFolder.MyMusic));
         Nav("", "Videos", Environment.GetFolderPath(Environment.SpecialFolder.MyVideos));
+        Nav("\uE74D", "Recycle Bin", RecycleBin.Key);
 
         var pins = _settings.ExplorerPins.Where(Directory.Exists).ToList();
         if (pins.Count > 0)
@@ -690,7 +708,7 @@ public sealed partial class ExplorerScreen : Screen
 
     private void Nav(string glyph, string label, string? path, double? used = null, string? sub = null)
     {
-        if (path != null && !NetworkPlaces.IsFtp(path) && !Directory.Exists(path)) return;
+        if (path != null && !NetworkPlaces.IsFtp(path) && !RecycleBin.Is(path) && !Directory.Exists(path)) return;
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -719,7 +737,6 @@ public sealed partial class ExplorerScreen : Screen
         _nav.Children.Add(button);
     }
 
-    private void ToggleSidebar() => _sidebar.Visibility = _sidebar.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
 
     private void ToggleView()
     {
@@ -740,7 +757,8 @@ public sealed partial class ExplorerScreen : Screen
         }
         if (_checked.Count > 0) parts.Add($"{_checked.Count} selected");
         if (_clipboard.Count > 0) parts.Add($"{(_clipboardIsCut ? "Moving" : "Copying")} {_clipboard.Count} (paste from the menu)");
-        if (FocusedEntry() is { } focused && _folder != null)
+        if (FocusedEntry() is { } recycled && RecycleBin.Is(_folder)) parts.Add(RecycleStatus(recycled));
+        else if (FocusedEntry() is { } focused && _folder != null)
             parts.Add(focused.IsFolder ? focused.Name : $"{focused.Name}  ·  {focused.TypeText}  ·  {SystemStats.Bytes(focused.Size)}");
         _status.Text = string.Join("     ·     ", parts);
     }
@@ -774,6 +792,7 @@ public sealed partial class ExplorerScreen : Screen
     private void Open(Entry entry)
     {
         if (entry.Path.StartsWith("action:")) { _ = RunNetworkActionAsync(entry.Path); return; }
+        if (RecycleBin.Is(_folder)) { _ = RecycleActionsAsync(entry); return; }
         if (entry.IsFolder) { NavigateTo(entry.Path); return; }
         if (NetworkPlaces.IsFtp(entry.Path)) { _ = OpenFtpFileAsync(entry); return; }
         // Pictures, videos, music, web links and text open inside SquareDeck; anything else in Windows.
@@ -820,6 +839,7 @@ public sealed partial class ExplorerScreen : Screen
             Add(IsPinned(first.Path) ? "Unpin from the sidebar" : "Pin to the sidebar", "", () => TogglePin(first.Path));
         if (single) Add("Copy the path", "", () => CopyPath(first.Path));
         if (single) Add("Show in Windows Explorer", "", () => ProcessUtil.Open("explorer.exe", "/select,\"" + first.Path + "\""));
+        AddTabActions(actions, targets);
         actions.Add(("Properties", "", () => PropertiesAsync(targets)));
 
         int choice = await Host.AskWithIconsAsync(title, single ? first.TypeText : null, actions.Select(a => (a.Label, a.Glyph)).ToArray());
@@ -830,7 +850,8 @@ public sealed partial class ExplorerScreen : Screen
     {
         var actions = new List<(string Label, string Glyph, Func<Task> Run)>();
         void Add(string label, string glyph, Action run) => actions.Add((label, glyph, () => { run(); return Task.CompletedTask; }));
-        if (_folder != null)
+        if (RecycleBin.Is(_folder)) AddRecycleMenu(actions);
+        else if (_folder != null)
         {
             actions.Add(("New folder", "", NewFolderAsync));
             if (_clipboard.Count > 0) actions.Add(($"Paste {_clipboard.Count} item{(_clipboard.Count == 1 ? "" : "s")} here", "", () => PasteAsync(_folder)));
@@ -846,8 +867,15 @@ public sealed partial class ExplorerScreen : Screen
             _settings.Save();
             _ = LoadAsync(keepFocus: true);
         });
-        Add(_sidebar.Visibility == Visibility.Visible ? "Hide the sidebar" : "Show the sidebar", "", ToggleSidebar);
-        if (_folder != null)
+        Add(_sidebarOpen ? "Hide the sidebar (L1 / F1)" : "Show the sidebar (L1 / F1)", "\uE89F", ToggleSidebar);
+        if (_tabs.Count < MaxTabs) Add("New tab", "\uE710", () => NewTab(_folder));
+        if (_tabs.Count > 1)
+        {
+            Add("Next tab (RB)", "\uE72A", () => NextTab(1));
+            Add("Close this tab", "\uE711", () => CloseTab(_tabIndex));
+        }
+        if (_forward.Count > 0) Add("Forward", "\uE72A", GoForward);
+        if (_folder != null && !RecycleBin.Is(_folder))
         {
             Add(IsPinned(_folder) ? "Unpin this folder" : "Pin this folder to the sidebar", "", () => TogglePin(_folder));
             if (!NetworkPlaces.IsFtp(_folder)) Add("Open this folder in Windows Explorer", "", () => ProcessUtil.Open("explorer.exe", "\"" + _folder + "\""));
@@ -875,9 +903,11 @@ public sealed partial class ExplorerScreen : Screen
         Show();
     }
 
-    private async Task ControlsAsync() => await Host.AskAsync("Explorer controls",
-        "A  Open\nB  Back (clears a filter or selection first)\nX  Actions for the item or the selection\nY  Select / unselect (to work on several)\n" +
-        "LB / RB  Back / forward\nLT / RT  Page up / down\nView  Grid or list\nMenu  Main menu\n\nTouch: tap to open, press and hold for actions.\nMouse: right-click for actions.", "OK");
+    private async Task ControlsAsync() => await Host.AskAsync("Explorer controls", Hints.Format(
+        "{Select}  Open\n{Back}  Back (clears a filter or selection first)\n{Details}  Actions for the item or the selection\n{Options}  Select / unselect (to work on several)\n" +
+        "LB  Show or hide the sidebar (F1 on a keyboard)\nRB  Next tab (Ctrl+Tab)\nLT / RT  Page up / down\nView  Grid or list\nMenu  Main menu: new tab, close tab, forward\n\n" +
+        "Tabs: Ctrl+T opens one, Ctrl+W closes it. Drag files onto a tab to move them into its folder (hold Ctrl to copy); hover a tab to open it, then drop. " +
+        "With the controller, X on a file offers Move or Copy to another tab.\n\nTouch: tap to open, press and hold for actions.\nMouse: right-click for actions."), "OK");
 
     private async Task PromptFilterAsync()
     {

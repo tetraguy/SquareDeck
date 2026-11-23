@@ -9,9 +9,9 @@ using SquareDeck.Services;
 namespace SquareDeck;
 
 /// <summary>
-/// Staying out of the game's way. While a game is running and SquareDeck isn't the window in front (or whenever it
-/// is minimized), the launcher stops drawing altogether, checks the controller less often, gives up its CPU
-/// priority and hands memory back to Windows. Everything comes back the moment you return to it.
+/// Staying out of the way. While SquareDeck can't be seen (behind a game, behind another app covering the screen, or
+/// minimized), the launcher stops drawing altogether, checks the controller less often, gives up its CPU priority and
+/// hands memory back to Windows. Everything comes back the moment you return to it.
 /// </summary>
 public partial class MainWindow
 {
@@ -42,6 +42,8 @@ public partial class MainWindow
             later.Start();
         }
         LocalMusic.Init(Settings);
+        GameGenie.Init(Settings);
+        StyleUnlocks.Init(Settings);
         // Background music makes way for Spotify playing inside the launcher.
         SpotifyPlayer.Changed += () => Dispatcher.BeginInvoke(new Action(() => { UpdateMenuMusic(); UpdateNowPlaying(); }));
 
@@ -319,10 +321,11 @@ public partial class MainWindow
     private void UpdateBackgroundMode()
     {
         bool gameRunning = AllGames.Any(g => g.IsRunning);
-        bool background = _holdVisible == 0 && (WindowState == WindowState.Minimized || (gameRunning && !IsActive));
-        if (background == _backgroundMode) { UpdateLean(background && gameRunning); return; }
+        // Out of sight: minimized, behind a game, or behind another app covering the screen (see MainWindow.Rest).
+        bool background = _holdVisible == 0 && (WindowState == WindowState.Minimized || (!IsActive && (gameRunning || _coveredByApp)));
+        if (background == _backgroundMode) { UpdateLean(background); return; }
         _backgroundMode = background;
-        UpdateLean(background && gameRunning);
+        UpdateLean(background);
         PauseAmbient(background);
 
         if (background)
@@ -333,16 +336,13 @@ public partial class MainWindow
             _clockTimer.Stop();
             _heroTimer.Stop();
             Motion.StopPulse(RingOf(GameList.SelectedItem));
-            if (gameRunning)
-            {
-                try { Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.BelowNormal; } catch (Exception) { }
-                ProcessUtil.TrimWorkingSet();
-            }
+            try { Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.BelowNormal; } catch (Exception) { }
+            ProcessUtil.TrimWorkingSet();
         }
         else
         {
             RootGrid.Visibility = Visibility.Visible;
-            _padTimer.Interval = TimeSpan.FromMilliseconds(16);
+            _padTimer.Interval = TimeSpan.FromMilliseconds(_resting ? 50 : 16);
             _clockTimer.Start();
             UpdateClock();
             try { Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.Normal; } catch (Exception) { }

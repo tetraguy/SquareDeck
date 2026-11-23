@@ -148,7 +148,7 @@ public static partial class Labs
             }
             case "random":
             {
-                var all = UiStyles.Advanced;
+                var all = UiStyles.Advanced.Where(s => !StyleUnlocks.IsLocked(s)).ToArray();
                 if (all.Length == 0) return null;
                 int seed = now.Year * 1000 + now.DayOfYear;
                 return all[(int)((uint)(seed * 2654435761u) % (uint)all.Length)].Id;
@@ -259,46 +259,55 @@ public static partial class Labs
 
     // ================================================================ passport
 
-    public sealed record Stamp(string Group, string Name, bool Earned, string Detail);
+    public sealed record Stamp(string Group, string Name, bool Earned, string Detail, Game? Art = null);
 
-    /// <summary>Stamps for genres, decades, stores and firsts. Genres and stores show the ones not yet earned too.</summary>
+    /// <summary>
+    /// Stamps for genres, decades, stores and firsts, each with a game that earned it (for its artwork). Genres and
+    /// stores show the ones not yet earned too.
+    /// </summary>
     public static List<Stamp> Passport(IEnumerable<Game> library, PlaytimeStore playtime, AchievementStore achievements, LibraryStore notes)
     {
         var games = library.Where(g => g.IsGame).ToList();
-        bool Played(Game g) => playtime.TotalSeconds(g.Key) > 600 || (g.IsSteam && (SteamLibrary.GetPlaytimeMinutes(g.AppId) ?? 0) > 10);
-        var played = games.Where(Played).ToList();
+        double Hours(Game g) => Math.Max(playtime.TotalSeconds(g.Key) / 3600, (g.IsSteam ? SteamLibrary.GetPlaytimeMinutes(g.AppId) ?? 0 : 0) / 60.0);
+        bool Played(Game g) => Hours(g) > 1 / 6.0;
+        var played = games.Where(Played).OrderByDescending(Hours).ToList();
         var stamps = new List<Stamp>();
         var allGenres = games.Select(GenreCache.Of).Where(x => !string.IsNullOrEmpty(x)).Distinct().OrderBy(x => x).ToList();
         foreach (var genre in allGenres)
         {
-            var first = played.Where(g => GenreCache.Of(g) == genre).ToList();
-            stamps.Add(new Stamp("Genres", genre!, first.Count > 0, first.Count > 0 ? $"{first.Count} played, first: {first[0].Name}" : "Not played yet"));
+            var these = played.Where(g => GenreCache.Of(g) == genre).ToList();
+            stamps.Add(new Stamp("Genres", genre!, these.Count > 0, these.Count > 0 ? $"{these.Count} played, most: {these[0].Name}" : "Not played yet", these.FirstOrDefault()));
         }
         foreach (var decade in played.Where(g => g.ReleaseYear is > 1970).GroupBy(g => g.ReleaseYear!.Value / 10 * 10).OrderBy(x => x.Key))
-            stamps.Add(new Stamp("Decades", $"The {decade.Key}s", true, $"{decade.Count()} played"));
+            stamps.Add(new Stamp("Decades", $"The {decade.Key}s", true, $"{decade.Count()} played", decade.First()));
         foreach (var store in games.Select(g => g.SourceName).Distinct().OrderBy(x => x))
         {
-            int n = played.Count(g => g.SourceName == store);
-            stamps.Add(new Stamp("Stores", store, n > 0, n > 0 ? $"{n} played" : "Not played yet"));
+            var these = played.Where(g => g.SourceName == store).ToList();
+            stamps.Add(new Stamp("Stores", store, these.Count > 0, these.Count > 0 ? $"{these.Count} played" : "Not played yet", these.FirstOrDefault()));
         }
-        int finished = games.Count(g => notes.Find(g.Key)?.Status == "Finished");
-        stamps.Add(new Stamp("Firsts", "First finished game", finished > 0, finished > 0 ? $"{finished} finished" : "Mark a game Finished in its notebook"));
-        stamps.Add(new Stamp("Firsts", "100-hour club", games.Any(g => playtime.TotalSeconds(g.Key) >= 360000 || (g.IsSteam && (SteamLibrary.GetPlaytimeMinutes(g.AppId) ?? 0) >= 6000)), "100 hours in one game"));
+        var finishedGames = games.Where(g => notes.Find(g.Key)?.Status == "Finished").ToList();
+        stamps.Add(new Stamp("Firsts", "First finished game", finishedGames.Count > 0, finishedGames.Count > 0 ? $"{finishedGames.Count} finished" : "Mark a game Finished in its notebook", finishedGames.FirstOrDefault()));
+        var hundred = games.FirstOrDefault(g => Hours(g) >= 100);
+        stamps.Add(new Stamp("Firsts", "100-hour club", hundred != null, hundred != null ? hundred.Name : "100 hours in one game", hundred));
         stamps.Add(new Stamp("Firsts", "Achievement hunter", achievements.Feed.Count >= 100, $"{achievements.Feed.Count} of 100 achievements"));
-        stamps.Add(new Stamp("Firsts", "Night owl", playtime.Sessions.Any(s => s.Start.Hour is >= 0 and < 4), "A session after midnight"));
-        stamps.Add(new Stamp("Firsts", "Marathon", playtime.Sessions.Any(s => s.Seconds >= 4 * 3600), "One session of 4 hours"));
+        var owl = playtime.Sessions.FirstOrDefault(s => s.Start.Hour is >= 0 and < 4);
+        stamps.Add(new Stamp("Firsts", "Night owl", owl != null, owl != null ? owl.Name : "A session after midnight", owl == null ? null : games.FirstOrDefault(g => g.Key == owl.Key)));
+        var marathon = playtime.Sessions.Where(s => s.Seconds >= 4 * 3600).OrderByDescending(s => s.Seconds).FirstOrDefault();
+        stamps.Add(new Stamp("Firsts", "Marathon", marathon != null, marathon != null ? $"{marathon.Name}, {marathon.Seconds / 3600:0.#} h" : "One session of 4 hours", marathon == null ? null : games.FirstOrDefault(g => g.Key == marathon.Key)));
         return stamps;
     }
 
     // ================================================================ backlog boss
 
-    public sealed record Boss(double HoursLeft, double MaxHours, int Games, List<string> RecentlyFinished);
+    /// <summary>One unfinished game in the boss: How Long To Beat's main story time, and how much of it is left.</summary>
+    public sealed record Minion(Game Game, double Main, double Played, double Left);
+
+    public sealed record Boss(double HoursLeft, double MaxHours, int Games, List<string> RecentlyFinished, List<Minion> Minions, List<Game> Finished);
 
     /// <summary>The backlog as a boss: hours left on unfinished games (How Long To Beat's main story time less time played).</summary>
     public static Boss BacklogBoss(IEnumerable<Game> library, PlaytimeStore playtime, LibraryStore notes)
     {
-        double left = 0;
-        int count = 0;
+        var minions = new List<Minion>();
         foreach (var g in library.Where(g => g.IsGame && g.IsInstalled))
         {
             var status = notes.Find(g.Key)?.Status;
@@ -307,13 +316,13 @@ public static partial class Labs
             double played = Math.Max(playtime.TotalSeconds(g.Key) / 3600, (g.IsSteam ? SteamLibrary.GetPlaytimeMinutes(g.AppId) ?? 0 : 0) / 60.0);
             double rest = Math.Max(0, t.Main - played);
             if (rest <= 0) continue;
-            left += rest;
-            count++;
+            minions.Add(new Minion(g, t.Main, played, rest));
         }
+        double left = minions.Sum(m => m.Left);
         double max = double.TryParse(Get("boss.max"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var mx) ? mx : 0;
         if (left > max || max <= 0) { max = left; Put("boss.max", max.ToString(System.Globalization.CultureInfo.InvariantCulture)); }
-        var finished = library.Where(g => notes.Find(g.Key)?.Status == "Finished").Select(g => g.Name).Take(5).ToList();
-        return new Boss(left, max, count, finished);
+        var finished = library.Where(g => g.IsGame && notes.Find(g.Key)?.Status == "Finished").ToList();
+        return new Boss(left, max, minions.Count, finished.Select(g => g.Name).Take(5).ToList(), minions.OrderBy(m => m.Left).ToList(), finished);
     }
 
     // ================================================================ unlockables

@@ -9,3 +9,6 @@ tools/vacuumtube/node_modules/
 tools/vacuumtube/package-lock.json
 tools/vacuumtube/shims/files.js
 tools/vacuumtube/shims/defaults.js
+
+# Built-in API keys for this copy (Gemini for Game Genie); never published
+SquareDeck/Services/ApiKeys.Local.cs

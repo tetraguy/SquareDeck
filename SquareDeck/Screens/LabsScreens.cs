@@ -538,6 +538,7 @@ public sealed class StickCheckScreen : Screen
     public override void FocusDefault() => _measure.Focus();
     public override void OnShown() { _timer.Start(); FocusLater(_measure); }
     public override void OnClosed() => _timer.Stop();
+    public override void OnAppRest(bool resting) { if (resting) _timer.Stop(); else if (Host.IsTop(this)) _timer.Start(); }
 
     private void Tick()
     {
@@ -766,7 +767,7 @@ public sealed class StyleScheduleScreen : ListScreen
 
     private async Task ChooseStyleAsync(string key)
     {
-        var styles = UiStyles.All.Concat(UiStyles.Advanced).ToList();
+        var styles = UiStyles.All.Concat(UiStyles.Advanced.Where(s => !StyleUnlocks.IsLocked(s))).ToList();
         var menu = new MenuScreen("Choose a style", null, styles.Select(s => s.Name).ToArray());
         Host.Push(menu);
         int c = await menu.Result;
@@ -864,80 +865,6 @@ public sealed class WallpaperEngineScreen : ListScreen
     }
 }
 
-/// <summary>The backlog as a boss to defeat.</summary>
-public sealed class BossScreen : ListScreen
-{
-    public BossScreen() : base("Backlog boss") { }
-
-    protected override void Build()
-    {
-        var b = Labs.BacklogBoss(Host.AllGames, Host.Playtime, Host.Library);
-        if (b.Games == 0)
-        {
-            AddNote("No boss yet. It's made from installed games that aren't marked Finished or Dropped and have a How Long To Beat time. " +
-                    "Open a few games' details pages so their times are looked up, then come back.");
-            return;
-        }
-        double hp = b.MaxHours <= 0 ? 0 : b.HoursLeft / b.MaxHours;
-        Rows.Children.Add(Monster(hp));
-        var bar = new Grid { Height = 18, Margin = new Thickness(60, 10, 60, 4) };
-        var track = new Border { CornerRadius = new CornerRadius(9) };
-        track.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-        var fill = new Border { CornerRadius = new CornerRadius(9), HorizontalAlignment = HorizontalAlignment.Left, Width = Math.Max(0, 820 * hp),
-            Background = new LinearGradientBrush(Color.FromRgb(0xE0, 0x3E, 0x3E), Color.FromRgb(0xFF, 0x9A, 0x3C), 0) };
-        bar.Children.Add(track);
-        bar.Children.Add(fill);
-        Rows.Children.Add(bar);
-        var hpText = Ui.Text($"{Labs.Hours(b.HoursLeft)} of health left  ·  {b.Games} games", 17, "FgBrush", bold: true);
-        hpText.HorizontalAlignment = HorizontalAlignment.Center;
-        Rows.Children.Add(hpText);
-        AddNote($"Every hour you play deals damage. Damage dealt so far: {Labs.Hours(b.MaxHours - b.HoursLeft)}. Finishing a game (mark it Finished in its notebook) is a critical hit.");
-        if (b.RecentlyFinished.Count > 0)
-        {
-            AddHeader("Critical hits");
-            foreach (var n in b.RecentlyFinished) AddRow(n, "Finished", "");
-        }
-        if (hp <= 0.001) AddNote("The boss is defeated! A new one rises with your next unfinished game.");
-    }
-
-    /// <summary>An original pixel monster, angrier with more health left.</summary>
-    private static FrameworkElement Monster(double hp)
-    {
-        string[] map =
-        {
-            "....XXXXXX....",
-            "..XXXXXXXXXX..",
-            ".XXXXXXXXXXXX.",
-            "XXXOOXXXXOOXXX",
-            "XXXOPXXXXPOXXX",
-            "XXXXXXXXXXXXXX",
-            "XXXTXTXXTXTXXX",
-            ".XXXXXXXXXXXX.",
-            "..XX..XX..XX..",
-        };
-        var body = hp > 0.6 ? Color.FromRgb(0x8E, 0x3B, 0xD9) : hp > 0.25 ? Color.FromRgb(0xC2, 0x5B, 0x2E) : Color.FromRgb(0x6E, 0x6E, 0x6E);
-        var canvas = new Canvas { Width = 14 * 14, Height = 9 * 14, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0) };
-        for (int y = 0; y < map.Length; y++)
-            for (int x = 0; x < map[y].Length; x++)
-            {
-                Color? c = map[y][x] switch { 'X' => body, 'O' => Colors.White, 'P' => Colors.Black, 'T' => Colors.White, _ => null };
-                if (c == null) continue;
-                var r = new Rectangle { Width = 14, Height = 14, Fill = new SolidColorBrush(c.Value) };
-                Canvas.SetLeft(r, x * 14);
-                Canvas.SetTop(r, y * 14);
-                canvas.Children.Add(r);
-            }
-        if (!Theme.ReduceMotion)
-        {
-            var bob = new TranslateTransform();
-            canvas.RenderTransform = bob;
-            bob.BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(0, -6, TimeSpan.FromSeconds(0.8))
-                { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
-        }
-        return canvas;
-    }
-}
-
 /// <summary>Rewards earned by playing.</summary>
 public sealed class UnlockablesScreen : ListScreen
 {
@@ -946,7 +873,7 @@ public sealed class UnlockablesScreen : ListScreen
     protected override void Build()
     {
         var rewards = Labs.Rewards(Host.AllGames, Host.Playtime, Host.Achievements, Host.Library);
-        AddNote("Play to earn these. Highlight colors apply straight away; outfits are for the Companion (turn it on in Experimental).");
+        AddNote("Play to earn these. Highlight colors apply straight away; outfits are for the Companion (Settings > Home screen).");
         foreach (var group in rewards.GroupBy(r => r.Kind))
         {
             AddHeader(group.Key == "color" ? "Highlight colors" : "Companion outfits");
@@ -975,80 +902,223 @@ public sealed class UnlockablesScreen : ListScreen
     }
 }
 
-/// <summary>Stamps for what you've played.</summary>
-public sealed class PassportScreen : ListScreen
+
+/// <summary>
+/// Pick a mood, get three games: the moods as a row of colored cards, then three big cards for the games that fit,
+/// each with its artwork, cover, genre, how long it takes and how much you've played it. The page takes on the
+/// highlighted game's artwork behind it. A plays, Y picks again.
+/// </summary>
+public sealed class MoodScreen : Screen
 {
-    public PassportScreen() : base("Gamer passport") { }
-
-    protected override void Build()
+    private static readonly Dictionary<string, (string Line, Color From, Color To)> Looks = new()
     {
-        var stamps = Labs.Passport(Host.AllGames, Host.Playtime, Host.Achievements, Host.Library);
-        int earned = stamps.Count(s => s.Earned);
-        AddNote($"{earned} of {stamps.Count} stamps. Genres come from the store pages, so a few appear once games' details have been looked up.");
-        foreach (var group in stamps.GroupBy(s => s.Group))
-        {
-            AddHeader(group.Key);
-            var wrap = new WrapPanel { Margin = new Thickness(4, 0, 4, 6) };
-            int i = 0;
-            foreach (var s in group) wrap.Children.Add(StampView(s, i++));
-            Rows.Children.Add(wrap);
-        }
-    }
+        ["chill"] = ("Something relaxed, nothing to prove", Color.FromRgb(0x2E, 0xB8, 0x9A), Color.FromRgb(0x1C, 0x6E, 0x8C)),
+        ["adrenaline"] = ("Fast, loud, heart racing", Color.FromRgb(0xF0, 0x4E, 0x3E), Color.FromRgb(0xB0, 0x1E, 0x5A)),
+        ["story"] = ("A world to get lost in", Color.FromRgb(0x8E, 0x5C, 0xF0), Color.FromRgb(0x46, 0x2E, 0xA8)),
+        ["laugh"] = ("Short, silly, fun right away", Color.FromRgb(0xF7, 0xB5, 0x2C), Color.FromRgb(0xE0, 0x6A, 0x1E)),
+        ["brain"] = ("Plan, think, outsmart", Color.FromRgb(0x3E, 0x8E, 0xF0), Color.FromRgb(0x24, 0x4C, 0xB8)),
+    };
 
-    private static FrameworkElement StampView(Labs.Stamp s, int i)
-    {
-        var hue = new[] { "#D9534F", "#3E7BD9", "#2E9E6B", "#C9892B", "#8E5BD9", "#D9488E" }[Math.Abs(s.Name.GetHashCode()) % 6];
-        var color = (Color)ColorConverter.ConvertFromString(hue);
-        var ring = new Border
-        {
-            Width = 150, Height = 96, Margin = new Thickness(6), CornerRadius = new CornerRadius(14), BorderThickness = new Thickness(3),
-            BorderBrush = new SolidColorBrush(s.Earned ? color : Color.FromArgb(0x60, 0x80, 0x80, 0x80)),
-            Background = new SolidColorBrush(s.Earned ? Color.FromArgb(0x22, color.R, color.G, color.B) : Colors.Transparent),
-            RenderTransform = new RotateTransform(s.Earned ? (i % 3 - 1) * 4 : 0), RenderTransformOrigin = new Point(0.5, 0.5),
-            ToolTip = s.Detail, Opacity = s.Earned ? 1 : 0.45
-        };
-        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6) };
-        var name = new TextBlock { Text = s.Name.ToUpperInvariant(), FontWeight = FontWeights.Bold, FontSize = 14, TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(s.Earned ? color : Colors.Gray) };
-        var detail = new TextBlock { Text = s.Earned ? s.Detail : "Not yet", FontSize = 11, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap,
-            TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 32, Margin = new Thickness(0, 4, 0, 0), Foreground = new SolidColorBrush(Colors.Gray) };
-        stack.Children.Add(name);
-        stack.Children.Add(detail);
-        ring.Child = stack;
-        return ring;
-    }
-}
-
-/// <summary>Pick a mood, get three games.</summary>
-public sealed class MoodScreen : ListScreen
-{
+    private readonly WrapPanel _moods = new() { HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly StackPanel _results = new();
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Dictionary<string, ImageSource?> _heroes = new();
     private string? _mood;
     private List<Game> _picks = new();
+    private Button? _firstMood;
 
-    public MoodScreen() : base("How are you feeling?") { }
-
-    protected override void Build()
+    public MoodScreen()
     {
+        var page = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
+        var intro = Ui.Text("Pick a mood and get three games from your library that fit it.", 17, "SubtleBrush");
+        intro.HorizontalAlignment = HorizontalAlignment.Center;
+        intro.Margin = new Thickness(0, 0, 0, 18);
+        page.Children.Add(intro);
+        page.Children.Add(_moods);
+        page.Children.Add(_results);
+        var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false, PanningMode = PanningMode.VerticalOnly, Content = page };
+        SetPage("How are you feeling?", scroll, "{Select}  Choose        {Options}  Pick again        {Back}  Back", wide: true);
+        BuildMoods();
+    }
+
+    public override void OnShown() => FocusLater(_firstMood);
+
+    public override void OnClosed() => _cts.Cancel();
+
+    public override void FocusDefault()
+    {
+        if (_firstMood != null) _firstMood.Focus();
+        else base.FocusDefault();
+    }
+
+    public override bool OnAction(NavAction action)
+    {
+        if (action == NavAction.Y && _mood != null) { Pick(_mood, focusResults: true); return true; }
+        return false;
+    }
+
+    private void BuildMoods()
+    {
+        _moods.Children.Clear();
+        _firstMood = null;
         foreach (var m in Labs.Moods)
         {
             var mood = m;
-            AddRow(m.Name, _mood == m.Id ? "Picked" : null, m.Glyph, click: () =>
+            (string Line, Color From, Color To) look = Looks.TryGetValue(m.Id, out var l) ? l : ("", Color.FromRgb(0x55, 0x55, 0x66), Color.FromRgb(0x33, 0x33, 0x44));
+            bool picked = _mood == m.Id;
+            var face = new Grid { Width = 212, Height = 128 };
+            var fill = new Border { CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner, 14)), Background = new LinearGradientBrush(look.From, look.To, 35), Opacity = _mood == null || picked ? 1 : 0.55 };
+            face.Children.Add(fill);
+            var glyph = new TextBlock { Text = m.Glyph, FontFamily = Ui.IconFont, FontSize = 64, Foreground = new SolidColorBrush(Color.FromArgb(0x38, 0xFF, 0xFF, 0xFF)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 10, 12, 0) };
+            face.Children.Add(glyph);
+            var words = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(16, 0, 14, 14) };
+            words.Children.Add(new TextBlock { Text = m.Name, FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Brushes.White });
+            words.Children.Add(new TextBlock { Text = look.Line, FontSize = 13, Foreground = new SolidColorBrush(Color.FromArgb(0xDD, 0xFF, 0xFF, 0xFF)), TextWrapping = TextWrapping.Wrap });
+            face.Children.Add(words);
+            if (picked)
             {
-                _mood = mood.Id;
-                _picks = Labs.PickForMood(mood.Id, Host.AllGames);
-                Rebuild();
-            });
+                var check = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12),
+                    Child = new TextBlock { Text = "", FontFamily = Ui.IconFont, FontSize = 14, Foreground = new SolidColorBrush(look.To), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+                face.Children.Add(check);
+            }
+            var tile = Ui.Tile(face);
+            tile.Margin = new Thickness(0, 0, 14, 14);
+            tile.Tag = m.Id;
+            tile.Click += (_, _) => Pick(mood.Id, focusResults: true);
+            _moods.Children.Add(tile);
+            _firstMood ??= tile;
         }
+    }
+
+    private void Pick(string mood, bool focusResults)
+    {
+        _mood = mood;
+        _picks = Labs.PickForMood(mood, Host.AllGames);
+        BuildMoods();
+        BuildResults(focusResults);
+    }
+
+    private void BuildResults(bool focus)
+    {
+        _results.Children.Clear();
         if (_mood == null) return;
-        AddHeader("Try one of these");
-        if (_picks.Count == 0) { AddNote("Nothing installed fits this mood yet (genres appear once games' details have been looked up). Try another, or pick again."); return; }
+        var heading = Ui.Text("Try one of these", 22, "FgBrush", bold: true);
+        heading.HorizontalAlignment = HorizontalAlignment.Center;
+        heading.Margin = new Thickness(0, 14, 0, 16);
+        _results.Children.Add(heading);
+        if (_picks.Count == 0)
+        {
+            var none = Ui.Text("Nothing installed fits this mood yet (genres appear once games' details have been looked up). Try another, or pick again.", 16, "SubtleBrush");
+            none.TextWrapping = TextWrapping.Wrap;
+            none.TextAlignment = TextAlignment.Center;
+            none.MaxWidth = 700;
+            _results.Children.Add(none);
+            SetPageBackdrop(null);
+            return;
+        }
+        var row = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
+        Button? first = null;
         foreach (var g in _picks)
         {
-            var game = g;
-            var len = HowLongToBeat.Cached(g).Times is { Main: > 0 } t ? "About " + Labs.Hours(t.Main) + " to finish" : null;
-            AddRow(g.Name, "Play", "", click: () => _ = Host.ActivateAsync(game), subtitle: string.Join("  ·  ", new[] { GenreCache.Of(g), len }.Where(x => !string.IsNullOrEmpty(x))));
+            var card = GameCard(g);
+            row.Children.Add(card);
+            first ??= card;
         }
-        AddRow("Pick again", null, "", click: () => { _picks = Labs.PickForMood(_mood, Host.AllGames); Rebuild(); });
+        _results.Children.Add(row);
+
+        var again = Ui.Row("Pick again", null, "", subtitle: "Three more for the same mood");
+        again.Width = 420;
+        again.HorizontalAlignment = HorizontalAlignment.Center;
+        again.Margin = new Thickness(0, 8, 0, 0);
+        again.Click += (_, _) => Pick(_mood, focusResults: true);
+        _results.Children.Add(again);
+        if (focus && first != null) FocusLater(first);
+    }
+
+    private Button GameCard(Game game)
+    {
+        const double W = 372, ArtH = 176;
+        var card = new StackPanel { Width = W };
+
+        // Artwork: the wide hero picture (or the cover, filling), with the square cover over its corner.
+        var art = new Grid { Height = ArtH, ClipToBounds = true };
+        var hero = new Image { Stretch = Stretch.UniformToFill, Source = game.Cover, Opacity = 0.9 };
+        art.Children.Add(hero);
+        art.Children.Add(new Border { Background = new LinearGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(0xC8, 0, 0, 0), 90) });
+        var cover = new Border { Width = 92, Height = 92, CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner, 10)), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(16, 0, 0, 14), ClipToBounds = true,
+            Background = game.Cover != null ? new ImageBrush(game.Cover) { Stretch = Stretch.UniformToFill } : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x3A)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x90, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(2) };
+        art.Children.Add(cover);
+        var playBadge = new Border { CornerRadius = new CornerRadius(14), Padding = new Thickness(12, 5, 14, 6), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 14, 16) };
+        playBadge.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+        var playRow = new StackPanel { Orientation = Orientation.Horizontal };
+        playRow.Children.Add(new TextBlock { Text = "", FontFamily = Ui.IconFont, FontSize = 13, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 7, 0) });
+        playRow.Children.Add(new TextBlock { Text = game.IsRunning ? "Resume" : "Play", FontSize = 14, FontWeight = FontWeights.Bold, Foreground = Brushes.White });
+        playBadge.Child = playRow;
+        art.Children.Add(playBadge);
+        double corner = Math.Max(Theme.TileCorner, 14);
+        art.Clip = new RectangleGeometry(new Rect(0, 0, W, ArtH), corner, corner);
+        card.Children.Add(art);
+        _ = LoadHeroAsync(game, hero);
+
+        // What it is.
+        var info = new StackPanel { Margin = new Thickness(6, 12, 6, 6) };
+        var name = Ui.Text(game.Name, 20, "FgBrush", bold: true);
+        name.TextTrimming = TextTrimming.CharacterEllipsis;
+        info.Children.Add(name);
+        var facts = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+        void Chip(string glyph, string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            var c = new Border { CornerRadius = new CornerRadius(10), Padding = new Thickness(9, 3, 10, 4), Margin = new Thickness(0, 0, 6, 6) };
+            c.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+            var r = new StackPanel { Orientation = Orientation.Horizontal };
+            var g = Ui.Glyph(glyph, 12, "AccentBrush");
+            g.Margin = new Thickness(0, 1, 6, 0);
+            g.VerticalAlignment = VerticalAlignment.Center;
+            r.Children.Add(g);
+            r.Children.Add(Ui.Text(text, 13, "FgBrush", bold: true));
+            c.Child = r;
+            facts.Children.Add(c);
+        }
+        Chip("", GenreCache.Of(game) ?? "");
+        if (HowLongToBeat.Cached(game).Times is { Main: > 0 } t) Chip("", "About " + Labs.Hours(t.Main) + " to finish");
+        double played = Host.Playtime.TotalSeconds(game.Key);
+        if (played < 60 && game.IsSteam && SteamLibrary.GetPlaytimeMinutes(game.AppId) is int steamMinutes) played = steamMinutes * 60.0;
+        Chip("", played >= 60 ? PlaytimeStore.Format(played) + " played" : "Not played yet");
+        if (game.IsSteam && Host.Achievements.ProgressOf(game.AppId) is { Total: > 0 } a) Chip("", $"{a.Unlocked}/{a.Total} achievements");
+        info.Children.Add(facts);
+        string when = game.RecentAt > DateTime.MinValue ? "Last played " + Ui.Ago(game.RecentAt) : game.IsSteam ? "Steam" : game.Source;
+        if (!string.IsNullOrEmpty(when)) info.Children.Add(Ui.Text(when, 13, "SubtleBrush"));
+        card.Children.Add(info);
+
+        var tile = Ui.Tile(card);
+        tile.Margin = new Thickness(0, 0, 16, 16);
+        tile.Click += (_, _) => _ = Host.ActivateAsync(game);
+        tile.GotKeyboardFocus += (_, _) => SetPageBackdrop(_heroes.GetValueOrDefault(game.Key) ?? game.Cover);
+        return tile;
+    }
+
+    private async Task LoadHeroAsync(Game game, Image target)
+    {
+        if (_heroes.TryGetValue(game.Key, out var known)) { if (known != null) target.Source = known; return; }
+        var ct = _cts.Token;
+        try
+        {
+            var picture = await Task.Run(async () =>
+            {
+                using var client = new SteamGridDbClient(Host.Settings.SteamGridDbApiKey);
+                var path = await client.GetHeroAsync(game, ct);
+                return path == null ? null : ImageLoader.FromFile(path, 800);
+            }, ct);
+            _heroes[game.Key] = picture;
+            if (picture != null && !ct.IsCancellationRequested)
+            {
+                target.Source = picture;
+                target.Opacity = 1;
+            }
+        }
+        catch (Exception) { }
     }
 }
 
@@ -1211,7 +1281,7 @@ public sealed class CompanionScreen : ListScreen
         name.HorizontalAlignment = HorizontalAlignment.Center;
         name.Margin = new Thickness(0, 0, 0, 8);
         Rows.Children.Add(name);
-        if (!Labs.On("companion")) AddNote("Turn on Companion in Experimental to see it on Home.");
+        if (!Labs.On("companion")) AddNote("Turn on Companion in Settings > Home screen to see it on Home.");
 
         AddHeader("Look");
         AddRow("Character", CompanionArt.Species.First(s => s.Id == CompanionArt.SpeciesId).Name, "", click: async () =>
@@ -1235,13 +1305,17 @@ public sealed class CompanionScreen : ListScreen
         AddNote("It reacts by itself on Home: a wave when you come back from a game, a jump for achievements, a spin for milestones, " +
                 "hearts for new favorites, a worried shake at low battery, dancing to music, yawns when you haven't played for a while, " +
                 "sleep late at night, and its eyes follow you along the home row. It comes along to every page, doing what suits it (tinkering in Settings, " +
-                "searching the Library, dancing on the Music page, shopping in the Stores…), gets up to all sorts on Home, and puts on a little show while a game starts.");
+                "searching the Library, dancing on the Music page, shopping in the Stores…), wanders around the page, gets up to all sorts on Home, and puts on " +
+                "a little show while a game starts. Moving between pages, it finishes what it's doing before starting the next thing.");
         foreach (var (id, label) in new[] { ("wave", "Wave"), ("jump", "Jump for joy"), ("spin", "Spin"), ("hearts", "Hearts"), ("worried", "Worried"),
                                             ("dance", "Dance"), ("yawn", "Yawn"), ("sleep", "Sleep"), ("peek", "Peek"), ("bye", "Wave goodbye"),
                                             ("walk", "Go for a walk"), ("juggle", "Juggle"), ("flip", "Somersault"), ("trip", "Trip over"), ("peekaboo", "Peekaboo"),
                                             ("stretch", "Stretch"), ("lookaround", "Look around"), ("balloon", "Balloon"), ("confetti", "Confetti"),
                                             ("tinker", "Tinker"), ("read", "Read"), ("search", "Search"), ("think", "Think"), ("game", "Play a game"),
-                                            ("shop", "Go shopping"), ("camera", "Take a picture"), ("trophy", "Trophy"), ("zoom", "Zoom") })
+                                            ("shop", "Go shopping"), ("camera", "Take a picture"), ("trophy", "Trophy"), ("zoom", "Zoom"),
+                                            ("roam", "Wander around"), ("hop", "Hop along"), ("cartwheel", "Cartwheel"), ("slide", "Slide"),
+                                            ("moonwalk", "Moonwalk"), ("ball", "Kick a ball"), ("bubbles", "Blow bubbles"), ("magic", "Magic trick"),
+                                            ("meditate", "Meditate"), ("sneeze", "Sneeze"), ("wobble", "Wobble"), ("cheer", "Cheer"), ("nod", "Nod") })
         {
             var action = id;
             AddRow(label, null, "", click: () => Host.CompanionReact(action));
@@ -1348,7 +1422,7 @@ public sealed class CoverLabsScreen : ListScreen
                 AddRow("Duotone colors", CoverEffects.DuotonePalettes.FirstOrDefault(x => x.Id == palette).Name ?? "Highlight color", "\uE790",
                     click: () => Pick("covereffect.duotone", CoverEffects.DuotonePalettes.Select(x => (x.Id, x.Name)).ToArray()));
             }
-            AddNote("Applies to the covers on Home. Covers change over a moment as each one is redrawn. Turn it off in Experimental to go back to sharp covers.");
+            AddNote("Applies to the covers on Home. Covers change over a moment as each one is redrawn. Turn it off in Settings > Home screen to go back to sharp covers.");
             return;
         }
         string dark = Labs.Get("coverdim.dark", "40"), soft = Labs.Get("coverdim.soft", "0");
@@ -1422,104 +1496,3 @@ public sealed class CoverEffectPickerScreen : ListScreen
     }
 }
 
-/// <summary>
-/// A game's trailers, played inside SquareDeck in a pop-up window over the page; Y expands it to the whole screen
-/// and back. Plain video files and Steam's newer streamed trailers both play.
-/// </summary>
-public sealed class TrailerScreen : Screen
-{
-    private readonly List<Trailer> _trailers;
-    private readonly string _game;
-    private int _index;
-    private readonly Border _frame;
-    private readonly Microsoft.Web.WebView2.Wpf.WebView2 _web = new() { DefaultBackgroundColor = System.Drawing.Color.Black };
-    private readonly TextBlock _title = Ui.Text("", 18, "FgBrush", bold: true);
-    private bool _expanded;
-    private static Task<Microsoft.Web.WebView2.Core.CoreWebView2Environment>? _environment;
-
-    public TrailerScreen(string game, List<Trailer> trailers)
-    {
-        _game = game;
-        _trailers = trailers;
-        _frame = new Border { Width = 960, Height = 540, CornerRadius = new CornerRadius(14), ClipToBounds = true, Background = Brushes.Black, Child = _web };
-        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        _title.Margin = new Thickness(4, 0, 0, 10);
-        stack.Children.Add(_title);
-        stack.Children.Add(_frame);
-        var dim = new Grid { Background = new SolidColorBrush(Color.FromArgb(0xC8, 0, 0, 0)) };
-        dim.Children.Add(stack);
-        Content = dim;
-        Focusable = true;
-    }
-
-    public override void FocusDefault() => Focus();
-
-    public override async void OnShown()
-    {
-        Focus();
-        try
-        {
-            _environment ??= Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(null, Path.Combine(Settings.DataDir, "Trailers"),
-                new Microsoft.Web.WebView2.Core.CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required"));
-            await _web.EnsureCoreWebView2Async(await _environment);
-            _web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
-            Play();
-        }
-        catch (Exception)
-        {
-            _title.Text = "Trailers need Microsoft Edge WebView2, which isn't available.";
-        }
-    }
-
-    public override void OnClosed()
-    {
-        try { _web.Dispose(); } catch (Exception) { }
-    }
-
-    private void Play()
-    {
-        var t = _trailers[_index];
-        _title.Text = $"{_game}  ·  {(t.Name.Length > 0 ? t.Name : "Trailer")}" + (_trailers.Count > 1 ? $"   ({_index + 1} of {_trailers.Count})   LB / RB: other trailers" : "") + "   ·   Y: expand";
-        string src = t.Url ?? t.Stream!;
-        bool hls = t.Url == null;
-        // A plain page with one video. Streams play through hls.js where the browser can't play them itself.
-        string page = "<!doctype html><html><head><meta charset='utf-8'><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}" +
-                      "video{width:100%;height:100%;object-fit:contain;background:#000}</style>" +
-                      (hls ? "<script src='https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js'></script>" : "") +
-                      "</head><body><video id='v' controls autoplay playsinline></video><script>" +
-                      $"var v=document.getElementById('v'),s={System.Text.Json.JsonSerializer.Serialize(src)};" +
-                      (hls ? "if(v.canPlayType('application/vnd.apple.mpegurl')){v.src=s}else if(window.Hls&&Hls.isSupported()){var h=new Hls();h.loadSource(s);h.attachMedia(v)}else{v.src=s}"
-                           : "v.src=s;") +
-                      "v.play().catch(function(){});</script></body></html>";
-        _web.CoreWebView2?.NavigateToString(page);
-    }
-
-    private void Expand()
-    {
-        _expanded = !_expanded;
-        _frame.Width = _expanded ? 1280 : 960;
-        _frame.Height = _expanded ? 720 : 540;
-        _frame.CornerRadius = new CornerRadius(_expanded ? 0 : 14);
-        _title.Visibility = _expanded ? Visibility.Collapsed : Visibility.Visible;
-    }
-
-    private void Script(string js)
-    {
-        try { _ = _web.CoreWebView2?.ExecuteScriptAsync(js); } catch (Exception) { }
-    }
-
-    public override bool OnAction(NavAction action)
-    {
-        switch (action)
-        {
-            case NavAction.Y: Expand(); return true;
-            case NavAction.Accept: Script("var v=document.getElementById('v');if(v){v.paused?v.play():v.pause()}"); return true;
-            case NavAction.Left: Script("var v=document.getElementById('v');if(v)v.currentTime=Math.max(0,v.currentTime-10)"); return true;
-            case NavAction.Right: Script("var v=document.getElementById('v');if(v)v.currentTime+=10"); return true;
-            case NavAction.LB when _trailers.Count > 1: _index = (_index + _trailers.Count - 1) % _trailers.Count; Play(); return true;
-            case NavAction.RB when _trailers.Count > 1: _index = (_index + 1) % _trailers.Count; Play(); return true;
-            case NavAction.Back when _expanded: Expand(); return true;
-        }
-        return false;
-    }
-}

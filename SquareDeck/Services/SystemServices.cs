@@ -187,6 +187,33 @@ public static class WindowActivator
         catch (Exception) { return false; }
     }
 
+    /// <summary>
+    /// True when another app's window is in front and covers the whole screen SquareDeck is on (a maximized or full
+    /// screen app), so none of SquareDeck can be seen. The desktop and the taskbar don't count.
+    /// </summary>
+    public static bool FrontCovers(Window window)
+    {
+        try
+        {
+            var mine = new WindowInteropHelper(window).Handle;
+            var front = GetForegroundWindow();
+            if (front == IntPtr.Zero || front == mine) return false;
+            GetWindowThreadProcessId(front, out uint pid);
+            if (pid == 0 || pid == Environment.ProcessId) return false;
+            var cls = new System.Text.StringBuilder(64);
+            GetClassName(front, cls, cls.Capacity);
+            if (cls.ToString() is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") return false;
+            if (!GetWindowRect(front, out var r)) return false;
+            var monitor = MonitorFromWindow(mine, 2);
+            if (MonitorFromWindow(front, 2) != monitor) return false;
+            var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+            if (!GetMonitorInfo(monitor, ref info)) return false;
+            // Its whole work area at least (a maximized window leaves the taskbar showing; SquareDeck is behind it all the same).
+            return r.Left <= info.Work.Left + 8 && r.Top <= info.Work.Top + 8 && r.Right >= info.Work.Right - 8 && r.Bottom >= info.Work.Bottom - 8;
+        }
+        catch (Exception) { return false; }
+    }
+
     /// <summary>Takes away "always on top" again.</summary>
     public static void ClearOnTop(Window window)
     {
@@ -205,6 +232,7 @@ public static class WindowActivator
     [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
     [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr hwnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder name, int max);
 
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public Rect Monitor, Work; public uint Flags; }

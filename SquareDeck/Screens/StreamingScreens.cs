@@ -214,7 +214,7 @@ public sealed class StreamingScreen : Screen, IPagePad
 
         _footer.SetResourceReference(Panel.BackgroundProperty, "BgBrush");
         // The same button pictures as every other page's hint bar.
-        var hints = new HintBar("{Select}  Choose      {Details}  Play / pause      LB RB  -10 / +10 s      LT RT  Scroll      Start  Full screen      {Options}  Menu      {Back}  Back");
+        var hints = new HintBar("{Select}  Choose      {Details}  Play / pause      LB RB  -10 / +10 s      LT RT  Scroll      {Options}  Menu      {Back}  Back      View + Start  SquareDeck");
         hints.VerticalAlignment = VerticalAlignment.Center;
         hints.HorizontalAlignment = HorizontalAlignment.Center;
         _footer.Children.Add(hints);
@@ -295,7 +295,7 @@ public sealed class StreamingScreen : Screen, IPagePad
         _web.Visibility = Visibility.Visible;
         _web.Focus();
         await Task.Delay(1200);
-        _ = Run("window.__sdpad && window.__sdpad.toast('B  Back   ·   X  Play / pause   ·   Y  Menu')");
+        _ = Run("window.__sdpad && window.__sdpad.quitHint && window.__sdpad.quitHint()");
     }
 
     // The page is a window of its own and would cover any pop-up drawn over it, so it steps aside for them.
@@ -561,13 +561,26 @@ public sealed class StreamingScreen : Screen, IPagePad
         Changed();
     }
 
+    private DateTime _viewAt = DateTime.MinValue, _startAt = DateTime.MaxValue;
+
     private bool PointerActive => DateTime.UtcNow - _pointerMovedAt < TimeSpan.FromSeconds(4);
 
     public override bool OnAction(NavAction action)
     {
-        if (!_ready) return action != NavAction.Back;
+        if (!_ready) return action is not (NavAction.Back or NavAction.View);
         if (action is NavAction.Up or NavAction.Down or NavAction.Left or NavAction.Right or NavAction.Accept &&
             !_web.IsKeyboardFocusWithin) _web.Focus();
+        // View + Menu together goes back to SquareDeck (kept open, paused), as it does when the page reads the controller.
+        if (action == NavAction.View) _viewAt = DateTime.UtcNow;
+        if (action == NavAction.Start) _startAt = DateTime.UtcNow;
+        if (action is NavAction.View or NavAction.Start && (_viewAt - _startAt).Duration() < TimeSpan.FromMilliseconds(400))
+        {
+            _viewAt = DateTime.MinValue; _startAt = DateTime.MaxValue;
+            _ = Run("if(document.fullscreenElement)document.exitFullscreen();");
+            UiSound.Back();
+            Host.Pop(this);
+            return true;
+        }
         switch (action)
         {
             // YouTube's TV layout is made for arrow keys: they go straight to it.
@@ -750,37 +763,12 @@ public sealed class StreamingView : StackPanel
             FirstFocus = resume;
         }
 
-        var heading = Ui.Text("Watch", 18, "FgBrush", bold: true);
-        heading.Margin = new Thickness(4, 0, 0, 12);
-        Children.Add(heading);
-        var tiles = new WrapPanel();
-        foreach (var service in StreamingService.Shown.Where(x => !x.Music))
-        {
-            var s = service;
-            var stack = new StackPanel();
-            var face = s.Face(214, 120, 24);
-            stack.Children.Add(face);
-            var label = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 10, 0, 0) };
-            label.Children.Add(Ui.Text(s.Name, 16, "FgBrush", bold: true));
-            if (StreamingScreen.Current?.Service.Id == s.Id)
-            {
-                var pill = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 1, 8, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-                pill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
-                pill.Child = Ui.Text("OPEN", 11, "BgBrush", bold: true);
-                label.Children.Add(pill);
-            }
-            stack.Children.Add(label);
-            var tile = new Button { Style = Ui.StyleOf("TileButton"), Content = stack, Margin = new Thickness(0, 0, 18, 18), Tag = s };
-            tile.Click += (_, _) => _ = StreamingScreen.OpenAsync(host, s);
-            tiles.Children.Add(tile);
-            FirstFocus ??= tile;
-        }
-        Children.Add(tiles);
+        // Music first (YouTube Music and Apple Music, with their experiment on), then video.
         var music = StreamingService.Shown.Where(x => x.Music).ToList();
         if (music.Count > 0)
         {
             var listen = Ui.Text("Listen", 18, "FgBrush", bold: true);
-            listen.Margin = new Thickness(4, 8, 0, 12);
+            listen.Margin = new Thickness(4, 0, 0, 12);
             Children.Add(listen);
             var musicTiles = new WrapPanel();
             foreach (var service in music)
@@ -805,6 +793,32 @@ public sealed class StreamingView : StackPanel
             }
             Children.Add(musicTiles);
         }
+        var heading = Ui.Text("Watch", 18, "FgBrush", bold: true);
+        heading.Margin = new Thickness(4, Children.Count > 0 ? 8 : 0, 0, 12);
+        Children.Add(heading);
+        var tiles = new WrapPanel();
+        foreach (var service in StreamingService.Shown.Where(x => !x.Music))
+        {
+            var s = service;
+            var stack = new StackPanel();
+            var face = s.Face(214, 120, 24);
+            stack.Children.Add(face);
+            var label = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 10, 0, 0) };
+            label.Children.Add(Ui.Text(s.Name, 16, "FgBrush", bold: true));
+            if (StreamingScreen.Current?.Service.Id == s.Id)
+            {
+                var pill = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 1, 8, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+                pill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+                pill.Child = Ui.Text("OPEN", 11, "BgBrush", bold: true);
+                label.Children.Add(pill);
+            }
+            stack.Children.Add(label);
+            var tile = new Button { Style = Ui.StyleOf("TileButton"), Content = stack, Margin = new Thickness(0, 0, 18, 18), Tag = s };
+            tile.Click += (_, _) => _ = StreamingScreen.OpenAsync(host, s);
+            tiles.Children.Add(tile);
+            FirstFocus ??= tile;
+        }
+        Children.Add(tiles);
         var note = Ui.Text("Each one opens full screen here and stays on its own site. Sign in once and you stay signed in.", 14, "SubtleBrush");
         note.Margin = new Thickness(4, 6, 0, 0);
         note.TextWrapping = TextWrapping.Wrap;

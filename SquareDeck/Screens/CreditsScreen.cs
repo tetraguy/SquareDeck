@@ -61,8 +61,8 @@ public sealed class CreditsScreen : ListScreen
         ("Almendra font", "Ana Sanfelippo", "The Grimoire style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Almendra"),
         ("Merienda font", "Eduardo Tunni", "The Autumn style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Merienda"),
         ("Bangers font", "Vernon Adams", "The Halftone style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Bangers"),
-        ("VacuumTube", "shy and contributors", "Experimental: VacuumTube on the Music page (its page scripts, bundled in VacuumTube\\vacuumtube.js)", "MIT License", "https://github.com/shy1132/VacuumTube"),
-        ("GamerPower", "GamerPower", "The free games list (Experimental > Free games tracker)", "Free API; data credited to GamerPower", "https://www.gamerpower.com/"),
+        ("VacuumTube", "shy and contributors", "Powers DeckTube on the Music page (its page scripts, bundled in VacuumTube\\vacuumtube.js)", "MIT License", "https://github.com/shy1132/VacuumTube"),
+        ("GamerPower", "GamerPower", "The free games list (Free games tracker, on the Stores page)", "Free API; data credited to GamerPower", "https://www.gamerpower.com/"),
         ("Windows 2000 icons", "Microsoft", "Retro Windows (Home button icons)", "Windows 2000's icons belong to Microsoft; from a Stardock IconPackager set", null),
         ("Windows XP sounds", "Microsoft", "Windows XP sounds (Luna XP)", "From the NullTale pack", null),
     };

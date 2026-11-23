@@ -227,13 +227,23 @@ public sealed class GameBusyScreen : Screen
     {
         var p = GameCard.ColorsOf(game);
         var panel = new StackPanel();
-        var art = new Grid { Width = 190, Height = 190, HorizontalAlignment = HorizontalAlignment.Center };
-        art.Children.Add(GameCard.Ring(190, 7, Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF)));
-        var spinner = GameCard.Ring(190, 7, p.Accent, 0.28);
-        art.Children.Add(spinner);
-        var cover = GameCard.Cover(game, 132);
+        // The game's own square art (as on the home row), with a light running around its edge.
+        const double size = 150, gap = 12, thick = 5;
+        double outer = size + 2 * (gap + thick);
+        double corner = GameCard.Round(size * 0.18);
+        var art = new Grid { Width = outer, Height = outer, HorizontalAlignment = HorizontalAlignment.Center };
+        double radius = corner + gap + thick / 2;
+        double side = outer - thick;
+        double perimeter = (4 * (side - 2 * radius) + 2 * Math.PI * radius) / thick; // in stroke widths
+        art.Children.Add(new Rectangle { Width = outer, Height = outer, RadiusX = radius, RadiusY = radius, StrokeThickness = thick, Stroke = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF)) });
+        var runner = new Rectangle
+        {
+            Width = outer, Height = outer, RadiusX = radius, RadiusY = radius, StrokeThickness = thick, Stroke = new SolidColorBrush(p.Accent),
+            StrokeDashArray = new DoubleCollection { perimeter * 0.24, perimeter * 0.76 }, StrokeDashCap = PenLineCap.Round
+        };
+        art.Children.Add(runner);
+        var cover = GameCard.Cover(game, size);
         cover.VerticalAlignment = VerticalAlignment.Center;
-        cover.CornerRadius = new CornerRadius(GameCard.Round(66)); // round inside the ring (square in the sharp-cornered styles)
         art.Children.Add(cover);
         panel.Children.Add(art);
         var label = GameCard.Eyebrow(message, p);
@@ -245,9 +255,9 @@ public sealed class GameBusyScreen : Screen
         panel.Children.Add(name);
         Content = GameCard.Frame(p, panel, 520);
 
-        if (!Theme.ReduceMotion && spinner.RenderTransform is RotateTransform turn)
-            turn.BeginAnimation(RotateTransform.AngleProperty,
-                new DoubleAnimation(-90, 270, TimeSpan.FromSeconds(1.1)) { RepeatBehavior = RepeatBehavior.Forever });
+        if (!Theme.ReduceMotion)
+            runner.BeginAnimation(Shape.StrokeDashOffsetProperty,
+                new DoubleAnimation(0, -perimeter, TimeSpan.FromSeconds(1.6)) { RepeatBehavior = RepeatBehavior.Forever });
     }
 
     public override void FocusDefault() { }

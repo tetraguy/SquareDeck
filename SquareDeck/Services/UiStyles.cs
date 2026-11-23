@@ -31,6 +31,7 @@ public sealed record UiStyle
     public string[]? RingColors { get; init; }  // the highlight ring as a gradient (Switch); null = the highlight color
     public AdvancedSkin? Skin { get; init; }      // Advanced styles: their artwork (Skins\), drawn over the Switch layout
     public bool Legendary { get; init; }          // an Advanced style drawn by Claude, shown in Themes > Legendary instead of Advanced
+    public string? Unlock { get; init; }          // an Unlockable style's goal ("hours:10", "achievements:100", "finished:10", "streak:7", "nights:5"); see StyleUnlocks
     public string? SkinVariant { get; init; }     // the color variant of that artwork in use (set from settings)
     public bool Glass { get; init; }           // frosted panels with a bright rim over blurred art
     public bool DarkGlass { get; init; }       // with Glass: smoked dark glass instead of white frost
@@ -1152,6 +1153,61 @@ public static class UiStyles
             Font = "file:Bangers-Regular.ttf#Bangers", TileCorner = 4, RowCorner = 4, RingThickness = 4, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "hard", Backdrop = new[] { "#FFF6D6", "#FFE58A" }, PageScrim = 0.55,
             Legendary = true, Skin = new AdvancedSkin("halftone"), TileAnimation = "jelly"
+        },
+        // 7.2: Unlockable styles, earned by playing (Themes > Unlockable). Drawn by Claude.
+        new()
+        {
+            Id = "adv-bronze", Name = "Bronze", Sounds = "chime", NavSounds = "tick", Music = "track:Daybreak", Moving = "", Wallpaper = "image:Bronze.jpg",
+            Description = "Your first medal: warm dark cards with a bronze frame and studs at the corners, bronze buttons, home buttons ringed like a medal's edge, and a bronze medal hanging in a spotlight.",
+            Dark = new[] { "#1A120C", "#F5E6D8", "#BFA48C", "#2A1A10", "#22150C", "#CD7F32" }, Mode = "dark",
+            Font = "file:Cinzel-Regular.ttf#Cinzel", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Backdrop = new[] { "#20140C", "#080402" }, PageScrim = 0.45,
+            Unlock = "hours:10", Skin = new AdvancedSkin("bronze"), TileAnimation = "lift"
+        },
+        new()
+        {
+            Id = "adv-silver", Name = "Silver", Sounds = "glass", NavSounds = "tick", Music = "track:Relaxing", Moving = "", Wallpaper = "image:Silver.jpg",
+            Description = "Polished and bright: brushed-silver cards and buttons with a chrome frame, finely engraved home buttons, and a silver cup on an engraved plate.",
+            Light = new[] { "#E9ECF0", "#1E2329", "#5E6773", "#F7F9FB", "#E2E6EB", "#5B6B7D" }, ForceLight = true,
+            Font = "file:JosefinSans-Regular.ttf#Josefin Sans", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#F4F6F9", "#C9D0D8" }, PageScrim = 0.4,
+            Unlock = "hours:50", Skin = new AdvancedSkin("silver"), TileAnimation = "lift"
+        },
+        new()
+        {
+            Id = "adv-gold", Name = "Gold", Sounds = "chime", NavSounds = "glass", Music = "track:Sun Rays", Moving = "", Wallpaper = "image:Gold.jpg",
+            Description = "First place: black cards with a gold frame and stars in the corners, gold home buttons, switches that light up gold, and a gold trophy on the top step of the podium in a shower of confetti.",
+            Dark = new[] { "#120E05", "#FFF4D6", "#C9B98A", "#1C1608", "#171206", "#F2C14E" }, Mode = "dark",
+            Font = "file:PoiretOne-Regular.ttf#Poiret One", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#14100A", "#050402" }, PageScrim = 0.5,
+            Unlock = "achievements:100", Skin = new AdvancedSkin("gold"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "adv-platinum", Name = "Platinum", Sounds = "glass", NavSounds = "kalimba", Music = "track:Sweetness", Moving = "", Wallpaper = "image:Platinum.jpg",
+            Description = "The rarest trophy: pale cards edged in shimmering holographic foil, iridescent buttons and switches, and a faceted crystal on a rainbow-foil background.",
+            Light = new[] { "#F2F4F8", "#1B1F2A", "#5A6070", "#FBFCFE", "#EEF1F6", "#7B61FF" }, ForceLight = true,
+            Font = "file:Comfortaa-Regular.ttf#Comfortaa", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#F7F2FF", "#E6F4FF" }, PageScrim = 0.45,
+            Unlock = "finished:10", Skin = new AdvancedSkin("platinum"), TileAnimation = "float"
+        },
+        new()
+        {
+            Id = "adv-nightowl", Name = "Night Owl", Sounds = "soft", NavSounds = "droplet", Music = "track:Meditation", Moving = "", Wallpaper = "image:NightOwl.jpg",
+            Description = "For late players: midnight-blue cards sprinkled with stars, moonlit home buttons, gold icons like moonlight, and an owl watching from a branch under a huge moon over the forest.",
+            Dark = new[] { "#070B1C", "#E6ECFF", "#9AA6C8", "#101A3A", "#0C1430", "#FFD36B" }, Mode = "dark",
+            Font = "file:CrimsonText-Regular.ttf#Crimson Text", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#0A1230", "#03050E" }, PageScrim = 0.45,
+            Unlock = "nights:5", Skin = new AdvancedSkin("nightowl"), TileAnimation = "breathe"
+        },
+        new()
+        {
+            Id = "adv-ember", Name = "Ember", Sounds = "deep", NavSounds = "tick", Music = "track:Coffee Shop", Moving = "", Wallpaper = "image:Ember.jpg",
+            Description = "Keep the streak burning: charcoal cards with glowing embers in the corners, fiery buttons, home buttons ringed with flames, and a campfire throwing sparks into the dark.",
+            Dark = new[] { "#140806", "#FFE9DC", "#C99C88", "#24100A", "#1C0C06", "#FF6A2B" }, Mode = "dark",
+            Font = "file:SairaCondensed-Regular.ttf#Saira Condensed", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#160806", "#050202" }, PageScrim = 0.5,
+            Unlock = "streak:7", Skin = new AdvancedSkin("ember"), TileAnimation = "glow"
         },
         new()
         {

@@ -564,7 +564,7 @@ public static class Stores
         bool xbox = ShellThumb.ForApp(XboxAppId, 32) != null;
         string? recomp = RecompLauncher.FindExe();
 
-        return new List<StoreApp>
+        var list = new List<StoreApp>
         {
             new("Steam", steam, steam != null ? "steam://openurl/https://store.steampowered.com/" : null, "Valve.Steam", "https://store.steampowered.com/about/"),
             new("Xbox", null, xbox ? @"shell:AppsFolder\" + XboxAppId : null, "9MV0B5HZVK9Z", "https://www.xbox.com/apps/xbox-app-for-pc"),
@@ -576,8 +576,11 @@ public static class Stores
             new("Amazon Games", amazon, null, "Amazon.Games", "https://gaming.amazon.com/amazon-games-app"),
             new("Rockstar Games", rockstar, null, "RockstarGames.Launcher", "https://socialclub.rockstargames.com/rockstar-games-launcher"),
             new("itch.io", itch, null, "ItchIo.Itch", "https://itch.io/app"),
-            new(RecompLauncher.Name, recomp, null, "", RecompLauncher.ReleasesPage)
         };
+        // RecompLauncher can no longer be installed from here (Recomp Zone does its job inside SquareDeck); a copy that's
+        // already installed still shows, so it can be opened or uninstalled.
+        if (recomp != null) list.Add(new(RecompLauncher.Name, recomp, null, "", RecompLauncher.ReleasesPage));
+        return list;
     }
 
     private static string? Existing(params string?[] candidates) =>

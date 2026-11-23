@@ -118,6 +118,8 @@ public sealed class BatteryScreen : ListScreen
                 if (Number("cycles") > 0) AddRow("Charge cycles", Number("cycles").ToString("0"), "");
                 if (Number("voltage") > 0) AddRow("Voltage", $"{Number("voltage") / 1000:0.00} V", "");
             }
+            AddRow("Battery health over time", null, "\uEBA7", click: () => Host.Push(new BatteryHealthScreen()),
+                subtitle: "Charge cycles, capacity compared with new, and how it has changed");
         }
 
         if (Host.ControllerBattery is string pad)

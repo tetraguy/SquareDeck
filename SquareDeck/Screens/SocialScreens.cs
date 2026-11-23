@@ -134,6 +134,14 @@ public sealed class FriendsScreen : GridScreen
         actions.Children.Add(alerts);
         actions.Children.Add(addFriend);
         actions.Children.Add(chat);
+        if (Labs.On("leaderboard"))
+        {
+            var board = Ui.PanelButton("\uE9F9", "Leaderboard");
+            board.Margin = new Thickness(8, 0, 0, 0);
+            board.ToolTip = "Hours played recently by you and your Steam friends";
+            board.Click += (_, _) => Host.Push(new LeaderboardScreen());
+            actions.Children.Add(board);
+        }
         if (Labs.On("discord"))
         {
             var discord = Ui.PanelButton("\uE8BD", "Discord");

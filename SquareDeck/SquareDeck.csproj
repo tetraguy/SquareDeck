@@ -11,7 +11,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>SquareDeck</AssemblyName>
     <RootNamespace>SquareDeck</RootNamespace>
-    <Version>7.1.0</Version>
+    <Version>7.2.0</Version>
     <ApplicationIcon>Assets\SquareDeck.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -34,6 +34,8 @@
     <None Update="Streaming\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Tools\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="CloudLogos\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Recomp Zone's emblem for its opening animation -->
+    <None Update="RecompZone\**\*" CopyToOutputDirectory="PreserveNewest" />
     <!-- Button pictures for the hints: Glyphs\<look>\<controller or keyboard>\<button>.png -->
     <None Update="Glyphs\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
