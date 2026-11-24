@@ -264,6 +264,14 @@ public static class TdpControl
         Debounce.Start();
     }
 
+    /// <summary>Drops the quick menu's (or the Game Bar widget's) limit: back to the game's profile or your usual one.</summary>
+    public static void ClearSession()
+    {
+        SessionWatts = null;
+        if (Ready) _ = ApplyAsync(quiet: true);
+        Changed?.Invoke();
+    }
+
     /// <summary>Called every few seconds: "plugged in" limits follow the charger.</summary>
     public static void CheckPower()
     {

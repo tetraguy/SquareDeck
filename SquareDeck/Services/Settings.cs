@@ -20,8 +20,8 @@ public sealed class Settings
     public string AccentColor { get; set; } = "";
 
     /// <summary>Highlight effect id ("" for none), its colors ("palette:id" or "#hex,#hex,…"), speed and glow.</summary>
-    public string? HighlightEffect { get; set; } = "";
-    public string? HighlightColors { get; set; } = "palette:accent";
+    public string? HighlightEffect { get; set; } = HighlightEffects.SwitchEffect;
+    public string? HighlightColors { get; set; } = HighlightEffects.SwitchColors;
     public string? HighlightSpeed { get; set; } = "normal";
     public string? HighlightGlow { get; set; } = "style";
 
@@ -57,6 +57,19 @@ public sealed class Settings
     public string LockScreenSource { get; set; } = "";       // the picture SquareDeck last put on the Windows lock screen
     // The performance overlay (Power and performance)
     public bool OsdEnabled { get; set; }
+    /// <summary>Lets SquareDeck's Xbox Game Bar widget connect (TDP, stats and quick toggles from Game Bar).</summary>
+    public bool GameBarWidget { get; set; } = true;
+    /// <summary>The widget package version SquareDeck last tried to install by itself (so a declined prompt isn't repeated).</summary>
+    public string WidgetInstallTried { get; set; } = "";
+    /// <summary>"Don't ask again" on the start-up offer to install the Game Bar widget.</summary>
+    public bool WidgetPromptIgnored { get; set; }
+    /// <summary>The Game Bar widget's colors: "squaredeck" (teal), "style" (the UI style's highlight color) or "game" (the running game's art).</summary>
+    public string? WidgetTheme { get; set; } = "squaredeck";
+    /// <summary>The widget's cards that show, in order (Power always shows).</summary>
+    public List<string>? WidgetSections { get; set; } = new(WidgetSectionIds);
+    public static readonly string[] WidgetSectionIds = { "game", "live", "ally", "quick" };
+    /// <summary>The widget's Close game button (two presses) on the game card.</summary>
+    public bool WidgetCloseGame { get; set; } = true;
     public string OsdWhen { get; set; } = "games";        // games (full-screen programs) | always
     public string OsdPosition { get; set; } = "top-left";
     public string OsdLayout { get; set; } = "row";         // row | column | tiles
@@ -176,6 +189,8 @@ public sealed class Settings
 
     /// <summary>Set once Steel has been made the Switch style's color theme for someone who had none.</summary>
     public bool SteelDefault { get; set; }
+    /// <summary>Set once the Switch 2 gradient highlight has been given to someone already on Switch (7.3.17).</summary>
+    public bool SwitchRingDefault { get; set; }
 
     /// <summary>Corner radius of the game tiles: 0 square, 10 rounded, 22 round.</summary>
     public int TileCorner { get; set; }
@@ -206,7 +221,7 @@ public sealed class Settings
     /// <summary>Card with session length and achievements when a game closes.</summary>
     public bool SessionSummary { get; set; } = true;
 
-    /// <summary>While a game runs, the summon shortcut opens a small overlay instead of the whole launcher.</summary>
+    /// <summary>While a game runs, the summon shortcut opens SquareDeck's Game Bar widget instead of the whole launcher.</summary>
     public bool InGameQuickMenu { get; set; } = true;
 
     /// <summary>Tint the highlight to match the highlighted game's cover.</summary>
@@ -281,6 +296,8 @@ public sealed class Settings
 
     /// <summary>Loudness of the menu music, in percent.</summary>
     public int MenuMusicVolume { get; set; } = 30;
+    /// <summary>Recomp Zone plays its own music while it's open (at the same loudness as the launcher's).</summary>
+    public bool RecompZoneMusic { get; set; } = true;
 
     /// <summary>Look for a newer release on GitHub when the launcher starts.</summary>
     public bool AutoUpdateCheck { get; set; } = true;
@@ -386,6 +403,16 @@ public sealed class Settings
     public bool AllyGameLights { get; set; } = true;
     /// <summary>The lights go off while a game is running, and come back after.</summary>
     public bool AllyLightsOffPlaying { get; set; }
+    /// <summary>The Xbox button's light (ROG Xbox Ally): "" (leave), "on" or "off".</summary>
+    public string AllyXboxLight { get; set; } = "";
+    /// <summary>Its brightness, 1 (dim) to 3 (ASUS's default).</summary>
+    public int AllyXboxLightLevel { get; set; } = 3;
+    /// <summary>It breathes instead of staying steady.</summary>
+    public bool AllyXboxLightBreathe { get; set; }
+    /// <summary>It goes dark while a game runs.</summary>
+    public bool AllyXboxLightOffPlaying { get; set; }
+    /// <summary>It breathes when the battery is low (15% or less, unplugged).</summary>
+    public bool AllyXboxLightLowBattery { get; set; } = true;
     /// <summary>ASUS operating mode: "" (leave), silent, performance or turbo.</summary>
     public string AllyAsusMode { get; set; } = "";
     /// <summary>Fan curve: "" (leave), quiet, balanced, cool or max.</summary>
@@ -485,6 +512,8 @@ public sealed class Settings
     public bool ReduceMotion { get; set; }
     /// <summary>Accessibility: a thicker highlight ring around the selected item.</summary>
     public bool ThickFocusRing { get; set; }
+    /// <summary>Game Genie writes answers for newly added games in the background (GeniePrep).</summary>
+    public bool GeniePrepare { get; set; } = true;
     /// <summary>Accessibility: holding a direction repeats "normal", "slow" or "off".</summary>
     public string NavRepeat { get; set; } = "normal";
     /// <summary>Accessibility: how long pop-up notifications stay, in seconds (0 = the usual 4.5).</summary>
@@ -520,19 +549,6 @@ public sealed class Settings
 
     /// <summary>Keyboard shortcut that does the same: "none", "f9", "f10", "ctrl+alt+q", "ctrl+shift+space".</summary>
     public string SummonKey { get; set; } = "none";
-
-    /// <summary>Where the in-game quick menu appears: "right", "left" or "center".</summary>
-    public string OverlaySide { get; set; } = "left";
-    /// <summary>The in-game quick menu's six quick buttons (ids from QuickOverlay.TileChoices).</summary>
-    public List<string> OverlayTiles { get; set; } = QuickOverlay.DefaultTiles.ToList();
-    /// <summary>The stats along the top of the in-game quick menu (ids from QuickOverlay.StatChoices), in order.</summary>
-    public List<string> OverlayStats { get; set; } = QuickOverlay.DefaultStats.ToList();
-    /// <summary>TDP presets and slider in the in-game quick menu (when TDP control is set up).</summary>
-    public bool OverlayTdp { get; set; } = true;
-    /// <summary>The in-game quick menu takes the controller from the game while it's open (by becoming the window in front).</summary>
-    public bool OverlayTakesController { get; set; } = true;
-    /// <summary>Once: the quick menu moved to the left (5.30), for everyone who had it on the right.</summary>
-    public bool OverlayMovedLeft { get; set; }
 
     /// <summary>Wash the game details page in a soft gradient of the cover's colors.</summary>
     public bool DetailsGradient { get; set; } = true;
@@ -599,16 +615,23 @@ public sealed class Settings
                         if (s.ThemePalette.Length == 0 && (string.IsNullOrEmpty(s.UiStyle) || s.UiStyle == "switch")) s.ThemePalette = "steel";
                         s.SteelDefault = true;
                     }
+                    // 7.3.17: the Switch 2 gradient became Switch's standard highlight; given once to anyone on Switch still on the plain ring.
+                    if (!s.SwitchRingDefault)
+                    {
+                        if ((string.IsNullOrEmpty(s.UiStyle) || s.UiStyle == "switch") && string.IsNullOrEmpty(s.HighlightEffect)
+                            && (string.IsNullOrEmpty(s.HighlightColors) || s.HighlightColors == "palette:accent"))
+                        {
+                            s.HighlightEffect = HighlightEffects.SwitchEffect;
+                            s.HighlightColors = HighlightEffects.SwitchColors;
+                        }
+                        s.SwitchRingDefault = true;
+                    }
                     s.LaunchChime ??= "rise";
                     s.BackupFolder ??= "";
                     s.BootVideo ??= "";
                     s.BootAnimation ??= "logo";
                     s.SummonCombo ??= "default";
                     s.SummonKey ??= "none";
-                    s.OverlaySide ??= "left";
-                    if (!s.OverlayMovedLeft) { if (s.OverlaySide == "right") s.OverlaySide = "left"; s.OverlayMovedLeft = true; }
-                    s.OverlayTiles ??= QuickOverlay.DefaultTiles.ToList();
-                    s.OverlayStats ??= QuickOverlay.DefaultStats.ToList();
                     s.MainDisplay ??= "";
                     s.HiddenStores ??= new();
                     s.ButtonAnimationStyle ??= "grow";
@@ -656,6 +679,10 @@ public sealed class Settings
                     }
                     s.AllyBindings ??= AllyButtons.DefaultBindings();
                     foreach (var (k, v) in AllyButtons.DefaultBindings()) s.AllyBindings.TryAdd(k, v);
+                    // 7.3.25: the quick menu became the Game Bar widget.
+                    foreach (var k in s.AllyBindings.Where(b => b.Value == "quickmenu").Select(b => b.Key).ToList()) s.AllyBindings[k] = "widget";
+                    s.WidgetTheme ??= "squaredeck";
+                    s.WidgetSections ??= new List<string>(WidgetSectionIds);
                     s.SpotifyClientId ??= "";
                     s.MusicService ??= "youtube";
                     s.SpotifyToken ??= "";

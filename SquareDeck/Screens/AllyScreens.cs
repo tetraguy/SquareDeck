@@ -124,6 +124,31 @@ public sealed class AllyControlScreen : ListScreen
             click: () => Save(() => s.AllyLowBatteryFlash = !s.AllyLowBatteryFlash, () => AllyControl.ApplyLights(force: true)),
             subtitle: "At 15% or less, over whatever the lights are doing, until you plug in");
 
+        // ---- The Xbox button's light (ROG Xbox Ally)
+        if (AllyControl.HasXboxLight)
+        {
+            AddHeader("Xbox button light");
+            var states = new[] { ("", "Leave as it is"), ("on", "On"), ("off", "Off") };
+            AddRow("Light", states.FirstOrDefault(x => x.Item1 == s.AllyXboxLight).Item2 ?? "Leave as it is", "",
+                click: () => Pick("Xbox button light", states, x => x.Item2, x => s.AllyXboxLight = x.Item1, () => AllyControl.ApplyXboxLight(force: true)),
+                subtitle: s.AllyXboxLight.Length == 0 ? "Armoury Crate SE (or the last setting) decides" : "The green glow in the Xbox button");
+            if (s.AllyXboxLight == "on")
+            {
+                AddRow("Brightness", AllyControl.XboxLightLevelName(s.AllyXboxLightLevel), "",
+                    click: () => Pick("Xbox button brightness", AllyControl.XboxLightLevels, l => l.Name, l => s.AllyXboxLightLevel = l.Level, () => AllyControl.ApplyXboxLight(force: true)),
+                    subtitle: "Bright is how ASUS ships it");
+                AddRow("Effect", s.AllyXboxLightBreathe ? "Breathing" : "Steady", "",
+                    click: () => Save(() => s.AllyXboxLightBreathe = !s.AllyXboxLightBreathe, () => AllyControl.ApplyXboxLight(force: true)),
+                    subtitle: "Steady, or a slow fade in and out");
+                AddRow("Off while playing", OnOff(s.AllyXboxLightOffPlaying), "",
+                    click: () => Save(() => s.AllyXboxLightOffPlaying = !s.AllyXboxLightOffPlaying, () => AllyControl.ApplyXboxLight(force: true)),
+                    subtitle: "Keeps it out of the corner of your eye; it comes back when the game closes");
+                AddRow("Breathe when the battery is low", OnOff(s.AllyXboxLightLowBattery), "",
+                    click: () => Save(() => s.AllyXboxLightLowBattery = !s.AllyXboxLightLowBattery, () => AllyControl.ApplyXboxLight(force: true)),
+                    subtitle: "At 15% or less, bright and breathing, until you plug in");
+            }
+        }
+
         // ---------------------------------------------------------------- performance
         AddHeader("Performance");
         if (!acpi) AddNote("SquareDeck couldn't reach ASUS's firmware driver (ATKACPI, installed with Armoury Crate SE or the MyASUS drivers), so these settings can't be applied.");

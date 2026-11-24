@@ -59,7 +59,6 @@ public partial class MainWindow
 
     private void OnClosedExtras()
     {
-        _overlay?.Close();
         UnregisterSummonKey();
         UnregisterBackKeys();
         AllyControl.Shutdown(); // built-in controller on, game mode, M1/M2 as ASUS ships them
@@ -184,7 +183,7 @@ public partial class MainWindow
                      : "Restart from the Power menu before a long session.", "", "info");
     }
 
-    // ================================================================ keyboard shortcut for the quick menu
+    // ================================================================ keyboard shortcut (the widget in a game, the launcher otherwise)
 
     public static readonly (string Id, string Name)[] SummonKeys =
     {
@@ -242,6 +241,13 @@ public partial class MainWindow
             // SquareDeck was started again: come forward instead of opening a second copy.
             handled = true;
             WindowActivator.BringToFront(this);
+            return IntPtr.Zero;
+        }
+        if (message == App.WidgetWakeMessage)
+        {
+            handled = true;
+            if (!Settings.GameBarWidget) { Settings.GameBarWidget = true; Settings.Save(); }
+            WidgetBridge.Restart();
             return IntPtr.Zero;
         }
         if (message == WmHotkey && wParam.ToInt32() == SummonHotkeyId)
@@ -336,11 +342,10 @@ public partial class MainWindow
 
     private void OnAllyButton(string press)
     {
-        // One Ally button opens (or closes) the in-game quick menu while a game is in front.
+        // One Ally button opens SquareDeck's Game Bar widget while a game is in front.
         if (Settings.ExperimentAllyQuickMenu.Length > 0 && press == Settings.ExperimentAllyQuickMenu)
         {
-            if (_overlay is { IsVisible: true } overlay) { overlay.Dismiss(); return; }
-            if (QuickMenuWanted()) { ToggleOverlay(); return; }
+            if (WidgetWanted()) { OpenWidget(); return; }
             // No game in front: the button does what it's set to do (when the remapping is on).
             if (!Settings.AllyRemap) return;
         }
@@ -364,7 +369,7 @@ public partial class MainWindow
                 WindowActivator.BringToFront(this);
                 if (_screens.Count == 0) SetMode(HomeView.Games);
                 break;
-            case "quickmenu": Summon(); break;
+            case "widget" or "quickmenu": OpenWidget(); break;
             case "taskswitcher": ProcessUtil.Open("explorer.exe", "shell:::{3080F90E-D7AD-11D9-BD98-0000947B0257}"); break;
             case "taskview": AllyButtons.SendKeys(Win, Tab); break;
             case "desktop": AllyButtons.SendKeys(Win, D); break;
@@ -438,8 +443,8 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>A line in the quick menu (if it's open) saying what a button just did.</summary>
-    private void Note(string text) => _overlay?.ShowNote(text);
+    /// <summary>A line in the Game Bar widget (if it's open) saying what a button just did.</summary>
+    private void Note(string text) => WidgetBridge.Note(text);
 
     private async Task ToggleRadioAsync(Windows.Devices.Radios.RadioKind kind, string name)
     {
@@ -465,24 +470,17 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Asks Game Bar for a screenshot or recording. The quick menu is closed first and the game given a moment to come
-    /// back in front, so the capture shows the game and is named after it rather than "SquareDeck".
+    /// Asks Game Bar for a screenshot or recording of the game in front.
     /// </summary>
-    private async void CaptureGame(string hotkey)
+    private void CaptureGame(string hotkey)
     {
-        if (_overlay is { IsVisible: true } open)
-        {
-            open.Dismiss();
-            await Task.Delay(450);
-        }
         ProcessUtil.Open("ms-gamebar://hotkey/?ihkid=" + hotkey + "&source=GbEm");
     }
 
-    /// <summary>What the summon buttons do: the quick menu over a running game, otherwise the launcher itself.</summary>
+    /// <summary>What the summon buttons do: SquareDeck's Game Bar widget over a running game, otherwise the launcher itself.</summary>
     private void Summon()
     {
-        if (_overlay is { IsVisible: true } open) { open.Dismiss(); return; }
-        if (QuickMenuWanted() && (!IsActive || AllGames.Any(g => g.IsRunning))) ToggleOverlay();
+        if (WidgetWanted() && (!IsActive || AllGames.Any(g => g.IsRunning))) OpenWidget();
         else WindowActivator.BringToFront(this);
     }
 
@@ -1408,90 +1406,36 @@ public partial class MainWindow
         IntroLayer.Children.Clear();
     }
 
-    // ================================================================ in-game quick menu
+    // ================================================================ in-game: the Game Bar widget
 
-    private QuickOverlay? _overlay;
-
-    private void ToggleOverlay()
+    /// <summary>
+    /// Opens SquareDeck's widget in Xbox Game Bar (it replaced the in-game quick menu): the widget straight away when
+    /// it's installed, as ASUS's Command Center button does it; otherwise Game Bar itself.
+    /// </summary>
+    private void OpenWidget()
     {
-        if (_overlay is { IsVisible: true })
+        if (WidgetInstaller.FamilyName() is { } family)
+            ProcessUtil.Open($"ms-gamebar://launchForeground/activate/{family}_App_SquareDeckWidget");
+        else
         {
-            _overlay.Dismiss();
-            return;
-        }
-        // The game SquareDeck started, if it's running; otherwise whatever full-screen app is in front (a game started
-        // from the Xbox app, Steam or a desktop shortcut).
-        var running = AllGames.FirstOrDefault(g => g.IsRunning);
-        var front = running == null ? WindowActivator.FrontApp() : null;
-        string? name = running?.Name ?? front?.Title;
-        ImageSource? cover = running?.Cover;
-        Color? tint = null;
-        try { if (cover is BitmapSource art) tint = ImageLoader.DominantColor(art); } catch (Exception) { }
-        DateTime? session = running != null && _sessionStart.TryGetValue(running.Key, out var started) ? started : null;
-        try
-        {
-            _overlay = new QuickOverlay(name, Battery.GetPercent(), Settings.Clock24Hour, Settings.OverlaySide, cover, tint,
-                Settings.OverlayTiles, Settings.OverlayStats, Settings.OverlayTdp, session, Settings.OverlayTakesController);
-        }
-        catch (Exception ex)
-        {
-            // If the menu can't be built, bring the launcher forward rather than going down.
-            CrashLog.Write("Quick menu", ex);
-            _overlay = null;
-            WindowActivator.BringToFront(this);
-            return;
-        }
-        _overlay.OpenLauncher += () => WindowActivator.BringToFront(this);
-        _overlay.QuickAction += RunAllyAction;
-        _overlay.TilesChanged += tiles => { Settings.OverlayTiles = tiles; Settings.Save(); };
-        _overlay.ExitGame += async () =>
-        {
-            if (running != null)
-            {
-                WindowActivator.BringToFront(this);
-                await StopGameAsync(running, confirm: false);
-            }
-            else if (front != null) await WindowActivator.CloseAppAsync(front.Value);
-        };
-        _overlay.Closed += (_, _) =>
-        {
-            _overlay = null;
-            if (_backgroundMode) _padTimer.Interval = TimeSpan.FromMilliseconds(50);
-        };
-        _padTimer.Interval = TimeSpan.FromMilliseconds(16); // the menu should feel as quick as the launcher
-        // The game's window, to give the controller back to when the menu closes.
-        var gameWindow = WindowActivator.Foreground();
-        var shown = _overlay;
-        shown.Closed += (_, _) =>
-        {
-            if (shown.TakesController && shown.ReturnToGame) WindowActivator.GiveFocusTo(gameWindow);
-        };
-        try
-        {
-            _overlay.Show();
-            if (_overlay.TakesController)
-                WindowActivator.ShowOnTop(_overlay); // in front with the focus: the game stops reacting to the controller
-            else
-                WindowActivator.KeepOnTop(_overlay); // over full-screen games, without taking the focus
-            _gamepad.Reset(); // the buttons that opened the menu don't count as presses in it
-        }
-        catch (Exception ex)
-        {
-            CrashLog.Write("Quick menu (showing)", ex);
-            try { _overlay?.Close(); } catch (Exception) { }
-            _overlay = null;
-            WindowActivator.BringToFront(this);
+            ProcessUtil.Open("ms-gamebar://hotkey/?ihkid=IHKID_GAME_GUIDE_OVERLAY&source=GbEm");
+            if (Settings.GameBarWidget && WidgetInstaller.Find() != null) _ = InstallWidgetQuietlyAsync();
         }
     }
 
+    private async Task InstallWidgetQuietlyAsync()
+    {
+        var (ok, message) = await WidgetInstaller.InstallAsync();
+        ShowToast("Xbox Game Bar widget", ok ? "Widget ready" : "Widget not installed", ok ? "The SquareDeck widget is in Game Bar now." : message, "", ok ? "success" : "warning");
+    }
+
     /// <summary>
-    /// Whether the summon buttons should open the quick menu (over a game) rather than bring the launcher forward:
+    /// Whether the summon buttons should open the widget (over a game) rather than bring the launcher forward:
     /// a game SquareDeck started is running, or another app fills the screen in front.
     /// </summary>
-    private bool QuickMenuWanted() =>
+    private bool WidgetWanted() =>
         // Any app in front counts, not only exactly full-screen ones: borderless games are often a pixel short of the
-        // screen, and games from the Xbox app aren't always recognised as running. Bringing SquareDeck forward
-        // instead often does nothing at all, because Windows won't let a background app take the focus from a game.
+        // screen, and games from the Xbox app aren't always recognised as running.
         Settings.InGameQuickMenu && (AllGames.Any(g => g.IsRunning) || WindowActivator.FrontApp() != null);
 
     // ================================================================ stores
@@ -1507,792 +1451,5 @@ public partial class MainWindow
         var done = new TaskCompletionSource();
         Push(new OnboardingScreen(done));
         await done.Task;
-    }
-}
-
-/// <summary>
-/// The in-game quick menu: a sheet over whatever game is in front (one SquareDeck started, or any other full-screen
-/// app, such as one started from the Xbox app). It shows the game, the time and battery, live processor / graphics /
-/// memory use, quick actions (screenshot, record, keyboard, mute, night light, microphone), volume, brightness and TDP,
-/// and Resume / Open SquareDeck / Exit game.
-///
-/// It's a separate always-on-top window that never takes the focus from the game: taking it made some full-screen
-/// games minimize, and under the Xbox full screen experience Windows often refused it, so the menu never appeared.
-/// The controller drives it through the launcher (which reads the controller in the background), and the mouse and
-/// touch work on it directly.
-/// </summary>
-public sealed class QuickOverlay : Window
-{
-    /// <summary>One thing the controller can land on: a tile, a slider or a button, with the ring that shows it.</summary>
-    private sealed class Item
-    {
-        public required Border Ring;
-        public Action? Press;
-        public Slider? Slider;
-        public string? TileId;   // a quick button: which action it is (Y swaps it)
-        public int Slot = -1;    // its place among the quick buttons
-    }
-
-    /// <summary>
-    /// What the quick buttons can be (Settings > Controller > Quick menu buttons, or Y on a button in the menu).
-    /// </summary>
-    public static readonly (string Id, string Glyph, string Name)[] TileChoices =
-    {
-        ("screenshot", "\uE722", "Screenshot"), ("record", "\uE7C8", "Record"), ("keyboard", "\uE765", "Keyboard"),
-        ("sound", "\uE767", "Sound on"), ("nightlight", "\uE706", "Night light"), ("mic", "\uE720", "Microphone"),
-        ("perf", "\uEC4A", "Performance overlay"), ("refresh", "\uE7F4", "Refresh rate"), ("wifi", "\uE701", "Wi-Fi"),
-        ("bluetooth", "\uE702", "Bluetooth"), ("dnd", "\uE708", "Do not disturb"), ("playpause", "\uE768", "Play / pause music"),
-        ("hdr", "\uE793", "HDR"), ("screenoff", "\uE7E8", "Screen off"), ("gamebar", "\uE7FC", "Game Bar"),
-        ("taskmanager", "\uE9D9", "Task Manager"), ("lights", "\uE781", "Ally lights"), ("asusmode", "\uEC4A", "ASUS mode"),
-        ("fan", "\uE9CA", "Fans"), ("padmouse", "\uE962", "Mouse mode"),
-    };
-
-    public static readonly string[] DefaultTiles = { "screenshot", "record", "keyboard", "sound", "nightlight", "mic" };
-
-    /// <summary>What the stats strip can show (Settings > Controller > Quick menu stats).</summary>
-    public static readonly (string Id, string Name)[] StatChoices =
-    {
-        ("cpu", "Processor use"), ("clock", "Processor speed"), ("gpu", "Graphics use"), ("ram", "Memory"),
-        ("watts", "TDP (power limit)"), ("fps", "Frames per second"), ("battery", "Battery"), ("net", "Network speed"),
-        ("session", "Time played this session"), ("disk", "Free space on the system drive"), ("fan", "Fan speed (ROG Ally)"),
-    };
-
-    public static readonly string[] DefaultStats = { "cpu", "gpu", "ram", "watts" };
-
-    private readonly List<string> _tileIds;
-    private readonly List<string> _statIds;
-    private readonly DateTime? _sessionStart;
-    private NetworkMonitor? _net;
-    private readonly WrapPanel _statsPanel = new();
-    private readonly TextBlock _note = new();
-    private readonly DispatcherTimer _noteTimer = new() { Interval = TimeSpan.FromSeconds(2.2) };
-    private readonly List<Item> _tileItems = new();
-    private ScrollViewer? _scroll;
-
-    /// <summary>
-    /// The menu becomes the window in front while it's open, so the game stops reacting to the controller (games
-    /// ignore it while they're in the background); the game gets the focus back when the menu closes.
-    /// </summary>
-    public bool TakesController { get; }
-
-    /// <summary>False when closing to SquareDeck or exiting the game: then the focus shouldn't go back to the game.</summary>
-    public bool ReturnToGame { get; set; } = true;
-
-    /// <summary>The quick buttons changed (Y in the menu): the launcher saves them.</summary>
-    public event Action<List<string>>? TilesChanged;
-
-    private readonly List<List<Item>> _rows = new();
-    private int _row, _col;
-    private readonly Slider _volume, _brightness;
-    private readonly Border _brightnessRow;
-    private readonly DispatcherTimer _brightnessApply = new() { Interval = TimeSpan.FromMilliseconds(350) };
-    private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromSeconds(1) };
-    private readonly DispatcherTimer _onTop = new() { Interval = TimeSpan.FromMilliseconds(600) };
-    private readonly TextBlock _clock = new(), _battery = new(), _stats = new();
-    private readonly TextBlock _exitLabel = new();
-    private HardwareMonitor? _monitor;
-    private bool _syncing, _exitArmed, _closing, _muted;
-    private readonly bool _clock24;
-    private Item? _muteItem;
-
-    public event Action? OpenLauncher;
-    public event Action? ExitGame;
-    /// <summary>A quick action by id: screenshot, record, keyboard, nightlight, mic (run by the launcher).</summary>
-    public event Action<string>? QuickAction;
-
-    private readonly string _side;
-    private readonly TranslateTransform _slide = new();
-    private readonly ScaleTransform _pop = new(1, 1);
-    private const double PanelWidth = 600;
-
-    /// <param name="side">"left" or "right" for a sheet that slides in from that edge; "center" for a pop-up in the middle.</param>
-    public QuickOverlay(string? gameName, int? battery, bool clock24, string side = "left", ImageSource? cover = null, Color? tint = null,
-        IReadOnlyList<string>? tiles = null, IReadOnlyList<string>? stats = null, bool showTdp = true, DateTime? sessionStart = null,
-        bool takeController = true)
-    {
-        TakesController = takeController;
-        _side = side is "right" or "center" ? side : "left";
-        _tileIds = (tiles ?? DefaultTiles).Where(t => TileChoices.Any(c => c.Id == t)).Take(6).ToList();
-        foreach (var d in DefaultTiles) if (_tileIds.Count < 6 && !_tileIds.Contains(d)) _tileIds.Add(d);
-        _statIds = (stats ?? DefaultStats).Where(x => StatChoices.Any(c => c.Id == x)).ToList();
-        _sessionStart = sessionStart;
-        _clock24 = clock24;
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        // No dimming: the game stays fully visible around the menu, which floats on top of it.
-        Background = Brushes.Transparent;
-        Topmost = true;
-        ShowInTaskbar = false;
-        ShowActivated = false; // shown first, then given the focus on purpose (see TakesController)
-        ResizeMode = ResizeMode.NoResize;
-        // Only as big as the menu (plus room for its shadow), never the whole screen. A window covering the whole
-        // screen makes Windows take full-screen games out of their direct-to-screen mode, which can turn them dark
-        // or black; a strip at the side leaves the game drawing as usual underneath.
-        WindowStartupLocation = WindowStartupLocation.Manual;
-        double screenW = SystemParameters.PrimaryScreenWidth, screenH = SystemParameters.PrimaryScreenHeight;
-        // A side sheet runs the full height of the screen, edge to edge; its shadow falls on the game side only.
-        Width = Math.Min(screenW, _side == "center" ? 700 : PanelWidth + 50);
-        Height = screenH;
-        Top = 0;
-        Left = _side switch { "left" => 0, "center" => (screenW - Width) / 2, _ => screenW - Width };
-        FontFamily = Application.Current.MainWindow?.FontFamily ?? new FontFamily("Segoe UI");
-
-        var panel = new StackPanel();
-
-        // ---- the game, the time and the battery
-        var head = new Grid { Margin = new Thickness(0, 0, 0, 18) };
-        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        head.ColumnDefinitions.Add(new ColumnDefinition());
-        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var art = new Border
-        {
-            Width = 76, Height = 76, CornerRadius = new CornerRadius(Corner(14)), Margin = new Thickness(0, 0, 16, 0),
-            Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 2, Opacity = 0.45 }
-        };
-        if (cover != null) art.Background = new ImageBrush(cover) { Stretch = Stretch.UniformToFill };
-        else
-        {
-            art.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-            art.Child = Ui.Glyph("", 30, "AccentBrush");
-        }
-        head.Children.Add(art);
-        var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var now = Ui.Text("NOW PLAYING", 12, "AccentBrush", bold: true);
-        titles.Children.Add(now);
-        var name = Ui.Text(gameName ?? "Quick menu", 22, "FgBrush", bold: true);
-        name.TextTrimming = TextTrimming.CharacterEllipsis;
-        name.Margin = new Thickness(0, 2, 0, 0);
-        titles.Children.Add(name);
-        if (gameName == null) now.Visibility = Visibility.Collapsed;
-        Grid.SetColumn(titles, 1);
-        head.Children.Add(titles);
-        var status = new StackPanel { VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(12, 0, 0, 0) };
-        _clock.FontSize = 20; _clock.FontWeight = FontWeights.SemiBold; _clock.HorizontalAlignment = HorizontalAlignment.Right;
-        _clock.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
-        _battery.FontSize = 13; _battery.HorizontalAlignment = HorizontalAlignment.Right;
-        _battery.SetResourceReference(TextBlock.ForegroundProperty, "SubtleBrush");
-        status.Children.Add(_clock);
-        status.Children.Add(_battery);
-        Grid.SetColumn(status, 2);
-        head.Children.Add(status);
-        panel.Children.Add(head);
-
-        // ---- live stats: the ones chosen in Settings, each in its own little chip
-        if (_statIds.Count > 0)
-        {
-            _statsPanel.Margin = new Thickness(-3, 0, -3, 12);
-            _stats.FontSize = 14;
-            _stats.SetResourceReference(TextBlock.ForegroundProperty, "SubtleBrush");
-            _stats.Text = "Reading…";
-            _stats.Margin = new Thickness(3, 4, 0, 4);
-            _statsPanel.Children.Add(_stats);
-            panel.Children.Add(_statsPanel);
-        }
-        // A short line for what a button just did ("Wi-Fi off", "120 Hz"…).
-        _note.FontSize = 14;
-        _note.FontWeight = FontWeights.SemiBold;
-        _note.Margin = new Thickness(2, 0, 0, 8);
-        _note.Visibility = Visibility.Collapsed;
-        _note.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
-        _noteTimer.Tick += (_, _) => { _noteTimer.Stop(); _note.Visibility = Visibility.Collapsed; };
-        panel.Children.Add(_note);
-
-        // ---- quick buttons: six, chosen in Settings (or swapped right here with Y)
-        var actionsHead = Ui.Text("QUICK BUTTONS", 12, "SubtleBrush", bold: true);
-        actionsHead.Margin = new Thickness(2, 4, 0, 6);
-        panel.Children.Add(actionsHead);
-        var actions = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new Thickness(-4, 0, -4, 10) };
-        _muted = Audio.GetMute();
-        for (int i = 0; i < _tileIds.Count; i++)
-        {
-            var item = Tile("", "", () => { });
-            item.Slot = i;
-            SetTile(item, _tileIds[i]);
-            _tileItems.Add(item);
-            actions.Children.Add(item.Ring);
-        }
-        panel.Children.Add(actions);
-        _rows.Add(_tileItems.Take(3).ToList());
-        if (_tileItems.Count > 3) _rows.Add(_tileItems.Skip(3).ToList());
-
-        // ---- sliders
-        var sliders = new StackPanel();
-        var volumeRow = Slim(Ui.SliderRow("Volume", "", out _volume, out var volumeText));
-        sliders.Children.Add(volumeRow);
-        _rows.Add(new List<Item> { new() { Ring = volumeRow, Slider = _volume } });
-        _brightnessRow = Slim(Ui.SliderRow("Brightness", "", out _brightness, out var brightnessText));
-        _brightnessRow.Visibility = Visibility.Collapsed;
-        sliders.Children.Add(_brightnessRow);
-        // Shown straight away at the last known level (read when SquareDeck started or last opened), and corrected
-        // once the current level has been read, instead of appearing a moment after the panel.
-        if (Brightness.Last is int lastLevel && Brightness.Supported != false)
-        {
-            _syncing = true;
-            _brightness.Value = lastLevel;
-            _syncing = false;
-            _brightnessRow.Visibility = Visibility.Visible;
-            _rows.Add(new List<Item> { new() { Ring = _brightnessRow, Slider = _brightness } });
-        }
-        if (showTdp && TdpControl.Ready && TdpControl.Chip is { } chip)
-        {
-            // TDP: four presets across the chip's range, then the slider for anything in between.
-            var tdpHead = Ui.Text("POWER (TDP)", 12, "SubtleBrush", bold: true);
-            tdpHead.Margin = new Thickness(2, 12, 0, 4);
-            sliders.Children.Add(tdpHead);
-            var tdpRow = Slim(Ui.SliderRow("TDP", "", out var tdp, out var tdpText));
-            tdp.Minimum = chip.Min;
-            tdp.Maximum = chip.Max;
-            tdp.SmallChange = 1;
-            tdp.LargeChange = 5;
-            tdp.IsSnapToTickEnabled = true;
-            tdp.TickFrequency = 1;
-            tdp.Value = TdpControl.EffectiveWatts;
-            tdpText.Text = TdpControl.EffectiveWatts + " W";
-            var presets = new System.Windows.Controls.Primitives.UniformGrid { Columns = 4, Margin = new Thickness(-4, 0, -4, 0) };
-            var presetItems = new List<Item>();
-            int At(double part) => (int)Math.Round(chip.Min + (chip.Max - chip.Min) * part);
-            foreach (var (label, watts) in new[] { ("Quiet", At(0.15)), ("Balanced", At(0.45)), ("Performance", At(0.75)), ("Max", chip.Max) })
-            {
-                int w = watts;
-                var preset = Chip(label, w + " W", () => tdp.Value = w);
-                presetItems.Add(preset);
-                presets.Children.Add(preset.Ring);
-            }
-            void MarkPreset(int w)
-            {
-                for (int i = 0; i < presetItems.Count; i++)
-                    if (presetItems[i].Ring.Child is Border face)
-                        face.SetResourceReference(Border.BackgroundProperty, presetItems[i].Ring.Tag is int pw && pw == w ? "AccentBrush" : "CircleBrush");
-            }
-            for (int i = 0; i < presetItems.Count; i++) presetItems[i].Ring.Tag = new[] { At(0.15), At(0.45), At(0.75), chip.Max }[i];
-            MarkPreset(TdpControl.EffectiveWatts);
-            tdp.ValueChanged += (_, e) =>
-            {
-                int w = (int)Math.Round(e.NewValue);
-                tdpText.Text = w + " W";
-                TdpControl.SetSessionWatts(w);
-                MarkPreset(w);
-            };
-            sliders.Children.Add(presets);
-            sliders.Children.Add(tdpRow);
-            _rows.Add(presetItems);
-            _rows.Add(new List<Item> { new() { Ring = tdpRow, Slider = tdp } });
-        }
-        panel.Children.Add(sliders);
-
-        // ---- resume, open SquareDeck, exit
-        var buttons = new System.Windows.Controls.Primitives.UniformGrid { Columns = gameName != null ? 3 : 2, Margin = new Thickness(-4, 14, -4, 0) };
-        var bottom = new List<Item>();
-        var resume = Big("", gameName != null ? "Resume" : "Close", Dismiss, accent: true);
-        var open = Big("", "SquareDeck", () => { ReturnToGame = false; Close(); OpenLauncher?.Invoke(); });
-        buttons.Children.Add(resume.Ring);
-        buttons.Children.Add(open.Ring);
-        bottom.Add(resume);
-        bottom.Add(open);
-        if (gameName != null)
-        {
-            var exit = Big("", "Exit game", () =>
-            {
-                // Two presses, so a slip of the thumb can't end a session.
-                if (!_exitArmed)
-                {
-                    _exitArmed = true;
-                    _exitLabel.Text = "Press again";
-                    return;
-                }
-                ReturnToGame = false;
-                Close();
-                ExitGame?.Invoke();
-            }, label: _exitLabel);
-            buttons.Children.Add(exit.Ring);
-            bottom.Add(exit);
-        }
-        panel.Children.Add(buttons);
-        _rows.Add(bottom);
-
-        var hint = new TextBlock
-        {
-            Text = Hints.KeyLabel("Select") + "  Select      " + Hints.KeyLabel("Options") + "  Change a quick button      " + Hints.KeyLabel("Back") + "  Back to the game",
-            FontSize = 13, Margin = new Thickness(2, 16, 0, 0), TextWrapping = TextWrapping.Wrap
-        };
-        hint.SetResourceReference(TextBlock.ForegroundProperty, "SubtleBrush");
-        panel.Children.Add(hint);
-
-        // ---- the sheet
-        Border sheet;
-        if (_side == "center")
-        {
-            sheet = new Border
-            {
-                Width = 600, Padding = new Thickness(28, 26, 28, 24), CornerRadius = new CornerRadius(Corner(26)),
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = panel,
-                RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = _pop
-            };
-        }
-        else
-        {
-            // Full height, flush with the screen's edge, rounded on the game side only.
-            bool left = _side == "left";
-            double r = Corner(28);
-            _scroll = new ScrollViewer
-            {
-                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                Focusable = false, PanningMode = PanningMode.VerticalOnly, Content = panel
-            };
-            sheet = new Border
-            {
-                Width = PanelWidth, Padding = new Thickness(30, 30, 30, 24), CornerRadius = left ? new CornerRadius(0, r, r, 0) : new CornerRadius(r, 0, 0, r),
-                HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Stretch, Child = _scroll, RenderTransform = _slide
-            };
-            _slide.X = left ? -PanelWidth - 60 : PanelWidth + 60;
-        }
-        sheet.Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 44, ShadowDepth = 0, Opacity = 0.55 };
-        sheet.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
-        sheet.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
-        sheet.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
-        if (tint is Color gameColor) sheet.Background = CoverGradient(gameColor);
-        Content = sheet;
-        // Click or tap outside the sheet to close it.
-        MouseLeftButtonDown += (_, e) => { if (ReferenceEquals(e.OriginalSource, this)) Dismiss(); };
-
-        // ---- values
-        _syncing = true;
-        var volume = Audio.GetVolume();
-        _volume.IsEnabled = volume != null;
-        _volume.Value = volume ?? 0;
-        volumeText.Text = volume == null ? "No device" : volume + "%";
-        _syncing = false;
-        _volume.ValueChanged += (_, e) =>
-        {
-            volumeText.Text = (int)e.NewValue + "%";
-            if (!_syncing) Audio.SetVolume((int)e.NewValue);
-        };
-        _brightness.ValueChanged += (_, e) =>
-        {
-            brightnessText.Text = (int)e.NewValue + "%";
-            if (_syncing) return;
-            _brightnessApply.Stop();
-            _brightnessApply.Start();
-        };
-        _brightnessApply.Tick += async (_, _) =>
-        {
-            _brightnessApply.Stop();
-            await Brightness.SetAsync((int)_brightness.Value);
-        };
-        _battery.Text = battery != null ? $"Battery {battery}%" : "";
-        ShowClock();
-
-        _tick.Tick += (_, _) => { ShowClock(); _ = ShowStatsAsync(); };
-        _onTop.Tick += (_, _) => WindowActivator.KeepOnTop(this); // stay above the game (and the Xbox app) while open
-        SourceInitialized += (_, _) => NoActivate();
-        Loaded += async (_, _) =>
-        {
-            try { _monitor = new HardwareMonitor(); } catch (Exception) { _monitor = null; }
-            if (_statIds.Contains("net")) { try { _net = new NetworkMonitor(); _net.Sample(); } catch (Exception) { _net = null; } }
-            _tick.Start();
-            _onTop.Start();
-            Arrive();
-            // Start on Resume: the one used most.
-            _row = _rows.Count - 1;
-            _col = 0;
-            Paint();
-            int? level;
-            try { level = await Brightness.GetAsync(); } catch (Exception) { level = null; }
-            if (_closing) return;
-            bool shown = _rows.Any(row => row.Count == 1 && ReferenceEquals(row[0].Slider, _brightness));
-            if (level == null)
-            {
-                if (!shown) return;
-                // It was shown from the last known level, but the screen no longer allows it (another display).
-                int index = _rows.FindIndex(row => row.Count == 1 && ReferenceEquals(row[0].Slider, _brightness));
-                _rows.RemoveAt(index);
-                if (_row > index) _row--;
-                _row = Math.Clamp(_row, 0, _rows.Count - 1);
-                _brightnessRow.Visibility = Visibility.Collapsed;
-                Paint();
-                return;
-            }
-            _syncing = true;
-            _brightness.Value = level.Value;
-            _syncing = false;
-            if (shown) return;
-            _brightnessRow.Visibility = Visibility.Visible;
-            // Right after the volume row.
-            int at = _rows.FindIndex(row => row.Count == 1 && ReferenceEquals(row[0].Slider, _volume)) + 1;
-            if (at <= 0) at = _rows.Count - 1;
-            _rows.Insert(at, new List<Item> { new() { Ring = _brightnessRow, Slider = _brightness } });
-            if (_row >= at) _row++; // keep the highlight where it was
-            Paint();
-        };
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) Dismiss(); };
-        Closed += (_, _) =>
-        {
-            _noteTimer.Stop();
-            _brightnessApply.Stop();
-            _tick.Stop();
-            _onTop.Stop();
-            var monitor = _monitor;
-            _monitor = null;
-            if (monitor != null) Task.Run(monitor.Dispose); // waits for a reading in progress, off the UI thread
-        };
-    }
-
-    private static double Corner(double usual) => QuickSettingsScreen.Round(usual);
-
-    // ---------------------------------------------------------------- building blocks
-
-    /// <summary>A quick-action tile: icon over its name, with a ring when highlighted.</summary>
-    private Item Tile(string glyph, string label, Action press)
-    {
-        var icon = Ui.Glyph(glyph, 22, "FgBrush");
-        icon.HorizontalAlignment = HorizontalAlignment.Center;
-        var text = Ui.Text(label, 13, "FgBrush", bold: true);
-        text.HorizontalAlignment = HorizontalAlignment.Center;
-        text.Margin = new Thickness(0, 8, 0, 0);
-        text.TextTrimming = TextTrimming.CharacterEllipsis;
-        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        stack.Children.Add(icon);
-        stack.Children.Add(text);
-        var face = new Border { Height = 86, CornerRadius = new CornerRadius(Corner(16)), Child = stack };
-        face.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-        var ring = new Border { Margin = new Thickness(4), Padding = new Thickness(0), BorderThickness = new Thickness(3), CornerRadius = new CornerRadius(Corner(19)), BorderBrush = Brushes.Transparent, Child = face, Cursor = Cursors.Hand, Tag = text };
-        var item = new Item { Ring = ring, Press = press };
-        ring.MouseLeftButtonUp += (_, e) => { e.Handled = true; Select(item); press(); };
-        ring.TouchUp += (_, e) => { e.Handled = true; Select(item); press(); };
-        return item;
-    }
-
-    /// <summary>A large button along the bottom (Resume is filled with the highlight color).</summary>
-    private Item Big(string glyph, string text, Action press, bool accent = false, TextBlock? label = null)
-    {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        var icon = Ui.Glyph(glyph, 16, accent ? "BgBrush" : "FgBrush");
-        icon.Margin = new Thickness(0, 1, 8, 0);
-        row.Children.Add(icon);
-        label ??= new TextBlock();
-        label.Text = text;
-        label.FontSize = 15;
-        label.FontWeight = FontWeights.SemiBold;
-        label.VerticalAlignment = VerticalAlignment.Center;
-        label.SetResourceReference(TextBlock.ForegroundProperty, accent ? "BgBrush" : "FgBrush");
-        row.Children.Add(label);
-        var face = new Border { Height = 52, CornerRadius = new CornerRadius(Corner(26)), Child = row };
-        face.SetResourceReference(Border.BackgroundProperty, accent ? "AccentBrush" : "CircleBrush");
-        var ring = new Border { Margin = new Thickness(4), BorderThickness = new Thickness(3), CornerRadius = new CornerRadius(Corner(29)), BorderBrush = Brushes.Transparent, Child = face, Cursor = Cursors.Hand };
-        var item = new Item { Ring = ring, Press = press };
-        ring.MouseLeftButtonUp += (_, e) => { e.Handled = true; Select(item); press(); };
-        ring.TouchUp += (_, e) => { e.Handled = true; Select(item); press(); };
-        return item;
-    }
-
-    /// <summary>The slider rows, tighter and rounder; the ring is the row's own border.</summary>
-    private static Border Slim(Border row)
-    {
-        row.CornerRadius = new CornerRadius(Corner(16));
-        row.Padding = new Thickness(14, 6, 14, 6);
-        row.Margin = new Thickness(0, 4, 0, 4);
-        row.BorderThickness = new Thickness(3);
-        row.BorderBrush = Brushes.Transparent;
-        if (row.Child is Grid g && g.ColumnDefinitions.Count > 1) g.ColumnDefinitions[1].Width = new GridLength(140);
-        return row;
-    }
-
-    private void RunAction(string id)
-    {
-        // Screenshots and recordings should show the game, not this menu: close first, then capture.
-        if (id is "screenshot" or "record" or "screenoff" or "taskmanager" or "gamebar")
-        {
-            if (id == "taskmanager") ReturnToGame = false;
-            Dismiss();
-            QuickAction?.Invoke(id);
-            return;
-        }
-        QuickAction?.Invoke(id);
-    }
-
-    private void ToggleMute()
-    {
-        _muted = !_muted;
-        Audio.SetMute(_muted);
-        if (_muteItem?.Ring.Child is Border { Child: StackPanel stack })
-        {
-            if (stack.Children[0] is TextBlock glyph) glyph.Text = _muted ? "" : "";
-            if (stack.Children[1] is TextBlock text) text.Text = _muted ? "Sound off" : "Sound on";
-        }
-    }
-
-    private void ShowClock() => _clock.Text = DateTime.Now.ToString(_clock24 ? "H:mm" : "h:mm tt");
-
-    private async Task ShowStatsAsync()
-    {
-        if (_statIds.Count == 0) return;
-        var monitor = _monitor;
-        (double? cpu, int? mhz, double? gpu) = (null, null, null);
-        if (monitor != null && _statIds.Any(x => x is "cpu" or "clock" or "gpu")) (cpu, mhz, gpu) = await Task.Run(monitor.Sample);
-        if (_closing) return;
-        var chips = new List<(string Label, string Value)>();
-        foreach (var id in _statIds)
-        {
-            switch (id)
-            {
-                case "cpu" when cpu is double c: chips.Add(("CPU", $"{c:0}%")); break;
-                case "clock" when mhz is int m: chips.Add(("CLOCK", $"{m / 1000.0:0.0} GHz")); break;
-                case "gpu" when gpu is double g: chips.Add(("GPU", $"{g:0}%")); break;
-                case "ram" when Hardware.MemoryStatus() is { Total: > 0 } mem:
-                    chips.Add(("RAM", $"{(mem.Total - mem.Available) / 1073741824.0:0.0} / {mem.Total / 1073741824.0:0} GB")); break;
-                case "watts" when TdpControl.Ready: chips.Add(("TDP", $"{TdpControl.EffectiveWatts} W")); break;
-                case "fps" when FrameCounter.Fps is double fps: chips.Add(("FPS", $"{fps:0}")); break;
-                case "fps": chips.Add(("FPS", "—")); break;
-                case "battery" when Battery.GetPercent() is int b: chips.Add(("BATTERY", $"{b}%")); break;
-                case "net" when _net?.Sample() is { Down: double down } speed:
-                    chips.Add(("NET", $"↓ {down / 1e6:0.0}  ↑ {(speed.Up ?? 0) / 1e6:0.0} Mb/s")); break;
-                case "session" when _sessionStart is DateTime start:
-                    var t = DateTime.Now - start;
-                    chips.Add(("PLAYING", t.TotalHours >= 1 ? $"{(int)t.TotalHours} h {t.Minutes} m" : $"{Math.Max(1, t.Minutes)} m")); break;
-                case "fan" when AsusAcpi.FanRpm(AsusAcpi.CpuFan) is int fan: chips.Add(("FAN", fan >= 1000 ? $"{fan / 1000.0:0.0}k" : $"{fan}")); break;
-                case "disk":
-                    try
-                    {
-                        var drive = new System.IO.DriveInfo(System.IO.Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\");
-                        chips.Add(("FREE", $"{drive.AvailableFreeSpace / 1073741824.0:0} GB"));
-                    }
-                    catch (Exception) { }
-                    break;
-            }
-        }
-        if (chips.Count == 0) return;
-        _statsPanel.Children.Clear();
-        foreach (var (label, value) in chips)
-        {
-            var chip = new Border { CornerRadius = new CornerRadius(Corner(12)), Padding = new Thickness(12, 6, 12, 7), Margin = new Thickness(3) };
-            chip.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-            var line = new StackPanel();
-            line.Children.Add(Ui.Text(label, 11, "SubtleBrush", bold: true));
-            line.Children.Add(Ui.Text(value, 16, "FgBrush", bold: true));
-            chip.Child = line;
-            _statsPanel.Children.Add(chip);
-        }
-    }
-
-    /// <summary>A short line under the stats saying what a button just did.</summary>
-    public void ShowNote(string text)
-    {
-        _note.Text = text;
-        _note.Visibility = Visibility.Visible;
-        _noteTimer.Stop();
-        _noteTimer.Start();
-    }
-
-    /// <summary>Makes a quick button the given action: its icon, its name and what it does.</summary>
-    private void SetTile(Item item, string id)
-    {
-        var choice = TileChoices.FirstOrDefault(c => c.Id == id);
-        if (choice.Id == null) choice = TileChoices[0];
-        item.TileId = choice.Id;
-        string glyph = choice.Glyph, name = choice.Name;
-        if (choice.Id == "sound") { glyph = _muted ? "\uE74F" : "\uE767"; name = _muted ? "Sound off" : "Sound on"; }
-        item.Press = choice.Id switch
-        {
-            "sound" => ToggleMute,
-            "screenshot" or "record" or "screenoff" or "taskmanager" or "gamebar" => () => RunAction(choice.Id),
-            _ => () => QuickAction?.Invoke(choice.Id)
-        };
-        if (choice.Id == "sound") _muteItem = item;
-        if (item.Ring.Child is Border { Child: StackPanel stack })
-        {
-            if (stack.Children[0] is TextBlock g) g.Text = glyph;
-            if (stack.Children[1] is TextBlock t) t.Text = name;
-        }
-    }
-
-    /// <summary>Y on a quick button: it becomes the next action not already on another button.</summary>
-    private void SwapTile(Item item)
-    {
-        int index = Array.FindIndex(TileChoices, c => c.Id == item.TileId);
-        for (int step = 1; step <= TileChoices.Length; step++)
-        {
-            var next = TileChoices[(index + step) % TileChoices.Length].Id;
-            if (_tileIds.Contains(next) && next != item.TileId) continue;
-            _tileIds[item.Slot] = next;
-            SetTile(item, next);
-            TilesChanged?.Invoke(_tileIds.ToList());
-            ShowNote(TileChoices.First(c => c.Id == next).Name + "  ·  " + Hints.KeyLabel("Options") + " again for the next one");
-            UiSound.Move();
-            return;
-        }
-    }
-
-    /// <summary>A small two-line button (a TDP preset): name over value.</summary>
-    private Item Chip(string label, string value, Action press)
-    {
-        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-        var t1 = Ui.Text(label, 13, "FgBrush", bold: true); t1.HorizontalAlignment = HorizontalAlignment.Center;
-        var t2 = Ui.Text(value, 12, "SubtleBrush"); t2.HorizontalAlignment = HorizontalAlignment.Center;
-        stack.Children.Add(t1);
-        stack.Children.Add(t2);
-        var face = new Border { Height = 56, CornerRadius = new CornerRadius(Corner(14)), Child = stack };
-        face.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-        var ring = new Border { Margin = new Thickness(4), BorderThickness = new Thickness(3), CornerRadius = new CornerRadius(Corner(17)), BorderBrush = Brushes.Transparent, Child = face, Cursor = Cursors.Hand };
-        var item = new Item { Ring = ring, Press = press };
-        ring.MouseLeftButtonUp += (_, e) => { e.Handled = true; Select(item); press(); };
-        ring.TouchUp += (_, e) => { e.Handled = true; Select(item); press(); };
-        return item;
-    }
-
-    /// <summary>
-    /// Marks the window as one that never becomes the active window (WS_EX_NOACTIVATE), and keeps it off Alt+Tab
-    /// (WS_EX_TOOLWINDOW). Clicks and touches still reach it.
-    /// </summary>
-    private void NoActivate()
-    {
-        try
-        {
-            var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-            const int ExStyle = -20, NoActivateFlag = 0x08000000, ToolWindow = 0x80;
-            int style = GetWindowLong(handle, ExStyle);
-            // Taking the controller means becoming the active window, so then it may be activated.
-            SetWindowLong(handle, ExStyle, style | ToolWindow | (TakesController ? 0 : NoActivateFlag));
-        }
-        catch (Exception) { }
-    }
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hwnd, int index);
-    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hwnd, int index, int value);
-
-    /// <summary>
-    /// The same wash of the cover's color that the game's details page uses: strongest at the top,
-    /// fading into the normal background so the text stays readable.
-    /// </summary>
-    private static Brush CoverGradient(Color color)
-    {
-        var bg = (Application.Current.Resources["BgBrush"] as SolidColorBrush)?.Color ?? Colors.Black;
-        Color Mix(double amount) => Color.FromArgb(0xF2,
-            (byte)(bg.R + (color.R - bg.R) * amount),
-            (byte)(bg.G + (color.G - bg.G) * amount),
-            (byte)(bg.B + (color.B - bg.B) * amount));
-        double strength = Theme.CurrentIsDark ? 0.55 : 0.35;
-        var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0.6, 1) };
-        brush.GradientStops.Add(new GradientStop(Mix(strength), 0));
-        brush.GradientStops.Add(new GradientStop(Mix(strength * 0.5), 0.35));
-        brush.GradientStops.Add(new GradientStop(Mix(strength * 0.15), 0.7));
-        brush.GradientStops.Add(new GradientStop(Mix(0), 1));
-        brush.Freeze();
-        return brush;
-    }
-
-    // ---------------------------------------------------------------- showing and hiding
-
-    private void Arrive()
-    {
-        if (Theme.ReduceMotion) { _slide.X = 0; return; }
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        if (_side == "center")
-        {
-            _pop.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.94, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
-            _pop.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.94, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
-            BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160)));
-        }
-        else _slide.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(260)) { EasingFunction = new BackEase { Amplitude = 0.18, EasingMode = EasingMode.EaseOut } });
-    }
-
-    /// <summary>Closes the menu, sliding the sheet back off its edge first.</summary>
-    public void Dismiss()
-    {
-        if (_closing) return;
-        _closing = true;
-        if (Theme.ReduceMotion) { Close(); return; }
-        if (_side == "center")
-        {
-            var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(140));
-            fade.Completed += (_, _) => Close();
-            BeginAnimation(OpacityProperty, fade);
-            return;
-        }
-        var move = new DoubleAnimation(_side == "left" ? -PanelWidth - 60 : PanelWidth + 60, TimeSpan.FromMilliseconds(170)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
-        move.Completed += (_, _) => Close();
-        _slide.BeginAnimation(TranslateTransform.XProperty, move);
-    }
-
-    // ---------------------------------------------------------------- controller
-
-    /// <summary>Controller input, passed on by the launcher while this window is showing.</summary>
-    public void HandleAction(NavAction action)
-    {
-        if (_rows.Count == 0) return;
-        var current = _rows[_row][Math.Min(_col, _rows[_row].Count - 1)];
-        switch (action)
-        {
-            case NavAction.Up: MoveRow(-1); break;
-            case NavAction.Down: MoveRow(+1); break;
-            case NavAction.Left or NavAction.Right:
-                int step = action == NavAction.Right ? 1 : -1;
-                if (current.Slider is { IsEnabled: true } slider)
-                    slider.Value = Math.Clamp(slider.Value + step * slider.SmallChange * (slider.Maximum > 30 ? 2 : 1), slider.Minimum, slider.Maximum);
-                else if (_rows[_row].Count > 1)
-                {
-                    _col = Math.Clamp(_col + step, 0, _rows[_row].Count - 1);
-                    Paint();
-                    UiSound.Move();
-                }
-                break;
-            case NavAction.Accept:
-                if (current.Press != null) { UiSound.Select(); current.Press(); }
-                break;
-            case NavAction.Y:
-                if (current.TileId != null) SwapTile(current);
-                break;
-            case NavAction.LB:
-                MoveRow(-_row);
-                break;
-            case NavAction.RB:
-                MoveRow(_rows.Count - 1 - _row);
-                break;
-            case NavAction.Start:
-                Dismiss();
-                break;
-            case NavAction.Back:
-                // (Not View: it's half of the summon combo, and closed the menu the moment it opened.)
-                Dismiss();
-                break;
-        }
-    }
-
-    private void MoveRow(int delta)
-    {
-        int next = Math.Clamp(_row + delta, 0, _rows.Count - 1);
-        if (next == _row) return;
-        // Keep about the same place across rows of different widths (three tiles, one slider, three buttons).
-        double fraction = _rows[_row].Count > 1 ? (_col + 0.5) / _rows[_row].Count : 0.5;
-        _row = next;
-        _col = Math.Clamp((int)(fraction * _rows[_row].Count), 0, _rows[_row].Count - 1);
-        if (_exitArmed) { _exitArmed = false; _exitLabel.Text = "Exit game"; }
-        Paint();
-        UiSound.Move();
-    }
-
-    private void Select(Item item)
-    {
-        for (int r = 0; r < _rows.Count; r++)
-        {
-            int c = _rows[r].IndexOf(item);
-            if (c >= 0) { _row = r; _col = c; Paint(); return; }
-        }
-    }
-
-    /// <summary>The ring around the highlighted item, and none around the rest.</summary>
-    private void Paint()
-    {
-        for (int r = 0; r < _rows.Count; r++)
-            for (int c = 0; c < _rows[r].Count; c++)
-            {
-                var ring = _rows[r][c].Ring;
-                if (r == _row && c == Math.Min(_col, _rows[r].Count - 1))
-                {
-                    ring.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
-                    if (_scroll != null) ring.BringIntoView(new Rect(-10, -40, ring.ActualWidth + 20, ring.ActualHeight + 80));
-                }
-                else ring.BorderBrush = Brushes.Transparent;
-            }
     }
 }

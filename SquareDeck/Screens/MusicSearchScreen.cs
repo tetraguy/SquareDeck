@@ -100,7 +100,7 @@ public sealed class MusicSearchScreen : ListScreen
     {
         try
         {
-            await Host.RunBusyAsync("Finish signing in to Spotify in your browser…", () => _spotify!.SignInAsync(_cts.Token));
+            await Host.RunCancellableBusyAsync("Finish signing in to Spotify in your browser…", token => _spotify!.SignInAsync(token), _cts.Token);
             _status = null;
         }
         catch (Exception ex)

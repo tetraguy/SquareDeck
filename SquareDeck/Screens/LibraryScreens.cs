@@ -1509,6 +1509,7 @@ public sealed class DetailsScreen : Screen
 
             _wiki = await Task.Run(() => GameLookup.GetWikipediaAsync(name, ct), ct);
             if (ct.IsCancellationRequested) return;
+            GeniePrep.Warm(_game, GameGenieScreen.Known(_game, _details, _wiki));
             if (_wiki != null)
             {
                 _description.Text = _wiki.Extract;
@@ -1576,6 +1577,8 @@ public sealed class DetailsScreen : Screen
         var details = await Task.Run(() => SteamStoreClient.GetDetailsAsync(_storeId, ct), ct);
         if (ct.IsCancellationRequested || details == null) return false;
         _details = details;
+        // A head start for Ask Genie: its answers start now, so they're usually ready when it's opened.
+        GeniePrep.Warm(_game, GameGenieScreen.Known(_game, _details, _wiki));
         var meta = new List<string>();
         if (details.Developers.Length > 0) meta.Add(details.Developers);
         if (details.ReleaseDate.Length > 0) meta.Add(details.ReleaseDate);

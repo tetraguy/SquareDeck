@@ -771,6 +771,9 @@ public sealed class StoresScreen : GridScreen
     private double TileSize => _cine ? 150 : 170;
     private List<StoreApp> _all = new();
     private readonly WrapPanel _more = new();
+    /// <summary>Free games, the wishlist and the release calendar: their own section, under the stores.</summary>
+    private readonly WrapPanel _deals = new();
+    private TextBlock? _dealsLabel;
     private readonly Image _heroImage = new() { Height = 150, MaxWidth = 300, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _heroGlyph = Ui.Glyph("", 110, "AccentBrush");
     private readonly TextBlock _heroName = Ui.Text("", 44, "FgBrush");
@@ -787,8 +790,32 @@ public sealed class StoresScreen : GridScreen
         _all = await Task.Run(Stores.Detect);
         Tiles.Children.Clear();
         _more.Children.Clear();
+        _deals.Children.Clear();
         if (_cine || _rows) BuildShowcase();
+        else if (!Body.Children.Contains(_deals))
+        {
+            // The plain grid: the stores, then their own section for deals and releases.
+            _dealsLabel = Ui.Text("Deals and releases", 22, "FgBrush", bold: true);
+            _dealsLabel.Margin = new Thickness(10, 26, 0, 10);
+            Body.Children.Insert(Body.Children.IndexOf(Tiles) + 1, _dealsLabel);
+            Body.Children.Insert(Body.Children.IndexOf(Tiles) + 2, _deals);
+        }
         var hidden = Host.Settings.HiddenStores;
+
+        // Recomp Zone first: native PC versions of classic games, made by fans.
+        if (Labs.On("recomp"))
+        {
+            // Recomp Zone's own emblem (the SquareDeck mark in Recomp Zone's colors), or a plain icon without it.
+            string emblem = System.IO.Path.Combine(AppContext.BaseDirectory, "RecompZone", "logo.png");
+            FrameworkElement face = GlyphBox(TileSize, TileSize, "\uE7FC");
+            if (System.IO.File.Exists(emblem) && ImageLoader.FromFile(emblem, (int)(TileSize * 2)) is { } picture)
+            {
+                var box = ImageBox(TileSize, TileSize, out var image);
+                image.Source = picture;
+                face = box;
+            }
+            AddTile(face, _cine ? null : "Recomp Zone", TileSize, () => Host.Push(new RecompZoneScreen()), "Recomp Zone");
+        }
 
         foreach (var store in _all.Where(s => s.Installed && !hidden.Contains(s.Name)))
         {
@@ -812,28 +839,15 @@ public sealed class StoresScreen : GridScreen
             AddTile(cs.Face(TileSize, TileSize, _cine ? 2 : 18), _cine ? null : cs.Name, TileSize, () => Host.Push(new CloudGameScreen(cs)), cs.Name);
         }
 
-        // Prices and release days of the games you want.
+        // Deals and releases, in their own section: free games, the wishlist and its prices, the release calendar.
         int onSale = Host.PriceWatch.Games.Count(g => g.OnSale);
         Panel? extras = _cine || _rows ? _more : null;
         double small = _cine ? 110 : TileSize;
-        string wish = onSale > 0 ? $"Wishlist · {onSale} on sale" : "Wishlist and sales";
-        AddTile(GlyphBox(small, small, "\uE8EC"), _cine ? null : wish, small, () => Host.Push(new WishlistScreen()), wish, extras);
-        AddTile(GlyphBox(small, small, "\uE787"), _cine ? null : "Release calendar", small, () => Host.Push(new ReleaseCalendarScreen()), "Release calendar", extras);
-        if (Labs.On("recomp"))
-        {
-            // Recomp Zone's own emblem (the SquareDeck mark in Recomp Zone's colors), or a plain icon without it.
-            string emblem = System.IO.Path.Combine(AppContext.BaseDirectory, "RecompZone", "logo.png");
-            FrameworkElement face = GlyphBox(small, small, "\uE7FC");
-            if (System.IO.File.Exists(emblem) && ImageLoader.FromFile(emblem, (int)(small * 2)) is { } picture)
-            {
-                var box = ImageBox(small, small, out var image);
-                image.Source = picture;
-                face = box;
-            }
-            AddTile(face, _cine ? null : "Recomp Zone", small, () => Host.Push(new RecompZoneScreen()), "Recomp Zone", extras);
-        }
         if (Labs.On("freegames"))
-            AddTile(GlyphBox(small, small, "\uE719"), _cine ? null : "Free games", small, () => Host.Push(new FreeGamesScreen()), "Free games", extras);
+            AddTile(GlyphBox(small, small, "\uE719"), _cine ? null : "Free games", small, () => Host.Push(new FreeGamesScreen()), "Free games", _deals);
+        string wish = onSale > 0 ? $"Wishlist · {onSale} on sale" : "Wishlist and sales";
+        AddTile(GlyphBox(small, small, "\uE8EC"), _cine ? null : wish, small, () => Host.Push(new WishlistScreen()), wish, _deals);
+        AddTile(GlyphBox(small, small, "\uE787"), _cine ? null : "Release calendar", small, () => Host.Push(new ReleaseCalendarScreen()), "Release calendar", _deals);
         AddTile(GlyphBox(small, small, "\uE710"), _cine ? null : "Add more stores", small, () => Host.Push(new AddStoresScreen()), "Add more stores", extras);
         int hiddenInstalled = _all.Count(s => s.Installed && hidden.Contains(s.Name));
         if (hiddenInstalled > 0)
@@ -891,6 +905,10 @@ public sealed class StoresScreen : GridScreen
         }
         Body.Children.Add(Label("Stores"));
         Body.Children.Add(Tiles);
+        var dealsLabel = Label("Deals and releases");
+        dealsLabel.Margin = new Thickness(10, 18, 0, 2);
+        Body.Children.Add(dealsLabel);
+        Body.Children.Add(_deals);
         var moreLabel = Label("More");
         moreLabel.Margin = new Thickness(10, 18, 0, 2);
         Body.Children.Add(moreLabel);
@@ -900,7 +918,7 @@ public sealed class StoresScreen : GridScreen
     /// <summary>Moving onto a tile shows it in the big space at the top.</summary>
     private void HookShowcase()
     {
-        foreach (var tile in Tiles.Children.OfType<Button>().Concat(_more.Children.OfType<Button>()))
+        foreach (var tile in Tiles.Children.OfType<Button>().Concat(_deals.Children.OfType<Button>()).Concat(_more.Children.OfType<Button>()))
         {
             var t = tile;
             t.GotKeyboardFocus += (_, _) => ShowInHero(t);
@@ -932,7 +950,9 @@ public sealed class StoresScreen : GridScreen
             StoreApp s => $"Opens {s.Name}.  Press Y to hide it from this page or uninstall it.",
             string s when s.StartsWith("Wishlist") => s.Contains("on sale") ? s.Split(" · ")[1] + " from your wishlist. Prices and release days of the games you want." : "Prices and release days of the games you want.",
             "Release calendar" => "What's coming out, day by day.",
+            "Free games" => "Games you can keep for free right now, from the stores' giveaways.",
             "Add more stores" => "Install another game store or launcher.",
+            "Recomp Zone" => "Native PC versions of classic console games, rebuilt by fans. Bring your own copy of the game.",
             string s when s.StartsWith("Hidden") => "Stores you've hidden from this page. Pick one to show it again.",
             string s => "Play " + s + " in the cloud.",
             _ => ""

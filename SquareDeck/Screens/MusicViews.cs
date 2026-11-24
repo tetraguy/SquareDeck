@@ -561,7 +561,7 @@ public sealed class SpotifyView : Grid
     {
         try
         {
-            await _page.Host.RunBusyAsync("Finish signing in to Spotify in your browser…", () => _client.SignInAsync(_cts.Token));
+            await _page.Host.RunCancellableBusyAsync("Finish signing in to Spotify in your browser…", token => _client.SignInAsync(token), _cts.Token);
         }
         catch (Exception ex)
         {

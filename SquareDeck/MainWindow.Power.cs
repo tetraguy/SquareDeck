@@ -43,7 +43,12 @@ public partial class MainWindow
         }
         LocalMusic.Init(Settings);
         GameGenie.Init(Settings);
+        // Genie answers for new games, written in the background (asks the window about games on its own thread).
+        GeniePrep.Start(Settings,
+            () => Dispatcher.Invoke(() => AllGames.Any(g => g.IsRunning)),
+            key => Dispatcher.Invoke(() => AllGames.FirstOrDefault(g => g.Key == key)));
         StyleUnlocks.Init(Settings);
+        StartWidgetBridge(); // the Xbox Game Bar widget
         // Background music makes way for Spotify playing inside the launcher.
         SpotifyPlayer.Changed += () => Dispatcher.BeginInvoke(new Action(() => { UpdateMenuMusic(); UpdateNowPlaying(); }));
 

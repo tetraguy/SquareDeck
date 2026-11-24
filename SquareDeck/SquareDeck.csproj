@@ -11,7 +11,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>SquareDeck</AssemblyName>
     <RootNamespace>SquareDeck</RootNamespace>
-    <Version>7.3.13</Version>
+    <Version>7.3.30</Version>
     <ApplicationIcon>Assets\SquareDeck.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -39,6 +39,15 @@
     <None Update="Devices\**\*" CopyToOutputDirectory="PreserveNewest" />
     <!-- Button pictures for the hints: Glyphs\<look>\<controller or keyboard>\<button>.png -->
     <None Update="Glyphs\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The Game Bar widget package (Widget\README.md), when one has been built with Visual Studio's "Create App
+       Packages": copied into the Widget folder next to SquareDeck, where SquareDeck installs it from. The installer
+       puts the same files there. -->
+  <ItemGroup Condition="Exists('..\Widget\SquareDeck.Widget\AppPackages')">
+    <None Include="..\Widget\SquareDeck.Widget\AppPackages\**\*.msix;..\Widget\SquareDeck.Widget\AppPackages\**\*.msixbundle;..\Widget\SquareDeck.Widget\AppPackages\**\*.cer;..\Widget\SquareDeck.Widget\AppPackages\**\*.appx"
+          Exclude="..\Widget\SquareDeck.Widget\AppPackages\**\TelemetryDependencies\**"
+          Link="Widget\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>

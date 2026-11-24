@@ -51,6 +51,8 @@ public sealed class RecompInstall
     public DateTime InstalledAt { get; set; }
     /// <summary>A copy the player already had, found with "Locate installed": SquareDeck only remembers where it is.</summary>
     public bool Located { get; set; }
+    /// <summary>When it was last started from SquareDeck (Recomp Zone > Home, "Jump back in").</summary>
+    public DateTime? LastPlayed { get; set; }
 }
 
 public sealed record RecompRelease(string Tag, string Name, DateTime Published, string Notes, string AssetName, string AssetUrl, long Size, string? Sha256, string Page);
@@ -472,6 +474,7 @@ public static class RecompZone
                          ?? throw new InvalidOperationException("The game was unpacked, but its program couldn't be found. Open its folder to start it yourself.");
         var record = new RecompInstall { Id = game.Id, Name = game.Name, Tag = release.Tag, Folder = folder, Program = program, InstalledAt = DateTime.Now };
         var list = Installed();
+        record.LastPlayed = list.FirstOrDefault(i => i.Id == game.Id)?.LastPlayed; // an update keeps when it was last played
         list.RemoveAll(i => i.Id == game.Id);
         list.Add(record);
         SaveInstalled(list);
@@ -523,5 +526,11 @@ public static class RecompZone
     {
         var start = new System.Diagnostics.ProcessStartInfo(install.Program) { WorkingDirectory = Path.GetDirectoryName(install.Program)!, UseShellExecute = true };
         System.Diagnostics.Process.Start(start);
+        try
+        {
+            var list = Installed();
+            if (list.FirstOrDefault(i => i.Id == install.Id) is { } record) { record.LastPlayed = DateTime.Now; SaveInstalled(list); }
+        }
+        catch (Exception) { }
     }
 }

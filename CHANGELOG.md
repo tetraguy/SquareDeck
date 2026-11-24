@@ -3,6 +3,145 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 7.3.30
+
+- ROG Xbox Ally: Xbox button light settings (Settings > ROG Ally, under "Xbox button light"). Turn it on or off, pick
+  Dim, Medium or Bright, make it breathe or stay steady, have it go dark while playing, and have it breathe when the
+  battery is low. SquareDeck puts it back after sleep, because the controller forgets the brightness and effect.
+  The light is green only (the hardware has no color setting). "Leave as it is" keeps Armoury Crate SE in charge.
+
+## 7.3.29
+
+- Recomp Zone: "Locate installed" on a recomp's page, as in RecompLauncher. If you already have it (installed by hand
+  or with RecompLauncher), choose its program and SquareDeck plays it from where it is, without downloading it again.
+  Located copies say so on their page and aren't updated by SquareDeck.
+
+## 7.3.28
+
+- A Game Bar widget older than the one SquareDeck ships with (in its Widget folder) is now a required update: a little
+  after start, when no game is running, a pop-up that B can't close offers only "Update now". If the update fails
+  (an administrator prompt declined, say), it says why and offers Try again or Ask me next time SquareDeck starts,
+  so a failure never locks the launcher. Checked even with the widget connection off.
+
+## 7.3.27
+
+- Fixed: the Game Bar widget didn't build (CS0236: its highlight brush was set from itself).
+
+## 7.3.26
+
+- Recomp Zone has its own background music: as its opening finishes, the launcher's music fades out and Recomp Zone's
+  fades in, at the same loudness (Settings > Sound > Music loudness). Leaving fades back, and the launcher's track
+  carries on from where it was. On or off in Settings > Sound > Recomp Zone music.
+- Stores: Recomp Zone is the first tile, and Free games, the wishlist and the release calendar have their own
+  "Deals and releases" section under the stores.
+
+## 7.3.25
+
+- Game Bar widget 1.1 (installs by itself from the Widget folder):
+  - A game card while one runs: its picture across the card, its icon, hours played and this session, a Per-game
+    profile switch (on: the game keeps its own TDP and the dial edits that profile; off: your usual power) and
+    Close game (press twice).
+  - Live shows the fan speed instead of FPS.
+  - Its colors follow Settings > Controller > Widget colors: SquareDeck teal, the UI style's color, or the colors
+    of the game that's running. Widget cards chooses which cards show (Game, Live, ROG Ally, Quick).
+  - The header shows the battery's time left; Quick adds Microphone, Show desktop and AMD metrics.
+- The in-game quick menu is gone: the widget replaces it. The summon buttons, the keyboard shortcut and the Ally
+  button that opened the quick menu now open SquareDeck's widget in Game Bar over a game (the launcher otherwise).
+  Buttons set to the quick menu are moved to the widget.
+- ROG Ally buttons can be set to "SquareDeck widget (Xbox Game Bar)".
+- Settings > Controller > Xbox Game Bar widget: connection, install, colors, cards, Close game, and Open the widget now.
+- When the Game Bar widget isn't installed, SquareDeck asks a little after start: Install, Later (asked again next
+  start) or Don't ask again (it says where to install it: Settings > Controller and Game Bar widget > Install the
+  widget). An older installed widget is updated without asking. The widget is found by name, whatever certificate it's
+  signed with.
+- Settings > ROG Ally > ASUS software: install or uninstall Armoury Crate SE with ASUS's own tools. SquareDeck
+  downloads the tool from ASUS, unzips it and runs it as administrator, with a pop-up for each step
+  (Downloading, Unzipping, Running).
+
+## 7.3.24
+
+- SquareDeck installs its Xbox Game Bar widget by itself: a little after start, if the widget isn't installed (or an
+  older one is) and there's a widget package in the Widget folder where SquareDeck is installed, it installs it for
+  this Windows user. The first time, Windows asks an administrator to trust the widget's certificate; a declined
+  prompt isn't repeated for the same version.
+- Settings > Controller > Install the widget shows whether it's installed, and installs or updates it on demand.
+- Building SquareDeck copies the widget package from Visual Studio's AppPackages output into that Widget folder.
+
+## 7.3.23
+
+- A newer SquareDeck now takes over from an older copy that's still open (after a rebuild or an update) instead of
+  handing over to it and closing, so the newest build is always the one running.
+
+## 7.3.22
+
+- Fixed: the Game Bar widget connection still failed to open ("Access to the path is denied"). It's now made exactly
+  as GoTweaks makes its own (the access list alone), with nothing extra asked of Windows.
+- Fixed: Start SquareDeck in the widget crashed SquareDeck as it opened ("Cannot show Window when ShowActivated is
+  false"), which could leave it running with no window. It now opens normally and minimizes straight away.
+
+## 7.3.21
+
+- Fixed: the Game Bar widget couldn't connect. SquareDeck's connection for it failed to open ("A required privilege
+  is not held"), so the widget always said SquareDeck wasn't running. The low integrity label is now set after the
+  connection opens, which needs no special privilege, and a failure is logged once instead of every few seconds.
+- Start SquareDeck in the widget while SquareDeck is already open now reopens its widget connection (turning the
+  setting on if it was off) instead of doing nothing.
+
+## 7.3.20
+
+- The squaredeck: link (the Game Bar widget's "Start SquareDeck") is registered every time SquareDeck starts, even
+  with the widget connection off.
+- Game Bar widget: when Windows doesn't know the link yet, Start SquareDeck says to open SquareDeck once instead of
+  Windows offering to search the Microsoft Store.
+
+## 7.3.19
+
+- New: SquareDeck's Xbox Game Bar widget (the Widget folder; build and install steps in Widget\README.md). Open Game Bar
+  while you play for a command center in SquareDeck's colors: a power dial for the TDP with minus / plus and four steps
+  across your chip's range, live processor, graphics, FPS and battery with their last half minute, the ROG Ally's
+  operating mode, fans, lights and controller / mouse mode, quick toggles (overlay, refresh rate, night light, HDR, do
+  not disturb, Wi-Fi, Bluetooth and more) and a rail with brightness and volume.
+- SquareDeck does the work for the widget (it already has the permissions): Settings > Controller > Xbox Game Bar
+  widget (on by default) lets it connect. If SquareDeck isn't running, the widget can start it minimized.
+- Quick menu notes ("120 Hz", "Lights off") show in the widget too.
+
+## 7.3.18
+
+- Recomp Zone has a sidebar, like RecompLauncher's: Home, Catalog, Coming soon, Library and Downloads. Move left
+  into it, or flip through the sections with LB / RB. On a small screen it's icons until you move into it.
+- Home: a rotating banner of the most popular recomps (artwork, logo, Play or Get it, Details, Next), then
+  "Jump back in" (installed recomps, the last played first), Recently updated, New in the catalog and Most stars.
+- Catalog is the full list as before, with its filters, sorting, search and multi-version tiles.
+- Coming soon lists recomps that aren't out yet; their pages say so instead of looking for a download.
+- Library shows only what's installed, marking ones with an update.
+- Downloads: installs now keep going when you leave a game's page, with progress and Cancel here. Recomp Zone
+  checks installed recomps for new versions on GitHub (at most every half hour) and lists them to update in one
+  press. The sidebar shows how many are downloading or have an update.
+
+## 7.3.17
+
+- The Switch UI style's highlight is now the Switch 2 gradient (blue, violet, pink and sky blue blended round the ring).
+  It's given once to anyone on Switch still using the plain ring; choosing Switch brings it, and moving to another
+  style with it unchanged goes back to that style's own ring. Settings > Themes > Highlight color > Effects still changes it.
+
+## 7.3.16
+
+**Ask Genie, ready before you ask**
+- **New games get their answers in the background.** When a game is added to your library, Game Genie quietly writes its answers, one game at a time, so Ask Genie opens with everything already there. To go easy on the Gemini quota it only does games added from now on (not the library SquareDeck already knows, nor a whole store switched on at once), at most 20 a day (the rest wait for the next day), and never while a game is running, offline or in battery saver. If something goes wrong it simply tries that game again later.
+- **A head start from the details page.** Opening a game's details page starts its Genie answers right away (with what the page knows about the game), so they're usually done by the time you press Ask Genie. If they're still being written, Ask Genie waits for them instead of asking twice.
+- **Saved answers stay**, and are written again only when they're more than 90 days old.
+- Turn it on or off in Settings > Library and stores > Prepare Genie answers for new games, which also shows how many games are ready.
+
+## 7.3.15
+
+**Recomp Zone: one tile per game**
+When a game has more than one recomp (like the two 3on3 NHL Arcade ones), Recomp Zone now shows it once, as in RecompLauncher: one cover with a stack icon and the number of recomps in the bottom-right corner. Selecting it asks which one you'd like, with each one's stars, maker and whether it's installed. Recomps are matched by the original game's title on the same console, or by the same cover art. The tile shows the most-starred one's stars, and *Installed* if any of them is.
+
+## 7.3.14
+
+**Spotify sign-in can be cancelled**
+If you came back to SquareDeck without finishing the Spotify sign-in in the browser, the "Finish signing in to Spotify in your browser…" box stayed on screen and nothing else could be used until it timed out. It now has a **Cancel** button, and B cancels it too; you can sign in again whenever you like.
+
 ## 7.3.13
 
 **Sign in with Steam to get your API key**

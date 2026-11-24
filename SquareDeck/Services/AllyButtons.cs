@@ -37,7 +37,7 @@ public static class AllyButtons
     /// <summary>What a button can do.</summary>
     public static readonly (string Id, string Name)[] Actions =
     {
-        ("", "Nothing"), ("home", "Open SquareDeck"), ("quickmenu", "SquareDeck quick menu"), ("taskswitcher", "Task switcher"),
+        ("", "Nothing"), ("home", "Open SquareDeck"), ("widget", "SquareDeck widget (Xbox Game Bar)"), ("taskswitcher", "Task switcher"),
         ("taskview", "Task view (Win+Tab)"), ("gamebar", "Game Bar"), ("commandcenter", "Command Center (Game Bar widget)"),
         ("armourycrate", "Armoury Crate SE"), ("keyboard", "On-screen keyboard"), ("screenshot", "Take a screenshot"),
         ("record", "Start or stop recording"), ("mic", "Mute or unmute the microphone"), ("taskmanager", "SquareDeck Task Manager"),

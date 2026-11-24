@@ -92,6 +92,7 @@ public static class AllyControl
         if (!IsAlly) return;
         Ticker.Tick += (_, _) => Tick();
         Ticker.Start();
+        Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
         // Off the window's thread: opening the drivers can take a moment.
         Task.Run(() =>
         {
@@ -228,6 +229,7 @@ public static class AllyControl
     {
         var s = _settings;
         if (s == null || !IsAlly) return Task.FromResult(false);
+        ApplyXboxLight(force);
         string mode = s.AllyLights;
         int? battery = Battery.GetPercent();
         bool plugged = Battery.IsPluggedIn();
@@ -413,6 +415,65 @@ public static class AllyControl
     public static void AccentChanged()
     {
         if (_settings?.AllyLights == "accent") ApplyLights();
+    }
+
+    // ================================================================ the Xbox button's light
+
+    /// <summary>Only the ROG Xbox Allys have the Xbox button (the commands were checked on the X20).</summary>
+    public static bool HasXboxLight => AllyButtons.IsXboxAlly;
+
+    public static readonly (int Level, string Name)[] XboxLightLevels = { (1, "Dim"), (2, "Medium"), (3, "Bright") };
+
+    public static string XboxLightLevelName(int level) =>
+        XboxLightLevels.FirstOrDefault(l => l.Level == Math.Clamp(level, 1, 3)).Name ?? "Bright";
+
+    private static string _lastXbox = "";
+
+    /// <summary>
+    /// Applies the Xbox button's light settings; repeated identical requests are skipped unless forced. On or off is
+    /// kept by the controller; brightness and breathing are re-sent after sleep (the controller forgets them).
+    /// </summary>
+    public static void ApplyXboxLight(bool force = false)
+    {
+        var s = _settings;
+        if (s == null || !HasXboxLight) return;
+        if (s.AllyXboxLight.Length == 0) { _lastXbox = ""; return; } // leave it alone (Armoury Crate SE decides)
+        bool on = s.AllyXboxLight == "on";
+        bool low = s.AllyXboxLightLowBattery && Battery.GetPercent() is int b && b <= 15 && !Battery.IsPluggedIn();
+        bool dark = _playing && s.AllyXboxLightOffPlaying && !low;
+        int level = dark ? 0 : low ? 3 : Math.Clamp(s.AllyXboxLightLevel, 1, 3);
+        bool breathe = !dark && (low || s.AllyXboxLightBreathe);
+        string key = on ? $"on{level}{breathe}" : "off";
+        if (!force && key == _lastXbox) return;
+        _lastXbox = key;
+        Task.Run(async () =>
+        {
+            bool Send() => on ? AllyHid.SetXboxLight(true) & AllyHid.SetXboxLightLevel(level, breathe) : AllyHid.SetXboxLight(false);
+            try
+            {
+                if (Send()) return;
+                AllyHid.Rescan();
+                await Task.Delay(400);
+                if (Send()) return;
+            }
+            catch (Exception) { }
+            if (_lastXbox == key) _lastXbox = ""; // the next tick tries again
+        });
+    }
+
+    /// <summary>After sleep the controller comes back with the light at its defaults: put SquareDeck's back.</summary>
+    private static void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+    {
+        if (e.Mode != Microsoft.Win32.PowerModes.Resume) return;
+        Task.Run(async () =>
+        {
+            // Give the controller a moment to start: a report sent too early is taken and then overwritten.
+            await Task.Delay(TimeSpan.FromSeconds(3));
+            AllyHid.Rescan();
+            ApplyXboxLight(force: true);
+            await Task.Delay(TimeSpan.FromSeconds(5));
+            ApplyXboxLight(force: true);
+        });
     }
 
     private static void Tick()

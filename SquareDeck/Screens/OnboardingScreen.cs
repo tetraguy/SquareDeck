@@ -905,7 +905,7 @@ public sealed class OnboardingScreen : Screen
         Tip(Hints.KeyLabel("Options"), "Game options", "Details, artwork, notebook, collections.");
         Tip(Hints.Keyboard ? "Q" : "View", "Quick settings", "Volume, brightness, Wi-Fi, from anywhere.");
         Tip(Hints.Keyboard ? "/" : "Menu", "Search", "Games, apps, settings and files.");
-        Tip(Hints.Keyboard ? "Ctrl+Alt+Q" : "Guide", "While you play", "Bring SquareDeck back, or the quick menu.");
+        Tip(Hints.Keyboard ? "Ctrl+Alt+Q" : "Guide", "While you play", "Bring SquareDeck back, or open its Game Bar widget.");
         body.Children.Add(tips);
 
         // Confetti.

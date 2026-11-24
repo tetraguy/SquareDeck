@@ -366,6 +366,38 @@ public static class AllyHid
         }
     }
 
+    // ---------------------------------------------------------------- the Xbox button's light (ROG Xbox Ally)
+
+    // The Xbox button glows green (one color only). Its three commands are the ones Armoury Crate SE sends, as
+    // captured over USB and checked on an X20 by the ally-x20-steamos project (docs/xbox-led-capture.md):
+    //   on/off      5A D1 09 01 1F / 0F    feature report (byte 4 is the light power mask; 0x10 is the button)
+    //   breathing   5A D1 21 02 01|00 08   feature report
+    //   brightness  5D D1 20 01 0..3       output report (0 is dark, 3 the brightest)
+    // Brightness and breathing don't survive a power-off or sleep: the controller goes back to 3 and steady.
+
+    /// <summary>Switches the Xbox button's light on or off (Armoury Crate's own power mask values).</summary>
+    public static bool SetXboxLight(bool on)
+    {
+        lock (Lock)
+        {
+            Scan();
+            return Feature(_input, new byte[] { InputId, 0xD1, 0x09, 0x01, on ? (byte)0x1F : (byte)0x0F });
+        }
+    }
+
+    /// <summary>The Xbox button's light: brightness 0 (dark) to 3, breathing or steady.</summary>
+    public static bool SetXboxLightLevel(int level, bool breathing)
+    {
+        lock (Lock)
+        {
+            Scan();
+            bool ok = Feature(_input, new byte[] { InputId, 0xD1, 0x21, 0x02, breathing ? (byte)1 : (byte)0, 0x08 });
+            // Armoury Crate sends the level after the effect, so the light takes both.
+            ok &= Output(_aura, new byte[] { AuraId, 0xD1, 0x20, 0x01, (byte)Math.Clamp(level, 0, 3) });
+            return ok;
+        }
+    }
+
     // ---------------------------------------------------------------- controller
 
     private static readonly byte[] ModeGame = { 0x5A, 0xD1, 0x01, 0x01, 0x01 };

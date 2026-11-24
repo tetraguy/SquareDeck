@@ -61,6 +61,8 @@ public sealed class CreditsScreen : ListScreen
         ("Almendra font", "Ana Sanfelippo", "The Grimoire style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Almendra"),
         ("Merienda font", "Eduardo Tunni", "The Autumn style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Merienda"),
         ("Bangers font", "Vernon Adams", "The Halftone style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Bangers"),
+        ("ally-x20-steamos", "cchulo", "The Xbox button light commands for the ROG Xbox Ally (captured from Armoury Crate SE and checked on an X20); SquareDeck sends the same bytes with its own code", "GPL-2.0 (protocol notes only, no code used)", "https://github.com/cchulo/ally-x20-steamos"),
+        ("GoTweaks", "corando98", "The way SquareDeck's Xbox Game Bar widget reaches the launcher from inside Game Bar (a pipe sandboxed apps may open)", "MIT License", "https://github.com/corando98/GoTweaks"),
         ("VacuumTube", "shy and contributors", "Powers DeckTube on the Music page (its page scripts, bundled in VacuumTube\\vacuumtube.js)", "MIT License", "https://github.com/shy1132/VacuumTube"),
         ("GamerPower", "GamerPower", "The free games list (Free games tracker, on the Stores page)", "Free API; data credited to GamerPower", "https://www.gamerpower.com/"),
         ("Windows 2000 icons", "Microsoft", "Retro Windows (Home button icons)", "Windows 2000's icons belong to Microsoft; from a Stardock IconPackager set", null),

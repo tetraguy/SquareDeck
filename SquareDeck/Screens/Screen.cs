@@ -847,8 +847,12 @@ public sealed class MenuScreen : Screen
         else base.FocusDefault();
     }
 
+    /// <summary>A choice has to be made: B doesn't close it (a mandatory update, say).</summary>
+    public bool Mandatory { get; init; }
+
     public override bool OnAction(NavAction action)
     {
+        if (Mandatory && action == NavAction.Back) return true;
         // Enter / A while typing confirms with the first option.
         if (action == NavAction.Accept && _input != null && _input.IsKeyboardFocused)
         {
@@ -868,8 +872,12 @@ public sealed class BusyScreen : Screen
 
     public override bool IsDialog => true;
 
-    public BusyScreen(string message, System.Windows.Media.ImageSource? picture = null)
+    /// <summary>When set, B (or the Cancel button) stops the wait: for waits on something outside SquareDeck, like a browser sign-in.</summary>
+    private readonly Action? _cancel;
+
+    public BusyScreen(string message, System.Windows.Media.ImageSource? picture = null, Action? cancel = null)
     {
+        _cancel = cancel;
         var panel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
         if (picture != null)
         {
@@ -889,6 +897,19 @@ public sealed class BusyScreen : Screen
         _dots.HorizontalAlignment = HorizontalAlignment.Center;
         _dots.Margin = new Thickness(0, 6, 0, 0);
         panel.Children.Add(_dots);
+        if (cancel != null)
+        {
+            var stop = Ui.PanelButton("\uE711", "Cancel");
+            stop.HorizontalAlignment = HorizontalAlignment.Center;
+            stop.Margin = new Thickness(0, 18, 0, 0);
+            stop.Click += (_, _) => Cancel();
+            panel.Children.Add(stop);
+            _stop = stop;
+            var hint = Ui.Text(Hints.Format("{Back}  Cancel"), 14, "SubtleBrush");
+            hint.HorizontalAlignment = HorizontalAlignment.Center;
+            hint.Margin = new Thickness(0, 8, 0, 0);
+            panel.Children.Add(hint);
+        }
 
         var box = new Border
         {
@@ -914,8 +935,23 @@ public sealed class BusyScreen : Screen
 
     public override void OnClosed() => _timer.Stop();
 
-    public override void FocusDefault() { }
+    private Button? _stop;
 
-    // Nothing can dismiss it; it goes away when the work finishes.
-    public override bool OnAction(NavAction action) => true;
+    public override void FocusDefault() => _stop?.Focus();
+
+    private void Cancel()
+    {
+        if (_cancel == null) return;
+        UiSound.Back();
+        _cancel();
+        Host.Pop(this);
+    }
+
+    // Without a cancel, nothing can dismiss it: it goes away when the work finishes. With one, B stops the wait.
+    public override bool OnAction(NavAction action)
+    {
+        if (_cancel != null && action == NavAction.Back) { Cancel(); return true; }
+        if (_cancel != null && action == NavAction.Accept && _stop != null) { Cancel(); return true; }
+        return true;
+    }
 }

@@ -1,0 +1,10 @@
+# Visual Studio and build output
+.vs/
+bin/
+obj/
+AppPackages/
+BundleArtifacts/
+*.user
+# Signing (never commit)
+*.pfx
+*.cer

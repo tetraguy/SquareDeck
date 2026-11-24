@@ -1101,13 +1101,49 @@ public partial class MainWindow
         later.Start();
     }
 
+    /// <summary>Recomp Zone's own music (RecompZone\music.mp3 next to SquareDeck).</summary>
+    private static string RecompMusicFile => Path.Combine(AppContext.BaseDirectory, "RecompZone", "music.mp3");
+
+    /// <summary>A page's own music while it's open: Recomp Zone's, once its opening has finished (Settings > Sound).</summary>
+    private string? PageMusic() =>
+        Settings.RecompZoneMusic && _screens.OfType<Screens.RecompZoneScreen>().Any(r => r.MusicReady) && File.Exists(RecompMusicFile)
+            ? RecompMusicFile : null;
+
+    private bool _musicFading, _fadeInNext;
+    private System.Windows.Threading.DispatcherTimer? _musicFade;
+
     private void UpdateMenuMusic()
     {
         string choice = Settings.MenuMusic;
         if (choice.Length > 0 && GenreMusic is { } genre) choice = genre; // experimental: music that follows the genre
+        if (PageMusic() is { } page) choice = "file:" + page; // Recomp Zone's own, at the same loudness
+        if (_musicFading) return; // a crossfade is under way: it calls back when the old track is quiet
         if (choice.Length == 0)
         {
-            StopMenuMusic();
+            // Leaving Recomp Zone with the launcher's music off: its music fades away rather than stopping dead.
+            if (_menuMusic != null && _menuMusicPlaying && _menuMusicChoice.StartsWith("file:", StringComparison.Ordinal) && !Theme.ReduceMotion)
+                CrossfadeOut(StopMenuMusic);
+            else StopMenuMusic();
+            return;
+        }
+        if (_musicFading) return; // a crossfade is under way: it calls back when the old track is quiet
+
+        // Changing between the launcher's music and a page's: the old one fades out, the new one fades in.
+        if (_menuMusic != null && _menuMusicPlaying && choice != _menuMusicChoice && !Theme.ReduceMotion)
+        {
+            CrossfadeOut(() =>
+            {
+                // The launcher's track carries on from the same spot when you come back.
+                if (!_menuMusicChoice.StartsWith("file:", StringComparison.Ordinal) && _menuMusic != null)
+                {
+                    _resumeFile = _menuMusicFile;
+                    _resumeChoice = _menuMusicChoice;
+                    try { _resumeAt = _menuMusic.Position; } catch (Exception) { _resumeAt = TimeSpan.Zero; }
+                }
+                StopMenuMusic();
+                _fadeInNext = true;
+                UpdateMenuMusic();
+            });
             return;
         }
 
@@ -1117,12 +1153,13 @@ public partial class MainWindow
             {
                 // Back from a game: the same track, from where it stopped (shuffle too).
                 bool resuming = _resumeFile.Length > 0 && choice == _resumeChoice && File.Exists(_resumeFile);
-                var file = resuming ? _resumeFile : BackgroundMusic.Resolve(choice);
+                var file = resuming ? _resumeFile : choice.StartsWith("file:", StringComparison.Ordinal) ? choice[5..] : BackgroundMusic.Resolve(choice);
                 var at = resuming ? _resumeAt : TimeSpan.Zero;
                 _resumeFile = _resumeChoice = "";
                 if (file == null) { StopMenuMusic(); return; }
                 OpenMenuMusic(file, at);
                 _menuMusicChoice = choice;
+                if (choice.StartsWith("file:", StringComparison.Ordinal) && !Theme.ReduceMotion) _fadeInNext = true; // Recomp Zone's music rises in
             }
             _menuMusic!.Volume = Math.Clamp(Settings.MenuMusicVolume, 0, 100) / 100.0;
 
@@ -1131,7 +1168,13 @@ public partial class MainWindow
             bool play = IsActive && !busy && _bootVideo == null && !AllGames.Any(g => g.IsRunning) && DateTime.Now >= _musicAfterStartup;
             if (play == _menuMusicPlaying) return;
             _menuMusicPlaying = play;
-            if (play) _menuMusic.Play(); else _menuMusic.Pause();
+            if (play)
+            {
+                if (_fadeInNext) FadeIn(_menuMusic, _menuMusic.Volume);
+                _menuMusic.Play();
+            }
+            else _menuMusic.Pause();
+            _fadeInNext = false;
         }
         catch (Exception)
         {
@@ -1156,7 +1199,8 @@ public partial class MainWindow
         }
         player.MediaEnded += (_, _) =>
         {
-            if (Settings.MenuMusic == "shuffle" && BackgroundMusic.Resolve("shuffle", _menuMusicFile) is string next && next != _menuMusicFile)
+            if (Settings.MenuMusic == "shuffle" && !_menuMusicChoice.StartsWith("file:", StringComparison.Ordinal)
+                && BackgroundMusic.Resolve("shuffle", _menuMusicFile) is string next && next != _menuMusicFile)
             {
                 bool wasPlaying = _menuMusicPlaying;
                 OpenMenuMusic(next);
@@ -1172,6 +1216,43 @@ public partial class MainWindow
         _menuMusic = player;
         _menuMusicFile = file;
         _menuMusicPlaying = false;
+    }
+
+    /// <summary>Fades the playing track out over half a second, then does <paramref name="then"/>.</summary>
+    private void CrossfadeOut(Action then)
+    {
+        var player = _menuMusic!;
+        double from = player.Volume;
+        int step = 0;
+        _musicFading = true;
+        _musicFade?.Stop();
+        _musicFade = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
+        _musicFade.Tick += (_, _) =>
+        {
+            step++;
+            try { player.Volume = from * Math.Max(0, 1 - step / 12.0); } catch (Exception) { }
+            if (step < 12) return;
+            _musicFade!.Stop();
+            _musicFading = false;
+            then();
+        };
+        _musicFade.Start();
+    }
+
+    /// <summary>Brings a new track up from silence over about a second.</summary>
+    private void FadeIn(MediaPlayer player, double target)
+    {
+        player.Volume = 0;
+        int step = 0;
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
+        timer.Tick += (_, _) =>
+        {
+            step++;
+            if (!ReferenceEquals(player, _menuMusic)) { timer.Stop(); return; }
+            player.Volume = target * Math.Min(1, step / 25.0);
+            if (step >= 25) timer.Stop();
+        };
+        timer.Start();
     }
 
     private void StopMenuMusic()

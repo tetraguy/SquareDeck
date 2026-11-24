@@ -48,6 +48,12 @@ public static class HighlightEffects
     public static readonly (string Id, string Name)[] Speeds = { ("slow", "Slow"), ("normal", "Normal"), ("fast", "Fast") };
     public static readonly (string Id, string Name)[] Glows = { ("style", "The style's own"), ("off", "Off"), ("soft", "Soft"), ("strong", "Strong") };
 
+    /// <summary>Switch's own highlight: the Switch 2 colors blended round the ring.</summary>
+    public const string SwitchEffect = "gradient", SwitchColors = "palette:switch2";
+
+    /// <summary>Whether the highlight is still Switch's own.</summary>
+    public static bool IsSwitchDefault(Settings s) => s.HighlightEffect == SwitchEffect && s.HighlightColors == SwitchColors;
+
     public static string Effect { get; private set; } = "";
     public static string Colors { get; private set; } = "palette:accent";
     public static string Speed { get; private set; } = "normal";

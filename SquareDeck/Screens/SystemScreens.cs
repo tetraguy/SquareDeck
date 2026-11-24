@@ -541,20 +541,20 @@ public sealed class AllyButtonsScreen : ListScreen
             });
         }
 
-        AddHeader("In-game quick menu");
+        AddHeader("SquareDeck widget in Game Bar");
         string quick = s.ExperimentAllyQuickMenu;
-        AddRow("Open the in-game quick menu with", quick.Length == 0 ? "Off" : AllyButtons.Buttons.FirstOrDefault(b => b.Id == quick).Name ?? quick, "\uE7FC",
+        AddRow("Open the Game Bar widget with", quick.Length == 0 ? "Off" : AllyButtons.Buttons.FirstOrDefault(b => b.Id == quick).Name ?? quick, "\uE7FC",
             click: async () =>
             {
                 var options = AllyButtons.Buttons.Where(b => b.Id is not ("m1" or "m2") || s.AllyBackKeys).Prepend(("", "Off")).ToArray();
-                int pick = await Host.AskAsync("Open the in-game quick menu with", null, options.Select(o => o.Item2).ToArray());
+                int pick = await Host.AskAsync("Open the Game Bar widget with", null, options.Select(o => o.Item2).ToArray());
                 if (pick < 0) return;
                 s.ExperimentAllyQuickMenu = options[pick].Item1;
                 s.Save();
                 Host.ApplyAllyButtons();
                 Rebuild();
             },
-            subtitle: "While a game is in front, this button opens the in-game quick menu and closes it again. " +
+            subtitle: "While a game is in front, this button opens SquareDeck's widget in Xbox Game Bar. Every button can also be set to it below (SquareDeck widget). " +
                       "Holding the Armoury Crate button works well. With no game in front, the button keeps its usual job");
 
         AddHeader("Armoury Crate SE");

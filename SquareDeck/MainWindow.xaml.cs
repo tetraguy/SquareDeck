@@ -285,6 +285,8 @@ public partial class MainWindow : Window
 
         var art = LoadArtAsync(found, ct);
         var others = LoadExternalGamesAsync(ct);
+        // Once every launcher's games are in: new ones get Genie answers ready in the background.
+        _ = others.ContinueWith(_ => Dispatcher.BeginInvoke(() => GeniePrep.NoteLibrary(AllGames)), TaskScheduler.Default);
         if (waitForArt) await Task.WhenAll(art, others);
     }
 
@@ -1790,6 +1792,14 @@ public partial class MainWindow : Window
         return await dialog.Result;
     }
 
+    /// <summary>A dialog that B can't close: one of the options has to be chosen.</summary>
+    public async Task<int> AskMandatoryAsync(string title, string? message, params string[] options)
+    {
+        var dialog = new MenuScreen(title, message, options) { Mandatory = true };
+        Push(dialog);
+        return await dialog.Result;
+    }
+
     /// <summary>A dialog of choices with an icon beside each. Returns the chosen index, or -1 if dismissed.</summary>
     public async Task<int> AskWithIconsAsync(string title, string? message, params (string Label, string Glyph)[] options)
     {
@@ -1804,6 +1814,24 @@ public partial class MainWindow : Window
         var busy = new BusyScreen(message, picture);
         Push(busy);
         try { await work(); }
+        finally { Pop(busy); }
+    }
+
+    /// <summary>
+    /// Like RunBusyAsync, for a wait that depends on something outside SquareDeck (finishing a sign-in in the browser):
+    /// B or Cancel stops it, so coming back without finishing never leaves the screen stuck. Returns false if cancelled.
+    /// </summary>
+    public async Task<bool> RunCancellableBusyAsync(string message, Func<CancellationToken, Task> work, CancellationToken outer = default)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(outer);
+        var busy = new BusyScreen(message, cancel: () => { try { cts.Cancel(); } catch (ObjectDisposedException) { } });
+        Push(busy);
+        try
+        {
+            await work(cts.Token);
+            return true;
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested) { return false; }
         finally { Pop(busy); }
     }
 
@@ -1879,7 +1907,7 @@ public partial class MainWindow : Window
         // A web page (streaming, browser, cloud) is its own window inside ours: while it has the keyboard focus WPF can
         // report the launcher as not active even though it's in front, so the foreground window decides too.
         bool active = IsActive || WindowActivator.IsInFront(this);
-        if (CloudGameScreen.Active is { } cloud && active && _overlay is not { IsVisible: true })
+        if (CloudGameScreen.Active is { } cloud && active)
         {
             cloud.PollController(_gamepad);
             _gamepad.Reset();
@@ -1887,36 +1915,28 @@ public partial class MainWindow : Window
         }
         // A page that reads the controller itself (a streaming service, VacuumTube): SquareDeck keeps out of its way (the page
         // says it's alive every second; if it stops, SquareDeck's own handling below takes over again).
-        if (active && _overlay is not { IsVisible: true } && _screens.Count > 0 && _screens[^1] is IPagePad { PadInPage: true })
+        if (active && _screens.Count > 0 && _screens[^1] is IPagePad { PadInPage: true })
         {
             _gamepad.Poll(); // keeps the button state, so nothing fires twice when SquareDeck takes over
             return;
         }
         // Ignore the controller while a game (or anything else) is in front of us.
-        // The in-game quick menu is its own window: while it is up, the controller drives it.
-        if (_overlay is { IsVisible: true } overlay)
-        {
-            if (_gamepad.PollSummon()) { overlay.Dismiss(); return; }
-            foreach (var action in _gamepad.Poll()) overlay.HandleAction(action);
-            return;
-        }
-
         if (!active)
         {
-            // ...except for the one shortcut that brings the launcher (or its quick menu) back.
+            // ...except for the one shortcut that brings the launcher back (or, over a game, opens the Game Bar widget).
             if ((Settings.GuideSummon || Settings.InGameQuickMenu) && _gamepad.PollSummon())
             {
-                if (QuickMenuWanted()) ToggleOverlay();
+                if (WidgetWanted()) OpenWidget();
                 else if (Settings.GuideSummon) WindowActivator.BringToFront(this);
             }
             _gamepad.Reset();
             return;
         }
         // SquareDeck in front while a game it started is still running (switched back with Alt+Tab, say): the summon
-        // buttons open the quick menu here too, so Exit game and the rest are a press away.
+        // buttons open the Game Bar widget here too.
         if (Settings.InGameQuickMenu && AllGames.Any(g => g.IsRunning) && _gamepad.PollSummon())
         {
-            ToggleOverlay();
+            OpenWidget();
             _gamepad.Reset();
             return;
         }

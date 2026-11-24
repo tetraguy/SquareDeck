@@ -59,7 +59,7 @@ public sealed class AdrenalineHookScreen : ListScreen
             subtitle: "Updates move Xbox games to a new folder; this finds each one again");
 
         AddHeader("Radeon overlays");
-        AddNote("AMD Software's default shortcuts. They're also actions for the handheld buttons and the quick menu. If you changed them in AMD Software, these won't match.");
+        AddNote("AMD Software's default shortcuts. They're also actions for the handheld buttons and the Game Bar widget. If you changed them in AMD Software, these won't match.");
         foreach (var sc in AdrenalineHook.Shortcuts)
         {
             var id = sc.Id;

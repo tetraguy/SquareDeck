@@ -529,6 +529,9 @@ public partial class MainWindow
             s.NavSoundSet = style.NavSounds ?? "";
             if (style.TileAnimation != null) s.TileHighlight = style.TileAnimation;
             else if (leaving.TileAnimation != null && s.TileHighlight == leaving.TileAnimation) s.TileHighlight = "pulse";
+            // Switch's own highlight is the Switch 2 gradient; leaving Switch with it unchanged goes back to the new style's own ring.
+            if (style.Id == "switch") { s.HighlightEffect = HighlightEffects.SwitchEffect; s.HighlightColors = HighlightEffects.SwitchColors; }
+            else if (leaving.Id == "switch" && HighlightEffects.IsSwitchDefault(s)) { s.HighlightEffect = ""; s.HighlightColors = "palette:accent"; }
         }
         if (s.StyleMatching || mine != null)
         {

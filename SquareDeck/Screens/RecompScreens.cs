@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using SquareDeck.Services;
 
@@ -30,11 +31,31 @@ public sealed class RecompZoneScreen : GridScreen
 
     private static readonly (string Key, string Name)[] Sorts = { ("console", "By console"), ("stars", "Most stars"), ("new", "Recently updated"), ("added", "Newest in the list"), ("name", "A to Z") };
 
-    public RecompZoneScreen() : base("Recomp Zone", "{Select}  Open        {Options}  Search        {Details}  Filter and sort        {Back}  Back")
+    public RecompZoneScreen() : base("Recomp Zone", "{Select}  Open        {LB}{RB}  Sections        {Options}  Search        {Details}  Filter and sort        {Back}  Back")
     {
         _realizeSoon.Tick += (_, _) => Realize();
-        if (Body.Parent is ScrollViewer scroll) scroll.ScrollChanged += (_, _) => RealizeSoon();
+        if (Body.Parent is ScrollViewer scroll)
+        {
+            scroll.ScrollChanged += (_, _) => RealizeSoon(); // the Home rows' sideways scrolling bubbles up here too
+            // The sidebar on the left, the section beside it.
+            if (scroll.Parent is Grid host)
+            {
+                host.Children.Remove(scroll);
+                var layout = new Grid();
+                layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                layout.ColumnDefinitions.Add(new ColumnDefinition());
+                layout.Children.Add(BuildNavPanel());
+                Grid.SetColumn(scroll, 1);
+                layout.Children.Add(scroll);
+                host.Children.Add(layout);
+            }
+        }
         Body.SizeChanged += (_, _) => RealizeSoon();
+        SizeChanged += (_, _) => { bool compact = ActualWidth < 1450; if (compact != _compact) { _compact = compact; UpdateNavShape(); } };
+        _switchSoon.Tick += (_, _) => { _switchSoon.Stop(); if (_pendingSection != null) ShowSection(_pendingSection, focusContent: false); };
+        _heroTimer.Tick += (_, _) => { if (_heroPanel?.IsKeyboardFocusWithin != true && Host?.IsTop(this) == true) ShowHero(_heroIndex + 1); };
+        RecompDownloads.Changed += OnDownloadsChanged;
+        RecompDownloads.Progressed += OnDownloadProgress;
     }
 
     private RecompIntro? _intro;
@@ -92,7 +113,11 @@ public sealed class RecompZoneScreen : GridScreen
             if (ct.IsCancellationRequested) return;
             await Task.Delay(120); // the covers on screen come off the disk
             await minimum;
+            // Recomp Zone's music comes in as the opening finishes (the launcher's fades out).
+            MusicReady = true;
+            Host.RefreshBackgroundPlayback();
             await intro.FinishAsync();
+            _ = RecompDownloads.CheckAsync();
         }
         catch (Exception) { }
         finally
@@ -103,6 +128,7 @@ public sealed class RecompZoneScreen : GridScreen
                 _intro = null;
                 if (!ct.IsCancellationRequested)
                 {
+                    if (!MusicReady) { MusicReady = true; Host.RefreshBackgroundPlayback(); } // even if the opening was cut short
                     if (!_built) Build();
                     else if (Host?.IsTop(this) == true) FocusDefault();
                 }
@@ -123,6 +149,12 @@ public sealed class RecompZoneScreen : GridScreen
     public override void FocusDefault()
     {
         if (_intro != null) { _intro.Focus(); return; }
+        if (_section != "catalog")
+        {
+            if (FirstButton(Body) is { } b) b.Focus();
+            else NavButton(_section)?.Focus();
+            return;
+        }
         var target = Body.Children.OfType<WrapPanel>().SelectMany(p => p.Children.OfType<Button>())
             .FirstOrDefault(b => _focusId != null && b.Tag as string == _focusId)
             ?? Body.Children.OfType<WrapPanel>().Skip(1).SelectMany(p => p.Children.OfType<Button>()).FirstOrDefault();
@@ -139,8 +171,11 @@ public sealed class RecompZoneScreen : GridScreen
     public override void OnResumed()
     {
         if (_intro != null) return;
-        if (_built && !InstalledIds().SetEquals(_installedAtBuild)) Build();
+        Host.RefreshBackgroundPlayback(); // the music comes back after a trailer or a page that paused it
+        // Home's "Jump back in" follows what was just played; Library and Downloads what was installed or removed.
+        if (_built && (!InstalledIds().SetEquals(_installedAtBuild) || _section == "home")) KeepFocus(() => _ = BuildAsync(null, focus: !_nav.IsKeyboardFocusWithin));
         else RealizeSoon();
+        BuildNav();
     }
 
     public override void OnClosed()
@@ -149,6 +184,13 @@ public sealed class RecompZoneScreen : GridScreen
         _life.Cancel();
         _cts.Cancel();
         _realizeSoon.Stop();
+        _heroTimer.Stop();
+        // The launcher's music fades back in.
+        MusicReady = false;
+        Dispatcher.BeginInvoke(() => Host.RefreshBackgroundPlayback(), System.Windows.Threading.DispatcherPriority.Background);
+        _switchSoon.Stop();
+        RecompDownloads.Changed -= OnDownloadsChanged;
+        RecompDownloads.Progressed -= OnDownloadProgress;
         RecompZone.ForgetPictures();
     }
 
@@ -171,8 +213,21 @@ public sealed class RecompZoneScreen : GridScreen
         }
         switch (action)
         {
-            case NavAction.Y: _ = SearchAsync(); return true;
-            case NavAction.X: _ = FilterMenuAsync(); return true;
+            case NavAction.LB or NavAction.RB:
+            {
+                int i = Array.FindIndex(Sections, x => x.Id == _section);
+                i = (i + (action == NavAction.RB ? 1 : -1) + Sections.Length) % Sections.Length;
+                ShowSection(Sections[i].Id, focusContent: true);
+                return true;
+            }
+            case NavAction.Y:
+                if (_section != "catalog") ShowSection("catalog", focusContent: true);
+                _ = SearchAsync();
+                return true;
+            case NavAction.X:
+                if (_section != "catalog") return true;
+                _ = FilterMenuAsync();
+                return true;
         }
         return false;
     }
@@ -343,6 +398,23 @@ public sealed class RecompZoneScreen : GridScreen
         Body.Children.Clear();
         if (!_loaded) { Body.Children.Add(Loading("Loading the list of recomps…")); return; }
         if (_error != null && RecompZone.Games.Count == 0) { Note(_error, 18); return; }
+        BuildNav();
+        if (_section != "catalog")
+        {
+            _installedAtBuild = InstalledIds();
+            switch (_section)
+            {
+                case "home": BuildHome(focus); break;
+                case "soon": BuildSoon(focus); break;
+                case "library": BuildLibrary(focus); break;
+                case "downloads": BuildDownloads(focus); break;
+            }
+            progress?.Report(1);
+            _built = true;
+            RealizeSoon();
+            return;
+        }
+        _heroTimer.Stop();
         Note("Native PC versions of console games, rebuilt from the original code by their developers. Only ones with a Windows version are shown. " +
              "Each needs your own copy of the game: SquareDeck never downloads game files." + (RecompZone.Offline ? "  (Offline: showing the list from last time.)" : ""));
 
@@ -366,56 +438,42 @@ public sealed class RecompZoneScreen : GridScreen
         if (filtered) Note($"{games.Count} {(games.Count == 1 ? "recomp" : "recomps")}.");
 
         Button? first = null, target = null;
-        var jobs = new List<(Panel Panel, RecompGame Game)>();
-        void Section(string title, IEnumerable<RecompGame> list)
+        var jobs = new List<(Panel Panel, List<RecompGame> Bundle)>();
+        void Section(string title, IEnumerable<List<RecompGame>> list)
         {
             var items = list.ToList();
             if (items.Count == 0) return;
             Heading(title);
             var panel = new WrapPanel();
             Body.Children.Add(panel);
-            foreach (var game in items) jobs.Add((panel, game));
+            foreach (var bundle in items) jobs.Add((panel, bundle));
         }
 
-        Button MakeTile(Panel panel, RecompGame g)
-        {
-            var box = ImageBox(150, 225, out var image);
-            var grid = (Grid)box.Child;
-            if (installed.Contains(g.Id)) grid.Children.Add(Badge("Installed", HorizontalAlignment.Left, VerticalAlignment.Top, accent: true));
-            if (g.Stars > 0) grid.Children.Add(Badge("\u2605 " + Short(g.Stars), HorizontalAlignment.Left, VerticalAlignment.Bottom, accent: false));
-            if (g.Cover.Length == 0)
-            {
-                var name = Ui.Text(g.Game.Length > 0 ? g.Game : g.Name, 16, "FgBrush", bold: true);
-                name.TextWrapping = TextWrapping.Wrap;
-                name.TextAlignment = TextAlignment.Center;
-                name.VerticalAlignment = VerticalAlignment.Center;
-                name.Margin = new Thickness(10);
-                grid.Children.Add(name);
-            }
-            else _lazy.Add(new Lazy { Box = box, Image = image, Url = g.Cover });
-            return AddTile(box, g.Name, 150, () => { _focusId = g.Id; Host.Push(new RecompGameScreen(g)); }, g.Id, panel);
-        }
+        // One tile per game: recomps of the same game (by its title or its cover) share a tile, with a count in the
+        // corner, as in RecompLauncher; selecting it asks which one.
+        Button MakeTile(Panel panel, List<RecompGame> bundle) => Tile(panel, bundle, installed);
 
         var shown = games.Where(g => !installed.Contains(g.Id) || filtered || _sort != "console").ToList();
-        if (!filtered && _sort == "console") Section("Installed", games.Where(g => installed.Contains(g.Id)));
+        if (!filtered && _sort == "console") Section("Installed", Bundle(games.Where(g => installed.Contains(g.Id))).OrderBy(BundleName, StringComparer.OrdinalIgnoreCase));
+        var bundles = Bundle(shown);
         switch (_sort)
         {
-            case "stars": Section("Most stars", shown.OrderByDescending(g => g.Stars).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase)); break;
-            case "new": Section("Recently updated", shown.OrderByDescending(g => g.Released ?? DateTime.MinValue)); break;
-            case "added": Section("Newest in the list", shown.OrderByDescending(g => g.Added ?? g.FirstRelease ?? DateTime.MinValue)); break;
-            case "name": Section("A to Z", shown.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)); break;
+            case "stars": Section("Most stars", bundles.OrderByDescending(b => b.Max(g => g.Stars)).ThenBy(BundleName, StringComparer.OrdinalIgnoreCase)); break;
+            case "new": Section("Recently updated", bundles.OrderByDescending(b => b.Max(g => g.Released ?? DateTime.MinValue))); break;
+            case "added": Section("Newest in the list", bundles.OrderByDescending(b => b.Max(g => g.Added ?? g.FirstRelease ?? DateTime.MinValue))); break;
+            case "name": Section("A to Z", bundles.OrderBy(BundleName, StringComparer.OrdinalIgnoreCase)); break;
             default:
-                foreach (var group in shown.GroupBy(g => g.ConsoleName).OrderByDescending(x => x.Count()).ThenBy(x => x.Key))
-                    Section(group.Key, group.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase));
+                foreach (var group in bundles.GroupBy(b => b[0].ConsoleName).OrderByDescending(x => x.Count()).ThenBy(x => x.Key))
+                    Section(group.Key, group.OrderBy(BundleName, StringComparer.OrdinalIgnoreCase));
                 break;
         }
         // The tiles, a batch at a time with a breath between, so the launcher keeps drawing (and the opening animating).
         const int Batch = 24;
         for (int i = 0; i < jobs.Count; i++)
         {
-            var tile = MakeTile(jobs[i].Panel, jobs[i].Game);
+            var tile = MakeTile(jobs[i].Panel, jobs[i].Bundle);
             first ??= tile;
-            if (_focusId != null && jobs[i].Game.Id == _focusId) target = tile;
+            if (_focusId != null && jobs[i].Bundle.Any(g => g.Id == _focusId)) target = tile;
             if (i == Batch - 1 && focus && _focusId == null) FocusLater(first);
             if ((i + 1) % Batch == 0)
             {
@@ -430,6 +488,599 @@ public sealed class RecompZoneScreen : GridScreen
         if (first == null) Note(filtered ? "Nothing matches. Press " + Hints.KeyLabel("Details") + " to change the filters." : "The list is empty right now.");
         if (focus) FocusLater((UIElement?)target ?? first ?? firstChip);
         RealizeSoon();
+    }
+
+    // ---------------------------------------------------------------- the sidebar (as in RecompLauncher)
+
+    private static readonly (string Id, string Name, string Glyph)[] Sections =
+    {
+        ("home", "Home", ""),
+        ("catalog", "Catalog", ""),
+        ("soon", "Coming soon", ""),
+        ("library", "Library", ""),
+        ("downloads", "Downloads", ""),
+    };
+
+    /// <summary>Recomp Zone's own music may play (its opening has finished, and it's still open).</summary>
+    public bool MusicReady { get; private set; }
+
+    private string _section = "home";
+    private string? _pendingSection;
+    private readonly System.Windows.Threading.DispatcherTimer _switchSoon = new() { Interval = TimeSpan.FromMilliseconds(260) };
+    private readonly StackPanel _nav = new();
+    private Border _navBox = null!;
+    private bool _compact;          // a small screen (the handheld): the sidebar is icons until you move into it
+    private bool? _navCollapsedBuilt;
+
+    private bool NavCollapsed => _compact && !_nav.IsKeyboardFocusWithin;
+
+    private FrameworkElement BuildNavPanel()
+    {
+        _navBox = new Border { Child = _nav, Padding = new Thickness(8), CornerRadius = new CornerRadius(18), VerticalAlignment = VerticalAlignment.Top };
+        var tint = new Border { CornerRadius = new CornerRadius(18), Opacity = 0.55 };
+        tint.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+        var holder = new Grid { Margin = new Thickness(0, 0, 24, 12), VerticalAlignment = VerticalAlignment.Top };
+        holder.Children.Add(tint);
+        holder.Children.Add(_navBox);
+        // Moving into the sidebar on a small screen opens it up to its names; leaving shrinks it back to icons.
+        _nav.IsKeyboardFocusWithinChanged += (_, _) => Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(UpdateNavShape));
+        BuildNav();
+        return holder;
+    }
+
+    private void UpdateNavShape()
+    {
+        if (_navCollapsedBuilt == NavCollapsed) return;
+        BuildNav();
+    }
+
+    private Button? NavButton(string id) => _nav.Children.OfType<Button>().FirstOrDefault(b => b.DataContext as string == "nav:" + id);
+
+    /// <summary>Builds the sidebar (names, or icons on a small screen), keeping the highlight on the same entry.</summary>
+    private void BuildNav()
+    {
+        string? focused = _nav.Children.OfType<Button>().FirstOrDefault(b => b.IsKeyboardFocused)?.DataContext as string;
+        bool collapsed = NavCollapsed;
+        _navCollapsedBuilt = collapsed;
+        _nav.Children.Clear();
+        int badge = RecompDownloads.Badge;
+        foreach (var (id, name, glyph) in Sections)
+        {
+            int count = id == "downloads" ? badge : 0;
+            Button b;
+            if (collapsed)
+            {
+                b = Ui.BladeButton(glyph, name, selected: id == _section);
+                b.Margin = new Thickness(0, 2, 0, 2);
+                if (count > 0 && b.Content is Grid face)
+                {
+                    var dot = new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(9), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -5, -5, 0),
+                        Child = new TextBlock { Text = count > 9 ? "9+" : count.ToString(), FontSize = 10, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+                    dot.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+                    ((TextBlock)dot.Child).SetResourceReference(TextBlock.ForegroundProperty, "OnAccentBrush");
+                    face.Children.Add(dot);
+                }
+            }
+            else
+            {
+                var row = new Grid();
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
+                row.ColumnDefinitions.Add(new ColumnDefinition());
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var icon = Ui.Glyph(glyph, 18);
+                icon.ClearValue(TextBlock.ForegroundProperty); // takes the row's color: the highlight color when it's the section showing
+                icon.HorizontalAlignment = HorizontalAlignment.Left;
+                row.Children.Add(icon);
+                var label = new TextBlock { Text = name, FontSize = 17, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+                Grid.SetColumn(label, 1);
+                row.Children.Add(label);
+                if (count > 0)
+                {
+                    var pill = new Border { CornerRadius = new CornerRadius(11), MinWidth = 22, Padding = new Thickness(7, 1, 7, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+                        Child = new TextBlock { Text = count.ToString(), FontSize = 13, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center } };
+                    pill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+                    ((TextBlock)pill.Child).SetResourceReference(TextBlock.ForegroundProperty, "OnAccentBrush");
+                    Grid.SetColumn(pill, 2);
+                    row.Children.Add(pill);
+                }
+                b = new Button { Style = Ui.StyleOf("RowButton"), Content = row, Width = 228, Margin = new Thickness(0, 2, 0, 2) };
+                if (id == _section) b.Tag = "selected";
+            }
+            b.DataContext = "nav:" + id;
+            string target = id;
+            // Moving onto a section shows it after a moment; selecting it goes into it.
+            b.GotKeyboardFocus += (_, _) => { _pendingSection = target; _switchSoon.Stop(); _switchSoon.Start(); };
+            b.Click += (_, _) => ShowSection(target, focusContent: true);
+            _nav.Children.Add(b);
+        }
+        if (focused != null) _nav.Children.OfType<Button>().FirstOrDefault(b => b.DataContext as string == focused)?.Focus();
+    }
+
+    /// <summary>Shows a section, keeping the highlight in the sidebar unless asked to move into the section.</summary>
+    private void ShowSection(string id, bool focusContent)
+    {
+        _switchSoon.Stop();
+        if (_intro != null) return;
+        if (id == _section)
+        {
+            if (focusContent) FocusDefault();
+            return;
+        }
+        _section = id;
+        _focusId = null;
+        if (Body.Parent is ScrollViewer scroll) scroll.ScrollToTop();
+        BuildNav();
+        _ = BuildAsync(null, focus: focusContent);
+    }
+
+    /// <summary>Rebuilds while keeping the highlight where it was (the sidebar, or the same game).</summary>
+    private void KeepFocus(Action rebuild)
+    {
+        if (Keyboard.FocusedElement is Button { Tag: string id } && !_nav.IsKeyboardFocusWithin) _focusId = id;
+        rebuild();
+    }
+
+    private static Button? FirstButton(DependencyObject root)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is Button { IsEnabled: true, Focusable: true, Visibility: Visibility.Visible } b) return b;
+            if (child is UIElement { Visibility: not Visibility.Visible }) continue;
+            if (FirstButton(child) is { } inner) return inner;
+        }
+        return null;
+    }
+
+    private static Button? ButtonTagged(DependencyObject root, string tag)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is Button { Tag: string t } b && t == tag) return b;
+            if (ButtonTagged(child, tag) is { } inner) return inner;
+        }
+        return null;
+    }
+
+    /// <summary>After building a section: the game last opened, otherwise the first thing in it.</summary>
+    private void FocusSection(bool focus)
+    {
+        if (!focus) return;
+        var target = (_focusId != null ? ButtonTagged(Body, _focusId) : null) ?? FirstButton(Body);
+        FocusLater(target);
+    }
+
+    private void OnDownloadsChanged()
+    {
+        BuildNav();
+        if (_intro == null && _built && _section is "downloads" or "library") KeepFocus(() => _ = BuildAsync(null, focus: Keyboard.FocusedElement is UIElement f && Body.IsAncestorOf(f)));
+    }
+
+    private readonly Dictionary<string, (TextBlock Text, Border Fill)> _progressViews = new();
+
+    private void OnDownloadProgress(RecompDownload d)
+    {
+        if (!_progressViews.TryGetValue(d.Game.Id, out var v)) return;
+        v.Text.Text = d.Status;
+        v.Fill.Width = Math.Max(0, (v.Fill.Parent as FrameworkElement)?.ActualWidth ?? 0) * d.Fraction;
+    }
+
+    /// <summary>A row of tiles that scrolls sideways (Home's rows).</summary>
+    private Panel Shelf(string title)
+    {
+        Heading(title);
+        var panel = new StackPanel { Orientation = Orientation.Horizontal };
+        Body.Children.Add(new ScrollViewer
+        {
+            Content = panel, Focusable = false, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, PanningMode = PanningMode.HorizontalOnly, Margin = new Thickness(0, 0, 0, 6)
+        });
+        return panel;
+    }
+
+    private Panel TileWall(string? title)
+    {
+        if (title != null) Heading(title);
+        var panel = new WrapPanel();
+        Body.Children.Add(panel);
+        return panel;
+    }
+
+    private RecompGame? GameFor(string id) => RecompZone.Games.FirstOrDefault(g => g.Id == id);
+
+    /// <summary>Installed recomps that are in the catalog, the most recently played first.</summary>
+    private List<(RecompInstall Install, RecompGame Game)> InstalledGames() =>
+        RecompZone.Installed().Where(i => File.Exists(i.Program))
+            .Select(i => (Install: i, Game: GameFor(i.Id)))
+            .Where(x => x.Game != null)
+            .Select(x => (x.Install, x.Game!))
+            .OrderByDescending(x => x.Install.LastPlayed ?? x.Install.InstalledAt)
+            .ToList();
+
+    private void PlayInstalled(RecompInstall install)
+    {
+        try { RecompZone.Play(install); }
+        catch (Exception ex) { _ = Host.AskAsync("Couldn't start it", ex.Message, "OK"); }
+    }
+
+    // ---------------------------------------------------------------- Home
+
+    private List<List<RecompGame>> _heroes = new();
+    private int _heroIndex;
+    private Grid? _heroPanel;
+    private Image? _heroArt, _heroLogo;
+    private TextBlock? _heroKicker, _heroName, _heroBased, _heroBlurb, _heroPlayText, _heroPlayGlyph;
+    private StackPanel? _heroDots, _heroText;
+    private readonly System.Windows.Threading.DispatcherTimer _heroTimer = new() { Interval = TimeSpan.FromSeconds(8) };
+
+    private void BuildHome(bool focus)
+    {
+        var installed = InstalledIds();
+        var bundles = Bundle(Listed());
+
+        // The banner: the most popular recomps (by players, then stars), the ones with artwork first.
+        _heroes = bundles.Where(b => b[0].Hero.Length > 0 || b[0].Cover.Length > 0)
+            .OrderByDescending(b => b[0].Hero.Length > 0)
+            .ThenByDescending(b => b.Max(g => g.Players))
+            .ThenByDescending(b => b.Max(g => g.Stars))
+            .Take(6).ToList();
+        if (_heroes.Count > 0) { Body.Children.Add(BuildHero()); ShowHero(0, animate: false); }
+
+        var played = InstalledGames();
+        if (played.Count > 0)
+        {
+            var shelf = Shelf("Jump back in");
+            foreach (var (install, game) in played.Take(15))
+            {
+                var tile = Tile(shelf, new List<RecompGame> { game }, installed, () => PlayInstalled(install), corner: "▶  Play");
+                tile.ToolTip = "Play " + game.Name;
+            }
+        }
+
+        var updated = bundles.Where(b => b.Any(g => g.Released != null)).OrderByDescending(b => b.Max(g => g.Released ?? DateTime.MinValue)).Take(15).ToList();
+        if (updated.Count > 0) { var shelf = Shelf("Recently updated"); foreach (var b in updated) Tile(shelf, b, installed); }
+
+        var added = bundles.Where(b => b.Any(g => (g.Added ?? g.FirstRelease) != null)).OrderByDescending(b => b.Max(g => g.Added ?? g.FirstRelease ?? DateTime.MinValue)).Take(15).ToList();
+        if (added.Count > 0) { var shelf = Shelf("New in the catalog"); foreach (var b in added) Tile(shelf, b, installed); }
+
+        var stars = bundles.OrderByDescending(b => b.Max(g => g.Stars)).Take(15).ToList();
+        if (stars.Count > 0) { var shelf = Shelf("Most stars"); foreach (var b in stars) Tile(shelf, b, installed); }
+
+        if (RecompZone.Offline) Note("Offline: showing the list from last time.");
+        if (_heroes.Count > 1 && !Theme.ReduceMotion) _heroTimer.Start(); else _heroTimer.Stop();
+        FocusSection(focus);
+    }
+
+    private FrameworkElement BuildHero()
+    {
+        var panel = new Grid { Height = 380, Margin = new Thickness(0, 4, 10, 18) };
+        _heroPanel = panel;
+        var frame = new Border { CornerRadius = new CornerRadius(22), ClipToBounds = true };
+        frame.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+        var layers = new Grid();
+        frame.Child = layers;
+        panel.SizeChanged += (_, e) => layers.Clip = new RectangleGeometry(new Rect(e.NewSize), 22, 22);
+        _heroArt = new Image { Stretch = Stretch.UniformToFill, HorizontalAlignment = HorizontalAlignment.Right };
+        layers.Children.Add(_heroArt);
+        // Dark on the left for the words, clear on the right for the picture; a little darker along the bottom.
+        var left = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 0) };
+        left.GradientStops.Add(new GradientStop(Color.FromArgb(0xF0, 0x08, 0x0A, 0x10), 0));
+        left.GradientStops.Add(new GradientStop(Color.FromArgb(0xB0, 0x08, 0x0A, 0x10), 0.4));
+        left.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0x08, 0x0A, 0x10), 0.8));
+        layers.Children.Add(new Border { Background = left });
+        layers.Children.Add(new Border { Background = new LinearGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(0x90, 0, 0, 0), 90) });
+        panel.Children.Add(frame);
+
+        // Which one of the set is showing.
+        _heroDots = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(40, 26, 0, 0) };
+        panel.Children.Add(_heroDots);
+
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(40, 0, 40, 32), MaxWidth = 620 };
+        _heroText = text;
+        _heroKicker = new TextBlock { FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 12) };
+        _heroKicker.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+        text.Children.Add(_heroKicker);
+        _heroLogo = new Image { MaxHeight = 120, MaxWidth = 440, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 14) };
+        text.Children.Add(_heroLogo);
+        _heroName = new TextBlock { FontSize = 40, FontWeight = FontWeights.Bold, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) };
+        text.Children.Add(_heroName);
+        _heroBased = new TextBlock { FontSize = 15, Foreground = new SolidColorBrush(Color.FromArgb(0xD0, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(0, 0, 0, 8), TextTrimming = TextTrimming.CharacterEllipsis };
+        text.Children.Add(_heroBased);
+        _heroBlurb = new TextBlock { FontSize = 16, Foreground = new SolidColorBrush(Color.FromArgb(0xE8, 0xFF, 0xFF, 0xFF)), TextWrapping = TextWrapping.Wrap, MaxHeight = 46, TextTrimming = TextTrimming.WordEllipsis, Margin = new Thickness(0, 0, 0, 18) };
+        text.Children.Add(_heroBlurb);
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+        var playRow = new StackPanel { Orientation = Orientation.Horizontal };
+        _heroPlayGlyph = Ui.Glyph("", 16);
+        _heroPlayGlyph.ClearValue(TextBlock.ForegroundProperty);
+        _heroPlayGlyph.Margin = new Thickness(0, 1, 10, 0);
+        playRow.Children.Add(_heroPlayGlyph);
+        _heroPlayText = new TextBlock { FontSize = 18 };
+        playRow.Children.Add(_heroPlayText);
+        var play = new Button { Style = Ui.StyleOf("AccentButton"), Content = playRow, Margin = new Thickness(-3, 0, 10, 0) };
+        play.Click += (_, _) => HeroPlay();
+        buttons.Children.Add(play);
+        var info = new Button { Style = Ui.StyleOf("PillButton"), Content = HeroLabel("", "Details"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+        info.Click += (_, _) => { if (_heroes.Count > 0) _ = OpenBundleAsync(_heroes[_heroIndex], InstalledIds()); };
+        buttons.Children.Add(info);
+        if (_heroes.Count > 1)
+        {
+            var next = new Button { Style = Ui.StyleOf("PillButton"), Content = HeroLabel("", "Next"), VerticalAlignment = VerticalAlignment.Center, ToolTip = "The next one" };
+            next.Click += (_, _) => ShowHero(_heroIndex + 1);
+            buttons.Children.Add(next);
+        }
+        text.Children.Add(buttons);
+        panel.Children.Add(text);
+        return panel;
+    }
+
+    private static StackPanel HeroLabel(string glyph, string label)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        var g = Ui.Glyph(glyph, 14);
+        g.ClearValue(TextBlock.ForegroundProperty);
+        g.Margin = new Thickness(0, 1, 8, 0);
+        row.Children.Add(g);
+        row.Children.Add(new TextBlock { Text = label, FontSize = 16 });
+        return row;
+    }
+
+    /// <summary>Puts one of the set in the banner (the same buttons stay, so the highlight doesn't move).</summary>
+    private void ShowHero(int index, bool animate = true)
+    {
+        if (_heroes.Count == 0 || _heroPanel == null) return;
+        _heroIndex = (index % _heroes.Count + _heroes.Count) % _heroes.Count;
+        var bundle = _heroes[_heroIndex];
+        var g = bundle[0];
+        string kicker = "MOST POPULAR  ·  " + g.ConsoleName.ToUpperInvariant();
+        if (bundle.Count > 1) kicker += $"  ·  {bundle.Count} RECOMPS";
+        _heroKicker!.Text = kicker;
+        _heroArt!.Source = null;
+        string art = g.Hero.Length > 0 ? g.Hero : g.Cover;
+        double artOpacity = g.Hero.Length > 0 ? 1 : 0.5;
+        _heroArt.BeginAnimation(OpacityProperty, null);
+        _heroArt.Opacity = artOpacity;
+        if (art.Length > 0) _ = LoadInto(_heroArt, art, g.Hero.Length > 0 ? 1280 : 400);
+        _heroLogo!.Source = null;
+        _heroLogo.Visibility = g.Logo.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _heroName!.Visibility = g.Logo.Length > 0 ? Visibility.Collapsed : Visibility.Visible;
+        _heroName.Text = BundleName(bundle);
+        if (g.Logo.Length > 0) _ = LoadInto(_heroLogo, g.Logo, 480);
+        string based = g.Game.Length > 0 && g.Game != g.Name ? "Based on " + g.Game : g.Name;
+        if (g.Developer.Length > 0) based += "   ·   Recomp by " + g.Developer;
+        _heroBased!.Text = based;
+        _heroBlurb!.Text = g.Blurb.Length > 0 ? g.Blurb : g.Summary;
+        _heroBlurb.Visibility = _heroBlurb.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        bool has = bundle.Any(b => RecompZone.InstalledFor(b.Id) != null);
+        _heroPlayText!.Text = has ? "Play" : "Get it";
+        _heroPlayGlyph!.Text = has ? "" : "";
+        _heroDots!.Children.Clear();
+        for (int i = 0; i < _heroes.Count; i++)
+        {
+            var dot = new Border { Height = 4, Width = i == _heroIndex ? 46 : 26, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 0, 8, 0), Opacity = i == _heroIndex ? 0.95 : 0.35, Background = Brushes.White };
+            _heroDots.Children.Add(dot);
+        }
+        if (animate && !Theme.ReduceMotion)
+        {
+            _heroArt.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, artOpacity, TimeSpan.FromMilliseconds(450)));
+            _heroText!.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300)));
+        }
+        // A press of Next starts the wait over.
+        if (_heroTimer.IsEnabled) { _heroTimer.Stop(); _heroTimer.Start(); }
+    }
+
+    private void HeroPlay()
+    {
+        if (_heroes.Count == 0) return;
+        var bundle = _heroes[_heroIndex];
+        var install = bundle.Select(b => RecompZone.InstalledFor(b.Id)).FirstOrDefault(i => i != null);
+        if (install != null) PlayInstalled(install);
+        else _ = OpenBundleAsync(bundle, InstalledIds());
+    }
+
+    // ---------------------------------------------------------------- Coming soon, Library, Downloads
+
+    private void BuildSoon(bool focus)
+    {
+        _heroTimer.Stop();
+        var soon = RecompZone.Games.Where(g => g.Soon).ToList();
+        Note("Recomps their developers are still working on. Each one's page has news on how it's coming along.");
+        if (soon.Count == 0) { Note("Nothing announced right now."); FocusSection(focus); return; }
+        var panel = TileWall(null);
+        var installed = InstalledIds();
+        foreach (var bundle in Bundle(soon).OrderByDescending(b => b.Max(g => g.Stars)).ThenBy(BundleName, StringComparer.OrdinalIgnoreCase))
+            Tile(panel, bundle, installed, corner: "Coming soon");
+        FocusSection(focus);
+    }
+
+    private void BuildLibrary(bool focus)
+    {
+        _heroTimer.Stop();
+        var installed = InstalledIds();
+        var games = InstalledGames();
+        if (games.Count == 0)
+        {
+            Note("Recomps you install show up here, ready to play.");
+            var bar = new WrapPanel();
+            Body.Children.Add(bar);
+            Chip(bar, "", "Browse the catalog", () => ShowSection("catalog", focusContent: true));
+            FocusSection(focus);
+            return;
+        }
+        int updates = games.Count(x => RecompDownloads.Updates.ContainsKey(x.Install.Id));
+        Note($"{games.Count} installed" + (updates > 0 ? $"  ·  {updates} with an update (Downloads)" : "") + ". The most recently played first.");
+        var panel = TileWall(null);
+        foreach (var (install, game) in games)
+        {
+            string? corner = RecompDownloads.For(game.Id) != null ? "Downloading" : RecompDownloads.Updates.ContainsKey(game.Id) ? "Update" : null;
+            Tile(panel, new List<RecompGame> { game }, installed, corner: corner, hideInstalled: true);
+        }
+        FocusSection(focus);
+    }
+
+    private void BuildDownloads(bool focus)
+    {
+        _heroTimer.Stop();
+        _progressViews.Clear();
+        Heading("Downloading");
+        if (RecompDownloads.Active.Count == 0) Note("Nothing is downloading. Installs keep going here when you leave a game's page.");
+        foreach (var d in RecompDownloads.Active.ToList())
+        {
+            var card = new Grid { Margin = new Thickness(0, 0, 10, 10) };
+            card.ColumnDefinitions.Add(new ColumnDefinition());
+            card.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var info = new StackPanel { Margin = new Thickness(0, 0, 18, 0), VerticalAlignment = VerticalAlignment.Center };
+            info.Children.Add(Ui.Text(d.Game.Name, 18, "FgBrush", bold: true));
+            var status = Ui.Text(d.Status, 14, "SubtleBrush");
+            status.Margin = new Thickness(0, 4, 0, 8);
+            info.Children.Add(status);
+            var track = new Grid { Height = 8 };
+            var back = new Border { CornerRadius = new CornerRadius(4) };
+            back.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+            track.Children.Add(back);
+            var fill = new Border { CornerRadius = new CornerRadius(4), HorizontalAlignment = HorizontalAlignment.Left, Width = 0 };
+            fill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+            track.Children.Add(fill);
+            track.SizeChanged += (_, _) => fill.Width = track.ActualWidth * d.Fraction;
+            info.Children.Add(track);
+            card.Children.Add(info);
+            var cancel = new Button { Style = Ui.StyleOf("PillButton"), Content = HeroLabel("", "Cancel"), VerticalAlignment = VerticalAlignment.Center, Tag = "dl:" + d.Game.Id };
+            cancel.Click += (_, _) => d.Cancel.Cancel();
+            Grid.SetColumn(cancel, 1);
+            card.Children.Add(cancel);
+            var box = new Border { CornerRadius = new CornerRadius(16), Padding = new Thickness(20, 16, 16, 16), Margin = new Thickness(0, 0, 10, 10), Child = card };
+            box.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+            Body.Children.Add(box);
+            _progressViews[d.Game.Id] = (status, fill);
+        }
+
+        Heading("Updates");
+        var bar = new WrapPanel();
+        Body.Children.Add(bar);
+        string when = RecompDownloads.Checking ? "Checking GitHub…"
+            : RecompDownloads.LastCheck == DateTime.MinValue ? "Check for updates"
+            : "Check again (last checked " + RecompDownloads.LastCheck.ToString("t") + ")";
+        Chip(bar, "", when, () => { if (!RecompDownloads.Checking) _ = RecompDownloads.CheckAsync(force: true); });
+        var waiting = RecompDownloads.Updates.Where(u => RecompDownloads.For(u.Key) == null).ToList();
+        if (waiting.Count == 0)
+            Note(RecompDownloads.LastCheck == DateTime.MinValue ? "SquareDeck checks the recomps you've installed for new versions on GitHub." : "Everything you've installed is up to date.");
+        foreach (var (id, release) in waiting)
+        {
+            var game = GameFor(id);
+            if (game == null) continue;
+            var current = RecompZone.InstalledFor(id)?.Tag ?? "";
+            var row = Ui.Row(game.Name, (current.Length > 0 ? current + "  →  " : "") + release.Tag, "",
+                subtitle: (release.Size > 0 ? SystemStats.Bytes(release.Size) + "  ·  " : "") + "Unpacked over the old version; saves and settings stay");
+            row.Tag = "up:" + id;
+            row.Margin = new Thickness(0, 2, 10, 2);
+            row.Click += (_, _) => RecompDownloads.Start(game, release, Host);
+            Body.Children.Add(row);
+        }
+        FocusSection(focus);
+    }
+
+    // ---------------------------------------------------------------- one tile per game
+
+    /// <summary>
+    /// One tile per game: recomps of the same game (by its title or its cover) share a tile, with a count in the
+    /// corner, as in RecompLauncher; selecting it asks which one (or does <paramref name="click"/>).
+    /// </summary>
+    private Button Tile(Panel panel, List<RecompGame> bundle, HashSet<string> installed, Action? click = null, string? corner = null, bool hideInstalled = false)
+    {
+        var g = bundle[0]; // the most-starred
+        var box = ImageBox(150, 225, out var image);
+        var grid = (Grid)box.Child;
+        if (corner != null) grid.Children.Add(Badge(corner, HorizontalAlignment.Left, VerticalAlignment.Top, accent: true));
+        else if (!hideInstalled && bundle.Any(b => installed.Contains(b.Id))) grid.Children.Add(Badge("Installed", HorizontalAlignment.Left, VerticalAlignment.Top, accent: true));
+        int stars = bundle.Max(b => b.Stars);
+        if (stars > 0) grid.Children.Add(Badge("\u2605 " + Short(stars), HorizontalAlignment.Left, VerticalAlignment.Bottom, accent: false));
+        if (bundle.Count > 1) grid.Children.Add(CountBadge(bundle.Count));
+        if (g.Cover.Length == 0)
+        {
+            var name = Ui.Text(g.Game.Length > 0 ? g.Game : g.Name, 16, "FgBrush", bold: true);
+            name.TextWrapping = TextWrapping.Wrap;
+            name.TextAlignment = TextAlignment.Center;
+            name.VerticalAlignment = VerticalAlignment.Center;
+            name.Margin = new Thickness(10);
+            grid.Children.Add(name);
+        }
+        else _lazy.Add(new Lazy { Box = box, Image = image, Url = g.Cover });
+        string label = bundle.Count > 1 && g.Game.Length > 0 ? g.Game : g.Name;
+        return AddTile(box, label, 150, click ?? (() => _ = OpenBundleAsync(bundle, installed)), g.Id, panel);
+    }
+
+    private static string BundleName(List<RecompGame> bundle) => bundle.Count > 1 && bundle[0].Game.Length > 0 ? bundle[0].Game : bundle[0].Name;
+
+    private static string Plain(string text) => new string(text.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    /// <summary>
+    /// Groups recomps of the same game: the same console and the same original game title, or the same cover
+    /// picture. Each group's most-starred recomp comes first.
+    /// </summary>
+    internal static List<List<RecompGame>> Bundle(IEnumerable<RecompGame> games)
+    {
+        var list = games.ToList();
+        var parent = Enumerable.Range(0, list.Count).ToArray();
+        int Find(int i) { while (parent[i] != i) i = parent[i] = parent[parent[i]]; return i; }
+        void Join(int a, int b) { a = Find(a); b = Find(b); if (a != b) parent[b] = a; }
+        var byKey = new Dictionary<string, int>();
+        // A picture used by many different recomps is a stand-in ("no cover yet"), not the game's own: not a match.
+        var coverUses = list.Where(g => g.Cover.Length > 0).GroupBy(g => g.Cover.Trim().ToLowerInvariant()).ToDictionary(x => x.Key, x => x.Count());
+        for (int i = 0; i < list.Count; i++)
+        {
+            var g = list[i];
+            var keys = new List<string>();
+            if (Plain(g.Game).Length >= 3) keys.Add("game:" + g.Origin.ToLowerInvariant() + ":" + Plain(g.Game));
+            string cover = g.Cover.Trim().ToLowerInvariant();
+            if (cover.Length > 0 && coverUses[cover] <= 6) keys.Add("cover:" + g.Origin.ToLowerInvariant() + ":" + cover);
+            foreach (var key in keys)
+            {
+                if (byKey.TryGetValue(key, out int other)) Join(other, i);
+                else byKey[key] = i;
+            }
+        }
+        return list.Select((g, i) => (g, root: Find(i)))
+                   .GroupBy(x => x.root)
+                   .Select(grp => grp.Select(x => x.g).OrderByDescending(g => g.Stars).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase).ToList())
+                   .ToList();
+    }
+
+    /// <summary>The number of recomps on a tile, bottom right, with a stack icon (as RecompLauncher shows it).</summary>
+    private static Border CountBadge(int count)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        var icon = Ui.Glyph("\uE81E", 12, "FgBrush");
+        icon.Margin = new Thickness(0, 1, 5, 0);
+        row.Children.Add(icon);
+        row.Children.Add(Ui.Text(count.ToString(), 12, "FgBrush", bold: true));
+        return new Border
+        {
+            CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(8), Child = row,
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
+            Background = new SolidColorBrush(Color.FromArgb(0xB0, 0x10, 0x10, 0x14))
+        };
+    }
+
+    /// <summary>One recomp opens straight away; several ask which one first, with their stars, maker and whether it's installed.</summary>
+    private async Task OpenBundleAsync(List<RecompGame> bundle, HashSet<string> installed)
+    {
+        var pick = bundle[0];
+        if (bundle.Count > 1)
+        {
+            var options = bundle.Select(g =>
+            {
+                var parts = new List<string> { g.Name };
+                if (g.Stars > 0) parts.Add("\u2605 " + Short(g.Stars));
+                if (g.Developer.Length > 0) parts.Add(g.Developer);
+                if (installed.Contains(g.Id)) parts.Add("Installed");
+                return (string.Join("  \u00B7  ", parts), installed.Contains(g.Id) ? "\uE73E" : "\uE896");
+            }).ToArray();
+            string title = bundle[0].Game.Length > 0 ? bundle[0].Game : bundle[0].Name;
+            int choice = await Host.AskWithIconsAsync(title, $"{bundle.Count} recomps of this game. Which one would you like?", options);
+            if (choice < 0 || choice >= bundle.Count) return;
+            pick = bundle[choice];
+        }
+        _focusId = pick.Id;
+        Host.Push(new RecompGameScreen(pick));
     }
 
     private static Border Badge(string text, HorizontalAlignment h, VerticalAlignment v, bool accent)
@@ -501,7 +1152,7 @@ public sealed class RecompGameScreen : ListScreen
     private RecompRelease? _release;
     private bool _releaseChecked;
     private string? _releaseError;
-    private CancellationTokenSource? _install;
+    private RecompDownload? Download => RecompDownloads.For(_game.Id);
     private readonly TextBlock _progressText = Ui.Text("", 15, "SubtleBrush");
     private readonly Border _progressFill = new() { Height = 8, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(4), Width = 0 };
 
@@ -509,13 +1160,33 @@ public sealed class RecompGameScreen : ListScreen
     {
         _game = game;
         _progressFill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+        RecompDownloads.Progressed += OnProgress;
+        RecompDownloads.Changed += OnDownloadsChanged;
+    }
+
+    /// <summary>The download carries on in the background when this page closes (Recomp Zone > Downloads shows it).</summary>
+    private void OnProgress(RecompDownload d)
+    {
+        if (d.Game.Id != _game.Id) return;
+        _progressFill.Width = 928 * d.Fraction;
+        _progressText.Text = d.Status;
+    }
+
+    private bool _hadDownload;
+
+    private void OnDownloadsChanged()
+    {
+        bool has = Download != null;
+        if (has == _hadDownload) return;
+        _hadDownload = has;
+        Rebuild();
     }
 
     public override async void OnShown()
     {
         base.OnShown();
         ToTop();
-        if (!_game.CanInstall || !_game.ForWindows) { _releaseChecked = true; Rebuild(); ToTop(); return; }
+        if (!_game.CanInstall || !_game.ForWindows || _game.Soon) { _releaseChecked = true; Rebuild(); ToTop(); return; }
         try { _release = await RecompZone.ReleaseAsync(_game); }
         catch (Exception ex) { _releaseError = ex.Message.Contains("403") ? "GitHub is limiting requests right now. Try again in a few minutes." : "Couldn't check GitHub for its download: " + ex.Message; }
         _releaseChecked = true;
@@ -538,7 +1209,11 @@ public sealed class RecompGameScreen : ListScreen
         RowsScroll.ScrollToTop();
     }));
 
-    public override void OnClosed() => _install?.Cancel();
+    public override void OnClosed()
+    {
+        RecompDownloads.Progressed -= OnProgress;
+        RecompDownloads.Changed -= OnDownloadsChanged;
+    }
 
     protected override void Build()
     {
@@ -546,8 +1221,10 @@ public sealed class RecompGameScreen : ListScreen
 
         var install = RecompZone.InstalledFor(_game.Id);
         AddHeader(install != null ? "Installed" : "Get it");
-        if (_install != null)
+        _hadDownload = Download != null;
+        if (Download is { } download)
         {
+            OnProgress(download);
             var box = new StackPanel { Margin = new Thickness(6, 4, 6, 10) };
             box.Children.Add(_progressText);
             var track = new Grid { Margin = new Thickness(0, 8, 0, 0) };
@@ -557,24 +1234,31 @@ public sealed class RecompGameScreen : ListScreen
             track.Children.Add(_progressFill);
             box.Children.Add(track);
             Rows.Children.Add(box);
-            AddRow("Cancel", null, "", click: () => _install?.Cancel());
+            AddRow("Cancel", null, "", click: () => Download?.Cancel.Cancel(), subtitle: "It keeps going if you leave this page: Recomp Zone > Downloads shows it");
         }
         else if (install != null)
         {
-            AddRow("Play", install.Tag, "", click: () => Play(install));
-            if (_release != null && _release.Tag != install.Tag)
+            AddRow("Play", install.Located ? "Your copy" : install.Tag, "", click: () => Play(install));
+            if (install.Located)
+                AddNote("Found on your PC with Locate installed: SquareDeck plays it from where it is and leaves updating it to you.");
+            else if (_release != null && _release.Tag != install.Tag)
                 AddRow("Update to " + _release.Tag, Size(_release.Size), "", click: () => _ = InstallAsync(), subtitle: "Unpacked over this version; your saves and settings stay");
             else if (_releaseChecked && _release != null) AddRow("Up to date", _release.Tag, "", click: null);
             AddRow("Add to Home", null, "", click: () => _ = AddToHomeAsync(install), subtitle: "A tile for it on the home row, like your other games");
             AddRow("Open its folder", null, "", click: () => Host.Push(new ExplorerScreen(install.Folder)));
             AddRow("Uninstall", null, "", click: () => _ = UninstallAsync(install));
         }
+        else if (_game.Soon) { AddNote("This recomp isn't out yet." + (_game.StatusNote.Length > 0 ? " " + _game.StatusNote : " Its page has news on how it's coming along.")); AddRow("Open its page", null, "\uE774", click: OpenPage); }
         else if (!_game.ForWindows) AddNote("There's no Windows version of this recomp yet.");
         else if (!_game.CanInstall) AddRow("Get it from its page", null, "", click: OpenPage, subtitle: "This one isn't on GitHub, so it's installed from its own page");
         else if (!_releaseChecked) AddNote("Checking GitHub for the newest version…");
         else if (_release == null) { AddNote(_releaseError ?? "There's no Windows download for it on GitHub right now."); AddRow("Open its page", null, "", click: OpenPage); }
         else AddRow("Install", $"{_release.Tag}  ·  {Size(_release.Size)}", "", click: () => _ = InstallAsync(),
             subtitle: "Downloaded from the developer's GitHub release and checked against GitHub's checksum");
+        // Already installed by hand (or with RecompLauncher): no need to download it again.
+        if (Download == null && install == null && !_game.Soon)
+            AddRow("Locate installed", null, "\uE838", click: () => _ = LocateAsync(),
+                subtitle: "Already have it? Choose its program (.exe) and SquareDeck plays it from where it is, without installing it again");
 
         // The rest of what there is to know, under the install options (with room to breathe between them).
         Rows.Children.Add(new Border { Height = 22 });
@@ -760,7 +1444,7 @@ public sealed class RecompGameScreen : ListScreen
     private async Task LocateAsync()
     {
         var program = await Host.PickFileAsync($"Choose {_game.Name}'s program", new[] { ".exe" });
-        if (program == null) return;
+        if (program == null || !File.Exists(program)) return;
         RecompZone.Locate(_game, program);
         Rebuild();
         Host.ShowToast("Recomp Zone", _game.Name + " found", "Play it from here, or add it to Home.", "", "info");
@@ -784,36 +1468,13 @@ public sealed class RecompGameScreen : ListScreen
         catch (Exception ex) { _ = Host.AskAsync("Couldn't start it", ex.Message, "OK"); }
     }
 
-    private async Task InstallAsync()
+    private Task InstallAsync()
     {
-        if (_release == null || _install != null) return;
-        _install = new CancellationTokenSource();
-        var ct = _install.Token;
-        var release = _release;
+        if (_release == null || Download != null) return Task.CompletedTask;
         _progressText.Text = "Starting the download…";
         _progressFill.Width = 0;
-        Rebuild();
-        var progress = new Progress<(long Done, long Total)>(p =>
-        {
-            double f = p.Total > 0 ? Math.Clamp(p.Done / (double)p.Total, 0, 1) : 0;
-            _progressFill.Width = 928 * f;
-            _progressText.Text = p.Total > 0 ? $"Downloading {release.Tag}: {(int)Math.Floor(f * 100)}%  ({SystemStats.Bytes(p.Done)} of {SystemStats.Bytes(p.Total)})" : $"Downloading {release.Tag}: {SystemStats.Bytes(p.Done)}";
-            if (f >= 1) _progressText.Text = "Unpacking…";
-        });
-        try
-        {
-            var done = await RecompZone.InstallAsync(_game, release, progress, ct);
-            _install = null;
-            Rebuild();
-            Host.ShowToast("Recomp Zone", _game.Name + " is installed", "Press Play to start it. It asks for your copy of the game the first time.", "", "info");
-        }
-        catch (OperationCanceledException) { _install = null; Rebuild(); }
-        catch (Exception ex)
-        {
-            _install = null;
-            Rebuild();
-            await Host.AskAsync("Couldn't install it", ex.Message, "OK");
-        }
+        RecompDownloads.Start(_game, _release, Host);
+        return Task.CompletedTask;
     }
 
     private async Task AddToHomeAsync(RecompInstall install)

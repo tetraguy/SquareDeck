@@ -68,7 +68,7 @@ public sealed class GameGenieScreen : Screen
     }
 
     /// <summary>What SquareDeck knows about the game, for Gemini to work from.</summary>
-    private static string Known(Game game, StoreDetails? d, GameLookup.WikiSummary? wiki)
+    internal static string Known(Game game, StoreDetails? d, GameLookup.WikiSummary? wiki)
     {
         var b = new StringBuilder();
         b.AppendLine("Title: " + game.Name);
@@ -104,9 +104,25 @@ public sealed class GameGenieScreen : Screen
 
     private void Load()
     {
+        // Answers written ahead (for a new game, or since its details page opened) show straight away.
         _sheet = GameGenie.Cached(_game.Key);
-        if (_sheet != null) { Show(); return; }
+        if (_sheet != null && GeniePrep.Fresh(_sheet)) { Show(); return; }
+        if (GeniePrep.Pending(_game.Key) is { } pending) { _ = WaitForPreparedAsync(pending); return; }
+        if (_sheet != null && !GameGenie.HasKey) { Show(); return; } // old, but nothing better to be had
         _ = MakeAsync();
+    }
+
+    /// <summary>The answers are being written in the background already: wait for those rather than asking twice.</summary>
+    private async Task WaitForPreparedAsync(Task<GameGenie.Sheet?> pending)
+    {
+        _busy = true;
+        ShowThinking("The Genie is almost ready with " + _game.Name + "…");
+        GameGenie.Sheet? sheet = null;
+        try { sheet = await pending; } catch (Exception) { }
+        _busy = false;
+        if (_cts.IsCancellationRequested) return;
+        if (sheet != null) { _sheet = sheet; UiSound.Select(); Show(); }
+        else _ = MakeAsync();
     }
 
     private async Task MakeAsync()

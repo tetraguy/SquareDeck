@@ -23,7 +23,7 @@ public sealed class SettingsScreen : ListScreen
         ("sound", "Sound and music", "\uE767", "Interface sounds, menu music, the Multimedia page and sound output"),
         ("gaming", "Gaming", "\uE768", "Launching games, while you play, Performance Boost, the overlay, cloud gaming"),
         ("library", "Library and stores", "\uE8F1", "Library layout and stores, achievements, play time, service keys"),
-        ("controller", "Controller and quick menu", "\uE7FC", "Buttons, vibration, typing, the quick menu, handheld buttons"),
+        ("controller", "Controller and Game Bar widget", "\uE7FC", "Buttons, vibration, typing, the Game Bar widget, handheld buttons"),
         ("handheld", "{device}", Ui.HandheldGlyph, "TDP limit and processor power, lights, fans, battery care and buttons for this device"),
         ("network", "Network and browser", "\uE774", "Wi-Fi, Bluetooth, troubleshooting, the web browser"),
         ("access", "Accessibility", "\uE776", "Seeing, motion, hearing, controls and timing, reading aloud"),
@@ -863,9 +863,9 @@ public sealed class SettingsScreen : ListScreen
             Rebuild();
         }, subtitle: "Longer gives more time to read them");
         AddRow("Swap A and B, or other buttons", glyph: "", click: () => Show("controller", focusContent: true),
-            subtitle: "Which button selects and which goes back, in Controller and quick menu");
+            subtitle: "Which button selects and which goes back, in Controller and Game Bar widget");
         AddRow("Vibration", s.RumbleStrength > 0 ? s.RumbleStrength + "%" : "Off", "", click: () => Show("controller", focusContent: true),
-            subtitle: "How strongly the controller buzzes, or off, in Controller and quick menu");
+            subtitle: "How strongly the controller buzzes, or off, in Controller and Game Bar widget");
         AddRow("On-screen keyboard and typing (Windows)", glyph: "", click: () => ProcessUtil.Open("ms-settings:easeofaccess-keyboard"),
             subtitle: "Sticky keys, filter keys and the on-screen keyboard");
 
@@ -1521,7 +1521,10 @@ public sealed class SettingsScreen : ListScreen
 
         AddHeader("Background music");
         AddRow("Music on the launcher's screens", BackgroundMusic.NameOf(s.MenuMusic), "\uE8D6", click: () => _ = ChooseBackgroundMusicAsync(Host, Rebuild));
-        if (s.MenuMusic.Length > 0)
+        if (Labs.On("recomp"))
+            AddRow("Recomp Zone music", OnOff(s.RecompZoneMusic), "\uE8D6", click: () => Toggle(() => s.RecompZoneMusic = !s.RecompZoneMusic),
+                subtitle: "Recomp Zone plays its own music while it's open, at the same loudness as the launcher's music");
+        if (s.MenuMusic.Length > 0 || s.RecompZoneMusic)
             AddRow("Music loudness", s.MenuMusicVolume + "%", "\uE995", click: () =>
             {
                 int[] levels = { 10, 20, 30, 50, 75, 100 };
@@ -1616,24 +1619,41 @@ public sealed class SettingsScreen : ListScreen
             subtitle: s.TouchKeyboard == "windows" ? "Best on a touchscreen; Windows' keyboard opens when you type"
                                                    : "Built in, works with the controller");
 
-        AddHeader("Summon and quick menu");
-        AddRow("Summon buttons bring the launcher forward", OnOff(s.GuideSummon), "", click: () =>
+        AddHeader("Summon");
+        AddRow("Summon buttons bring the launcher forward", OnOff(s.GuideSummon), "\uE7FC", click: () =>
             Toggle(() => s.GuideSummon = !s.GuideSummon));
-        AddRow("In-game quick menu", OnOff(s.InGameQuickMenu), "", click: () =>
-            Toggle(() => s.InGameQuickMenu = !s.InGameQuickMenu));
-        AddRow("Controller buttons", SummonLabel(s.SummonCombo), "", click: ChooseSummonButtons);
-        AddRow("Keyboard shortcut", MainWindow.SummonKeys.FirstOrDefault(k => k.Id == s.SummonKey).Name ?? "None", "",
+        AddRow("Over a game, summon opens the Game Bar widget", OnOff(s.InGameQuickMenu), "\uE7FC", click: () =>
+            Toggle(() => s.InGameQuickMenu = !s.InGameQuickMenu), subtitle: "SquareDeck's widget replaced the in-game quick menu");
+        AddRow("Controller buttons", SummonLabel(s.SummonCombo), "\uE7FC", click: ChooseSummonButtons);
+        AddRow("Keyboard shortcut", MainWindow.SummonKeys.FirstOrDefault(k => k.Id == s.SummonKey).Name ?? "None", "\uE765",
             click: ChooseSummonKey);
-        AddRow("Where the quick menu appears", s.OverlaySide switch { "right" => "Slides in from the right", "center" => "Pop-up in the middle", _ => "Slides in from the left" },
-            "", click: () => Toggle(() => s.OverlaySide = s.OverlaySide switch { "left" => "right", "right" => "center", _ => "left" }));
-        AddRow("Quick menu buttons", string.Join(", ", s.OverlayTiles.Take(3).Select(t => QuickOverlay.TileChoices.FirstOrDefault(c => c.Id == t).Name)) + "…", "\uE8A9",
-            click: () => Host.Push(new OverlayButtonsScreen()), subtitle: "The six buttons in the quick menu. Y on a button in the menu swaps it too");
-        AddRow("Quick menu stats", s.OverlayStats.Count == 0 ? "None" : string.Join(", ", s.OverlayStats.Select(x => QuickOverlay.StatChoices.FirstOrDefault(c => c.Id == x).Name)), "\uE9D9",
-            click: () => Host.Push(new OverlayStatsScreen()), subtitle: "What the strip at the top of the quick menu shows");
-        AddRow("Quick menu takes the controller", OnOff(s.OverlayTakesController), "\uE7FC", click: () => Toggle(() => s.OverlayTakesController = !s.OverlayTakesController),
-            subtitle: "While the menu is open, the game doesn't react to your buttons. Turn off if a game minimizes or goes black when the menu opens");
-        AddRow("TDP in the quick menu", OnOff(s.OverlayTdp), "\uE945", click: () => Toggle(() => s.OverlayTdp = !s.OverlayTdp),
-            subtitle: TdpControl.Ready ? "Presets and a slider for the power limit while you play" : "Turn on TDP control in Settings > " + TdpPlace + " first");
+
+        AddHeader("Xbox Game Bar widget");
+        AddRow("Widget connection", OnOff(s.GameBarWidget), "\uE7FC", click: () => Toggle(() =>
+            {
+                s.GameBarWidget = !s.GameBarWidget;
+                if (s.GameBarWidget) WidgetBridge.Start(); else WidgetBridge.Stop();
+            }),
+            subtitle: (s.GameBarWidget && WidgetBridge.Connected > 0 ? "Connected now. " : "") +
+                      "Lets the SquareDeck widget in Game Bar (Win + G) change the TDP, sound, brightness and quick toggles while you play");
+        {
+            var installedWidget = WidgetInstaller.InstalledVersion();
+            var bundled = WidgetInstaller.Find();
+            string value = WidgetInstaller.Busy ? "Installing…"
+                : bundled != null && (installedWidget == null || installedWidget < bundled.Version) ? (installedWidget == null ? "Install" : "Update to " + bundled.Version)
+                : installedWidget != null ? "Installed (" + installedWidget + ")" : "Not included";
+            AddRow("Install the widget", value, "\uE896", click: () => _ = InstallWidgetAsync(),
+                subtitle: bundled != null ? "From the Widget folder where SquareDeck is installed. The first time, Windows asks an administrator to trust its certificate"
+                    : "Put the widget package (from Visual Studio's Create App Packages) in a Widget folder next to SquareDeck");
+        }
+        AddRow("Widget colors", WidgetThemeName(s.WidgetTheme), "\uE790", click: () => _ = ChooseWidgetThemeAsync(),
+            subtitle: "SquareDeck's teal, your UI style's highlight color, or the colors of the game you're playing");
+        AddRow("Widget cards", WidgetCardsLabel(s), "\uE8A9", click: () => _ = ChooseWidgetCardsAsync(),
+            subtitle: "Which cards the widget shows below Power: the game, live stats, the ROG Ally and quick toggles");
+        AddRow("Close game in the widget", OnOff(s.WidgetCloseGame), "\uE711", click: () => Toggle(() => s.WidgetCloseGame = !s.WidgetCloseGame),
+            subtitle: "A Close game button on the widget's game card (press twice)");
+        AddRow("Open the widget now", null, "\uE8A7", click: () => Host.RunWidgetAction(),
+            subtitle: "Opens Game Bar with SquareDeck's widget");
 
         if (Handheld.IsHandheld)
         {
@@ -2232,6 +2252,31 @@ public sealed class SettingsScreen : ListScreen
             click: () => AllySave(() => s.AllyLowBatteryFlash = !s.AllyLowBatteryFlash, () => AllyControl.ApplyLights(force: true)),
             subtitle: "At 15% or less, until you plug in");
 
+        // ---- The Xbox button's light (ROG Xbox Ally)
+        if (AllyControl.HasXboxLight)
+        {
+            AddHeader("Xbox button light");
+            var states = new[] { ("", "Leave as it is"), ("on", "On"), ("off", "Off") };
+            AddRow("Light", states.FirstOrDefault(x => x.Item1 == s.AllyXboxLight).Item2 ?? "Leave as it is", "",
+                click: () => AllyPick("Xbox button light", states, x => x.Item2, x => s.AllyXboxLight = x.Item1, () => AllyControl.ApplyXboxLight(force: true)),
+                subtitle: s.AllyXboxLight.Length == 0 ? "Armoury Crate SE (or the last setting) decides" : "The green glow in the Xbox button");
+            if (s.AllyXboxLight == "on")
+            {
+                AddRow("Brightness", AllyControl.XboxLightLevelName(s.AllyXboxLightLevel), "",
+                    click: () => AllyPick("Xbox button brightness", AllyControl.XboxLightLevels, l => l.Name, l => s.AllyXboxLightLevel = l.Level, () => AllyControl.ApplyXboxLight(force: true)),
+                    subtitle: "Bright is how ASUS ships it");
+                AddRow("Effect", s.AllyXboxLightBreathe ? "Breathing" : "Steady", "",
+                    click: () => AllySave(() => s.AllyXboxLightBreathe = !s.AllyXboxLightBreathe, () => AllyControl.ApplyXboxLight(force: true)),
+                    subtitle: "Steady, or a slow fade in and out");
+                AddRow("Off while playing", OnOff(s.AllyXboxLightOffPlaying), "",
+                    click: () => AllySave(() => s.AllyXboxLightOffPlaying = !s.AllyXboxLightOffPlaying, () => AllyControl.ApplyXboxLight(force: true)),
+                    subtitle: "Keeps it out of the corner of your eye; it comes back when the game closes");
+                AddRow("Breathe when the battery is low", OnOff(s.AllyXboxLightLowBattery), "",
+                    click: () => AllySave(() => s.AllyXboxLightLowBattery = !s.AllyXboxLightLowBattery, () => AllyControl.ApplyXboxLight(force: true)),
+                    subtitle: "At 15% or less, bright and breathing, until you plug in");
+            }
+        }
+
         // ---- Controller: the built-in controller's own firmware settings (they work in every game)
         AddHeader("Controller");
         if (!pad) AddNote("SquareDeck couldn't find the Ally's controller settings device. These settings apply once it's found.");
@@ -2242,7 +2287,7 @@ public sealed class SettingsScreen : ListScreen
             Host.Push(dialog);
             int v = await dialog.Result;
             AllySave(() => s.AllyVibration = Math.Clamp(v, 0, 100), () => Task.Run(AllyControl.ApplyTuning));
-        }, subtitle: "The controller's own strength, for every game. SquareDeck's menu buzz is in Controller and quick menu");
+        }, subtitle: "The controller's own strength, for every game. SquareDeck's menu buzz is in Controller and Game Bar widget");
         AddRow("Stick dead zone", s.AllyStickInner + "%", "", click: () => _ = PickPercentAsync("Stick dead zone",
             "How far the sticks move before anything happens. Raise it if a worn stick drifts on its own.", s.AllyStickInner, 0, 30,
             v => s.AllyStickInner = v), subtitle: "Both sticks, in the controller itself. 0% is ASUS's default");
@@ -2301,10 +2346,22 @@ public sealed class SettingsScreen : ListScreen
                 subtitle: "For a long trip: charges fully now; the limit comes back next time SquareDeck starts");
         AddRow("Battery health", null, "", click: () => Host.Push(new BatteryScreen()), subtitle: "Wear, charge cycles and how long a charge lasts");
 
-        // ---- ASUS software: the ASUS Optimization service, when it's installed
+        // ---- ASUS software: Armoury Crate SE (install or remove it with ASUS's own tools), and the ASUS Optimization service
+        AddHeader("ASUS software");
+        if (_armouryInstalled == null)
+            _ = Task.Run(ArmouryCrate.IsInstalled).ContinueWith(r => Dispatcher.Invoke(() => { _armouryInstalled = r.Result; Rebuild(); }));
+        AddRow(_armouryInstalled == true ? "Uninstall Armoury Crate SE" : "Install Armoury Crate SE",
+            _armouryInstalled == null ? "Checking…" : _armouryInstalled == true ? "Installed" : "Not installed", _armouryInstalled == true ? "\uE74D" : "\uE896",
+            click: () => _ = RunArmouryCrateToolAsync(uninstall: _armouryInstalled == true),
+            subtitle: _armouryInstalled == true
+                ? "Downloads ASUS's Armoury Crate Uninstall Tool and runs it (Windows asks for administrator permission)"
+                : "Downloads ASUS's Armoury Crate installer and runs it (Windows asks for administrator permission)");
+        if (_armouryInstalled != null)
+            AddRow(_armouryInstalled == true ? "Reinstall Armoury Crate SE" : "Run ASUS's uninstall tool anyway", null, _armouryInstalled == true ? "\uE896" : "\uE74D",
+                click: () => _ = RunArmouryCrateToolAsync(uninstall: _armouryInstalled != true),
+                subtitle: _armouryInstalled == true ? "Runs ASUS's installer again, to repair or update it" : "Clears what's left of an earlier install (services, drivers)");
         if (AsusOptimization.Installed)
         {
-            AddHeader("ASUS software");
             bool on = AsusOptimization.Enabled;
             AddRow("ASUS Optimization service", on ? (AsusOptimization.Running ? "On (running)" : "On") : "Off", "\uE912", click: async () =>
             {
@@ -2340,6 +2397,90 @@ public sealed class SettingsScreen : ListScreen
     }
 
     /// <summary>Picks a light effect and applies it straight away, saying whether the lights took it.</summary>
+    private static readonly (string Id, string Name)[] WidgetThemes =
+        { ("squaredeck", "SquareDeck teal"), ("style", "Match the UI style"), ("game", "Match the game") };
+
+    private static string WidgetThemeName(string? id) => WidgetThemes.FirstOrDefault(t => t.Id == id).Name ?? WidgetThemes[0].Name;
+
+    private async Task ChooseWidgetThemeAsync()
+    {
+        int pick = await Host.AskAsync("Widget colors", "The widget's highlight color. With Match the game, it takes the colors of the game's artwork while one runs (your UI style's color otherwise).",
+            WidgetThemes.Select(t => t.Name).ToArray());
+        if (pick >= 0) Toggle(() => Host.Settings.WidgetTheme = WidgetThemes[pick].Id);
+        WidgetBridge.Nudge();
+    }
+
+    private static readonly (string Id, string Name)[] WidgetCards =
+        { ("game", "Game"), ("live", "Live"), ("ally", "ROG Ally"), ("quick", "Quick") };
+
+    private static string WidgetCardsLabel(Settings s)
+    {
+        var on = WidgetCards.Where(c => s.WidgetSections?.Contains(c.Id) != false).Select(c => c.Name).ToList();
+        return on.Count == 0 ? "Power only" : string.Join(", ", on);
+    }
+
+    private async Task ChooseWidgetCardsAsync()
+    {
+        var s = Host.Settings;
+        s.WidgetSections ??= new List<string>(Settings.WidgetSectionIds);
+        while (true)
+        {
+            var names = WidgetCards.Select(c => (s.WidgetSections.Contains(c.Id) ? "\u2713  " : "      ") + c.Name).ToArray();
+            int pick = await Host.AskAsync("Widget cards", "Press a card to show or hide it. B when you're done.", names);
+            if (pick < 0) break;
+            string id = WidgetCards[pick].Id;
+            if (!s.WidgetSections.Remove(id)) s.WidgetSections.Add(id);
+            s.Save();
+            WidgetBridge.Nudge();
+        }
+        Rebuild();
+    }
+
+    private static bool? _armouryInstalled;
+
+    /// <summary>Downloads ASUS's Armoury Crate tool, unzips it and runs it, with a pop-up showing each step.</summary>
+    private async Task RunArmouryCrateToolAsync(bool uninstall)
+    {
+        if (await Host.AskAsync(uninstall ? "Uninstall Armoury Crate SE?" : "Install Armoury Crate SE?",
+                uninstall
+                    ? "SquareDeck downloads ASUS's Armoury Crate Uninstall Tool from ASUS and runs it. It removes Armoury Crate SE and its services; SquareDeck's own controls keep working. Windows asks for administrator permission, and ASUS may ask you to restart."
+                    : "SquareDeck downloads ASUS's Armoury Crate installer from ASUS and runs it. Windows asks for administrator permission; the installer then downloads and sets up Armoury Crate SE in its own window.",
+                uninstall ? "Uninstall" : "Install", "Cancel") != 0) return;
+        using var cts = new CancellationTokenSource();
+        var screen = new ToolProgressScreen(uninstall ? "Uninstalling Armoury Crate SE" : "Installing Armoury Crate SE", () => { try { cts.Cancel(); } catch (ObjectDisposedException) { } });
+        Host.Push(screen);
+        string? error;
+        try
+        {
+            var progress = new Progress<(ArmouryCrate.Stage Stage, string Detail, double? Fraction)>(p => screen.Report(p.Stage, p.Detail, p.Fraction));
+            error = await ArmouryCrate.RunAsync(uninstall, progress, cts.Token);
+        }
+        catch (OperationCanceledException) { error = "Cancelled. Nothing was changed."; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { Host.Pop(screen); }
+        _armouryInstalled = null; // looked at again
+        await Host.AskAsync(error == null ? (uninstall ? "ASUS's uninstall tool finished" : "ASUS's installer finished") : "Armoury Crate SE", error ??
+            (uninstall ? "If ASUS asked for a restart, restart before setting things up again. SquareDeck's buttons, TDP and lights don't need Armoury Crate."
+                       : "Armoury Crate SE should be in your Start menu. If its buttons fight with SquareDeck's, set them to do nothing in Armoury Crate SE."), "OK");
+        Rebuild();
+    }
+
+    /// <summary>Installs (or updates) the Game Bar widget from the Widget folder next to SquareDeck.</summary>
+    private async Task InstallWidgetAsync()
+    {
+        if (WidgetInstaller.Busy) return;
+        if (WidgetInstaller.Find() is not { } package)
+        {
+            await Host.AskAsync("Xbox Game Bar widget", "There's no widget package in " + WidgetInstaller.Folder + ". The installer puts it there; for a build of your own, copy Visual Studio's AppPackages output into that folder.", "OK");
+            return;
+        }
+        (bool Ok, string Message) result = (false, "");
+        await Host.RunBusyAsync("Installing the Game Bar widget", async () => result = await WidgetInstaller.InstallAsync(package));
+        await Host.AskAsync(result.Ok ? "Widget installed" : "Widget not installed",
+            result.Ok ? "Open Game Bar (Win + G, or the Xbox button): SquareDeck is in its widget menu." : result.Message, "OK");
+        Rebuild();
+    }
+
     private async Task ChooseLightEffectAsync()
     {
         var s = Host.Settings;
@@ -2627,6 +2768,13 @@ public sealed class SettingsScreen : ListScreen
             s.Save();
             Rebuild();
         }, subtitle: "Your own Google Gemini key for Game Genie's answers, instead of the one built in");
+        AddRow("Prepare Genie answers for new games", s.GeniePrepare ? "On" : "Off", "\uE945", click: () =>
+        {
+            s.GeniePrepare = !s.GeniePrepare;
+            s.Save();
+            Rebuild();
+        }, subtitle: $"Games added from now on get their answers in the background (up to {GeniePrep.DailyLimit} a day), so Ask Genie opens with them ready. " +
+                     $"{GeniePrep.Ready} {(GeniePrep.Ready == 1 ? "game" : "games")} ready" + (GeniePrep.Waiting > 0 ? $", {GeniePrep.Waiting} waiting" : ""));
     }
 
     private void BuildNetwork(Settings s)
@@ -3143,8 +3291,8 @@ public sealed class SettingsScreen : ListScreen
 
     private async void ChooseSummonButtons()
     {
-        int choice = await Host.AskAsync("Buttons that bring up the quick menu",
-            "Hold them together while a game is running. Pick a combination your games don't use. " +
+        int choice = await Host.AskAsync("Buttons that open the Game Bar widget",
+            "Hold them together while a game is running to open SquareDeck's widget in Game Bar (or, without a game, bring SquareDeck forward). Pick a combination your games don't use. " +
             "Windows may keep the Guide button for the Game Bar; if it does, use one of the others.",
             SummonCombos.Select(c => c.Name).ToArray());
         if (choice >= 0) Toggle(() => Host.Settings.SummonCombo = SummonCombos[choice].Id);
@@ -3152,7 +3300,7 @@ public sealed class SettingsScreen : ListScreen
 
     private async void ChooseSummonKey()
     {
-        int choice = await Host.AskAsync("Keyboard shortcut for the quick menu",
+        int choice = await Host.AskAsync("Keyboard shortcut for the Game Bar widget",
             "Works anywhere in Windows while the launcher is open, including inside a game. Handy for handhelds whose extra " +
             "buttons can be set to send a key.", MainWindow.SummonKeys.Select(k => k.Name).ToArray());
         if (choice >= 0) Toggle(() => Host.Settings.SummonKey = MainWindow.SummonKeys[choice].Id);
@@ -3241,7 +3389,7 @@ public sealed class SettingsScreen : ListScreen
         }
         try
         {
-            await Host.RunBusyAsync("Finish signing in to Spotify in your browser\u2026", () => spotify.SignInAsync(CancellationToken.None));
+            await Host.RunCancellableBusyAsync("Finish signing in to Spotify in your browser\u2026", token => spotify.SignInAsync(token));
         }
         catch (Exception ex)
         {
@@ -4862,74 +5010,3 @@ public sealed class PowerMenuScreen : Screen
 }
 
 
-/// <summary>The in-game quick menu's six quick buttons: press one to choose what it does.</summary>
-public sealed class OverlayButtonsScreen : ListScreen
-{
-    public OverlayButtonsScreen() : base("Quick menu buttons") { }
-
-    protected override void Build()
-    {
-        var s = Host.Settings;
-        while (s.OverlayTiles.Count < 6) s.OverlayTiles.Add(QuickOverlay.DefaultTiles.First(d => !s.OverlayTiles.Contains(d)));
-        AddHeader("Buttons, in order (top row, then bottom row)");
-        for (int i = 0; i < 6; i++)
-        {
-            int slot = i;
-            var current = QuickOverlay.TileChoices.FirstOrDefault(c => c.Id == s.OverlayTiles[slot]);
-            AddRow($"Button {slot + 1}", current.Name ?? "", current.Glyph ?? "\uE710", click: async () =>
-            {
-                var choices = QuickOverlay.TileChoices.Where(c => c.Id == s.OverlayTiles[slot] || !s.OverlayTiles.Contains(c.Id)).ToList();
-                int pick = await Host.AskAsync($"Button {slot + 1}", null, choices.Select(c => c.Name).Append("Cancel").ToArray());
-                if (pick < 0 || pick >= choices.Count) return;
-                s.OverlayTiles[slot] = choices[pick].Id;
-                s.Save();
-                Rebuild();
-            });
-        }
-        AddHeader("More");
-        AddRow("Back to the usual six", glyph: "\uE777", click: () =>
-        {
-            s.OverlayTiles = QuickOverlay.DefaultTiles.ToList();
-            s.Save();
-            Rebuild();
-        });
-        AddNote("In the quick menu, highlight a button and press " + Hints.KeyLabel("Options") + " to swap it for the next one.");
-    }
-}
-
-/// <summary>Which stats the in-game quick menu shows along its top, and in what order.</summary>
-public sealed class OverlayStatsScreen : ListScreen
-{
-    public OverlayStatsScreen() : base("Quick menu stats") { }
-
-    protected override void Build()
-    {
-        var s = Host.Settings;
-        AddHeader("Shown");
-        foreach (var id in s.OverlayStats.ToList())
-        {
-            var (_, name) = QuickOverlay.StatChoices.FirstOrDefault(c => c.Id == id);
-            if (name == null) continue;
-            string stat = id;
-            AddRow(name, "On", "\uE73E", click: async () =>
-            {
-                int i = s.OverlayStats.IndexOf(stat);
-                int pick = await Host.AskAsync(name, null, "Hide it", "Move it earlier", "Move it later", "Cancel");
-                if (pick == 0) s.OverlayStats.Remove(stat);
-                else if (pick == 1 && i > 0) { s.OverlayStats.RemoveAt(i); s.OverlayStats.Insert(i - 1, stat); }
-                else if (pick == 2 && i < s.OverlayStats.Count - 1) { s.OverlayStats.RemoveAt(i); s.OverlayStats.Insert(i + 1, stat); }
-                else return;
-                s.Save();
-                Rebuild();
-            });
-        }
-        if (s.OverlayStats.Count == 0) AddNote("Nothing is shown. Add something below.");
-        AddHeader("Not shown");
-        foreach (var (id, name) in QuickOverlay.StatChoices.Where(c => !s.OverlayStats.Contains(c.Id)))
-        {
-            string stat = id;
-            AddRow(name, "Off", "\uE710", click: () => { s.OverlayStats.Add(stat); s.Save(); Rebuild(); });
-        }
-        AddNote("Frames per second needs the performance overlay running (Settings > Performance overlay).");
-    }
-}
