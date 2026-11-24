@@ -3,6 +3,56 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.1
+
+- **Recomp Zone: "Locate installed"** lets you choose the game's folder as well as its program. The chooser now has a
+  "Choose this folder" button (SquareDeck finds the program inside), says that selecting an .exe chooses it, and
+  offers the Windows folder window too. Before, there was no way to confirm a folder, so you could get stuck.
+
+## 8.1.0
+
+Eighteen new experimental features for the Game Bar widget (widget 1.6), each with its own switch in Settings >
+Experimental > Game Bar widget. Rebuild the widget package in Visual Studio to get them.
+
+- **In the Power card**
+  - **Frame cap buttons:** Off, 30, 40 and 60 FPS, applied straight away with Radeon's limiter, and Save to keep
+    that cap for the game.
+  - **Auto TDP:** pick 30, 40 or 60 FPS and SquareDeck finds the lowest TDP that holds it, a watt or two at a time
+    every few seconds. Needs TDP control and the frame counter (PresentMon).
+- **Thermal warning:** the Live card turns amber, with a note, within 5 degrees of the chip's temperature limit.
+- **New cards**
+  - **Game notes:** the running game's notes, and Add note (saved with the date) for codes, hints and where you
+    left off.
+  - **Achievements:** progress for the running Steam game, the next locked ones, and How to get this for each.
+  - **Ask Genie:** type a question or pick one, and Game Genie answers about the game you're playing.
+  - **Controller:** controller battery, rumble strength, and a stick drift check.
+  - **Friends online:** Steam friends who are online or playing, with Message.
+  - **Notifications:** SquareDeck's latest notifications.
+  - **Downloads:** what Steam and SquareDeck are downloading, Steam's downloads page, and stopping SquareDeck's queue.
+  - **Launch:** your apps (Discord, a browser, Spotify…) and SquareDeck shortcuts (Home, Library, Retro Lounge,
+    Captures, Settings).
+- **Invite** on the game card: Steam's friends list for Steam games; for others it points to Game Bar's Xbox Social.
+- **Card order and hiding:** an Edit button in the header to move cards up and down and hide the ones you don't use.
+- **Layout per game:** each game remembers the card order, hidden cards and Live tiles from the last time.
+- **Presets per game:** Save this setup to the game (cards, Live tiles and Quick tiles), in the card editor.
+- **Match my style:** the widget takes on the current SquareDeck style's colors, font and wallpaper, Mythical
+  styles included.
+- **Companion:** your pixel companion in the header, cheering achievements, worrying about low battery and
+  suggesting a break after long sessions.
+
+## 8.0.6
+
+- **About This Game** (Experimental): its button moved from the row of actions into the game page's About section,
+  under the short description, and reads "Learn more about" and the game's name.
+
+## 8.0.5
+
+- **About This Game** (Settings > Experimental): an About button on a game's page opens its "About This Game" as on
+  its Steam store page: the banner, the description with its artwork, animated images and videos (playing by
+  themselves, silently), its screenshots, and a side panel with the genre, developer, publisher, release date,
+  achievements and Metacritic score. D-pad or right stick to scroll, LT / RT a page at a time. Links open in
+  SquareDeck's browser. Works for Steam games and other games SquareDeck matches to a Steam store page.
+
 ## 8.0.4
 
 - **Drive connected notice** (Settings > Experimental): when a USB drive, an external SSD or hard drive, or a microSD

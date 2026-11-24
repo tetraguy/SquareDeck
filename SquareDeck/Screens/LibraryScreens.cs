@@ -529,6 +529,7 @@ public sealed class DetailsScreen : Screen
     private readonly StackPanel _hltb = new();
     private HltbTimes? _hltbTimes;
     private readonly TextBlock _description = Ui.Text("Loading details…", 18, "FgBrush");
+    private readonly Button _learnMore = new();
     private readonly StackPanel _facts = new();
     private readonly StackPanel _sections = new();
     private string? _reviews;
@@ -575,7 +576,17 @@ public sealed class DetailsScreen : Screen
         _description.TextWrapping = TextWrapping.Wrap;
         _description.TextTrimming = TextTrimming.None;
         _description.LineHeight = 27;
-        var descriptionCard = Card(_description, new Thickness(24, 20, 24, 22));
+        // Experimental "About This Game": a button under the description, once the store page has one.
+        _learnMore.Style = Ui.StyleOf("PillButton");
+        _learnMore.Content = GlyphLabel("\uE946", "Learn more about " + game.Name, 16);
+        _learnMore.HorizontalAlignment = HorizontalAlignment.Left;
+        _learnMore.Margin = new Thickness(0, 18, 0, 0);
+        _learnMore.Visibility = Visibility.Collapsed;
+        _learnMore.Click += (_, _) => { if (_details != null) Host.Push(new AboutGameScreen(_game.Name, _details)); };
+        var descriptionStack = new StackPanel();
+        descriptionStack.Children.Add(_description);
+        descriptionStack.Children.Add(_learnMore);
+        var descriptionCard = Card(descriptionStack, new Thickness(24, 20, 24, 22));
         var factsCard = Card(_facts, new Thickness(22, 18, 22, 18));
         factsCard.VerticalAlignment = VerticalAlignment.Top;
 
@@ -1584,6 +1595,7 @@ public sealed class DetailsScreen : Screen
         if (details.ReleaseDate.Length > 0) meta.Add(details.ReleaseDate);
         _meta.Text = string.Join("  ·  ", meta);
         _description.Text = details.Description.Length > 0 ? details.Description : "No description.";
+        _learnMore.Visibility = Labs.On("aboutgame") && details.AboutHtml.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         BuildFacts();
         BuildBadges();
         BuildStats();

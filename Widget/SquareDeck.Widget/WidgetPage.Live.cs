@@ -105,6 +105,23 @@ namespace SquareDeck.Widget
             if (_lastState != null) UpdateLive(_lastState, false);
         }
 
+        /// <summary>Live tiles chosen by SquareDeck (a game's layout or preset, or your own saved there).</summary>
+        private void ApplyLiveIds(string ids)
+        {
+            if (string.IsNullOrEmpty(ids) || _liveGrid == null) return;
+            var parts = ids.Split(',');
+            if (parts.Length < 4) return;
+            bool changed = false;
+            for (int i = 0; i < 4; i++)
+            {
+                if (!LiveStats.Any(x => x.Id == parts[i]) || _live[i] == parts[i]) continue;
+                _live[i] = parts[i];
+                changed = true;
+                BuildLiveTile(i);
+            }
+            if (changed) try { ApplicationData.Current.LocalSettings.Values["live"] = string.Join(",", _live); } catch (Exception) { }
+        }
+
         private void ChooseLive(int slot, FrameworkElement at)
         {
             var menu = new MenuFlyout { Placement = FlyoutPlacementMode.Bottom };
@@ -116,6 +133,7 @@ namespace SquareDeck.Widget
                 {
                     _live[slot] = id;
                     try { ApplicationData.Current.LocalSettings.Values["live"] = string.Join(",", _live); } catch (Exception) { }
+                    _link.Send("live", "ids", string.Join(",", _live));
                     BuildLiveTile(slot);
                 };
                 menu.Items.Add(item);
@@ -126,6 +144,7 @@ namespace SquareDeck.Widget
             {
                 for (int i = 0; i < 4; i++) _live[i] = DefaultLive[i];
                 try { ApplicationData.Current.LocalSettings.Values["live"] = string.Join(",", _live); } catch (Exception) { }
+                _link.Send("live", "ids", string.Join(",", _live));
                 for (int i = 0; i < 4; i++) BuildLiveTile(i);
             };
             menu.Items.Add(reset);

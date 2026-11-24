@@ -1443,8 +1443,20 @@ public sealed class RecompGameScreen : ListScreen
     /// <summary>"Locate installed": the player picks the program of a copy they already have.</summary>
     private async Task LocateAsync()
     {
-        var program = await Host.PickFileAsync($"Choose {_game.Name}'s program", new[] { ".exe" });
-        if (program == null || !File.Exists(program)) return;
+        // Its program, or simply the folder it's in (SquareDeck finds the program there).
+        var picked = await Host.PickFileAsync($"Choose {_game.Name}'s program or folder", new[] { ".exe" }, orFolder: true);
+        if (picked == null) return;
+        string? program = picked;
+        if (Directory.Exists(picked))
+        {
+            try { program = await Task.Run(() => RecompZone.FindProgram(picked, _game.StartProgram)); } catch (Exception) { program = null; }
+            if (program == null)
+            {
+                await Host.AskAsync("No program found", "There's no program (.exe) for " + _game.Name + " in that folder or the folders inside it. Choose the folder it's installed in, or its .exe.", "OK");
+                return;
+            }
+        }
+        if (!File.Exists(program)) return;
         RecompZone.Locate(_game, program);
         Rebuild();
         Host.ShowToast("Recomp Zone", _game.Name + " found", "Play it from here, or add it to Home.", "", "info");

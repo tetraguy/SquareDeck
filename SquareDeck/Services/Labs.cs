@@ -20,6 +20,7 @@ public static partial class Labs
 {
     public const string Storage = "Storage and downloads", Tools = "Tools", Stores = "Stores and friends", Looks = "Looks and sound", Play = "Play";
     // 8.0
+    public const string WidgetGroup = "Game Bar widget";
     public const string Playing = "While you play", LibraryGroup = "Library and Home", Retro = "Retro Lounge", Social = "Friends and media", SystemGroup = "System and troubleshooting";
 
     public static readonly LabFeature[] Features =
@@ -77,6 +78,7 @@ public static partial class Labs
         new("smartcollections", "Smart collections", "Library shelves that fill themselves: never played, played once and left, short sessions, best on battery and more", "\uE8F1", LibraryGroup),
         new("dailypick", "Daily pick", "Once a day, one game from your library you haven't played in a while, and why it's worth another look", "\uE734", LibraryGroup),
         new("gamepass", "Game Pass shelf", "A Game Pass button in the Library: games just added and leaving soon, from Xbox's own lists", "\uE7FC", LibraryGroup),
+        new("aboutgame", "About This Game", "A game's \u201CAbout This Game\u201D as on its Steam store page, with its artwork, moving images and screenshots, from a \u201CLearn more\u201D button in the About section of the game's page", "\uE946", LibraryGroup),
         new("trailerpreview", "Trailer previews on Home", "Rest on a game for a moment and its trailer plays, muted, behind the home row", "\uE714", LibraryGroup),
         new("microsd", "microSD awareness", "Games on each microSD card get their own Library shelf, and stay listed (grayed out) when the card is out", "\uE88E", LibraryGroup),
         new("rascraper", "Box art and screenshots from ScreenScraper", "Fills in missing Retro Lounge covers and screenshots from ScreenScraper's database (free account needed)", "\uEB9F", Retro),
@@ -91,6 +93,24 @@ public static partial class Labs
         new("updateguard", "Windows Update guard", "Warns when Windows wants to restart, during a game too, and keeps it from restarting in the hours you play", "\uE895", SystemGroup),
         new("drivercheck", "Driver check", "Your graphics, BIOS and ASUS driver versions and how old they are, with links to the official downloads", "\uE964", SystemGroup),
         new("drivenotice", "Drive connected notice", "A notification when a USB drive, external SSD or hard drive, or microSD card is connected: select it to open the drive in SquareDeck's File Explorer", "\uE88E", SystemGroup),
+        new("wfpscap", "Widget: frame cap buttons", "Off, 30, 40 and 60 FPS in the widget's Power card, with \u201CSave to this game\u201D", "\uEC4A", WidgetGroup),
+        new("wautotdp", "Widget: Auto TDP", "In the Power card: the lowest TDP that holds the frame rate you pick, adjusted every few seconds (needs the frame counter and TDP control)", "\uE945", WidgetGroup),
+        new("wthermal", "Widget: thermal warning", "The Live card turns amber with a note when the chip gets close to its temperature limit", "\uE7BA", WidgetGroup),
+        new("wnotes", "Widget: game notes", "The running game's notes in the widget, with \u201CAdd note\u201D for codes, hints and where you left off", "\uE70B", WidgetGroup),
+        new("wach", "Widget: achievements", "Progress for the running Steam game, the next locked achievements, and \u201CHow to get this\u201D", "\uE734", WidgetGroup),
+        new("wgenie", "Widget: Ask Genie", "Ask Game Genie about the game you're playing, without leaving it", "\uE945", WidgetGroup),
+        new("wpad", "Widget: controller card", "Controller battery, rumble strength and a stick drift check", "\uE7FC", WidgetGroup),
+        new("wfriends", "Widget: friends online", "Your Steam friends who are online or playing, with a button to message them", "\uE716", WidgetGroup),
+        new("winbox", "Widget: notifications", "SquareDeck's latest notifications (downloads, drives, achievements…), readable in the widget", "\uEA8F", WidgetGroup),
+        new("wdownloads", "Widget: downloads", "What Steam and SquareDeck are downloading, with Steam's downloads page and stopping SquareDeck's queue", "\uE896", WidgetGroup),
+        new("wparty", "Widget: invite friends", "An \u201CInvite\u201D button on the game card: Steam's friends list for Steam games, Game Bar's Xbox Social for the rest", "\uE8FA", WidgetGroup),
+        new("wapps", "Widget: launch apps", "A row of your apps (Discord, a browser, Spotify…) to open over the game", "\uE71D", WidgetGroup),
+        new("wshortcuts", "Widget: SquareDeck shortcuts", "Buttons that open SquareDeck's Home, Library, Retro Lounge, Captures or Settings", "\uE80F", WidgetGroup),
+        new("wcards", "Widget: card order and hiding", "An Edit button in the widget's header: move cards up and down and hide the ones you don't use", "\uE8CB", WidgetGroup),
+        new("wgameaware", "Widget: layout per game", "Each game remembers the widget's card order, hidden cards and Live tiles from the last time you played it", "\uE8A9", WidgetGroup),
+        new("wpresets", "Widget: presets per game", "\u201CSave this setup to the game\u201D in the card editor: card order, hidden cards, Live tiles and Quick tiles", "\uE74E", WidgetGroup),
+        new("wtheme", "Widget: match my style", "The widget takes on the current SquareDeck style: its colors, font and wallpaper (Mythical styles too)", "\uE790", WidgetGroup),
+        new("wcompanion", "Widget: companion", "Your pixel companion in the widget's header, reacting to achievements, low battery and long sessions", "\uE899", WidgetGroup),
         new("startupapps", "Startup apps manager", "See the apps that start with Windows and turn them off, right here", "\uE7E8", SystemGroup),
     };
 

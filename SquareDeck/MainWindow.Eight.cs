@@ -118,6 +118,7 @@ public partial class MainWindow
                 _capGame = null;
                 _ = Task.Run(() => AmdAdlx.RestoreCap(before));
             }
+            if (_capGame == null) _widgetCap = 0;
             if (Labs.On("scripts") && Eight.PostScript(key) is { Length: > 0 } post) _ = Eight.RunScriptAsync(post, 0);
             if (_timerGame == key) { _breakAt = null; _timerGame = null; }
             if (_docked && Labs.Get("docked.power", "1") == "1")

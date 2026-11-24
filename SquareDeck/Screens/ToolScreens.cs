@@ -20,16 +20,19 @@ public sealed class FilePickerScreen : ListScreen
 
     private readonly TaskCompletionSource<string?> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly string[]? _extensions; // null: choose a folder
+    private readonly bool _orFolder;        // a file, or the folder it's in (with its own "Choose this folder" button)
     private string? _folder;                // null: showing the list of places
     private string? _result;
 
     public Task<string?> Result => _done.Task;
 
     /// <param name="extensions">File types to show, e.g. ".png". Null to choose a folder instead of a file.</param>
-    public FilePickerScreen(string title, string[]? extensions)
+    /// <param name="orFolder">With file types: a folder can be chosen too ("Choose this folder").</param>
+    public FilePickerScreen(string title, string[]? extensions, bool orFolder = false)
         : base(title, "{Select}  Open        {Back}  Up a level")
     {
         _extensions = extensions;
+        _orFolder = orFolder && extensions != null;
         if (_lastFolder != null && Directory.Exists(_lastFolder)) _folder = _lastFolder;
     }
 
@@ -64,8 +67,11 @@ public sealed class FilePickerScreen : ListScreen
         }
 
         AddNote(_folder);
+        if (_extensions != null)
+            AddNote(_orFolder ? $"Select a file ({string.Join(", ", _extensions)}) to choose it, or choose this whole folder."
+                              : $"Select a file ({string.Join(", ", _extensions)}) to choose it.");
         AddRow("Up a level", glyph: "", click: () => GoTo(System.IO.Path.GetDirectoryName(_folder)));
-        if (_extensions == null) AddRow("Choose this folder", glyph: "", click: () => Finish(_folder));
+        if (_extensions == null || _orFolder) AddRow("Choose this folder", glyph: "", click: () => Finish(_folder));
 
         try
         {
@@ -134,6 +140,12 @@ public sealed class FilePickerScreen : ListScreen
 
         AddHeader("Other");
         AddRow("Use the Windows file window instead (mouse or touch)", glyph: "", click: UseWindowsDialog);
+        if (_orFolder)
+            AddRow("Use the Windows folder window instead (mouse or touch)", glyph: "\uE838", click: () =>
+            {
+                var folders = new OpenFolderDialog { Title = "Choose a folder" };
+                if (folders.ShowDialog(Host) == true) Finish(folders.FolderName);
+            });
     }
 
     private void Place(string name, string path, string glyph)

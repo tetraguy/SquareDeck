@@ -109,6 +109,9 @@
     <Compile Include="WidgetPage.xaml.cs">
       <DependentUpon>WidgetPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="WidgetPage.Eight.cs">
+      <DependentUpon>WidgetPage.xaml</DependentUpon>
+    </Compile>
     <Compile Include="WidgetPage.Live.cs">
       <DependentUpon>WidgetPage.xaml</DependentUpon>
     </Compile>

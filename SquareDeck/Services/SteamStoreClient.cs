@@ -50,6 +50,9 @@ public sealed class StoreDetails
     public List<Screenshot> Screenshots { get; init; } = new();
     public List<Trailer> Trailers { get; init; } = new();
 
+    /// <summary>The store page's "About This Game" as Steam writes it (HTML with its pictures and moving images).</summary>
+    public string AboutHtml { get; init; } = "";
+
     /// <summary>App ids of every DLC the store lists for the game.</summary>
     public List<int> DlcIds { get; init; } = new();
 
@@ -187,7 +190,8 @@ public static class SteamStoreClient
             DlcIds = d.TryGetProperty("dlc", out var dlcList) && dlcList.ValueKind == JsonValueKind.Array
                 ? dlcList.EnumerateArray().Where(x => x.TryGetInt32(out _)).Select(x => x.GetInt32()).ToList()
                 : new List<int>(),
-            HighlightedAchievements = highlighted
+            HighlightedAchievements = highlighted,
+            AboutHtml = Str(d, "about_the_game") is { Length: > 0 } about ? about : Str(d, "detailed_description"),
         };
     }
 

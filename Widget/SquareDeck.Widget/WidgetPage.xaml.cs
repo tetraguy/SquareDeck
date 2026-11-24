@@ -150,12 +150,15 @@ namespace SquareDeck.Widget
             var cards = new StackPanel { Margin = new Thickness(0, 0, 14, 18) };
             cards.Children.Add(BuildGame());
             cards.Children.Add(BuildMedia());
-            cards.Children.Add(BuildPower());
+            _powerCard = (Border)BuildPower();
+            cards.Children.Add(_powerCard);
             _liveCard = (Border)BuildLive();
             cards.Children.Add(_liveCard);
             cards.Children.Add(BuildAlly());
             _quickCard = (Border)BuildQuick();
             cards.Children.Add(_quickCard);
+            _cardsPanel = cards;
+            BuildEightCards(cards); // the experimental cards (WidgetPage.Eight.cs)
             var scroll = new ScrollViewer { Content = cards, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
             Grid.SetColumn(scroll, 1);
             body.Children.Add(scroll);
@@ -1050,8 +1053,9 @@ namespace SquareDeck.Widget
         {
             string type = Str(m, "type");
             if (type == "note") { ShowNote(Str(m, "text")); return; }
-            if (type == "state") Apply(m);
+            if (type == "state") { Apply(m); ApplyEight(m); }
             else if (type == "art") ApplyArt(m);
+            else if (type == "achievements" || type == "genie" || type == "apps" || type == "theme" || type == "companion") ApplyEightMessage(type, m);
             else if (type == "avatar") ApplyAvatar(m);
             else if (type == "mediaart") ApplyMediaArt(m);
             else if (type == "wifi") ApplyWifi(m);

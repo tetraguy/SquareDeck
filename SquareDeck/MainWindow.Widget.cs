@@ -56,7 +56,7 @@ public partial class MainWindow
             ["avatar"] = s.Avatar + "|" + WidgetAccent(),
             ["accent"] = WidgetAccent(),
             ["background"] = s.WidgetBackground,
-            ["quick"] = new JsonArray((RunningProfile()?.WidgetQuick ?? s.WidgetQuick ?? Settings.WidgetQuickTiles.Select(t => t.Id).ToList()).Select(x => (JsonNode)x).ToArray()),
+            ["quick"] = new JsonArray((WidgetPresetQuick() ?? RunningProfile()?.WidgetQuick ?? s.WidgetQuick ?? Settings.WidgetQuickTiles.Select(t => t.Id).ToList()).Select(x => (JsonNode)x).ToArray()),
             ["sections"] = new JsonArray((s.WidgetSections ?? new List<string>(Settings.WidgetSectionIds)).Select(x => (JsonNode)x).ToArray()),
         };
 
@@ -156,6 +156,7 @@ public partial class MainWindow
         }
         if (_widgetHz is int hz) state["refresh"] = hz;
         if (_widgetRates != null) state["rates"] = _widgetRates.DeepClone();
+        AddWidgetEight(state); // Experimental (8.1): the widget's new cards and their data
         return state;
     }
 
@@ -165,6 +166,7 @@ public partial class MainWindow
         string? Str(string name) { try { return request[name]?.GetValue<string>(); } catch (Exception) { return null; } }
         bool? Bool(string name) { try { return request[name]?.GetValue<bool>(); } catch (Exception) { return null; } }
         var s = Settings;
+        if (WidgetEightRequest(op, request)) return; // Experimental (8.1)
         switch (op)
         {
             case "tdp" when Int("watts") is int watts && TdpControl.Ready:

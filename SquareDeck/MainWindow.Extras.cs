@@ -110,9 +110,9 @@ public partial class MainWindow
     // ================================================================ pickers
 
     /// <summary>Lets the user choose a file with the controller. Null if they backed out.</summary>
-    public async Task<string?> PickFileAsync(string title, string[] extensions)
+    public async Task<string?> PickFileAsync(string title, string[] extensions, bool orFolder = false)
     {
-        var picker = new FilePickerScreen(title, extensions);
+        var picker = new FilePickerScreen(title, extensions, orFolder);
         Push(picker);
         return await picker.Result;
     }
