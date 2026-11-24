@@ -282,7 +282,7 @@ public sealed class Settings
     public string LaunchChimeFile { get; set; } = "";
 
     /// <summary>How buttons are named in hints: "xbox", "playstation" or "switch".</summary>
-    public string GlyphStyle { get; set; } = "xbox";
+    public string GlyphStyle { get; set; } = "auto";
 
     /// <summary>How buttons are drawn in hints: "text" (names on pills), "default" (controller icons) or "pixel".</summary>
     public string GlyphLook { get; set; } = "text";
@@ -313,6 +313,19 @@ public sealed class Settings
     public bool RecompZoneMusic { get; set; } = true;
     /// <summary>Retro Lounge plays its own music while it's open (RetroLounge\music.mp3), at the launcher's music loudness.</summary>
     public bool RetroLoungeMusic { get; set; } = true;
+    /// <summary>Device health: a notice a little after start when something needs attention.</summary>
+    public bool HealthStartupCheck { get; set; } = true;
+    /// <summary>Device health checks set aside ("Don't warn me about this"), by id.</summary>
+    public List<string> HealthDismissed { get; set; } = new();
+    /// <summary>What's new: after an update, the new version's changes show once on the next start.</summary>
+    public bool WhatsNewAfterUpdate { get; set; } = true;
+    /// <summary>The last version whose What's new was shown (or that was first run).</summary>
+    public string WhatsNewSeen { get; set; } = "";
+    /// <summary>Retro Lounge: RetroAchievements sign-in (the user name and their web API key).</summary>
+    public string RaUser { get; set; } = "";
+    public string RaApiKey { get; set; } = "";
+    /// <summary>Retro Lounge: a folder of No-Intro / Redump DAT files to check ROMs against.</summary>
+    public string RetroDatFolder { get; set; } = "";
 
     /// <summary>Look for a newer release on GitHub when the launcher starts.</summary>
     public bool AutoUpdateCheck { get; set; } = true;

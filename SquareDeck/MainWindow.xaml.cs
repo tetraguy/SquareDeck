@@ -132,7 +132,7 @@ public partial class MainWindow : Window
             ToolTipService.SetIsEnabled(b, false); // the label under the row replaces tooltips
         }
 
-        _clockTimer.Tick += (_, _) => UpdateClock();
+        _clockTimer.Tick += (_, _) => { UpdateClock(); Hints.Refresh(); }; // the button hints follow a controller connected since
         _clockTimer.Start();
         UpdateClock();
 

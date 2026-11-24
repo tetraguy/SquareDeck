@@ -1014,6 +1014,7 @@ public partial class MainWindow
 
             Playtime.AddSession(key, name, started, seconds);
             Playtime.Save();
+            SessionLog.Finish(key, name, started, seconds); // battery and performance for this game
             if (game != null && Labs.On("closelaunchers")) _ = CloseLauncherAfterAsync(game);
             if (_activeLaunch != null && _activeLaunch.Game.Key == key) _ = RestoreLaunchAsync();
 
@@ -1027,6 +1028,8 @@ public partial class MainWindow
             }
             else ShowSessionSummary(name, seconds, null);
         }
+
+        SessionLog.Sample(running.Keys);
 
         // A launch that never turned into a running game (cancelled in the store's own window, say).
         if (_activeLaunch is { SeenRunning: false } stale && DateTime.UtcNow - stale.At > TimeSpan.FromMinutes(3))

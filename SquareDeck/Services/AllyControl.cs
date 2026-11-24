@@ -123,7 +123,9 @@ public static class AllyControl
         if (s == null || !AsusAcpi.Available) return;
         var mode = AsusModes.FirstOrDefault(m => m.Id == s.AllyAsusMode);
         if (mode.Mode >= 0) AsusAcpi.SetMode(mode.Mode);
-        var fan = FanCurves.FirstOrDefault(f => f.Id == s.AllyFan);
+        // The running game's profile may have a fan curve of its own.
+        string fanId = (_playing ? _runningProfile?.FanCurve : null) ?? s.AllyFan;
+        var fan = FanCurves.FirstOrDefault(f => f.Id == fanId);
         if (fan.Duties != null)
         {
             var curve = new byte[16];
@@ -177,10 +179,12 @@ public static class AllyControl
     {
         var s = _settings;
         if (s == null) return false;
-        bool custom = s.AllyVibration != 100 || s.AllyStickInner != 0 || s.AllyStickOuter != 100 || s.AllyTriggerInner != 0 || s.AllyTriggerOuter != 100;
+        // The running game's profile may set its own rumble strength.
+        int vibration = (_playing ? _runningProfile?.Vibration : null) ?? s.AllyVibration;
+        bool custom = vibration != 100 || s.AllyStickInner != 0 || s.AllyStickOuter != 100 || s.AllyTriggerInner != 0 || s.AllyTriggerOuter != 100;
         if (!custom && !_tuned) return true; // nothing to change: leave the controller alone
         _tuned = custom;
-        return AllyHid.SetTuning(s.AllyVibration, s.AllyStickInner, s.AllyStickOuter, s.AllyTriggerInner, s.AllyTriggerOuter);
+        return AllyHid.SetTuning(vibration, s.AllyStickInner, s.AllyStickOuter, s.AllyTriggerInner, s.AllyTriggerOuter);
     }
 
     private static bool _backKeysWereOn;
@@ -402,7 +406,8 @@ public static class AllyControl
             string path = System.IO.Path.Combine(Settings.DataDir, "lights.log");
             var info = new System.IO.FileInfo(path);
             if (info.Exists && info.Length > 64 * 1024) info.Delete();
-            string extra = DynamicLightingOn ? "  (Windows Dynamic Lighting is on)" : "";
+            string extra = (DynamicLightingOn ? "  (Windows Dynamic Lighting is on)" : "")
+                + (AsusOptimization.Installed && !AsusOptimization.Enabled ? "  (ASUS Optimization is off: the lights don't take changes)" : "");
             System.IO.File.AppendAllText(path, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {key}  {result}{extra}{Environment.NewLine}");
         }
         catch (Exception) { }
@@ -427,6 +432,10 @@ public static class AllyControl
         bool playing = game != null;
         if (key == _runningKey && playing == _playing) return;
         bool newGame = game?.Key != _running?.Key;
+        // The game's own fan curve, rumble or Xbox light (or back to Settings' when it closes): applied when they change.
+        string hardwareKey = playing ? profile?.FanCurve + "|" + profile?.Vibration + "|" + profile?.XboxLightOff : "";
+        bool hardwareChanged = hardwareKey != _runningHardware;
+        _runningHardware = hardwareKey;
         _runningKey = key;
         _running = game;
         _runningProfile = profile;
@@ -447,7 +456,14 @@ public static class AllyControl
             }
         }
         ApplyLights();
+        if (hardwareChanged)
+        {
+            ApplyXboxLight(force: true);
+            _ = Task.Run(() => { try { ApplyPower(); ApplyTuning(); } catch (Exception) { } });
+        }
     }
+
+    private static string _runningHardware = "";
 
     /// <summary>Applies a game profile's light effect now, while its game runs (after editing the profile).</summary>
     public static void ProfileChanged(Game game, GameProfile? profile)
@@ -498,7 +514,7 @@ public static class AllyControl
         if (s.AllyXboxLight.Length == 0) { _lastXbox = ""; return; } // leave it alone (Armoury Crate SE decides)
         bool on = s.AllyXboxLight == "on";
         bool low = s.AllyXboxLightLowBattery && Battery.GetPercent() is int b && b <= 15 && !Battery.IsPluggedIn();
-        bool dark = _playing && s.AllyXboxLightOffPlaying && !low;
+        bool dark = _playing && (_runningProfile?.XboxLightOff ?? s.AllyXboxLightOffPlaying) && !low;
         int level = dark ? 0 : low ? 3 : Math.Clamp(s.AllyXboxLightLevel, 1, 3);
         bool breathe = !dark && (low || s.AllyXboxLightBreathe);
         ApplyLightPower(force); // on or off is a bit in the lights' power mask

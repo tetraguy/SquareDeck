@@ -961,6 +961,7 @@ public static class RetroLounge
         {
             await EnsureCoreAsync(install, player[3..], ct);
             core = CoreFile(install, player[3..]);
+            RetroExtras.EnsureRetroArchHotkeys(install); // the menu and quit combos the game page describes
         }
         ShareBios(system, emu, install);
         string args = emu.Args.Replace("{rom}", rom).Replace("{core}", core).Replace("{fs}", Config.FullScreen ? emu.FullScreen : "");

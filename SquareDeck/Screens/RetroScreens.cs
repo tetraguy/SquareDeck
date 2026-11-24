@@ -1084,6 +1084,22 @@ public sealed class RetroLoungeScreen : GridScreen
             Body.Children.Add(row);
         }
 
+        Heading("Achievements and checks");
+        var s = Host.Settings;
+        var ra = Ui.Row("RetroAchievements", s.RaUser.Length > 0 ? s.RaUser : "Sign in", "\uE734",
+            subtitle: s.RaUser.Length > 0 ? "Your progress shows on each game's page. Select to turn them on in RetroArch, or sign out" : "See your achievements for each game, and earn them in RetroArch");
+        ra.Tag = "pref:ra";
+        ra.Margin = new Thickness(0, 2, 10, 2);
+        ra.Click += async (_, _) => { await RetroAccount.SignInAsync(Host); KeepFocus(() => Build(focus: true)); };
+        Body.Children.Add(ra);
+        var last = RetroExtras.LastVerify();
+        var dat = Ui.Row("Check ROMs against DAT files", last.Count > 0 ? $"{last.Count(r => r.Verdict == RetroExtras.Verdict.Verified)} verified" : null, "\uE9D5",
+            subtitle: s.RetroDatFolder.Length > 0 ? "Using " + s.RetroDatFolder + ": finds bad copies and duplicates" : "With No-Intro or Redump DAT files: finds bad copies and duplicates");
+        dat.Tag = "pref:dat";
+        dat.Margin = new Thickness(0, 2, 10, 2);
+        dat.Click += (_, _) => _ = RetroAccount.VerifyAsync(Host);
+        Body.Children.Add(dat);
+
         Heading("Preferences");
         void Toggle(string label, bool on, Action flip, string subtitle, string tag)
         {
@@ -1375,6 +1391,8 @@ public sealed class RetroGameScreen : ListScreen
         Rows.Children.Add(RetroUi.Card(facts, new Thickness(22, 16, 22, 4), new Thickness(0, 0, 0, 12)));
         AddNote(_game.Discs.Count > 1 ? string.Join("\n", _game.Discs.Select(Path.GetFileName)) : _game.Path);
 
+        AddExtras(s);
+
         AddHeader("More");
         string? folder = Directory.Exists(_game.Path) ? _game.Path : Path.GetDirectoryName(_game.Path);
         if (folder != null) AddRow("Open its folder", null, "", click: () => Host.Push(new ExplorerScreen(folder)));
@@ -1385,6 +1403,98 @@ public sealed class RetroGameScreen : ListScreen
             RetroLounge.SaveConfig();
             Host.Pop(this);
         });
+    }
+
+    private RetroExtras.RaProgress? _ra;
+    private bool _raLoading, _raLoaded;
+
+    /// <summary>Its controls in the emulator, its save states and screenshots, RetroAchievements, and the DAT check.</summary>
+    private void AddExtras(RetroSystem s)
+    {
+        string emuId = RetroExtras.EmulatorIdFor(_game);
+        if (emuId.Length > 0)
+        {
+            AddHeader("Controls in " + (RetroLounge.Emulator(emuId)?.Name ?? "the emulator"));
+            foreach (var (what, how) in RetroExtras.Hotkeys(emuId)) AddRow(what, null, "\uE7FC", subtitle: how);
+        }
+
+        var saves = RetroExtras.SavesFor(_game);
+        var states = saves.Where(f => !f.Screenshot).ToList();
+        var shots = saves.Where(f => f.Screenshot).Take(6).ToList();
+        if (states.Count > 0 || shots.Count > 0 || RetroExtras.StatesFolder(_game) != null)
+        {
+            AddHeader("Saves and screenshots");
+            if (states.Count > 0)
+                AddRow($"{states.Count} save {(states.Count == 1 ? "state" : "states")}", "Latest " + states[0].When.ToString("MMM d, h:mm tt"), "\uE74E",
+                    click: () => Host.Push(new ExplorerScreen(Path.GetDirectoryName(states[0].Path)!)), subtitle: "Load them from the emulator's menu while playing");
+            else if (RetroExtras.StatesFolder(_game) is { } where)
+                AddRow("No save states yet", null, "\uE74E", click: () => { if (Directory.Exists(where)) Host.Push(new ExplorerScreen(where)); },
+                    subtitle: emuId == "retroarch" ? "Save one from RetroArch's Quick Menu while playing" : "This emulator keeps them in its own folder");
+            if (shots.Count > 0)
+            {
+                var wall = new WrapPanel { Margin = new Thickness(0, 4, 0, 10) };
+                foreach (var shot in shots)
+                {
+                    var box = GridScreen.ImageBox(220, 165, out var image);
+                    box.Margin = new Thickness(0, 0, 10, 10);
+                    image.Stretch = Stretch.Uniform;
+                    RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+                    string file = shot.Path;
+                    _ = Task.Run(() => ImageLoader.FromFile(file, 440)).ContinueWith(task => { if (task.Result != null) image.Source = task.Result; }, TaskScheduler.FromCurrentSynchronizationContext());
+                    wall.Children.Add(box);
+                }
+                Rows.Children.Add(wall);
+                AddRow("Open the screenshots folder", null, "\uE91B", click: () => Host.Push(new ExplorerScreen(Path.GetDirectoryName(shots[0].Path)!)));
+            }
+        }
+
+        AddHeader("RetroAchievements");
+        var settings = Host.Settings;
+        if (settings.RaUser.Length == 0)
+            AddRow("Sign in to RetroAchievements", null, "\uE734", click: async () => { await RetroAccount.SignInAsync(Host); _raLoaded = false; Rebuild(); },
+                subtitle: "See which achievements you've earned in this game");
+        else if (!RetroExtras.CanHash(_game))
+            AddRow("Not checked for this copy", null, "\uE734", subtitle: "Retro Lounge can match cartridge games (and their .zip files); disc games aren't matched yet");
+        else if (!_raLoaded)
+        {
+            AddRow("Looking it up\u2026", null, "\uE734");
+            if (!_raLoading)
+            {
+                _raLoading = true;
+                _ = Task.Run(async () =>
+                {
+                    var p = await RetroExtras.ProgressAsync(_game, settings);
+                    Dispatcher.BeginInvoke(new Action(() => { _ra = p; _raLoaded = true; _raLoading = false; Rebuild(); }));
+                });
+            }
+        }
+        else if (_ra == null)
+            AddRow("Not on RetroAchievements", null, "\uE734", subtitle: "This copy didn't match a game there (another region or revision may)");
+        else
+        {
+            var progress = _ra;
+            AddRow($"{progress.Earned} of {progress.Total} earned", $"{progress.PointsEarned} / {progress.Points} pts", "\uE734",
+                click: () => Host.Push(new RetroAchievementsScreen(progress)), subtitle: progress.Total == 0 ? "No achievements yet for this game" : "Select to see them all");
+        }
+
+        // The last DAT check's word on this file.
+        var verdict = RetroExtras.LastVerify().FirstOrDefault(r => string.Equals(r.Path, _game.Path, StringComparison.OrdinalIgnoreCase));
+        if (verdict != null && verdict.Verdict != RetroExtras.Verdict.Skipped)
+        {
+            AddHeader("Checked against your DAT files");
+            AddRow(verdict.Verdict switch
+                {
+                    RetroExtras.Verdict.Verified => "Verified: a known good copy",
+                    RetroExtras.Verdict.Duplicate => "A duplicate",
+                    _ => "Not in your DAT files",
+                }, null, verdict.Verdict == RetroExtras.Verdict.Verified ? "\uE73E" : "\uE7BA",
+                subtitle: verdict.Verdict switch
+                {
+                    RetroExtras.Verdict.Verified => verdict.DatName,
+                    RetroExtras.Verdict.Duplicate => "Same data as " + Path.GetFileName(verdict.Duplicate),
+                    _ => "A bad copy, a hack or translation, or its console's DAT file isn't in the folder",
+                });
+        }
     }
 
     private void BuildBanner()

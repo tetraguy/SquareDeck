@@ -229,6 +229,7 @@ public sealed class GameProfileScreen : ListScreen
     {
         var p = Host.Library.Find(_game.Key)?.Profile ?? new GameProfile();
         AddNote("These are applied when the game starts and put back when it closes. Anything left on “Don't change” is not touched.");
+        AddInsight(p);
         AddRow("Resolution", p.Width > 0 ? $"{p.Width} × {p.Height}" : "Don't change", "", click: Resolution);
         AddRow("Refresh rate", p.RefreshRate > 0 ? p.RefreshRate + " Hz" : "Don't change", "", click: Refresh);
         AddRow("HDR", p.Hdr switch { true => "On", false => "Off", _ => "Don't change" }, "", click: HdrChoice);
@@ -277,10 +278,102 @@ public sealed class GameProfileScreen : ListScreen
                         click: () => Host.Push(new LedColorScreen("Second light color – " + _game.Name, two, hex => { Profile.LightColor2 = hex; Saved(); })));
             }
         }
+        // The Ally's fans, rumble and Xbox button light while this game runs.
+        if (AllyControl.IsAlly)
+        {
+            AddHeader("While playing (ROG Ally)");
+            AddRow("Fan curve", p.FanCurve == null ? "Default" : AllyControl.FanCurves.FirstOrDefault(f => f.Id == p.FanCurve).Name ?? p.FanCurve, "\uE9CA", click: async () =>
+            {
+                var curves = AllyControl.FanCurves.Where(f => f.Id.Length > 0).ToArray();
+                int choice = await Host.AskAsync("Fan curve while playing", null, curves.Select(f => f.Name + "  \u00B7  " + f.About).Prepend("Default (Settings')").ToArray());
+                if (choice < 0) return;
+                Profile.FanCurve = choice == 0 ? null : curves[choice - 1].Id;
+                Saved();
+            }, subtitle: "Needs ASUS's firmware driver");
+            AddRow("Rumble strength", p.Vibration is int v ? (v == 0 ? "Off" : v + "%") : "Default", "\uE877", click: async () =>
+            {
+                int[] levels = { -1, 0, 25, 50, 75, 100 };
+                int choice = await Host.AskAsync("Rumble strength while playing", null, levels.Select(l => l < 0 ? "Default (Settings')" : l == 0 ? "Off" : l + "%").ToArray());
+                if (choice < 0) return;
+                Profile.Vibration = levels[choice] < 0 ? null : levels[choice];
+                Saved();
+            });
+            if (AllyControl.HasXboxLight)
+                AddRow("Xbox button light", p.XboxLightOff switch { true => "Off while playing", false => "On while playing", _ => "Default" }, "\uE7FC", click: async () =>
+                {
+                    int choice = await Host.AskAsync("Xbox button light while playing", null, "Default (Settings')", "Off while playing", "On while playing");
+                    if (choice < 0) return;
+                    Profile.XboxLightOff = choice switch { 1 => true, 2 => false, _ => null };
+                    Saved();
+                });
+        }
+        // The Game Bar widget's quick tiles while this game runs.
+        if (Host.Settings.GameBarWidget)
+        {
+            AddHeader("Game Bar widget");
+            AddRow("Quick tiles of its own", p.WidgetQuick != null ? p.WidgetQuick.Count + " tiles" : "Off", "\uE8A9", click: () =>
+            {
+                Profile.WidgetQuick = Profile.WidgetQuick != null ? null
+                    : new List<string>(Host.Settings.WidgetQuick ?? Settings.WidgetQuickTiles.Select(x => x.Id).ToList());
+                Saved();
+            }, subtitle: p.WidgetQuick != null ? "While it runs, Edit in the widget's Quick card changes this game's tiles" : "Starts from your usual tiles; change them with Edit in the widget while the game runs");
+        }
         // AMD Adrenalin settings for this game (with Adrenaline Hook on, and AMD graphics).
         if (Host.Settings.ExperimentAdrenalineHook && AdrenalineHook.HasAmdGraphics) AddAmdSection(p);
 
         if (!p.IsEmpty) AddRow("Clear this profile", glyph: "", click: () => { Host.Library.For(_game.Key).Profile = null; Saved(); });
+    }
+
+    /// <summary>
+    /// Battery and performance from the game's sessions, a suggested starting point (Battery saver, Balanced or
+    /// Performance, sized to this processor), and "Best battery" (a quarter less power and the lower refresh rate).
+    /// </summary>
+    private void AddInsight(GameProfile p)
+    {
+        AddHeader("Battery and performance");
+        var i = SessionLog.Insight(_game.Key);
+        if (i == null) AddRow("No sessions yet", null, "\uE9D9", subtitle: "Play it for a few minutes: battery use, power, frame rate and temperature are noted");
+        else
+        {
+            var facts = new List<string> { $"{i.Sessions} {(i.Sessions == 1 ? "session" : "sessions")}" };
+            if (i.Fps is double fps) facts.Add($"{fps:0} FPS");
+            if (i.Temp is double temp) facts.Add($"{temp:0} \u00B0C" + (i.MaxTemp is int max ? $" (peak {max})" : ""));
+            AddRow(SessionLog.BatteryText(i) is { } battery ? char.ToUpper(battery[0]) + battery[1..] : "Battery life: play it unplugged for 10 minutes to know",
+                null, "\uE859", click: () => Host.Push(new GameSessionsScreen(_game.Key, _game.Name)), subtitle: string.Join("  \u00B7  ", facts));
+        }
+        if (TdpControl.Chip is not { } chip) return;
+        var presets = ProfileAdvisor.Presets(chip);
+        var (suggestId, why) = ProfileAdvisor.Suggest(_game.Key);
+        var suggested = presets.First(x => x.Id == suggestId);
+        AddRow("Suggested settings", suggested.Name, "\uE945", click: async () =>
+        {
+            var names = presets.Select(x => (x.Id == suggestId ? "\u2605 " : "") + x.Name + $"  \u00B7  {x.Watts} W" + (x.RefreshRate > 0 ? $", {x.RefreshRate} Hz" : "") + "  \u00B7  " + x.About).ToArray();
+            int choice = await Host.AskAsync("Suggested for " + _game.Name, why, names);
+            if (choice < 0) return;
+            ApplyPreset(presets[choice].Name, presets[choice].Watts, presets[choice].RefreshRate);
+        }, subtitle: why);
+        AddRow("Best battery for this game", null, "\uE863", click: () =>
+        {
+            var (watts, hz) = ProfileAdvisor.BestBattery(_game.Key, chip);
+            ApplyPreset("Best battery", watts, hz);
+        }, subtitle: "A quarter less power than it has been using, and the lower refresh rate. You can undo it");
+    }
+
+    /// <summary>Sets the TDP on battery (and the refresh rate, when given), with Undo for a minute.</summary>
+    private void ApplyPreset(string name, int watts, int refresh)
+    {
+        int oldWatts = Profile.TdpWatts, oldRefresh = Profile.RefreshRate, oldWidth = Profile.Width, oldHeight = Profile.Height;
+        Profile.TdpWatts = TdpControl.Clamp(watts);
+        if (refresh > 0) Profile.RefreshRate = refresh;
+        Saved();
+        var key = _game.Key;
+        Host.OfferUndo($"{name} for {_game.Name}", () =>
+        {
+            var o = Host.Library.For(key).Profile ??= new GameProfile();
+            o.TdpWatts = oldWatts; o.RefreshRate = oldRefresh; o.Width = oldWidth; o.Height = oldHeight;
+            Host.Library.Save();
+        });
+        Host.ShowToast("GAME PROFILE", $"{name}: {Profile.TdpWatts} W" + (refresh > 0 ? $", {refresh} Hz" : ""), _game.Name, "", "info", remember: false);
     }
 
     private void Saved()

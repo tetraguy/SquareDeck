@@ -87,7 +87,7 @@ public sealed class AllyControlScreen : ListScreen
 
     /// <summary>Windows' Dynamic Lighting holds the Ally's lights while it's on, so nothing else can change them.</summary>
     private void AddDynamicLightingNote() =>
-        AddRow("Windows' Dynamic Lighting is on", "Open", "", click: () => ProcessUtil.Open("ms-settings:personalization-lighting"),
+        AddRow("Windows' Dynamic Lighting is on", "Open", "", click: () => ProcessUtil.Open("ms-settings:personalization-lighting"),
             subtitle: "It takes over the Ally's lights, so SquareDeck's changes don't show. Turn off \"Use Dynamic Lighting on my devices\"");
 
     protected override void Build()
@@ -100,6 +100,14 @@ public sealed class AllyControlScreen : ListScreen
         // ---------------------------------------------------------------- lights
         AddHeader("Lights");
         if (!lights) AddNote("SquareDeck couldn't find the Ally's light controller. These settings apply once it's found.");
+        if (AsusOptimization.Installed && !AsusOptimization.Enabled)
+            AddRow("ASUS Optimization is off", "Switch on", "", click: async () =>
+            {
+                var error = await AsusOptimization.SetEnabledAsync(true);
+                if (error != null) await Host.AskAsync("ASUS Optimization", error, "OK");
+                else { AllyControl.ApplyLights(force: true); AllyControl.ApplyXboxLight(force: true); }
+                Rebuild();
+            }, subtitle: "While ASUS's service is off, the lights don't take changes. Windows asks for permission");
         if (s.AllyLights is not ("" or "off") && AllyControl.AwakeOff(s))
             AddNote("The lights are dark: \"Awake\" is off under When the lights are on (" + (Battery.IsPluggedIn() ? "plugged in" : "on battery") + "). Turn it on there, or choose the effect again.");
         if (AllyControl.DynamicLightingOn) AddDynamicLightingNote();
@@ -140,13 +148,13 @@ public sealed class AllyControlScreen : ListScreen
         // ---- When the lights may light (Armoury Crate SE's power states)
         AddHeader("When the lights are on");
         void Power(string label, bool on, Action flip, string subtitle) =>
-            AddRow(label, OnOff(on), "", subtitle: subtitle,
+            AddRow(label, OnOff(on), "", subtitle: subtitle,
                 click: () => Save(() => { flip(); s.AllyLightPowerSet = true; }, () => { AllyControl.ApplyLightPower(force: true); AllyControl.ApplyLights(force: true); }));
         if (!s.AllyLightPowerSet) AddNote("Armoury Crate SE's settings apply until you change one here.");
         Power("Boot up and shut down", s.AllyLightBootShutdown, () => s.AllyLightBootShutdown = !s.AllyLightBootShutdown, "While it starts and while it turns off");
         Power("Awake, on battery", s.AllyLightAwakeBattery, () => s.AllyLightAwakeBattery = !s.AllyLightAwakeBattery, "While you use it unplugged");
         if (s.AllyLightAwakeBattery)
-            AddRow("Off after a minute without input", OnOff(s.AllyLightBatteryIdleOff), "",
+            AddRow("Off after a minute without input", OnOff(s.AllyLightBatteryIdleOff), "",
                 click: () => Save(() => s.AllyLightBatteryIdleOff = !s.AllyLightBatteryIdleOff, () => AllyControl.ApplyLights(force: true)),
                 subtitle: s.AllyLights is "" or "off" ? "On battery. Works with an effect chosen above" : "On battery: they come back the moment you touch it");
         Power("Awake, plugged in", s.AllyLightAwakePlugged, () => s.AllyLightAwakePlugged = !s.AllyLightAwakePlugged, "While it's charging or on the charger");
@@ -157,21 +165,21 @@ public sealed class AllyControlScreen : ListScreen
         {
             AddHeader("Xbox button light");
             var states = new[] { ("", "Leave as it is"), ("on", "On"), ("off", "Off") };
-            AddRow("Light", states.FirstOrDefault(x => x.Item1 == s.AllyXboxLight).Item2 ?? "Leave as it is", "",
+            AddRow("Light", states.FirstOrDefault(x => x.Item1 == s.AllyXboxLight).Item2 ?? "Leave as it is", "",
                 click: () => Pick("Xbox button light", states, x => x.Item2, x => { s.AllyXboxLight = x.Item1; if (x.Item1 == "on") AllyControl.WakeLights(s); }, () => AllyControl.ApplyXboxLight(force: true)),
                 subtitle: s.AllyXboxLight.Length == 0 ? "Armoury Crate SE (or the last setting) decides" : "The green glow in the Xbox button");
             if (s.AllyXboxLight == "on")
             {
-                AddRow("Brightness", AllyControl.XboxLightLevelName(s.AllyXboxLightLevel), "",
+                AddRow("Brightness", AllyControl.XboxLightLevelName(s.AllyXboxLightLevel), "",
                     click: () => Pick("Xbox button brightness", AllyControl.XboxLightLevels, l => l.Name, l => s.AllyXboxLightLevel = l.Level, () => AllyControl.ApplyXboxLight(force: true)),
                     subtitle: "Bright is how ASUS ships it");
-                AddRow("Effect", s.AllyXboxLightBreathe ? "Breathing" : "Steady", "",
+                AddRow("Effect", s.AllyXboxLightBreathe ? "Breathing" : "Steady", "",
                     click: () => Save(() => s.AllyXboxLightBreathe = !s.AllyXboxLightBreathe, () => AllyControl.ApplyXboxLight(force: true)),
                     subtitle: "Steady, or a slow fade in and out");
-                AddRow("Off while playing", OnOff(s.AllyXboxLightOffPlaying), "",
+                AddRow("Off while playing", OnOff(s.AllyXboxLightOffPlaying), "",
                     click: () => Save(() => s.AllyXboxLightOffPlaying = !s.AllyXboxLightOffPlaying, () => AllyControl.ApplyXboxLight(force: true)),
                     subtitle: "Keeps it out of the corner of your eye; it comes back when the game closes");
-                AddRow("Breathe when the battery is low", OnOff(s.AllyXboxLightLowBattery), "",
+                AddRow("Breathe when the battery is low", OnOff(s.AllyXboxLightLowBattery), "",
                     click: () => Save(() => s.AllyXboxLightLowBattery = !s.AllyXboxLightLowBattery, () => AllyControl.ApplyXboxLight(force: true)),
                     subtitle: "At 15% or less, bright and breathing, until you plug in");
             }
@@ -179,11 +187,11 @@ public sealed class AllyControlScreen : ListScreen
 
         // ---- Graphics memory (VRAM): shown here, changed in Armoury Crate SE or the UEFI setup
         AddHeader("Graphics memory (VRAM)");
-        AddRow("Assigned to the graphics now", AllyVram.CurrentText(), "", click: Rebuild,
+        AddRow("Assigned to the graphics now", AllyVram.CurrentText(), "", click: Rebuild,
             subtitle: "Auto, 4, 6, 8, 12 or 16 GB depending on the model. More helps texture-heavy games and leaves less for Windows");
-        AddRow("Change it in Armoury Crate SE", null, "", click: () => ProcessUtil.Open("asusac://"),
+        AddRow("Change it in Armoury Crate SE", null, "", click: () => ProcessUtil.Open("asusac://"),
             subtitle: "Settings > Operating mode > GPU settings > Memory assigned to GPU. It takes effect after a restart");
-        AddRow("Restart into the UEFI setup", null, "", click: async () =>
+        AddRow("Restart into the UEFI setup", null, "", click: async () =>
             {
                 if (await Host.AskAsync("Restart into the UEFI setup?", "Save what you're doing first. In the setup, look under Advanced for \"UMA frame buffer size\" (Auto, or a size in GB), then save and exit.", "Cancel", "Restart") != 1) return;
                 var result = await AllyVram.RestartToSetupAsync();

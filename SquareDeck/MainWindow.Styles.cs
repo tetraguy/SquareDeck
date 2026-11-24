@@ -502,6 +502,9 @@ public partial class MainWindow
     /// <summary>Switches to a look (Settings > Themes): its UI style, colors, sounds and music.</summary>
     public void UseLook(Look look)
     {
+        // Undo: everything back as it was before the new look (a look changes colors, sounds, music and more).
+        string before = SnapshotSettings();
+        string previous = Looks.Current.Name;
         Settings.LookId = look.Id;
         Looks.Select(look.Id);
         // The look's own library layout and art (you can still change them in the library afterwards).
@@ -512,6 +515,7 @@ public partial class MainWindow
         var style = UiStyles.Find(look.StyleId);
         if (style.WantsHero && Settings.StyleMatching) UseDynamicBackground("");
         UseStyle(style); // saves and redraws
+        if (previous != look.Name) OfferUndo($"Theme changed to {look.Name} (from {previous})", () => RestoreSettings(before));
     }
 
     public void UseStyle(UiStyle style)

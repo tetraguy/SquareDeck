@@ -3,6 +3,69 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 7.3.45
+
+- **Device health** (Settings home, and the top of your device's section):
+  - Who's in control of the lights, the TDP and the buttons right now: SquareDeck, Armoury Crate SE, Windows' Dynamic
+    Lighting, or nobody.
+  - Checks for what gets in the way, most serious first, each with a one-press fix:
+    - Lights: ASUS Optimization off, Dynamic Lighting on, "Awake" off, lights at 5%, the light controller not found.
+    - Hardware and conflicts: the controller settings device not found, ASUS's firmware driver missing, Armoury Crate
+      SE running alongside, ASUS Optimization putting ASUS's power limits back.
+    - TDP: the TDP can't be set, the helper is out of date, the last change failed.
+    - Widget, battery and storage: the widget missing or old, battery wear, low disk space.
+  - Any check can be set aside with "Don't warn me about this".
+  - A little after start, a notice appears if something needs fixing; it can be turned off.
+- **Collect a report** (on Device health): one zip in Downloads with SquareDeck's logs, the version, the device, the
+  health checks and the settings. API keys, tokens and passwords are left out.
+- **Settings:**
+  - Each section's group cards show how many settings you've changed from the default.
+  - "Reset ‹section›" at the bottom puts them back.
+  - For a minute after a reset or a new theme, Undo sits at the top of Settings.
+  - The old ROG Ally controls page now sends you to the one place for those settings, in your device's section.
+- **Game profiles cover more:**
+  - Fan curve, rumble strength, the Xbox button light, and the Game Bar widget's own quick tiles while the game runs.
+  - Suggested settings: Battery saver, Balanced or Performance, sized to your processor's TDP range, with one
+    suggested from how the game actually ran.
+- **Battery and performance by game:**
+  - While a game runs, SquareDeck notes the battery, TDP, temperature, refresh rate and frame rate. The frame rate
+    needs the overlay's frame counter.
+  - Each game shows how long a full battery lasts ("about 1 h 50 m at 15 W"), with its sessions.
+  - Best battery for this game: a quarter less power than it has been using, at the lower refresh rate, with Undo.
+  - See it in Settings > Library and stores, your device's section, or the game's profile.
+- **Retro Lounge:**
+  - Each game page lists the controls in its emulator. RetroArch gets its menu on L3 + R3 and Quit on
+    LB + RB + Start + Back, unless you set your own.
+  - RetroArch save states and screenshots show on the game's page.
+  - RetroAchievements: sign in with your web API key (Setup) and see each game's achievements and points. Cartridge
+    games and their .zip files are matched. It can also turn achievements on in RetroArch for your account.
+  - Check ROMs against No-Intro or Redump DAT files (Setup): verified copies, ones not in your DAT files, and
+    duplicates. The verdict also shows on each game's page.
+- **First-run setup:** on a handheld, it now asks who should run the power, lights and buttons: SquareDeck or the
+  maker's app (Armoury Crate SE on the Ally), so the two don't fight.
+- **Polish:**
+  - Undo after a theme change.
+  - What's new shows once after an update; it can be turned off, and the current version's notes are in Settings >
+    Updates and data. The changelog now comes with SquareDeck.
+  - Button names can match the controller: PlayStation or Switch names when one is connected, Xbox otherwise. This
+    is the default for new installs.
+  - Settings rows are named for screen readers.
+  - Windows' high contrast thickens the highlight, and Windows' "Animation effects" off reduces motion here too.
+
+## 7.3.44
+
+- ROG Ally settings: rows that were missing their icons now have them. That covers the Xbox button light (light,
+  brightness, effect, off while playing, breathe when the battery is low), When the lights are on, off after a minute
+  without input, the graphics memory rows, and the Dynamic Lighting and ASUS Optimization notices.
+
+## 7.3.43
+
+- ROG Ally lights: with ASUS's ASUS Optimization service switched off (Settings > ROG Ally > ASUS software), the
+  lights don't take changes, from SquareDeck or Armoury Crate SE. Found by testing on an X20. Now:
+  - both light screens say so, with a Switch on button that turns the service back on and sends the lights again;
+  - switching the service off warns about this first;
+  - lights.log notes it.
+
 ## 7.3.42
 
 - Fixed: Open Game Bar at the end of a widget install did nothing. It used a bare Game Bar link that Windows ignores.

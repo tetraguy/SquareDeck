@@ -655,6 +655,34 @@ public sealed class OnboardingScreen : Screen
         hero.Children.Add(chips);
         body.Children.Add(hero);
 
+        // Who runs the hardware: SquareDeck, or the maker's own app (so the two don't fight over the same settings).
+        body.Children.Add(Section("Who should run its power, lights and buttons?"));
+        string owner = s.TdpEnabled || s.AllyRemap || s.AllyLights.Length > 0 ? "squaredeck" : "maker";
+        string maker = ally ? "Armoury Crate SE" : "The maker's app";
+        body.Children.Add(Choices(new[] { ("squaredeck", "SquareDeck"), ("maker", maker) }, owner, id =>
+        {
+            bool mine = id == "squaredeck";
+            s.TdpEnabled = mine && TdpControl.CanApply;
+            if (ally)
+            {
+                s.AllyRemap = mine;
+                if (mine && s.AllyLights.Length == 0) s.AllyLights = "accent";
+                if (!mine) s.AllyLights = "";
+                AllyControl.ApplyLights(force: true);
+                Host.ApplyAllyButtons();
+            }
+            if (s.TdpEnabled) _ = TdpControl.ApplyAsync(quiet: true);
+        }));
+        var ownerNote = Ui.Text(owner == "squaredeck"
+            ? "SquareDeck sets the TDP, maps the special buttons" + (ally ? " and runs the lights" : "") + ". " + maker + " can stay installed; whichever changes something last wins."
+            : maker + " keeps doing it, and SquareDeck leaves those settings alone. You can switch any of them on in Settings later.", 15, "SubtleBrush");
+        ownerNote.TextWrapping = TextWrapping.Wrap;
+        ownerNote.TextAlignment = TextAlignment.Center;
+        ownerNote.MaxWidth = 820;
+        ownerNote.Margin = new Thickness(0, 4, 0, 10);
+        ownerNote.HorizontalAlignment = HorizontalAlignment.Center;
+        body.Children.Add(ownerNote);
+
         body.Children.Add(Section("A few things to start with"));
         var cards = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 1020 };
         if (ally)

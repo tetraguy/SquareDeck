@@ -120,7 +120,11 @@ public static class Ui
             grid.Children.Add(v);
         }
 
-        return new Button { Style = StyleOf("RowButton"), Content = grid };
+        var row = new Button { Style = StyleOf("RowButton"), Content = grid };
+        // Narrator and other screen readers read the row's name and value, and the line under it as help.
+        System.Windows.Automation.AutomationProperties.SetName(row, value != null ? label + ", " + value : label);
+        if (subtitle != null) System.Windows.Automation.AutomationProperties.SetHelpText(row, subtitle);
+        return row;
     }
 
     /// <summary>

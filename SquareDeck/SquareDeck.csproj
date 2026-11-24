@@ -11,7 +11,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>SquareDeck</AssemblyName>
     <RootNamespace>SquareDeck</RootNamespace>
-    <Version>7.3.42</Version>
+    <Version>7.3.45</Version>
     <ApplicationIcon>Assets\SquareDeck.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -38,6 +38,7 @@
     <None Update="RecompZone\**\*" CopyToOutputDirectory="PreserveNewest" />
     <!-- Retro Lounge's emblem (logo.svg is its source) -->
     <None Update="RetroLounge\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\CHANGELOG.md" Link="CHANGELOG.md" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Devices\**\*" CopyToOutputDirectory="PreserveNewest" />
     <!-- Button pictures for the hints: Glyphs\<look>\<controller or keyboard>\<button>.png -->
     <None Update="Glyphs\**\*" CopyToOutputDirectory="PreserveNewest" />

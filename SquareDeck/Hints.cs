@@ -23,11 +23,24 @@ public static class Hints
     /// <summary>Controller families whose button names can be shown.</summary>
     public static readonly (string Id, string Name)[] Styles =
     {
-        ("xbox", "Xbox"), ("playstation", "PlayStation"), ("switch", "Switch")
+        ("auto", "Match the controller"), ("xbox", "Xbox"), ("playstation", "PlayStation"), ("switch", "Switch")
     };
 
-    /// <summary>"xbox", "playstation" or "switch".</summary>
+    /// <summary>"xbox", "playstation" or "switch" (with "Match the controller", the family of the one connected).</summary>
     public static string Style { get; private set; } = "xbox";
+
+    /// <summary>True when the style follows the connected controller.</summary>
+    public static bool Auto { get; private set; }
+
+    /// <summary>With "Match the controller": looks at what's connected again (every few seconds).</summary>
+    public static void Refresh()
+    {
+        if (!Auto) return;
+        string now = ControllerFamily.Detect();
+        if (now == Style) return;
+        Style = now;
+        Changed?.Invoke();
+    }
 
     /// <summary>True while the keyboard or mouse was used last, so hints show keys instead of buttons.</summary>
     public static bool Keyboard { get; private set; }
@@ -37,6 +50,8 @@ public static class Hints
 
     public static void SetStyle(string style)
     {
+        Auto = style == "auto";
+        if (Auto) style = ControllerFamily.Detect();
         style = Styles.Any(s => s.Id == style) ? style : "xbox";
         if (style == Style) return;
         Style = style;

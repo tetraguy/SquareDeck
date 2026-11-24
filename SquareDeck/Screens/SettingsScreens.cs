@@ -456,7 +456,7 @@ public sealed class SettingsScreen : ListScreen
 
         // The section's banner: its icon, name and what's in it (and where you are, inside a group).
         // Settings home has no banner: the page is already titled "Settings".
-        if (_category == "overview") { Rows.Children.Add(new Border { Height = 6 }); BuildOverview(s); return; }
+        if (_category == "overview") { Rows.Children.Add(new Border { Height = 6 }); AddUndoRow(); BuildOverview(s); return; }
         Rows.Children.Add(Banner(cat.Glyph, cat.Name, _group == null ? cat.About : null));
 
         if (_panes) goto sections; // the sections are on the left; no way back needed
@@ -490,6 +490,64 @@ public sealed class SettingsScreen : ListScreen
             if (groups != null) KeepGroups(start, groups);
         }
         Organize(cat.Name);
+        if (!_indexing) { AddUndoRow(at: 1); AddResetRow(cat.Name); }
+    }
+
+    /// <summary>This version's changes, from the changelog that comes with SquareDeck (GitHub's if it's missing).</summary>
+    private async Task ShowThisVersionAsync()
+    {
+        string? log = null;
+        try
+        {
+            string local = System.IO.Path.Combine(AppContext.BaseDirectory, "CHANGELOG.md");
+            log = System.IO.File.Exists(local) ? await System.IO.File.ReadAllTextAsync(local) : await Updater.ChangelogAsync(CancellationToken.None);
+        }
+        catch (Exception) { }
+        var current = Updater.Current;
+        var previous = new Version(current.Major, current.Minor, Math.Max(0, current.Build - 1));
+        string notes = log == null ? "" : Updater.ChangelogSince(log, previous, current);
+        if (notes.Length == 0) { Host.Push(new ChangelogScreen()); return; }
+        Host.Push(new WhatsNewScreen(previous, current, notes));
+    }
+
+    // ---------------------------------------------------------------- changed from the default, reset, undo
+
+    /// <summary>The settings this section (or the group open in it) changes, from SettingsSections' map.</summary>
+    private List<string> SectionProps(string? group) =>
+        SettingsSections.Properties(Sections[_category].Select(p => (p.Part,
+            group == null ? p.Groups : (p.Groups == null || p.Groups.Contains(group) ? new[] { group } : Array.Empty<string>()))));
+
+    /// <summary>"Undo …" for a minute after a big change (a new theme, a section reset).</summary>
+    private void AddUndoRow(int at = -1)
+    {
+        if (Host.Undoable is not { } undo) return;
+        var row = Ui.Row("Undo", null, "\uE7A7", subtitle: undo.What);
+        row.Click += (_, _) => { Host.RunUndo(); Rebuild(); };
+        row.Margin = new Thickness(0, 6, 0, 4);
+        if (at >= 0 && at <= Rows.Children.Count) Rows.Children.Insert(at, row);
+        else Rows.Children.Add(row);
+    }
+
+    /// <summary>At the bottom: how many settings here differ from the default, and a way to put them back.</summary>
+    private void AddResetRow(string sectionName)
+    {
+        var props = SectionProps(_group);
+        var changed = SettingsSections.Changed(Host.Settings, props);
+        if (changed.Count == 0) return;
+        string where = _group ?? sectionName;
+        var row = Ui.Row("Reset " + where, $"{changed.Count} changed", "\uE777",
+            subtitle: $"Puts the {changed.Count} {(changed.Count == 1 ? "setting" : "settings")} you changed here back to the default. You can undo it for a minute");
+        row.Click += async (_, _) =>
+        {
+            if (await Host.AskAsync("Reset " + where + "?", $"{changed.Count} {(changed.Count == 1 ? "setting goes" : "settings go")} back to the default. Undo is at the top of Settings for a minute afterwards.", "Reset", "Cancel") != 0) return;
+            var s = Host.Settings;
+            var snapshot = SettingsSections.Reset(s, changed);
+            Host.ApplyAfterReset();
+            Host.OfferUndo("Reset " + where, () => { SettingsSections.Undo(s, snapshot); Host.ApplyAfterReset(); });
+            Rebuild();
+        };
+        row.Margin = new Thickness(0, 14, 0, 4);
+        Rows.Children.Add(row);
     }
 
     /// <summary>Of the rows added since <paramref name="start"/>, keeps only the named groups (in the order they were built).</summary>
@@ -530,6 +588,10 @@ public sealed class SettingsScreen : ListScreen
         search.Click += (_, _) => Host.Push(new SearchScreen(settingsOnly: true));
         search.Margin = new Thickness(0, 8, 0, 0);
         Rows.Children.Add(search);
+        var health = Ui.Row("Device health", null, "\uE95E", subtitle: "Who controls the lights, the TDP and the buttons, anything in the way, and Collect a report");
+        health.Click += (_, _) => Host.Push(new DeviceHealthScreen());
+        health.Margin = new Thickness(0, 4, 0, 0);
+        Rows.Children.Add(health);
         Rows.Children.Add(new Border { Height = 4 });
 
         // Every section, as a card (two panes list them on the left already).
@@ -682,7 +744,8 @@ public sealed class SettingsScreen : ListScreen
             card.Children.Add(badge);
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             text.Children.Add(Ui.Text(name, 20, "FgBrush", bold: true));
-            var sub = Ui.Text($"{buttons.Count} {(buttons.Count == 1 ? "setting" : "settings")}  \u00B7  {string.Join(", ", labels)}", 14, "SubtleBrush");
+            int changedHere = SettingsSections.Changed(Host.Settings, SectionProps(name)).Count;
+            var sub = Ui.Text((changedHere > 0 ? $"\u25CF {changedHere} changed  \u00B7  " : "") + $"{buttons.Count} {(buttons.Count == 1 ? "setting" : "settings")}  \u00B7  {string.Join(", ", labels)}", 14, "SubtleBrush");
             sub.TextTrimming = TextTrimming.CharacterEllipsis;
             sub.Margin = new Thickness(0, 3, 0, 0);
             text.Children.Add(sub);
@@ -1591,7 +1654,7 @@ public sealed class SettingsScreen : ListScreen
             int index = Array.FindIndex(Hints.Styles, x => x.Id == s.GlyphStyle);
             Toggle(() => s.GlyphStyle = Hints.Styles[(index + 1) % Hints.Styles.Length].Id);
         });
-        AddNote("Xbox shows A B X Y, PlayStation shows ✕ ○ □ △, Switch shows B A Y X for the same button positions. " +
+        AddNote("Match the controller picks PlayStation or Switch names when one of those controllers is connected, Xbox otherwise. Xbox shows A B X Y, PlayStation shows ✕ ○ □ △, Switch shows B A Y X for the same button positions. " +
                 "When you use a keyboard or mouse the hints switch to keys (Enter, Esc, X, Y) by themselves.");
         AddRow("How buttons are drawn", Hints.Looks.FirstOrDefault(x => x.Id == s.GlyphLook).Name ?? "Simple", "\uE7FC", click: () =>
         {
@@ -2016,6 +2079,14 @@ public sealed class SettingsScreen : ListScreen
     {
         bool ally = Handheld.Vendor == HandheldVendor.Asus;
         Rows.Children.Add(HandheldHero(s, ally));
+        var health = Ui.Row("Device health", null, "\uE95E", subtitle: "What's in control of the lights, TDP and buttons, and one-press fixes");
+        health.Click += (_, _) => Host.Push(new DeviceHealthScreen());
+        health.Tag = "pinned";
+        Rows.Children.Add(health);
+        var batteryByGame = Ui.Row("Battery and performance by game", null, "\uE859", subtitle: "How long a full battery lasts in each game");
+        batteryByGame.Click += (_, _) => Host.Push(new BatteryInsightScreen());
+        batteryByGame.Tag = "pinned";
+        Rows.Children.Add(batteryByGame);
 
         // ---- Performance: the device's own power mode first, then the TDP; Processor tuning; Advanced (the helper).
         BuildTdp(s, handheld: true, first: ally ? () =>
@@ -2225,11 +2296,11 @@ public sealed class SettingsScreen : ListScreen
 
         // ---- Graphics memory (VRAM): shown here, changed in Armoury Crate SE or the UEFI setup
         AddHeader("Graphics memory (VRAM)");
-        AddRow("Assigned to the graphics now", AllyVram.CurrentText(), "", click: Rebuild,
+        AddRow("Assigned to the graphics now", AllyVram.CurrentText(), "", click: Rebuild,
             subtitle: "Auto, 4, 6, 8, 12 or 16 GB depending on the model. More helps texture-heavy games and leaves less for Windows");
-        AddRow("Change it in Armoury Crate SE", null, "", click: () => ProcessUtil.Open("asusac://"),
+        AddRow("Change it in Armoury Crate SE", null, "", click: () => ProcessUtil.Open("asusac://"),
             subtitle: "Settings > Operating mode > GPU settings > Memory assigned to GPU. It takes effect after a restart");
-        AddRow("Restart into the UEFI setup", null, "", click: async () =>
+        AddRow("Restart into the UEFI setup", null, "", click: async () =>
             {
                 if (await Host.AskAsync("Restart into the UEFI setup?", "Save what you're doing first. In the setup, look under Advanced for \"UMA frame buffer size\" (Auto, or a size in GB), then save and exit.", "Cancel", "Restart") != 1) return;
                 var result = await AllyVram.RestartToSetupAsync();
@@ -2241,10 +2312,18 @@ public sealed class SettingsScreen : ListScreen
         // ---- Lights
         AddHeader("Lights");
         if (!lights) AddNote("SquareDeck couldn't find the Ally's light controller. These settings apply once it's found.");
+        if (AsusOptimization.Installed && !AsusOptimization.Enabled)
+            AddRow("ASUS Optimization is off", "Switch on", "", click: async () =>
+            {
+                var error = await AsusOptimization.SetEnabledAsync(true);
+                if (error != null) await Host.AskAsync("ASUS Optimization", error, "OK");
+                else { AllyControl.ApplyLights(force: true); AllyControl.ApplyXboxLight(force: true); }
+                Rebuild();
+            }, subtitle: "While ASUS's service is off, the lights don't take changes. Windows asks for permission");
         if (s.AllyLights is not ("" or "off") && AllyControl.AwakeOff(s))
             AddNote("The lights are dark: \"Awake\" is off under When the lights are on (" + (Battery.IsPluggedIn() ? "plugged in" : "on battery") + "). Turn it on there, or choose the effect again.");
         if (AllyControl.DynamicLightingOn)
-            AddRow("Windows' Dynamic Lighting is on", "Open", "", click: () => ProcessUtil.Open("ms-settings:personalization-lighting"),
+            AddRow("Windows' Dynamic Lighting is on", "Open", "", click: () => ProcessUtil.Open("ms-settings:personalization-lighting"),
                 subtitle: "It takes over the Ally's lights, so SquareDeck's changes don't show. Turn off \"Use Dynamic Lighting on my devices\"");
         if (s.AllyLights.Length == 0) AddNote("The lights are left as they are. Choose an effect and SquareDeck takes them over.");
         var mode = AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights);
@@ -2282,13 +2361,13 @@ public sealed class SettingsScreen : ListScreen
         // ---- When the lights may light (Armoury Crate SE's power states)
         AddHeader("When the lights are on");
         void Power(string label, bool on, Action flip, string subtitle) =>
-            AddRow(label, OnOff(on), "", subtitle: subtitle,
+            AddRow(label, OnOff(on), "", subtitle: subtitle,
                 click: () => AllySave(() => { flip(); s.AllyLightPowerSet = true; }, () => { AllyControl.ApplyLightPower(force: true); AllyControl.ApplyLights(force: true); }));
         if (!s.AllyLightPowerSet) AddNote("Armoury Crate SE's settings apply until you change one here.");
         Power("Boot up and shut down", s.AllyLightBootShutdown, () => s.AllyLightBootShutdown = !s.AllyLightBootShutdown, "While it starts and while it turns off");
         Power("Awake, on battery", s.AllyLightAwakeBattery, () => s.AllyLightAwakeBattery = !s.AllyLightAwakeBattery, "While you use it unplugged");
         if (s.AllyLightAwakeBattery)
-            AddRow("Off after a minute without input", OnOff(s.AllyLightBatteryIdleOff), "",
+            AddRow("Off after a minute without input", OnOff(s.AllyLightBatteryIdleOff), "",
                 click: () => AllySave(() => s.AllyLightBatteryIdleOff = !s.AllyLightBatteryIdleOff, () => AllyControl.ApplyLights(force: true)),
                 subtitle: s.AllyLights is "" or "off" ? "On battery. Works with an effect chosen above" : "On battery: they come back the moment you touch it");
         Power("Awake, plugged in", s.AllyLightAwakePlugged, () => s.AllyLightAwakePlugged = !s.AllyLightAwakePlugged, "While it's charging or on the charger");
@@ -2299,21 +2378,21 @@ public sealed class SettingsScreen : ListScreen
         {
             AddHeader("Xbox button light");
             var states = new[] { ("", "Leave as it is"), ("on", "On"), ("off", "Off") };
-            AddRow("Light", states.FirstOrDefault(x => x.Item1 == s.AllyXboxLight).Item2 ?? "Leave as it is", "",
+            AddRow("Light", states.FirstOrDefault(x => x.Item1 == s.AllyXboxLight).Item2 ?? "Leave as it is", "",
                 click: () => AllyPick("Xbox button light", states, x => x.Item2, x => { s.AllyXboxLight = x.Item1; if (x.Item1 == "on") AllyControl.WakeLights(s); }, () => AllyControl.ApplyXboxLight(force: true)),
                 subtitle: s.AllyXboxLight.Length == 0 ? "Armoury Crate SE (or the last setting) decides" : "The green glow in the Xbox button");
             if (s.AllyXboxLight == "on")
             {
-                AddRow("Brightness", AllyControl.XboxLightLevelName(s.AllyXboxLightLevel), "",
+                AddRow("Brightness", AllyControl.XboxLightLevelName(s.AllyXboxLightLevel), "",
                     click: () => AllyPick("Xbox button brightness", AllyControl.XboxLightLevels, l => l.Name, l => s.AllyXboxLightLevel = l.Level, () => AllyControl.ApplyXboxLight(force: true)),
                     subtitle: "Bright is how ASUS ships it");
-                AddRow("Effect", s.AllyXboxLightBreathe ? "Breathing" : "Steady", "",
+                AddRow("Effect", s.AllyXboxLightBreathe ? "Breathing" : "Steady", "",
                     click: () => AllySave(() => s.AllyXboxLightBreathe = !s.AllyXboxLightBreathe, () => AllyControl.ApplyXboxLight(force: true)),
                     subtitle: "Steady, or a slow fade in and out");
-                AddRow("Off while playing", OnOff(s.AllyXboxLightOffPlaying), "",
+                AddRow("Off while playing", OnOff(s.AllyXboxLightOffPlaying), "",
                     click: () => AllySave(() => s.AllyXboxLightOffPlaying = !s.AllyXboxLightOffPlaying, () => AllyControl.ApplyXboxLight(force: true)),
                     subtitle: "Keeps it out of the corner of your eye; it comes back when the game closes");
-                AddRow("Breathe when the battery is low", OnOff(s.AllyXboxLightLowBattery), "",
+                AddRow("Breathe when the battery is low", OnOff(s.AllyXboxLightLowBattery), "",
                     click: () => AllySave(() => s.AllyXboxLightLowBattery = !s.AllyXboxLightLowBattery, () => AllyControl.ApplyXboxLight(force: true)),
                     subtitle: "At 15% or less, bright and breathing, until you plug in");
             }
@@ -2410,6 +2489,7 @@ public sealed class SettingsScreen : ListScreen
                 if (on && await Host.AskAsync("Switch off ASUS Optimization?",
                         "ASUS's background service handles the Ally's special buttons and puts back ASUS's own power limits, so it can take over " +
                         "the buttons SquareDeck maps and the TDP SquareDeck sets. Switching it off stops it and keeps it from starting with Windows. " +
+                        "The Ally's lights also stop taking changes (the stick rings and the Xbox button), from SquareDeck and Armoury Crate SE alike. " +
                         "Armoury Crate SE's own button features need it; you can switch it back on here at any time. Windows will ask for permission.",
                         "Switch it off", "Cancel") != 0) return;
                 Host.ShowToast("ROG ALLY", on ? "Switching off ASUS Optimization…" : "Switching on ASUS Optimization…", "", "", "info", remember: false);
@@ -2423,7 +2503,7 @@ public sealed class SettingsScreen : ListScreen
                     Host.ApplyAllyButtons();
                 }
                 Rebuild();
-            }, subtitle: on ? "Switch off to stop it overriding SquareDeck's button mapping and TDP" : "Off: SquareDeck's buttons and TDP aren't overridden. Select to switch it back on");
+            }, subtitle: on ? "Switch off to stop it overriding SquareDeck's button mapping and TDP (the lights stop taking changes while it's off)" : "Off: SquareDeck's buttons and TDP aren't overridden, but the lights don't take changes. Select to switch it back on");
         }
 
         AddNote("The firmware and controller messages come from HandheldCompanion by Valkirie (github.com/Valkirie/HandheldCompanion). " +
@@ -2807,6 +2887,8 @@ public sealed class SettingsScreen : ListScreen
         }
 
         AddHeader("Achievements, play time and captures");
+        AddRow("Battery and performance by game", null, "\uE859", click: () => Host.Push(new BatteryInsightScreen()),
+            subtitle: "How long a full battery lasts in each game, with its power, frame rate and temperature");
         AddRow("Achievement pop-ups", OnOff(s.AchievementToasts), "", click: () =>
             Toggle(() => s.AchievementToasts = !s.AchievementToasts));
         AddRow("Recent achievements", glyph: "", click: () => Host.Push(new UnlocksScreen()));
@@ -3134,6 +3216,9 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Check for updates automatically", OnOff(s.AutoUpdateCheck), "", click: () =>
             Toggle(() => s.AutoUpdateCheck = !s.AutoUpdateCheck));
         AddRow("Check for updates now", glyph: "", click: () => _ = Host.CheckForUpdatesAsync(manual: true));
+        AddRow("What's new after an update", OnOff(s.WhatsNewAfterUpdate), "\uE789", click: () =>
+            Toggle(() => s.WhatsNewAfterUpdate = !s.WhatsNewAfterUpdate), subtitle: "The new version's changes, once, the first time SquareDeck starts after an update");
+        AddRow("What's new in this version", null, "\uE81C", click: () => _ = ShowThisVersionAsync());
         AddFeature("autoupdate");
         AddFeature("bugreport");
         if (s.SkippedVersion.Length > 0)

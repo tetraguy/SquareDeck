@@ -294,8 +294,10 @@ public static class Theme
         if (style.ForceLight && settings.ThemeMode is not ("hc-dark" or "hc-light")) dark = false;
         CurrentIsDark = dark;
 
-        ReduceMotion = settings.ReduceMotion;
-        ThickRing = settings.ThickFocusRing;
+        // Windows' own accessibility settings count too: high contrast thickens the highlight, and "Animation
+        // effects" off in Windows reduces motion here.
+        ReduceMotion = settings.ReduceMotion || !System.Windows.SystemParameters.ClientAreaAnimation;
+        ThickRing = settings.ThickFocusRing || System.Windows.SystemParameters.HighContrast;
         Gamepad.RepeatPace = settings.NavRepeat is "slow" or "off" ? settings.NavRepeat : "normal";
         HighContrast = settings.ThemeMode is "hc-dark" or "hc-light";
         HighlightEffects.Load(settings);

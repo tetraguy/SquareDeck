@@ -66,8 +66,17 @@ public sealed class GameProfile
     /// <summary>Adrenaline Hook: AMD Software's performance metrics overlay shows while this game runs.</summary>
     public bool AmdMetricsOverlay { get; set; }
 
+    // While this game runs, on the ROG Ally: a fan curve (an id from AllyControl.FanCurves; null = Settings'), rumble
+    // strength (null = Settings'), and the Xbox button's light off (null = Settings').
+    public string? FanCurve { get; set; }
+    public int? Vibration { get; set; }
+    public bool? XboxLightOff { get; set; }
+    /// <summary>The Game Bar widget's quick tiles while this game runs (null = the usual ones).</summary>
+    public List<string>? WidgetQuick { get; set; }
+
     public bool IsEmpty => Width == 0 && RefreshRate == 0 && Hdr == null && PowerPlanId == null && AudioDeviceId == null && !HasPower
-                           && Lights == null && LightColor == null && LightColor2 == null && !AmdMetricsOverlay;
+                           && Lights == null && LightColor == null && LightColor2 == null && !AmdMetricsOverlay
+                           && FanCurve == null && Vibration == null && XboxLightOff == null && WidgetQuick == null;
 }
 
 /// <summary>A game the user added by hand: any program on the PC.</summary>

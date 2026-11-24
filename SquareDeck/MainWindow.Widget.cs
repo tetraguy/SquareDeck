@@ -40,6 +40,8 @@ public partial class MainWindow
         // The widget package in the Widget folder next to SquareDeck (bundled by the installer): offered a little after
         // start when it isn't installed, and updated quietly when an older one is.
         _ = OfferWidgetAsync();
+        _ = StartupHealthCheckAsync(); // Device health: a notice if something needs fixing
+        _ = ShowWhatsNewAsync();       // the new version's changes, once, after an update
     }
 
     private JsonObject WidgetSnapshot()
@@ -51,7 +53,7 @@ public partial class MainWindow
             ["device"] = Handheld.IsHandheld ? Handheld.DisplayName : Environment.MachineName,
             ["accent"] = WidgetAccent(),
             ["background"] = s.WidgetBackground,
-            ["quick"] = new JsonArray((s.WidgetQuick ?? Settings.WidgetQuickTiles.Select(t => t.Id).ToList()).Select(x => (JsonNode)x).ToArray()),
+            ["quick"] = new JsonArray((RunningProfile()?.WidgetQuick ?? s.WidgetQuick ?? Settings.WidgetQuickTiles.Select(t => t.Id).ToList()).Select(x => (JsonNode)x).ToArray()),
             ["sections"] = new JsonArray((s.WidgetSections ?? new List<string>(Settings.WidgetSectionIds)).Select(x => (JsonNode)x).ToArray()),
         };
 
@@ -250,9 +252,11 @@ public partial class MainWindow
             {
                 // Edit in the widget's Quick card: which tiles show, in order (only ones the widget has).
                 var known = Settings.WidgetQuickTiles.Select(t => t.Id).ToHashSet();
-                s.WidgetQuick = ids.Select(n => { try { return n?.GetValue<string>(); } catch (Exception) { return null; } })
+                var chosen = ids.Select(n => { try { return n?.GetValue<string>(); } catch (Exception) { return null; } })
                     .Where(x => x != null && known.Contains(x)).Select(x => x!).Distinct().ToList();
-                s.Save();
+                // While a game with its own tiles runs, Edit changes that game's tiles; otherwise the usual ones.
+                if (RunningProfile() is { WidgetQuick: not null } gameTiles) { gameTiles.WidgetQuick = chosen; Library.Save(); }
+                else { s.WidgetQuick = chosen; s.Save(); }
                 break;
             }
             case "power" when Str("id") is { } what && what is "lock" or "sleep" or "hibernate" or "restart" or "shutdown":
