@@ -225,6 +225,21 @@ public static class Maintenance
         return output.Trim();
     }
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool AllowSetForegroundWindow(int processId);
+
+    /// <summary>SquareDeck's window, for the administrator prompt to belong to (from any thread).</summary>
+    private static IntPtr OwnerWindow()
+    {
+        try
+        {
+            var app = System.Windows.Application.Current;
+            if (app == null) return IntPtr.Zero;
+            return app.Dispatcher.Invoke(() => app.MainWindow is { } w ? new System.Windows.Interop.WindowInteropHelper(w).Handle : IntPtr.Zero);
+        }
+        catch (Exception) { return IntPtr.Zero; }
+    }
+
     /// <summary>
     /// Runs commands as administrator (Windows asks first) and returns what they printed, or a line saying the prompt
     /// was declined.
@@ -239,8 +254,13 @@ public static class Maintenance
         await File.WriteAllTextAsync(script, lines.ToString()).ConfigureAwait(false);
         try
         {
+            // Windows' administrator prompt only comes to the front for the app the person last gave input to, and a
+            // controller press doesn't count: picked with the controller, the prompt waited unseen in the taskbar. So
+            // SquareDeck hands over its right to the front, and names its window as the prompt's owner.
+            AllowSetForegroundWindow(-1);
+            var owner = OwnerWindow();
             using var process = Process.Start(new ProcessStartInfo("cmd.exe", $"/c \"{script}\"")
-                { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden });
+                { UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden, ErrorDialog = owner != IntPtr.Zero, ErrorDialogParentHandle = owner });
             if (process == null) return "Couldn't start the command.";
             await process.WaitForExitAsync().ConfigureAwait(false);
             return File.Exists(output) ? (await File.ReadAllTextAsync(output).ConfigureAwait(false)).Trim() : "Done.";

@@ -271,6 +271,18 @@ public static class AllyHid
     }
 
     public static bool HasLights { get { lock (Lock) { Scan(); return _aura != null; } } }
+
+    /// <summary>Which collections were found, for the light log.</summary>
+    public static string Describe()
+    {
+        lock (Lock)
+        {
+            Scan();
+            int paths = AllyButtons.AsusHidPaths().Count;
+            string Of(Device? d) => d == null ? "not found" : $"found (feature {d.FeatureLength}, output {d.OutputLength})";
+            return $"{paths} ASUS HID paths, controller {Of(_input)}, lights {Of(_aura)}";
+        }
+    }
     public static bool HasController { get { lock (Lock) { Scan(); return _input != null; } } }
 
     private static byte[] Pad(byte[] message, int length)
@@ -368,20 +380,25 @@ public static class AllyHid
 
     // ---------------------------------------------------------------- the Xbox button's light (ROG Xbox Ally)
 
-    // The Xbox button glows green (one color only). Its three commands are the ones Armoury Crate SE sends, as
-    // captured over USB and checked on an X20 by the ally-x20-steamos project (docs/xbox-led-capture.md):
-    //   on/off      5A D1 09 01 1F / 0F    feature report (byte 4 is the light power mask; 0x10 is the button)
-    //   breathing   5A D1 21 02 01|00 08   feature report
-    //   brightness  5D D1 20 01 0..3       output report (0 is dark, 3 the brightest)
-    // Brightness and breathing don't survive a power-off or sleep: the controller goes back to 3 and steady.
+    // The lights' power states: one mask for when the rings may light (Armoury Crate SE's "Boot up, shut down",
+    // "Awake" and "Sleep"), and on the ROG Xbox Ally whether the Xbox button glows. Bits as G-Helper (Aura.cs,
+    // ApplyAllyPower) and the Linux hid-asus-ally driver use them; the Xbox button's bit and the other two commands
+    // are the ones Armoury Crate SE sends, captured over USB and checked on an X20 by ally-x20-steamos:
+    //   power mask  5A D1 09 01 <mask>     feature report
+    //   breathing   5A D1 21 02 01|00 08   feature report (the Xbox button)
+    //   brightness  5D D1 20 01 0..3       output report (the Xbox button: 0 is dark, 3 the brightest)
+    // The Xbox button's brightness and breathing don't survive a power-off or sleep: back to 3 and steady.
 
-    /// <summary>Switches the Xbox button's light on or off (Armoury Crate's own power mask values).</summary>
-    public static bool SetXboxLight(bool on)
+    [Flags]
+    public enum LightPower : byte { Boot = 0x01, Awake = 0x02, Sleep = 0x04, Shutdown = 0x08, XboxButton = 0x10 }
+
+    /// <summary>When the lights may light (and whether the Xbox button glows).</summary>
+    public static bool SetLightPower(LightPower mask)
     {
         lock (Lock)
         {
             Scan();
-            return Feature(_input, new byte[] { InputId, 0xD1, 0x09, 0x01, on ? (byte)0x1F : (byte)0x0F });
+            return Feature(_input, new byte[] { InputId, 0xD1, 0x09, 0x01, (byte)mask });
         }
     }
 

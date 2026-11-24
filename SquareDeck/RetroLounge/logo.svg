@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#2A1640"/>
+      <stop offset="0.55" stop-color="#170D24"/>
+      <stop offset="1" stop-color="#0B0712"/>
+    </radialGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE45C"/>
+      <stop offset="0.38" stop-color="#FF9A3D"/>
+      <stop offset="0.7" stop-color="#FF3D8B"/>
+      <stop offset="1" stop-color="#B43CFF"/>
+    </linearGradient>
+    <!-- The sunset's stripes: gaps that thicken towards the bottom -->
+    <mask id="stripes">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <rect x="0" y="560" width="1024" height="14" fill="#000"/>
+      <rect x="0" y="608" width="1024" height="20" fill="#000"/>
+      <rect x="0" y="660" width="1024" height="26" fill="#000"/>
+      <rect x="0" y="716" width="1024" height="32" fill="#000"/>
+    </mask>
+    <filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <feGaussianBlur stdDeviation="26" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="scan" width="8" height="8" patternUnits="userSpaceOnUse">
+      <rect width="8" height="3" fill="#000" opacity="0.22"/>
+    </pattern>
+    <clipPath id="tile"><rect x="40" y="40" width="944" height="944" rx="210"/></clipPath>
+  </defs>
+  <rect x="40" y="40" width="944" height="944" rx="210" fill="url(#bg)"/>
+  <g clip-path="url(#tile)">
+    <!-- A perspective floor grid under the sun -->
+    <g stroke="#B43CFF" stroke-opacity="0.35" stroke-width="5" fill="none">
+      <path d="M40 812 H984 M40 870 H984 M40 940 H984"/>
+      <path d="M512 780 L512 1000 M512 780 L300 1000 M512 780 L724 1000 M512 780 L90 1000 M512 780 L934 1000"/>
+    </g>
+  </g>
+  <g filter="url(#glow)">
+    <g mask="url(#stripes)">
+      <rect x="282" y="242" width="460" height="460" rx="64" fill="none" stroke="url(#sun)" stroke-width="64"/>
+      <rect x="520" y="480" width="170" height="170" rx="40" fill="url(#sun)"/>
+    </g>
+  </g>
+  <rect x="40" y="40" width="944" height="944" rx="210" fill="url(#scan)"/>
+  <rect x="44" y="44" width="936" height="936" rx="206" fill="none" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="6"/>
+</svg>

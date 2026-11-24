@@ -77,6 +77,8 @@ namespace SquareDeck.Widget
         // Game card
         private Border _gameCard, _liveCard, _quickCard;
         private Image _gameHero, _gameIcon;
+        private Image _backArt;            // the running game's art behind everything ("The game's art" background)
+        private string _background = "";
         private TextBlock _gameName, _gameDetail;
         private ToggleSwitch _gameProfile;
         private Button _closeGame;
@@ -121,6 +123,9 @@ namespace SquareDeck.Widget
         {
             Root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             Root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            _backArt = new Image { Stretch = Stretch.UniformToFill, Opacity = 0, IsHitTestVisible = false };
+            Grid.SetRowSpan(_backArt, 2);
+            Root.Children.Add(_backArt);
 
             // A soft teal glow in the top corner, like light off the logo.
             var glow = new Ellipse { Width = 380, Height = 380, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(-190, -220, 0, 0), IsHitTestVisible = false };
@@ -143,6 +148,7 @@ namespace SquareDeck.Widget
 
             var cards = new StackPanel { Margin = new Thickness(0, 0, 14, 18) };
             cards.Children.Add(BuildGame());
+            cards.Children.Add(BuildMedia());
             cards.Children.Add(BuildPower());
             _liveCard = (Border)BuildLive();
             cards.Children.Add(_liveCard);
@@ -229,6 +235,7 @@ namespace SquareDeck.Widget
             ToolTipService.SetToolTip(mute, "Mute");
             mute.Click += (s, e) => _link.Send("mute");
             rail.Children.Add(mute);
+            rail.Children.Add(BuildPowerButton());
 
             rail.Children.Add(new Rectangle { Height = 1, Width = 30, Fill = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(0, 14, 0, 14) });
 
@@ -241,6 +248,56 @@ namespace SquareDeck.Widget
             open.Click += (s, e) => _link.Send("open");
             rail.Children.Add(open);
             return back;
+        }
+
+        /// <summary>
+        /// The power button under the volume: Lock, Sleep, Hibernate, Restart and Shut down, each with its icon.
+        /// Restart and Shut down ask once more ("now?"), so a stray press doesn't end the game.
+        /// </summary>
+        private Button BuildPowerButton()
+        {
+            var power = new Button
+            {
+                Style = DeckButton, Content = Glyph("\uE7E8", 18), Width = 44, Height = 40, Padding = new Thickness(0), Margin = new Thickness(0, 4, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Center, Background = new SolidColorBrush(Colors.Transparent)
+            };
+            ToolTipService.SetToolTip(power, "Power");
+            var menu = new MenuFlyout { Placement = FlyoutPlacementMode.Right };
+            Action<string, string> send = (id, label) => _link.Send("power", "id", id);
+            Func<string, string, MenuFlyoutItem> item = (glyph, text) => new MenuFlyoutItem
+            {
+                Text = text, Icon = new FontIcon { Glyph = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets") }
+            };
+            var lockItem = item("\uE72E", "Lock");
+            lockItem.Click += (s, e) => send("lock", "Lock");
+            var sleepItem = item("\uE708", "Sleep");
+            sleepItem.Click += (s, e) => send("sleep", "Sleep");
+            var hibernateItem = item("\uE823", "Hibernate");
+            hibernateItem.Click += (s, e) => send("hibernate", "Hibernate");
+            var restartItem = item("\uE777", "Restart");
+            restartItem.Click += (s, e) => Confirm(power, "\uE777", "Restart now", () => send("restart", "Restart"));
+            var shutdownItem = item("\uE7E8", "Shut down");
+            shutdownItem.Click += (s, e) => Confirm(power, "\uE7E8", "Shut down now", () => send("shutdown", "Shut down"));
+            menu.Items.Add(lockItem);
+            menu.Items.Add(sleepItem);
+            menu.Items.Add(hibernateItem);
+            menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(restartItem);
+            menu.Items.Add(shutdownItem);
+            power.Click += (s, e) => menu.ShowAt(power);
+            return power;
+        }
+
+        /// <summary>A second, small menu to make sure: the action, or Cancel.</summary>
+        private static void Confirm(FrameworkElement at, string glyph, string text, Action yes)
+        {
+            var sure = new MenuFlyout { Placement = FlyoutPlacementMode.Right };
+            var go = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets") } };
+            go.Click += (s, e) => yes();
+            var cancel = new MenuFlyoutItem { Text = "Cancel", Icon = new FontIcon { Glyph = "\uE711", FontFamily = new FontFamily("Segoe MDL2 Assets") } };
+            sure.Items.Add(go);
+            sure.Items.Add(cancel);
+            sure.ShowAt(at);
         }
 
         private Slider RailSlider() => new Slider
@@ -399,6 +456,7 @@ namespace SquareDeck.Widget
                 _gameKey = key;
                 _gameHero.Source = null;
                 _gameIcon.Source = null;
+                _backArt.Source = null;
                 _closeLabel.Text = "Close game";
             }
             if (key.Length > 0 && _artAsked != key)
@@ -406,6 +464,98 @@ namespace SquareDeck.Widget
                 _artAsked = key;
                 _link.Send("art", "key", key);
             }
+        }
+
+        // ---------------------------------------------------------------- Media (what SquareDeck is playing)
+
+        private Border _mediaCard;
+        private Image _mediaArt;
+        private TextBlock _mediaTitle, _mediaArtist, _mediaPlayGlyph, _mediaNoArt;
+        private string _mediaKey = "", _mediaArtAsked = "";
+
+        /// <summary>
+        /// A row that appears while SquareDeck plays music or video (Settings > Experimental > Media controls in the
+        /// widget): the cover art, the song and artist, and previous / play-pause / next.
+        /// </summary>
+        private FrameworkElement BuildMedia()
+        {
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var cover = new Grid { Width = 64, Height = 64, Margin = new Thickness(0, 0, 12, 0) };
+            cover.Children.Add(new Border { CornerRadius = new CornerRadius(12), Background = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF)) });
+            _mediaNoArt = Glyph("\uE8D6", 24);
+            _mediaNoArt.VerticalAlignment = VerticalAlignment.Center;
+            cover.Children.Add(_mediaNoArt);
+            _mediaArt = new Image { Stretch = Stretch.UniformToFill };
+            cover.Children.Add(new Border { CornerRadius = new CornerRadius(12), Child = _mediaArt });
+            row.Children.Add(cover);
+
+            var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            _mediaTitle = new TextBlock { FontSize = 15, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = new SolidColorBrush(Colors.White) };
+            _mediaArtist = new TextBlock { FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = new SolidColorBrush(Subtle), Margin = new Thickness(0, 3, 0, 0) };
+            words.Children.Add(_mediaTitle);
+            words.Children.Add(_mediaArtist);
+            Grid.SetColumn(words, 1);
+            row.Children.Add(words);
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+            Func<string, string, double, Button> make = (glyph, cmd, size) =>
+            {
+                var g = Glyph(glyph, 16);
+                var b = new Button { Style = DeckButton, Content = g, Width = size, Height = size, Padding = new Thickness(0), Margin = new Thickness(3, 0, 0, 0), CornerRadius = new CornerRadius(size / 2) };
+                b.Click += (s, e) => _link.Send("media", "cmd", cmd);
+                return b;
+            };
+            buttons.Children.Add(make("\uE892", "previous", 38));
+            var play = make("\uE768", "toggle", 46);
+            _mediaPlayGlyph = (TextBlock)play.Content;
+            play.Background = _accentBrush;
+            _mediaPlayGlyph.Foreground = new SolidColorBrush(Color.FromArgb(255, 0x0B, 0x16, 0x1A));
+            buttons.Children.Add(play);
+            buttons.Children.Add(make("\uE893", "next", 38));
+            Grid.SetColumn(buttons, 2);
+            row.Children.Add(buttons);
+
+            _mediaCard = Card("\uE8D6", "Now playing", row);
+            _mediaCard.Visibility = Visibility.Collapsed;
+            return _mediaCard;
+        }
+
+        private void ApplyMedia(JsonObject media)
+        {
+            if (media == null) { _mediaCard.Visibility = Visibility.Collapsed; return; }
+            _mediaCard.Visibility = Visibility.Visible;
+            _mediaTitle.Text = Str(media, "title") ?? "";
+            string artist = Str(media, "artist") ?? "";
+            _mediaArtist.Text = artist.Length > 0 ? artist : "SquareDeck";
+            bool playing = Bool(media, "playing") == true;
+            _mediaPlayGlyph.Text = playing ? "\uE769" : "\uE768";
+            _mediaArt.Opacity = playing ? 1 : 0.55;
+            string key = Str(media, "key") ?? "";
+            if (key != _mediaKey)
+            {
+                _mediaKey = key;
+                _mediaArt.Source = null;
+                _mediaNoArt.Visibility = Visibility.Visible;
+            }
+            if (key.Length > 0 && _mediaArtAsked != key)
+            {
+                _mediaArtAsked = key;
+                _link.Send("mediaart", "key", key);
+            }
+        }
+
+        private async void ApplyMediaArt(JsonObject m)
+        {
+            string key = Str(m, "key");
+            if (key != _mediaKey) return;
+            var art = await Decode(Str(m, "art"));
+            if (key != _mediaKey || art == null) return;
+            _mediaArt.Source = art;
+            _mediaNoArt.Visibility = Visibility.Collapsed;
         }
 
         /// <summary>The game's pictures, sent once by SquareDeck as base64 text.</summary>
@@ -418,6 +568,42 @@ namespace SquareDeck.Widget
             if (key != _gameKey) return;
             if (icon != null) _gameIcon.Source = icon;
             if (hero != null) _gameHero.Source = hero;
+            if (hero != null && _background == "game") _backArt.Source = hero;
+        }
+
+        // ---------------------------------------------------------------- the background (Settings > Widget background)
+
+        private void ApplyBackground(string style)
+        {
+            _background = style;
+            Brush brush;
+            if (style == "glass")
+                brush = new AcrylicBrush
+                {
+                    BackgroundSource = AcrylicBackgroundSource.HostBackdrop, TintColor = Color.FromArgb(255, 0x12, 0x15, 0x19), TintOpacity = 0.5,
+                    FallbackColor = Color.FromArgb(0xB4, 0x12, 0x15, 0x19)
+                };
+            else if (style == "oled") brush = new SolidColorBrush(Color.FromArgb(0xFA, 0, 0, 0));
+            else if (style == "accent")
+                brush = Gradient(Color.FromArgb(0xF2, (byte)(_accent.R * 0.34), (byte)(_accent.G * 0.34), (byte)(_accent.B * 0.34)),
+                                 Color.FromArgb(0xF2, (byte)(_accent.R * 0.16), (byte)(_accent.G * 0.16), (byte)(_accent.B * 0.16)), Color.FromArgb(0xF2, 0x0E, 0x10, 0x14));
+            else if (style == "aurora") brush = Gradient(Color.FromArgb(0xF2, 0x0A, 0x3A, 0x3C), Color.FromArgb(0xF2, 0x14, 0x1A, 0x34), Color.FromArgb(0xF2, 0x2C, 0x10, 0x48));
+            else if (style == "sunset") brush = Gradient(Color.FromArgb(0xF2, 0x3C, 0x0E, 0x2E), Color.FromArgb(0xF2, 0x2A, 0x10, 0x22), Color.FromArgb(0xF2, 0x42, 0x24, 0x08));
+            else brush = Gradient(Color.FromArgb(0xF0, 0x12, 0x15, 0x19), Color.FromArgb(0xF0, 0x17, 0x1C, 0x23), Color.FromArgb(0xF0, 0x1A, 0x1A, 0x26));
+            Root.Background = brush;
+            bool art = style == "game";
+            _backArt.Opacity = art ? 0.3 : 0;
+            if (art && _backArt.Source == null) _backArt.Source = _gameHero.Source;
+            if (!art) _backArt.Source = null;
+        }
+
+        private static LinearGradientBrush Gradient(Color a, Color b, Color c)
+        {
+            var g = new LinearGradientBrush { StartPoint = new Windows.Foundation.Point(0, 0), EndPoint = new Windows.Foundation.Point(1, 1) };
+            g.GradientStops.Add(new GradientStop { Color = a, Offset = 0 });
+            g.GradientStops.Add(new GradientStop { Color = b, Offset = 0.6 });
+            g.GradientStops.Add(new GradientStop { Color = c, Offset = 1 });
+            return g;
         }
 
         private static async System.Threading.Tasks.Task<BitmapImage> Decode(string base64)
@@ -457,6 +643,7 @@ namespace SquareDeck.Widget
             _glowBottom.Color = Color.FromArgb(0x38, c.R, c.G, c.B);
             _notePill.Background = new SolidColorBrush(Color.FromArgb(0xF0, (byte)(c.R * 0.45), (byte)(c.G * 0.45), (byte)(c.B * 0.45)));
             _dial.SetAccent(c);
+            if (_background == "accent") ApplyBackground("accent");
             _stats["cpu"].Line.SetColor(c);
             MarkPresets(_watts);
         }
@@ -665,29 +852,89 @@ namespace SquareDeck.Widget
             ("wifi", "", "Wi-Fi"), ("bluetooth", "", "Bluetooth"), ("keyboard", "", "Keyboard"),
             ("taskmanager", "", "Task Manager"), ("amdoverlay", "", "AMD overlay"), ("screenoff", "", "Screen off"),
             ("mic", "\uE720", "Microphone"), ("desktop", "\uE7F4", "Show desktop"), ("amdmetrics", "\uE9D9", "AMD metrics"),
+            ("cpuboost", "\uE945", "CPU boost"), ("ris", "\uE91B", "Image sharpening"), ("chill", "\uE9CA", "Radeon Chill"),
+            ("ledlevel", "\uEA80", "LED brightness"),
         };
 
+        private List<string> _quickShown;      // the tiles chosen, in order (null: all of them)
+        private bool _quickEditing;
+        private Grid _quickGrid;
+        private Button _quickEdit;
+        private TextBlock _quickHint;
+        private readonly Dictionary<string, TextBlock> _quickBadges = new Dictionary<string, TextBlock>();
+
+        /// <summary>The quick settings: the chosen tiles, and Edit to add or take off any of them (saved in SquareDeck).</summary>
         private FrameworkElement BuildQuick()
         {
-            var grid = Columns(3);
-            for (int i = 0; i < QuickTiles.Length; i++)
+            _quickGrid = Columns(3);
+            foreach (var t in QuickTiles)
             {
-                if (i % 3 == 0) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                var (id, glyph, name) = QuickTiles[i];
-                var face = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-                var g = Glyph(glyph, 20);
-                face.Children.Add(g);
-                var label = new TextBlock { Text = name, FontSize = 12, Margin = new Thickness(0, 7, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxLines = 2 };
-                face.Children.Add(label);
-                var b = new Button { Style = DeckButton, Content = face, Height = 84 };
-                string tile = id;
-                b.Click += (s, e) => QuickPressed(tile);
+                var face = new Grid();
+                var stackFace = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                var g = Glyph(t.Glyph, 20);
+                stackFace.Children.Add(g);
+                var label = new TextBlock { Text = t.Name, FontSize = 12, Margin = new Thickness(0, 7, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxLines = 2 };
+                stackFace.Children.Add(label);
+                face.Children.Add(stackFace);
+                var badge = new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -4, -2, 0), Foreground = _accentBrush, Visibility = Visibility.Collapsed };
+                face.Children.Add(badge);
+                var b = new Button { Style = DeckButton, Content = face, Height = 84, HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
+                string tile = t.Id;
+                b.Click += (s2, e) => { if (_quickEditing) ToggleQuick(tile); else QuickPressed(tile); };
+                _quick[t.Id] = (b, g, label, t.Name);
+                _quickBadges[t.Id] = badge;
+            }
+            _quickEdit = new Button { Style = DeckButton, Content = new TextBlock { Text = "Edit", FontSize = 12, FontWeight = FontWeights.SemiBold }, Padding = new Thickness(12, 3, 12, 4), CornerRadius = new CornerRadius(10) };
+            _quickEdit.Click += (s2, e) => { _quickEditing = !_quickEditing; LayoutQuick(); };
+            var body = new StackPanel();
+            _quickHint = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Subtle), Margin = new Thickness(2, 0, 0, 10), TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+            body.Children.Add(_quickHint);
+            body.Children.Add(_quickGrid);
+            LayoutQuick();
+            return Card("", "Quick", body, _quickEdit);
+        }
+
+        /// <summary>Lays out the chosen tiles; while editing, the ones left out follow, dimmed, ready to add.</summary>
+        private void LayoutQuick()
+        {
+            _quickGrid.Children.Clear();
+            _quickGrid.RowDefinitions.Clear();
+            var shown = _quickShown ?? QuickTiles.Select(t => t.Id).ToList();
+            var order = shown.Where(id => _quick.ContainsKey(id)).ToList();
+            if (_quickEditing) order.AddRange(QuickTiles.Select(t => t.Id).Where(id => !order.Contains(id)));
+            for (int i = 0; i < order.Count; i++)
+            {
+                if (i % 3 == 0) _quickGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                var b = _quick[order[i]].Button;
+                bool on = shown.Contains(order[i]);
+                b.Opacity = _quickEditing && !on ? 0.45 : 1;
+                if (_quickEditing) b.IsEnabled = true;
+                var badge = _quickBadges[order[i]];
+                badge.Visibility = _quickEditing ? Visibility.Visible : Visibility.Collapsed;
+                badge.Text = on ? "\uE738" : "\uE710"; // take off / add
                 Grid.SetColumn(b, i % 3);
                 Grid.SetRow(b, i / 3);
-                grid.Children.Add(b);
-                _quick[id] = (b, g, label, name);
+                _quickGrid.Children.Add(b);
             }
-            return Card("", "Quick", grid);
+            ((TextBlock)_quickEdit.Content).Text = _quickEditing ? "Done" : "Edit";
+            _quickHint.Text = _quickEditing ? "Select a tile to take it off, or a dimmed one to add it. Done when you're finished."
+                : "No quick settings. Press Edit to add some.";
+            _quickHint.Visibility = _quickEditing || order.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void ToggleQuick(string id)
+        {
+            var shown = new List<string>(_quickShown ?? QuickTiles.Select(t => t.Id).ToList());
+            if (!shown.Remove(id)) shown.Add(id);
+            _quickShown = shown;
+            LayoutQuick();
+            _quick[id].Button.Focus(FocusState.Keyboard);
+            var ids = new JsonArray();
+            foreach (var x in shown) ids.Add(JsonValue.CreateStringValue(x));
+            var message = new JsonObject();
+            message["op"] = JsonValue.CreateStringValue("quicktiles");
+            message["ids"] = ids;
+            _link.Send(message);
         }
 
         private void QuickPressed(string id)
@@ -706,7 +953,7 @@ namespace SquareDeck.Widget
         {
             (Button Button, TextBlock Glyph, TextBlock Label, string Name) t;
             if (!_quick.TryGetValue(id, out t)) return;
-            t.Button.IsEnabled = on != null || (id != "nightlight" && id != "hdr");
+            t.Button.IsEnabled = _quickEditing || on != null || (id != "nightlight" && id != "hdr" && id != "cpuboost" && id != "ris" && id != "chill" && id != "ledlevel");
             Mark(t.Button, on == true);
             t.Glyph.Foreground = new SolidColorBrush(on == true ? _accent : Colors.White);
             t.Label.Text = label ?? t.Name;
@@ -797,6 +1044,7 @@ namespace SquareDeck.Widget
             if (type == "note") { ShowNote(Str(m, "text")); return; }
             if (type == "state") Apply(m);
             else if (type == "art") ApplyArt(m);
+            else if (type == "mediaart") ApplyMediaArt(m);
         }
 
         private void ShowNote(string text)
@@ -880,7 +1128,22 @@ namespace SquareDeck.Widget
                 bool? hdr = Bool(toggles, "hdr");
                 MarkQuick("hdr", hdr, hdr == null ? "No HDR" : null);
                 MarkQuick("dnd", Bool(toggles, "dnd"));
+                MarkQuick("cpuboost", Bool(toggles, "cpuboost"));
+                bool? ris = Bool(toggles, "ris"), chill = Bool(toggles, "chill");
+                MarkQuick("ris", ris, ris == null ? "No sharpening" : null);
+                MarkQuick("chill", chill, chill == null ? "No Chill" : null);
+                double? led = Num(toggles, "ledlevel");
+                MarkQuick("ledlevel", led == null ? (bool?)null : led.Value > 0, led == null ? "No LEDs" : led.Value > 0 ? "LEDs " + led.Value.ToString("0") + "%" : "LEDs off");
             }
+            var quickIds = Arr(s, "quick");
+            if (quickIds != null && !_quickEditing)
+            {
+                var list = quickIds.Where(v => v.ValueType == JsonValueType.String).Select(v => v.GetString()).ToList();
+                if (_quickShown == null || !list.SequenceEqual(_quickShown)) { _quickShown = list; LayoutQuick(); }
+            }
+            ApplyMedia(Obj(s, "media"));
+            string background = Str(s, "background") ?? "squaredeck";
+            if (background != _background) ApplyBackground(background);
             double? hz = Num(s, "refresh");
             if (hz != null) _hz = (int)hz.Value;
             var rates = Arr(s, "rates");

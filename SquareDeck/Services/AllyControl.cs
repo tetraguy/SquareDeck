@@ -93,6 +93,8 @@ public static class AllyControl
         Ticker.Tick += (_, _) => Tick();
         Ticker.Start();
         Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        IdleTicker.Tick += (_, _) => IdleTick();
+        IdleTicker.Start();
         // Off the window's thread: opening the drivers can take a moment.
         Task.Run(() =>
         {
@@ -229,6 +231,7 @@ public static class AllyControl
     {
         var s = _settings;
         if (s == null || !IsAlly) return Task.FromResult(false);
+        ApplyLightPower(force);
         ApplyXboxLight(force);
         string mode = s.AllyLights;
         int? battery = Battery.GetPercent();
@@ -258,6 +261,11 @@ public static class AllyControl
         {
             key = "lowflash";
             apply = () => AllyHid.SetBrightness(3) & AllyHid.SetLights(AllyHid.AuraMode.Breathing, Color.FromRgb(255, 0, 0), Color.FromRgb(0, 0, 0), AllyHid.AuraSpeed.Fast);
+        }
+        else if (_idleDark)
+        {
+            key = "idle";
+            apply = () => AllyHid.SetBrightness(0);
         }
         else if (mode.Length == 0) { _lastLights = ""; return Task.FromResult(true); } // leave them alone
         else if (mode == "off" || (_playing && s.AllyLightsOffPlaying && !gameLights))
@@ -305,13 +313,14 @@ public static class AllyControl
         {
             try
             {
-                if (apply()) return true;
+                if (apply()) { if (force) LightLog(key, "ok"); return true; }
                 // The light device may have been missed (or reconnected): look again and try once more.
                 AllyHid.Rescan();
                 await Task.Delay(400);
-                if (apply()) return true;
+                if (apply()) { LightLog(key, "ok on the second try"); return true; }
+                LightLog(key, "failed: " + AllyHid.Describe());
             }
-            catch (Exception) { }
+            catch (Exception ex) { LightLog(key, "error: " + ex.Message); }
             if (_lastLights == key) _lastLights = ""; // so the next tick tries again
             return false;
         });
@@ -348,6 +357,37 @@ public static class AllyControl
         s.Save();
         ApplyLights(force: true);
         return s.AllyLights != "off";
+    }
+
+    /// <summary>
+    /// Windows 11's Dynamic Lighting ("Use Dynamic Lighting on my devices"): while it's on, Windows drives the Ally's
+    /// rings itself and other apps' writes don't show.
+    /// </summary>
+    public static bool DynamicLightingOn
+    {
+        get
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Lighting");
+                return key?.GetValue("AmbientLightingEnabled") is int on && on != 0;
+            }
+            catch (Exception) { return false; }
+        }
+    }
+
+    /// <summary>What the lights were sent and how it went, in lights.log (kept short) for when they don't change.</summary>
+    private static void LightLog(string key, string result)
+    {
+        try
+        {
+            string path = System.IO.Path.Combine(Settings.DataDir, "lights.log");
+            var info = new System.IO.FileInfo(path);
+            if (info.Exists && info.Length > 64 * 1024) info.Delete();
+            string extra = DynamicLightingOn ? "  (Windows Dynamic Lighting is on)" : "";
+            System.IO.File.AppendAllText(path, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {key}  {result}{extra}{Environment.NewLine}");
+        }
+        catch (Exception) { }
     }
 
     private static Game? _running;
@@ -443,12 +483,14 @@ public static class AllyControl
         bool dark = _playing && s.AllyXboxLightOffPlaying && !low;
         int level = dark ? 0 : low ? 3 : Math.Clamp(s.AllyXboxLightLevel, 1, 3);
         bool breathe = !dark && (low || s.AllyXboxLightBreathe);
-        string key = on ? $"on{level}{breathe}" : "off";
+        ApplyLightPower(force); // on or off is a bit in the lights' power mask
+        if (!on) { _lastXbox = "off"; return; }
+        string key = $"on{level}{breathe}";
         if (!force && key == _lastXbox) return;
         _lastXbox = key;
         Task.Run(async () =>
         {
-            bool Send() => on ? AllyHid.SetXboxLight(true) & AllyHid.SetXboxLightLevel(level, breathe) : AllyHid.SetXboxLight(false);
+            bool Send() => AllyHid.SetXboxLightLevel(level, breathe);
             try
             {
                 if (Send()) return;
@@ -461,15 +503,108 @@ public static class AllyControl
         });
     }
 
+    // ================================================================ when the lights may light (Armoury Crate's power states)
+
+    private static string _lastPower = "";
+
+    /// <summary>
+    /// The lights' power mask from Settings > ROG Ally: boot up and shut down, awake (on battery or plugged in, as
+    /// SquareDeck re-sends it when the power source changes), sleep, and the Xbox button's glow. Sent only once
+    /// something here (or the Xbox button light) has been chosen, so Armoury Crate SE's own setting otherwise stays.
+    /// </summary>
+    public static AllyHid.LightPower PowerMask(Settings s)
+    {
+        var mask = (AllyHid.LightPower)0;
+        if (s.AllyLightBootShutdown) mask |= AllyHid.LightPower.Boot | AllyHid.LightPower.Shutdown;
+        if (Battery.IsPluggedIn() ? s.AllyLightAwakePlugged : s.AllyLightAwakeBattery) mask |= AllyHid.LightPower.Awake;
+        if (s.AllyLightSleep) mask |= AllyHid.LightPower.Sleep;
+        // The Xbox button glows unless it was switched off (ASUS ships it on).
+        if (HasXboxLight && s.AllyXboxLight != "off") mask |= AllyHid.LightPower.XboxButton;
+        return mask;
+    }
+
+    public static void ApplyLightPower(bool force = false)
+    {
+        var s = _settings;
+        if (s == null || !IsAlly) return;
+        // Also while SquareDeck runs an effect: if the mask the controller keeps has "awake" off (from Armoury Crate SE,
+        // or an earlier setting), the rings stay dark whatever effect is sent.
+        if (!s.AllyLightPowerSet && s.AllyXboxLight.Length == 0 && s.AllyLights is "" or "off") { _lastPower = ""; return; }
+        var mask = PowerMask(s);
+        string key = ((byte)mask).ToString();
+        if (!force && key == _lastPower) return;
+        bool xboxBack = _lastPower.Length > 0 && byte.TryParse(_lastPower, out var was) && (was & 0x10) == 0 && mask.HasFlag(AllyHid.LightPower.XboxButton);
+        _lastPower = key;
+        Task.Run(async () =>
+        {
+            try
+            {
+                bool ok = AllyHid.SetLightPower(mask);
+                if (!ok) { AllyHid.Rescan(); await Task.Delay(400); ok = AllyHid.SetLightPower(mask); }
+                if (!ok && _lastPower == key) _lastPower = "";
+                // The Xbox button relit: its brightness and effect again, and the rings' color (as Armoury Crate does).
+                if (ok && xboxBack) { _lastXbox = ""; ApplyXboxLight(); }
+            }
+            catch (Exception) { if (_lastPower == key) _lastPower = ""; }
+        });
+    }
+
+    // ---------------------------------------------------------------- off after a minute without input, on battery
+
+    private static readonly DispatcherTimer IdleTicker = new() { Interval = TimeSpan.FromSeconds(2) };
+    private static bool _idleDark;
+    private static readonly uint[] PadPackets = new uint[4];
+    private static DateTime _lastPadInput = DateTime.UtcNow;
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct LastInputInfo { public uint Size; public uint Time; }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetLastInputInfo(ref LastInputInfo info);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct PadState { public uint Packet; public ushort Buttons; public byte L, R; public short LX, LY, RX, RY; }
+
+    [System.Runtime.InteropServices.DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")]
+    private static extern uint XInputGetState(uint index, out PadState state);
+
+    /// <summary>Seconds since the last touch, key, mouse move or controller input.</summary>
+    private static double IdleSeconds()
+    {
+        try
+        {
+            for (uint i = 0; i < 4; i++)
+                if (XInputGetState(i, out var pad) == 0 && pad.Packet != PadPackets[i]) { PadPackets[i] = pad.Packet; _lastPadInput = DateTime.UtcNow; }
+        }
+        catch (Exception) { }
+        double sincePad = (DateTime.UtcNow - _lastPadInput).TotalSeconds;
+        var info = new LastInputInfo { Size = (uint)System.Runtime.InteropServices.Marshal.SizeOf<LastInputInfo>() };
+        double other = GetLastInputInfo(ref info) ? unchecked((uint)Environment.TickCount - info.Time) / 1000.0 : sincePad;
+        return Math.Min(sincePad, other);
+    }
+
+    private static void IdleTick()
+    {
+        var s = _settings;
+        // Only over an effect SquareDeck set ("leave as it is" has no brightness to come back to).
+        bool want = s != null && s.AllyLightBatteryIdleOff && s.AllyLights is not ("" or "off") && !Battery.IsPluggedIn() && IdleSeconds() >= 60;
+        if (want == _idleDark) return;
+        _idleDark = want;
+        ApplyLights(force: true); // dark now, or back the moment you touch it
+    }
+
     /// <summary>After sleep the controller comes back with the light at its defaults: put SquareDeck's back.</summary>
     private static void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs e)
     {
+        // Plugged in or unplugged: "awake" may differ between the two.
+        if (e.Mode == Microsoft.Win32.PowerModes.StatusChange) { ApplyLightPower(); ApplyLights(); return; }
         if (e.Mode != Microsoft.Win32.PowerModes.Resume) return;
         Task.Run(async () =>
         {
             // Give the controller a moment to start: a report sent too early is taken and then overwritten.
             await Task.Delay(TimeSpan.FromSeconds(3));
             AllyHid.Rescan();
+            ApplyLightPower(force: true);
             ApplyXboxLight(force: true);
             await Task.Delay(TimeSpan.FromSeconds(5));
             ApplyXboxLight(force: true);

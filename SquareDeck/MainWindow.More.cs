@@ -1104,10 +1104,22 @@ public partial class MainWindow
     /// <summary>Recomp Zone's own music (RecompZone\music.mp3 next to SquareDeck).</summary>
     private static string RecompMusicFile => Path.Combine(AppContext.BaseDirectory, "RecompZone", "music.mp3");
 
-    /// <summary>A page's own music while it's open: Recomp Zone's, once its opening has finished (Settings > Sound).</summary>
-    private string? PageMusic() =>
-        Settings.RecompZoneMusic && _screens.OfType<Screens.RecompZoneScreen>().Any(r => r.MusicReady) && File.Exists(RecompMusicFile)
-            ? RecompMusicFile : null;
+    /// <summary>Retro Lounge's own music (RetroLounge\music.mp3 next to SquareDeck).</summary>
+    private static string RetroMusicFile => Path.Combine(AppContext.BaseDirectory, "RetroLounge", "music.mp3");
+
+    /// <summary>
+    /// A page's own music while it's open, once its opening has finished (Settings > Sound): Recomp Zone's or Retro
+    /// Lounge's, whichever of the two was opened last.
+    /// </summary>
+    private string? PageMusic()
+    {
+        for (int i = _screens.Count - 1; i >= 0; i--)
+        {
+            if (_screens[i] is Screens.RecompZoneScreen { MusicReady: true } && Settings.RecompZoneMusic && File.Exists(RecompMusicFile)) return RecompMusicFile;
+            if (_screens[i] is Screens.RetroLoungeScreen { MusicReady: true } && Settings.RetroLoungeMusic && File.Exists(RetroMusicFile)) return RetroMusicFile;
+        }
+        return null;
+    }
 
     private bool _musicFading, _fadeInNext;
     private System.Windows.Threading.DispatcherTimer? _musicFade;
@@ -1116,7 +1128,7 @@ public partial class MainWindow
     {
         string choice = Settings.MenuMusic;
         if (choice.Length > 0 && GenreMusic is { } genre) choice = genre; // experimental: music that follows the genre
-        if (PageMusic() is { } page) choice = "file:" + page; // Recomp Zone's own, at the same loudness
+        if (PageMusic() is { } page) choice = "file:" + page; // Recomp Zone's or Retro Lounge's own, at the same loudness
         if (_musicFading) return; // a crossfade is under way: it calls back when the old track is quiet
         if (choice.Length == 0)
         {

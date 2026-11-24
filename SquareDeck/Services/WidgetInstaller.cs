@@ -83,37 +83,146 @@ public static class WidgetInstaller
     /// <summary>The bundled package when the widget isn't installed at all (start-up asks first), else null.</summary>
     public static Package? Missing() => InstalledVersion() == null ? Find() : null;
 
-    /// <summary>Installs (or updates) the widget from the Widget folder.</summary>
-    public static async Task<(bool Ok, string Message)> InstallAsync(Package? package = null)
+    /// <summary>One step of an install, for the install screen: which step, how it's going, a line about it, and how far (0–100).</summary>
+    public sealed record Step(string Id, string State, string Detail, double? Percent = null);
+
+    /// <summary>The steps, in order, with their names on the install screen.</summary>
+    public static readonly (string Id, string Name)[] Steps =
+    {
+        ("check", "Checking the package"), ("trust", "Trusting its certificate"), ("close", "Closing Game Bar"),
+        ("install", "Installing"), ("verify", "Making sure it's there"),
+    };
+
+    private static string LogFile => Path.Combine(Settings.DataDir, "widget-install.log");
+
+    /// <summary>Each step goes into widget-install.log (the last 200 lines), so a stuck install shows where it stopped.</summary>
+    private static void Log(string line)
+    {
+        try
+        {
+            Directory.CreateDirectory(Settings.DataDir);
+            var lines = File.Exists(LogFile) ? File.ReadAllLines(LogFile).TakeLast(199).ToList() : new List<string>();
+            lines.Add($"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {line}");
+            File.WriteAllLines(LogFile, lines);
+        }
+        catch (Exception) { }
+    }
+
+    /// <summary>
+    /// Installs (or updates) the widget from the Widget folder, step by step: check the package, trust its certificate
+    /// (one administrator prompt the first time, at most two minutes), close Game Bar so nothing holds the old widget
+    /// open (Windows otherwise waits for it, which looked like a frozen install), install with Windows' own progress
+    /// (at most four minutes), then check it's there. Cancel stops at any step. Every step is logged.
+    /// </summary>
+    public static async Task<(bool Ok, string Message)> InstallAsync(Package? package = null, IProgress<Step>? progress = null, CancellationToken cancel = default)
     {
         if (Busy) return (false, "The widget is already being installed.");
         package ??= Find();
         if (package == null) return (false, "There's no widget package in " + Folder + ".");
         Busy = true;
+        string current = "check";
+        void Report(string id, string state, string detail, double? percent = null)
+        {
+            current = id;
+            if (state != "progress") Log($"{id}: {state}  {detail}");
+            progress?.Report(new Step(id, state, detail, percent));
+        }
         try
         {
-            // The package's certificate, trusted by the PC (one administrator prompt, the first time).
-            if (package.Certificate != null && !Trusted(package.Certificate))
+            // 1. The package.
+            Report("check", "active", "Reading " + Path.GetFileName(package.Path));
+            var installed = await Task.Run(InstalledVersion, cancel);
+            Report("check", "done", installed == null ? $"Version {package.Version}, new on this PC" : $"Version {installed} → {package.Version}");
+
+            // 2. Its certificate, trusted by the PC (one administrator prompt, the first time).
+            if (package.Certificate == null) Report("trust", "skipped", "The package carries no certificate file");
+            else if (await Task.Run(() => Trusted(package.Certificate), cancel)) Report("trust", "skipped", "Windows already trusts it");
+            else
             {
-                await Maintenance.RunElevatedAsync($"certutil -addstore TrustedPeople \"{package.Certificate}\"").ConfigureAwait(false);
+                Report("trust", "active", "Windows is asking for an administrator's permission. If you don't see it, press the Windows key: it may be waiting in the taskbar.");
+                var trust = Maintenance.RunElevatedAsync($"certutil -addstore TrustedPeople \"{package.Certificate}\"");
+                var waited = await Task.WhenAny(trust, Task.Delay(TimeSpan.FromMinutes(2), cancel));
+                cancel.ThrowIfCancellationRequested();
+                if (waited != trust)
+                {
+                    Report("trust", "failed", "The administrator prompt wasn't answered in two minutes");
+                    return (false, "Windows' administrator prompt wasn't answered. It may be waiting in the taskbar: answer it there, then try again.");
+                }
                 if (!Trusted(package.Certificate))
-                    return (false, "Windows has to trust the widget's certificate first, and the administrator prompt was declined. Try again from Settings > Controller > Xbox Game Bar widget.");
+                {
+                    Report("trust", "failed", "The administrator prompt was declined");
+                    return (false, "Windows has to trust the widget's certificate first, and the administrator prompt was declined. Try again and choose Yes.");
+                }
+                Report("trust", "done", "Trusted on this PC");
             }
 
+            // 3. Game Bar (and the old widget inside it) closed, so Windows isn't left waiting for them to let go.
+            Report("close", "active", "Closing Game Bar and the old widget");
+            int closed = await Task.Run(CloseGameBar, cancel);
+            Report("close", "done", closed > 0 ? "Closed. Game Bar opens again with Win + G or the Xbox button" : "Game Bar wasn't open");
+
+            // 4. Installed by Windows' package manager, off the interface thread, with its progress and a time limit.
+            Report("install", "active", "Windows is installing the widget", 0);
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+            limit.CancelAfter(TimeSpan.FromMinutes(4));
+            var deploy = new Progress<DeploymentProgress>(p => Report("install", "progress", "Windows is installing the widget", Math.Clamp((double)p.percentage, 0, 100)));
             var dependencies = package.Dependencies.Select(d => new Uri(d)).ToList();
-            var result = await new PackageManager().AddPackageAsync(new Uri(package.Path), dependencies,
-                DeploymentOptions.ForceApplicationShutdown | DeploymentOptions.ForceUpdateFromAnyVersion);
-            bool installed = InstalledVersion() is { } now && now >= package.Version;
-            if (!installed)
-                return (false, "Windows couldn't install the widget: " + (string.IsNullOrWhiteSpace(result.ErrorText) ? result.ExtendedErrorCode?.Message ?? "no reason given" : result.ErrorText.Trim()));
+            DeploymentResult result;
+            try
+            {
+                result = await Task.Run(async () => await new PackageManager().AddPackageAsync(new Uri(package.Path), dependencies,
+                    DeploymentOptions.ForceApplicationShutdown | DeploymentOptions.ForceUpdateFromAnyVersion).AsTask(limit.Token, deploy), limit.Token);
+            }
+            catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
+            {
+                Report("install", "failed", "Windows didn't finish in four minutes");
+                return (false, "Windows didn't finish installing the widget in four minutes. Restarting the PC usually clears what it was waiting for; then try again.");
+            }
+            if (!string.IsNullOrWhiteSpace(result.ErrorText))
+                Log("install: Windows said  " + result.ErrorText.Trim());
+            Report("install", "done", "Windows finished");
+
+            // 5. There, and at least this version.
+            Report("verify", "active", "Looking for it");
+            bool there = InstalledVersion() is { } now && now >= package.Version;
+            if (!there)
+            {
+                string why = string.IsNullOrWhiteSpace(result.ErrorText) ? result.ExtendedErrorCode?.Message ?? "no reason given" : result.ErrorText.Trim();
+                Report("verify", "failed", why);
+                return (false, "Windows couldn't install the widget: " + why);
+            }
+            Report("verify", "done", "Version " + package.Version + " is installed");
             return (true, "Installed version " + package.Version + ".");
+        }
+        catch (OperationCanceledException)
+        {
+            Report(current, "failed", "Cancelled");
+            return (false, "Cancelled. The widget can be installed any time from Settings > Controller and Game Bar widget > Install the widget.");
         }
         catch (Exception ex)
         {
             CrashLog.Write("Widget install", ex);
+            Report(current, "failed", ex.Message);
             return (false, "Windows couldn't install the widget: " + ex.Message);
         }
         finally { Busy = false; }
+    }
+
+    /// <summary>Closes Game Bar and the widget's own process (Game Bar starts again by itself). How many were closed.</summary>
+    private static int CloseGameBar()
+    {
+        int closed = 0;
+        foreach (var name in new[] { "GameBar", "GameBarFTServer", "SquareDeck.Widget" })
+        {
+            foreach (var p in System.Diagnostics.Process.GetProcessesByName(name))
+            {
+                try { p.Kill(); p.WaitForExit(3000); closed++; }
+                catch (Exception) { }
+                finally { p.Dispose(); }
+            }
+        }
+        if (closed > 0) Thread.Sleep(800); // a moment for Windows to see them gone
+        return closed;
     }
 
     // ---------------------------------------------------------------- reading the folder

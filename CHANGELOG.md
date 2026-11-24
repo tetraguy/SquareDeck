@@ -3,6 +3,108 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 7.3.38
+
+- **Retro Lounge music.** Retro Lounge now has its own background music ("Pixel Dreams" by DJLofi). It comes in as
+  the opening finishes, at the same loudness as the launcher's music (Settings > Sound > Music loudness). The
+  launcher's track fades out and picks up where it left off when you leave. Turn it off with Settings > Sound > Retro
+  Lounge music.
+- **A new Retro Lounge opening, like a console booting on an old TV:**
+  - the tube switches on through a burst of static;
+  - a synthwave night: a striped sunset sun, twinkling pixel stars and a grid floor rolling toward you;
+  - the logo drops in from the top the way a handheld's does at boot, then lands with a flash, a small shake and a
+    two-note chime (it follows the sound effects setting);
+  - a blinking pixel status line and a bar of lit blocks while your ROM folders are looked through;
+  - when it's done, the TV switches off into the page.
+  With reduced motion it just appears and goes.
+
+## 7.3.37
+
+- **Ally lights: control is back.** Choosing an effect now also sends the lights' power states (boot, awake, shut
+  down), so the rings light again when the mask the controller keeps had "awake" switched off (by Armoury Crate SE or
+  an earlier setting). Before, only "When the lights are on" or the Xbox button light sent it.
+- **A color with "Leave as it is"** on the Ally control screen now switches the effect to One color, so it shows.
+  Before, the color was saved but nothing was sent. Both light screens say when the lights are being left alone.
+- **Windows' Dynamic Lighting:** when "Use Dynamic Lighting on my devices" is on, Windows holds the Ally's lights and
+  other apps' changes don't show. The light settings now say so, with a button to its settings page.
+- **lights.log** in SquareDeck's data folder records each light change you make and, if the lights couldn't be
+  reached, which controller collections were found.
+
+## 7.3.36
+
+- Fixed: installing or updating the Game Bar widget could sit on "Updating the Game Bar widget" forever. Windows'
+  install waited, with no time limit, for Game Bar to let go of the old widget. SquareDeck now closes Game Bar first
+  (it opens again with Win + G or the Xbox button), installs off the interface thread, and gives each step a limit:
+  two minutes for the administrator prompt, four for Windows' install. Cancel stops it at any step.
+- A new install screen in place of the dots: the widget's icon and the version it goes to, each step (checking the
+  package, trusting its certificate, closing Game Bar, installing, making sure it's there) with what's happening,
+  Windows' own progress in percent, the time so far, and at the end Open Game Bar, or the reason with Try again and
+  the log. Every step is written to widget-install.log in SquareDeck's data folder.
+- Widget 1.3.3: its icon in Game Bar's menus is a flat light-gray SquareDeck mark, like Game Bar's own widgets.
+
+## 7.3.35
+
+- Experimental: Media controls in the widget (Settings > Experimental). While SquareDeck plays music or video (your
+  music, its Spotify player, or YouTube Music, Apple Music and other pages it plays), the Game Bar widget shows a Now
+  playing row with the cover art, the song and artist, and previous, play / pause and next. It hides when nothing of
+  SquareDeck's is playing. Part of widget 1.3: build and package the widget again to get it.
+
+## 7.3.34
+
+- Xbox Game Bar widget 1.3:
+  - Quick has an Edit button: select a tile to take it off, or a dimmed one to add it, then Done. SquareDeck remembers
+    the choice (also in Settings > Controller and Game Bar widget > Widget quick settings).
+  - A power button under the volume: Lock, Sleep, Hibernate, Restart and Shut down, each with its icon. Restart and
+    Shut down ask once more first.
+  - LED brightness goes off, 5%, 30%, 60%, 100%.
+  - Build and package the widget again to get these.
+
+## 7.3.33
+
+- Retro Lounge:
+  - "Get all": one press installs every emulator your games still need (Home > Get set up, or Emulators >
+    Recommended for your games), one after another, with Downloads showing them.
+  - "Update all" in Downloads when several emulators have updates.
+  - Setup > Hidden games brings back games you hid, one at a time or all at once.
+  - Retro Lounge also has a tile on the Stores page, next to Recomp Zone.
+
+## 7.3.32
+
+- Xbox mode: with SquareDeck as the home app, Game Bar's Home button now takes you to SquareDeck's Home (every open page
+  closes), and its Library button opens SquareDeck's Library. A required question (an update, say) stays open.
+- SquareDeck writes how it was started to launches.log in its data folder, so what Game Bar sends can be checked.
+
+## 7.3.31
+
+- Retro Lounge (Library > Retro Lounge): emulators and your own classic games in one place, with its own emblem and an
+  opening that switches on like an old TV.
+  - Consoles: about 40, from the NES and Atari 2600 to the PS3, Wii U and Xbox 360, each in its own colors. A console's
+    page shows its games, what plays them (with a choice of emulator) and whether its BIOS is in place.
+  - Emulators: RetroArch (with cores downloaded as each console needs one), DuckStation, PCSX2, PPSSPP, Dolphin,
+    RPCS3, Cemu, xemu, Xenia Canary, Azahar, melonDS, mGBA, Flycast, Vita3K, shadPS4, Mesen, Snes9x, Rosalie's Mupen
+    GUI, ares, Stella and DOSBox Staging. Each installs from its own GitHub release or official download page, is set
+    up to keep its settings and saves in Retro Lounge's folder, checks for updates, and can be opened to set up
+    controls. "Locate installed" uses a copy you already have.
+  - Your games: found in your ROM folders by console folder (the names EmuDeck, RetroBat and ES-DE use), or in a
+    Retro Lounge folder it makes for you. Discs of one game become one game, track files under a .cue aren't listed
+    twice, and "one copy of each game" shows your region's copy first. Box art and screenshots come from
+    libretro-thumbnails, or your own pictures next to the games.
+  - Home has Keep playing, Favorites, Just added and a row per console. Play time, favorites, a different emulator per
+    game, Add to Home (it starts in its emulator), and a BIOS page that says what each console needs and where it goes.
+  - Nothing downloads games or BIOS files: those come from what you own.
+- Xbox Game Bar widget 1.2: CPU boost, Radeon Image Sharpening, Radeon Chill (through AMD's ADLX) and LED brightness in
+  Quick. A widget background setting (Settings > Controller and Game Bar widget): SquareDeck, frosted glass, true black,
+  highlight color, Aurora, Sunset or the game's art. Build and package the widget again to get it.
+- ROG Ally lights: when they're on, as in Armoury Crate SE: boot up and shut down, awake on battery, awake plugged in,
+  sleep, and off after a minute without input on battery. The Xbox button light now shares that setting, so switching
+  it no longer resets the others.
+- Fixed: the widget install or update from the start-up pop-up stayed on "Installing" when chosen with the controller.
+  Windows' administrator prompt can't come to the front after a controller press, so it waited unseen; SquareDeck now
+  hands it the front, and if the prompt still goes unanswered for two minutes it says where to find it.
+- ROG Ally: Graphics memory (VRAM) shows how much the graphics have now, with shortcuts to Armoury Crate SE's setting
+  and to the UEFI setup. SquareDeck doesn't write it to the firmware itself: on the Ally X and Xbox Allys the values
+  aren't published, and a wrong one can stop the Ally from starting.
+
 ## 7.3.30
 
 - ROG Xbox Ally: Xbox button light settings (Settings > ROG Ally, under "Xbox button light"). Turn it on or off, pick

@@ -56,8 +56,49 @@ public partial class App : Application
         return replaced;
     }
 
+    /// <summary>
+    /// Where Windows asked SquareDeck to go when it started it: "library" (Game Bar's Library button, when SquareDeck is
+    /// Xbox mode's home app), "home" (its Home button, or SquareDeck started again as the home app), or "" (nothing).
+    /// </summary>
+    public static string StartRequest { get; private set; } = "";
+
+    /// <summary>
+    /// Reads how SquareDeck was started: its command line, and (when Windows starts it as Xbox mode's home app) the
+    /// activation Windows hands the package, each written to launches.log so what Game Bar sends can be checked.
+    /// </summary>
+    private static string ReadRequest(string[] args)
+    {
+        var seen = new List<string>(args);
+        try
+        {
+            // Started as the packaged home app: Windows' own description of the start (a launch with arguments, or a link).
+            var activated = global::Windows.ApplicationModel.AppInstance.GetActivatedEventArgs();
+            if (activated != null)
+            {
+                seen.Add("kind=" + activated.Kind);
+                if (activated is global::Windows.ApplicationModel.Activation.ILaunchActivatedEventArgs launch && !string.IsNullOrEmpty(launch.Arguments)) seen.Add("args=" + launch.Arguments);
+                if (activated is global::Windows.ApplicationModel.Activation.IProtocolActivatedEventArgs link && link.Uri != null) seen.Add("uri=" + link.Uri);
+            }
+        }
+        catch (Exception) { } // not started as a package
+        string all = string.Join(" ", seen);
+        try
+        {
+            string log = System.IO.Path.Combine(SquareDeck.Services.Settings.DataDir, "launches.log");
+            System.IO.Directory.CreateDirectory(SquareDeck.Services.Settings.DataDir);
+            var lines = System.IO.File.Exists(log) ? System.IO.File.ReadAllLines(log).TakeLast(40).ToList() : new List<string>();
+            lines.Add($"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {(all.Length == 0 ? "(no arguments)" : all)}");
+            System.IO.File.WriteAllLines(log, lines);
+        }
+        catch (Exception) { }
+        if (all.Contains("library", StringComparison.OrdinalIgnoreCase)) return "library";
+        if (all.Contains("background", StringComparison.OrdinalIgnoreCase) || all.Contains(RestartArgument)) return "";
+        return SquareDeck.Services.HomeApp.IsHomeApp ? "home" : "";
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        StartRequest = ReadRequest(e.Args);
         // Only one SquareDeck at a time (per Windows user).
         _single = new Mutex(true, @"Local\SquareDeck.SingleInstance", out bool created);
         _owns = created;
@@ -88,7 +129,8 @@ public partial class App : Application
             // Let the running copy take the foreground, ask it to come forward, and leave.
             const int AnyProcess = -1;
             AllowSetForegroundWindow(AnyProcess);
-            PostMessage((IntPtr)0xFFFF, ShowExistingMessage, IntPtr.Zero, IntPtr.Zero);
+            // 1: go Home, 2: open the Library (Game Bar's buttons in Xbox mode), 0: just come forward.
+            PostMessage((IntPtr)0xFFFF, ShowExistingMessage, (IntPtr)(StartRequest == "library" ? 2 : StartRequest == "home" ? 1 : 0), IntPtr.Zero);
             Shutdown();
             return;
         }
@@ -121,6 +163,8 @@ public partial class App : Application
         // Minimized straight after showing (WPF refuses to show a maximized window without activating it).
         if (background)
             window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() => window.WindowState = WindowState.Minimized));
+        // Started by Game Bar's Library button: the Library opens once the launcher has settled.
+        else if (StartRequest == "library") window.GameBarGo("library", fresh: true);
     }
 
     protected override void OnExit(ExitEventArgs e)

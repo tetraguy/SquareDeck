@@ -65,6 +65,18 @@ public sealed class Settings
     public bool WidgetPromptIgnored { get; set; }
     /// <summary>The Game Bar widget's colors: "squaredeck" (teal), "style" (the UI style's highlight color) or "game" (the running game's art).</summary>
     public string? WidgetTheme { get; set; } = "squaredeck";
+    /// <summary>The widget's background: squaredeck, glass, oled, accent, aurora, sunset or game (the running game's art).</summary>
+    public string WidgetBackground { get; set; } = "squaredeck";
+    /// <summary>The widget's quick settings that show, in order (null: all of them). Changed from the widget's Edit button or Settings.</summary>
+    public List<string>? WidgetQuick { get; set; }
+    /// <summary>Every quick setting the widget has (id, name), in its own order.</summary>
+    public static readonly (string Id, string Name)[] WidgetQuickTiles =
+    {
+        ("perf", "Overlay"), ("refresh", "Refresh rate"), ("nightlight", "Night light"), ("hdr", "HDR"), ("dnd", "Do not disturb"),
+        ("playpause", "Play / pause"), ("wifi", "Wi-Fi"), ("bluetooth", "Bluetooth"), ("keyboard", "Keyboard"), ("taskmanager", "Task Manager"),
+        ("amdoverlay", "AMD overlay"), ("screenoff", "Screen off"), ("mic", "Microphone"), ("desktop", "Show desktop"), ("amdmetrics", "AMD metrics"),
+        ("cpuboost", "CPU boost"), ("ris", "Image sharpening"), ("chill", "Radeon Chill"), ("ledlevel", "LED brightness"),
+    };
     /// <summary>The widget's cards that show, in order (Power always shows).</summary>
     public List<string>? WidgetSections { get; set; } = new(WidgetSectionIds);
     public static readonly string[] WidgetSectionIds = { "game", "live", "ally", "quick" };
@@ -298,6 +310,8 @@ public sealed class Settings
     public int MenuMusicVolume { get; set; } = 30;
     /// <summary>Recomp Zone plays its own music while it's open (at the same loudness as the launcher's).</summary>
     public bool RecompZoneMusic { get; set; } = true;
+    /// <summary>Retro Lounge plays its own music while it's open (RetroLounge\music.mp3), at the launcher's music loudness.</summary>
+    public bool RetroLoungeMusic { get; set; } = true;
 
     /// <summary>Look for a newer release on GitHub when the launcher starts.</summary>
     public bool AutoUpdateCheck { get; set; } = true;
@@ -403,6 +417,18 @@ public sealed class Settings
     public bool AllyGameLights { get; set; } = true;
     /// <summary>The lights go off while a game is running, and come back after.</summary>
     public bool AllyLightsOffPlaying { get; set; }
+    /// <summary>The lights' power states have been chosen here (otherwise Armoury Crate SE's stay).</summary>
+    public bool AllyLightPowerSet { get; set; }
+    /// <summary>The rings light while the Ally boots up and shuts down.</summary>
+    public bool AllyLightBootShutdown { get; set; } = true;
+    /// <summary>The rings light while it's awake, on battery.</summary>
+    public bool AllyLightAwakeBattery { get; set; } = true;
+    /// <summary>The rings light while it's awake, plugged in.</summary>
+    public bool AllyLightAwakePlugged { get; set; } = true;
+    /// <summary>On battery, the rings go dark after a minute without input (and come back at the next touch).</summary>
+    public bool AllyLightBatteryIdleOff { get; set; }
+    /// <summary>The rings light while it sleeps.</summary>
+    public bool AllyLightSleep { get; set; }
     /// <summary>The Xbox button's light (ROG Xbox Ally): "" (leave), "on" or "off".</summary>
     public string AllyXboxLight { get; set; } = "";
     /// <summary>Its brightness, 1 (dim) to 3 (ASUS's default).</summary>

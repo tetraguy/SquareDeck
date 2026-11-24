@@ -3061,6 +3061,9 @@ public sealed class LibraryScreen : Screen
             b.GotKeyboardFocus += (_, _) => _lastFocus = id;
             _tabs.Children.Add(b);
         }
+        // Retro Lounge: emulators and your own classic games, with its own emblem.
+        Action("\uE7FC", "Retro Lounge", "Emulators and your classic games, in one place", () => new RetroLoungeScreen(),
+            RetroUi.Logo(64) is { } retro ? new Image { Source = retro, Width = 20, Height = 20 } : null);
         if (Labs.On("mood")) Action("\uE76E", "How are you feeling?", "Pick a mood, get three games that fit", () => new MoodScreen());
         if (Labs.On("boss")) Action("\uE7EF", "Fight the Backlog Boss", "Your unfinished games as a boss to defeat, an hour at a time", () => new BossScreen());
         if (Labs.On("passport")) Action("", "My Gamer Passport", "Stamps for every genre, decade and store you've played", () => new PassportScreen(),

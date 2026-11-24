@@ -1524,7 +1524,9 @@ public sealed class SettingsScreen : ListScreen
         if (Labs.On("recomp"))
             AddRow("Recomp Zone music", OnOff(s.RecompZoneMusic), "\uE8D6", click: () => Toggle(() => s.RecompZoneMusic = !s.RecompZoneMusic),
                 subtitle: "Recomp Zone plays its own music while it's open, at the same loudness as the launcher's music");
-        if (s.MenuMusic.Length > 0 || s.RecompZoneMusic)
+        AddRow("Retro Lounge music", OnOff(s.RetroLoungeMusic), "\uE8D6", click: () => Toggle(() => s.RetroLoungeMusic = !s.RetroLoungeMusic),
+            subtitle: "Retro Lounge plays its own music while it's open, at the same loudness as the launcher's music");
+        if (s.MenuMusic.Length > 0 || s.RecompZoneMusic || s.RetroLoungeMusic)
             AddRow("Music loudness", s.MenuMusicVolume + "%", "\uE995", click: () =>
             {
                 int[] levels = { 10, 20, 30, 50, 75, 100 };
@@ -1648,6 +1650,10 @@ public sealed class SettingsScreen : ListScreen
         }
         AddRow("Widget colors", WidgetThemeName(s.WidgetTheme), "\uE790", click: () => _ = ChooseWidgetThemeAsync(),
             subtitle: "SquareDeck's teal, your UI style's highlight color, or the colors of the game you're playing");
+        AddRow("Widget background", WidgetBackgrounds.FirstOrDefault(b => b.Id == s.WidgetBackground).Name ?? "SquareDeck", "\uE771", click: () => _ = ChooseWidgetBackgroundAsync(),
+            subtitle: "Behind the widget's cards: SquareDeck's dark, frosted glass, true black, your highlight color, two gradients or the game's art");
+        AddRow("Widget quick settings", s.WidgetQuick == null ? "All" : $"{s.WidgetQuick.Count} of {Settings.WidgetQuickTiles.Length}", "\uE762", click: () => _ = ChooseWidgetQuickAsync(),
+            subtitle: "Which tiles the widget's Quick card shows. The Edit button on the card changes them too");
         AddRow("Widget cards", WidgetCardsLabel(s), "\uE8A9", click: () => _ = ChooseWidgetCardsAsync(),
             subtitle: "Which cards the widget shows below Power: the game, live stats, the ROG Ally and quick toggles");
         AddRow("Close game in the widget", OnOff(s.WidgetCloseGame), "\uE711", click: () => Toggle(() => s.WidgetCloseGame = !s.WidgetCloseGame),
@@ -2217,9 +2223,28 @@ public sealed class SettingsScreen : ListScreen
         }
         else AddNote("SquareDeck couldn't reach ASUS's firmware driver (ATKACPI, installed with Armoury Crate SE or the MyASUS drivers), so the operating mode, fans and charge limit can't be changed.");
 
+        // ---- Graphics memory (VRAM): shown here, changed in Armoury Crate SE or the UEFI setup
+        AddHeader("Graphics memory (VRAM)");
+        AddRow("Assigned to the graphics now", AllyVram.CurrentText(), "", click: Rebuild,
+            subtitle: "Auto, 4, 6, 8, 12 or 16 GB depending on the model. More helps texture-heavy games and leaves less for Windows");
+        AddRow("Change it in Armoury Crate SE", null, "", click: () => ProcessUtil.Open("asusac://"),
+            subtitle: "Settings > Operating mode > GPU settings > Memory assigned to GPU. It takes effect after a restart");
+        AddRow("Restart into the UEFI setup", null, "", click: async () =>
+            {
+                if (await Host.AskAsync("Restart into the UEFI setup?", "Save what you're doing first. In the setup, look under Advanced for \"UMA frame buffer size\" (Auto, or a size in GB), then save and exit.", "Cancel", "Restart") != 1) return;
+                var result = await AllyVram.RestartToSetupAsync();
+                if (result.Contains("declined")) Host.ShowToast("ROG ALLY", "Not restarted", result, "", "info");
+            },
+            subtitle: "The same setting, before Windows starts. Windows asks first");
+        AddNote("SquareDeck doesn't write this one to the firmware itself: on the Ally X and Xbox Allys ASUS hasn't published the values, and a wrong one can stop the Ally from starting.");
+
         // ---- Lights
         AddHeader("Lights");
         if (!lights) AddNote("SquareDeck couldn't find the Ally's light controller. These settings apply once it's found.");
+        if (AllyControl.DynamicLightingOn)
+            AddRow("Windows' Dynamic Lighting is on", "Open", "", click: () => ProcessUtil.Open("ms-settings:personalization-lighting"),
+                subtitle: "It takes over the Ally's lights, so SquareDeck's changes don't show. Turn off \"Use Dynamic Lighting on my devices\"");
+        if (s.AllyLights.Length == 0) AddNote("The lights are left as they are. Choose an effect and SquareDeck takes them over.");
         var mode = AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights);
         AddRow("Effect", mode.Name ?? "Leave as it is", "", click: () => _ = ChooseLightEffectAsync(),
             subtitle: string.IsNullOrEmpty(mode.About) ? "The rings around the sticks" : mode.About);
@@ -2251,6 +2276,21 @@ public sealed class SettingsScreen : ListScreen
         AddRow("Pulse red when the battery is low", OnOff(s.AllyLowBatteryFlash), "",
             click: () => AllySave(() => s.AllyLowBatteryFlash = !s.AllyLowBatteryFlash, () => AllyControl.ApplyLights(force: true)),
             subtitle: "At 15% or less, until you plug in");
+
+        // ---- When the lights may light (Armoury Crate SE's power states)
+        AddHeader("When the lights are on");
+        void Power(string label, bool on, Action flip, string subtitle) =>
+            AddRow(label, OnOff(on), "", subtitle: subtitle,
+                click: () => AllySave(() => { flip(); s.AllyLightPowerSet = true; }, () => { AllyControl.ApplyLightPower(force: true); AllyControl.ApplyLights(force: true); }));
+        if (!s.AllyLightPowerSet) AddNote("Armoury Crate SE's settings apply until you change one here.");
+        Power("Boot up and shut down", s.AllyLightBootShutdown, () => s.AllyLightBootShutdown = !s.AllyLightBootShutdown, "While it starts and while it turns off");
+        Power("Awake, on battery", s.AllyLightAwakeBattery, () => s.AllyLightAwakeBattery = !s.AllyLightAwakeBattery, "While you use it unplugged");
+        if (s.AllyLightAwakeBattery)
+            AddRow("Off after a minute without input", OnOff(s.AllyLightBatteryIdleOff), "",
+                click: () => AllySave(() => s.AllyLightBatteryIdleOff = !s.AllyLightBatteryIdleOff, () => AllyControl.ApplyLights(force: true)),
+                subtitle: s.AllyLights is "" or "off" ? "On battery. Works with an effect chosen above" : "On battery: they come back the moment you touch it");
+        Power("Awake, plugged in", s.AllyLightAwakePlugged, () => s.AllyLightAwakePlugged = !s.AllyLightAwakePlugged, "While it's charging or on the charger");
+        Power("Sleep", s.AllyLightSleep, () => s.AllyLightSleep = !s.AllyLightSleep, "While it sleeps");
 
         // ---- The Xbox button's light (ROG Xbox Ally)
         if (AllyControl.HasXboxLight)
@@ -2400,6 +2440,41 @@ public sealed class SettingsScreen : ListScreen
     private static readonly (string Id, string Name)[] WidgetThemes =
         { ("squaredeck", "SquareDeck teal"), ("style", "Match the UI style"), ("game", "Match the game") };
 
+    public static readonly (string Id, string Name, string About)[] WidgetBackgrounds =
+    {
+        ("squaredeck", "SquareDeck", "The dark slate gradient"), ("glass", "Frosted glass", "See-through, so the game shows behind it"),
+        ("oled", "True black", "Pure black: easiest on the battery with an OLED screen"), ("accent", "Highlight color", "A deep wash of the widget's color"),
+        ("aurora", "Aurora", "Teal into violet"), ("sunset", "Sunset", "Magenta into amber"), ("game", "The game's art", "The running game's artwork, dimmed (SquareDeck's dark otherwise)"),
+    };
+
+    /// <summary>Adds and removes the widget's quick settings, one press each, until B.</summary>
+    private async Task ChooseWidgetQuickAsync()
+    {
+        var s = Host.Settings;
+        while (true)
+        {
+            var shown = s.WidgetQuick ?? Settings.WidgetQuickTiles.Select(t => t.Id).ToList();
+            var options = Settings.WidgetQuickTiles.Select(t => (t.Name + (shown.Contains(t.Id) ? "  ·  shown" : ""), shown.Contains(t.Id) ? "\uE73E" : "\uE710")).ToArray();
+            int pick = await Host.AskWithIconsAsync("Widget quick settings", "Select one to add it to the widget or take it off. B when you're done.", options);
+            if (pick < 0 || pick >= Settings.WidgetQuickTiles.Length) break;
+            var id = Settings.WidgetQuickTiles[pick].Id;
+            var list = new List<string>(shown);
+            if (!list.Remove(id)) list.Add(id);
+            s.WidgetQuick = list;
+            s.Save();
+            WidgetBridge.Nudge();
+        }
+        Rebuild();
+    }
+
+    private async Task ChooseWidgetBackgroundAsync()
+    {
+        int pick = await Host.AskAsync("Widget background", "What's behind the widget's cards. It changes as soon as you choose.",
+            WidgetBackgrounds.Select(b => b.Name + "  ·  " + b.About).ToArray());
+        if (pick >= 0) Toggle(() => Host.Settings.WidgetBackground = WidgetBackgrounds[pick].Id);
+        WidgetBridge.Nudge();
+    }
+
     private static string WidgetThemeName(string? id) => WidgetThemes.FirstOrDefault(t => t.Id == id).Name ?? WidgetThemes[0].Name;
 
     private async Task ChooseWidgetThemeAsync()
@@ -2474,10 +2549,7 @@ public sealed class SettingsScreen : ListScreen
             await Host.AskAsync("Xbox Game Bar widget", "There's no widget package in " + WidgetInstaller.Folder + ". The installer puts it there; for a build of your own, copy Visual Studio's AppPackages output into that folder.", "OK");
             return;
         }
-        (bool Ok, string Message) result = (false, "");
-        await Host.RunBusyAsync("Installing the Game Bar widget", async () => result = await WidgetInstaller.InstallAsync(package));
-        await Host.AskAsync(result.Ok ? "Widget installed" : "Widget not installed",
-            result.Ok ? "Open Game Bar (Win + G, or the Xbox button): SquareDeck is in its widget menu." : result.Message, "OK");
+        await Host.InstallWidgetWithScreenAsync(package, update: WidgetInstaller.InstalledVersion() != null);
         Rebuild();
     }
 
@@ -2493,6 +2565,8 @@ public sealed class SettingsScreen : ListScreen
         if (s.AllyLights.Length == 0) return;
         if (!await AllyControl.ApplyLightsAsync(force: true))
             Host.ShowToast("ROG ALLY", "Couldn't reach the lights", "SquareDeck will keep trying. Armoury Crate SE may be holding them.", "", "info");
+        else if (AllyControl.DynamicLightingOn)
+            Host.ShowToast("ROG ALLY", "Windows' Dynamic Lighting is on", "It holds the Ally's lights. Turn it off in Settings > Personalization > Dynamic Lighting.", "", "info");
     }
 
     /// <summary>The built-in screen: refresh rate and resolution, kept after a restart.</summary>

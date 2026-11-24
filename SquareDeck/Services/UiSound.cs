@@ -318,6 +318,17 @@ public static class UiSound
         catch (Exception) { return null; }
     }
 
+    /// <summary>
+    /// Retro Lounge's boot chime as its logo lands: two square-wave notes, a short low one and a long high one, like a
+    /// handheld switching on. Follows the sound effects setting and loudness.
+    /// </summary>
+    public static void RetroBoot()
+    {
+        if (!Enabled) return;
+        var wav = Tone(new (double, double, int)[] { (1046.5, 1046.5, 70), (2093, 2093, 650) }, 0.1 * VolumePercent / 100.0, Wave.Square);
+        Play(new Clip(wav), force: true);
+    }
+
     /// <summary>Played as a game starts. Has its own setting, so it ignores <see cref="Enabled"/>.</summary>
     public static void Launch()
     {

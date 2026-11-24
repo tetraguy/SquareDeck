@@ -69,10 +69,12 @@ public sealed class Game : INotifyPropertyChanged
     public bool IsGame => IsSteam || IsCustom || IsExternal;
 
     /// <summary>Where the game comes from, for the library's filter.</summary>
-    public string SourceName => IsSteam ? "Steam" : IsRecomp ? "Recomp Zone" : IsCustom ? "Custom" : Source;
+    public string SourceName => IsSteam ? "Steam" : IsRecomp ? "Recomp Zone" : IsRetro ? "Retro Lounge" : IsCustom ? "Custom" : Source;
 
     /// <summary>A recomp added to Home from Recomp Zone (its id starts with "recomp-").</summary>
     public bool IsRecomp => IsCustom && LaunchId.StartsWith("recomp-", StringComparison.Ordinal);
+    /// <summary>A game added to Home from Retro Lounge (its id starts with "retro-"): it starts in its emulator.</summary>
+    public bool IsRetro => IsCustom && LaunchId.StartsWith("retro-", StringComparison.Ordinal);
     public bool IsApp => Kind == ItemKind.App;
     public bool IsAddTile => Kind == ItemKind.AddTile;
     public bool IsLibraryTile => Kind == ItemKind.LibraryTile;
@@ -351,6 +353,7 @@ public sealed class Game : INotifyPropertyChanged
             if (IsMoreAppsTile) return "Every app you have added";
             if (IsApp) return "App";
             if (IsRecomp) return "Recomp Zone";
+            if (IsRetro) return "Retro Lounge";
             if (IsCustom) return "Custom game";
             if (!IsInstalled) return "Not installed";
             if (IsExternal) return Source;

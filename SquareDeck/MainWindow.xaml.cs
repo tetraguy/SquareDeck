@@ -401,9 +401,9 @@ public partial class MainWindow : Window
         }
     }
 
-    public void AddCustomGame(string id, string name, string programPath, string? coverPath)
+    public void AddCustomGame(string id, string name, string programPath, string? coverPath, string? arguments = null)
     {
-        Library.CustomGames.Add(new CustomGame { Id = id, Name = name, Path = programPath, AddedAt = DateTime.Now });
+        Library.CustomGames.Add(new CustomGame { Id = id, Name = name, Path = programPath, Arguments = string.IsNullOrWhiteSpace(arguments) ? null : arguments, AddedAt = DateTime.Now });
         if (coverPath != null) Library.For("custom:" + id).CoverPath = coverPath;
         Library.Save();
         SyncCustomGames();
@@ -1579,7 +1579,7 @@ public partial class MainWindow : Window
         }
 
         // A line about the game under its logo.
-        string source = item.IsSteam ? "Steam" : item.IsApp ? "App" : item.IsRecomp ? "Recomp Zone" : item.Source.Length > 0 ? item.Source : "Added by you";
+        string source = item.IsSteam ? "Steam" : item.IsApp ? "App" : item.IsRecomp ? "Recomp Zone" : item.IsRetro ? "Retro Lounge" : item.Source.Length > 0 ? item.Source : "Added by you";
         string subtitle = item.IsRunning ? "Running now  ·  " + source : source;
         var sheet = new GameOptionsScreen(item, options.Select(o => o.Option).ToList(), subtitle);
         Push(sheet);

@@ -817,6 +817,18 @@ public sealed class StoresScreen : GridScreen
             AddTile(face, _cine ? null : "Recomp Zone", TileSize, () => Host.Push(new RecompZoneScreen()), "Recomp Zone");
         }
 
+        // Retro Lounge beside it: emulators and your own classic games (it lives in the Library too).
+        {
+            FrameworkElement face = GlyphBox(TileSize, TileSize, "\uE7FC");
+            if (RetroUi.Logo((int)(TileSize * 2)) is { } picture)
+            {
+                var box = ImageBox(TileSize, TileSize, out var image);
+                image.Source = picture;
+                face = box;
+            }
+            AddTile(face, _cine ? null : "Retro Lounge", TileSize, () => Host.Push(new RetroLoungeScreen()), "Retro Lounge");
+        }
+
         foreach (var store in _all.Where(s => s.Installed && !hidden.Contains(s.Name)))
         {
             var s = store;
@@ -953,6 +965,7 @@ public sealed class StoresScreen : GridScreen
             "Free games" => "Games you can keep for free right now, from the stores' giveaways.",
             "Add more stores" => "Install another game store or launcher.",
             "Recomp Zone" => "Native PC versions of classic console games, rebuilt by fans. Bring your own copy of the game.",
+            "Retro Lounge" => "Emulators and your own classic games in one place: get the emulators your consoles need and play.",
             string s when s.StartsWith("Hidden") => "Stores you've hidden from this page. Pick one to show it again.",
             string s => "Play " + s + " in the cloud.",
             _ => ""

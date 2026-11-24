@@ -17,11 +17,11 @@ public partial class MainWindow
     private static readonly HashSet<string> WidgetActions = new()
     {
         "perf", "refresh", "nightlight", "hdr", "dnd", "wifi", "bluetooth", "keyboard", "taskmanager", "lights", "padmouse",
-        "playpause", "screenoff", "amdoverlay", "amdmetrics", "home", "mic", "desktop",
+        "playpause", "screenoff", "amdoverlay", "amdmetrics", "home", "mic", "desktop", "cpuboost", "ris", "chill", "ledlevel",
     };
 
     private DateTime _widgetSlowAt = DateTime.MinValue;
-    private bool? _widgetNight, _widgetHdr;
+    private bool? _widgetNight, _widgetHdr, _widgetRis, _widgetChill;
     private int? _widgetHz;
     private JsonArray? _widgetRates;
 
@@ -50,6 +50,8 @@ public partial class MainWindow
             ["version"] = Updater.Current.ToString(),
             ["device"] = Handheld.IsHandheld ? Handheld.DisplayName : Environment.MachineName,
             ["accent"] = WidgetAccent(),
+            ["background"] = s.WidgetBackground,
+            ["quick"] = new JsonArray((s.WidgetQuick ?? Settings.WidgetQuickTiles.Select(t => t.Id).ToList()).Select(x => (JsonNode)x).ToArray()),
             ["sections"] = new JsonArray((s.WidgetSections ?? new List<string>(Settings.WidgetSectionIds)).Select(x => (JsonNode)x).ToArray()),
         };
 
@@ -116,6 +118,11 @@ public partial class MainWindow
             _widgetSlowAt = DateTime.Now;
             try { _widgetNight = NightLight.IsOn; } catch (Exception) { _widgetNight = null; }
             try { _widgetHdr = Hdr.Get(); } catch (Exception) { _widgetHdr = null; }
+            if (AdrenalineHook.HasAmdGraphics)
+            {
+                _widgetRis = AmdAdlx.ImageSharpening;
+                _widgetChill = AmdAdlx.Chill;
+            }
             try
             {
                 var now = DisplaySettings.Current();
@@ -129,7 +136,17 @@ public partial class MainWindow
         {
             ["perf"] = s.OsdEnabled, ["nightlight"] = _widgetNight, ["hdr"] = _widgetHdr, ["dnd"] = s.ToastsSuppressed,
             ["boost"] = s.PerformanceMode != "off",
+            ["cpuboost"] = TdpControl.Ready ? TdpControl.EffectiveBoost : null,
+            ["ris"] = _widgetRis, ["chill"] = _widgetChill,
         };
+        // The Ally's light brightness, for the LED tile (off, or a percentage).
+        if (AllyControl.IsAlly) state["toggles"]!["ledlevel"] = s.AllyLights is "" or "off" ? 0 : AllyControl.BrightnessPercent(s);
+        // What SquareDeck plays (Settings > Experimental > Media controls in the widget): read every second or two.
+        if (Labs.On("widgetmedia"))
+        {
+            if (DateTime.Now - _widgetMediaAt > TimeSpan.FromSeconds(1.5)) { _widgetMediaAt = DateTime.Now; _ = RefreshWidgetMediaAsync(); }
+            if (_widgetMedia != null) state["media"] = _widgetMedia.DeepClone();
+        }
         if (_widgetHz is int hz) state["refresh"] = hz;
         if (_widgetRates != null) state["rates"] = _widgetRates.DeepClone();
         return state;
@@ -167,6 +184,12 @@ public partial class MainWindow
                 WidgetBridge.Note(on ? $"{game.Name} keeps {profile.TdpWatts} W" : "Back to your usual power");
                 break;
             }
+            case "media" when Str("cmd") is { } cmd && Labs.On("widgetmedia"):
+                _ = WidgetMediaCommandAsync(cmd);
+                break;
+            case "mediaart" when Str("key") is { Length: > 0 } mediaKey && Labs.On("widgetmedia"):
+                _ = SendWidgetMediaArtAsync(mediaKey);
+                break;
             case "closegame":
                 _ = CloseGameFromWidgetAsync();
                 break;
@@ -218,7 +241,110 @@ public partial class MainWindow
             case "open":
                 RunAllyAction("home");
                 break;
+            case "quicktiles" when request["ids"] is JsonArray ids:
+            {
+                // Edit in the widget's Quick card: which tiles show, in order (only ones the widget has).
+                var known = Settings.WidgetQuickTiles.Select(t => t.Id).ToHashSet();
+                s.WidgetQuick = ids.Select(n => { try { return n?.GetValue<string>(); } catch (Exception) { return null; } })
+                    .Where(x => x != null && known.Contains(x)).Select(x => x!).Distinct().ToList();
+                s.Save();
+                break;
+            }
+            case "power" when Str("id") is { } what && what is "lock" or "sleep" or "hibernate" or "restart" or "shutdown":
+                // A moment first, so Game Bar can close before the PC locks, sleeps or turns off.
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(700);
+                    Dispatcher.Invoke(() =>
+                    {
+                        switch (what)
+                        {
+                            case "lock": Power.Lock(); break;
+                            case "sleep": Power.Sleep(); break;
+                            case "hibernate": Power.Hibernate(); break;
+                            case "restart": Power.Restart(); break;
+                            case "shutdown": Power.ShutDown(); break;
+                        }
+                    });
+                });
+                break;
         }
+    }
+
+    // ---------------------------------------------------------------- the widget's media row (experimental)
+
+    private JsonObject? _widgetMedia;
+    private DateTime _widgetMediaAt = DateTime.MinValue;
+    private bool _widgetMediaBusy;
+    private string _widgetMediaSource = "";
+    private readonly Dictionary<string, JsonObject> _widgetMediaArt = new();
+
+    /// <summary>
+    /// What SquareDeck itself is playing, best first: its Spotify player, its music player, then a page of its own
+    /// (YouTube Music, Apple Music and the rest play in SquareDeck's built-in browser, which Windows lists as SquareDeck).
+    /// Music from other apps isn't SquareDeck's, so the widget's row stays hidden for it.
+    /// </summary>
+    private async Task RefreshWidgetMediaAsync()
+    {
+        if (_widgetMediaBusy) return;
+        _widgetMediaBusy = true;
+        try
+        {
+            JsonObject Make(string title, string artist, bool playing, string source) => new()
+            {
+                ["title"] = title, ["artist"] = artist, ["playing"] = playing, ["source"] = source,
+                ["key"] = source + "|" + title + "|" + artist,
+            };
+            JsonObject? media = null;
+            if (SpotifyPlayer.IsRunning && SpotifyPlayer.Track is { } song) media = Make(song.Title, song.Artist, SpotifyPlayer.IsPlaying, "spotify");
+            else if (LocalMusic.Current is { } track) media = Make(track.Title, track.Artist, LocalMusic.IsPlaying, "local");
+            else if (await MediaService.GetAsync(includeThumbnail: false) is { } now && now.Title.Length > 0 &&
+                     (now.App.Contains("SquareDeck", StringComparison.OrdinalIgnoreCase) || now.App.Contains("WebView", StringComparison.OrdinalIgnoreCase)))
+                media = Make(now.Title, now.Artist, now.IsPlaying, "page");
+            _widgetMediaSource = media?["source"]?.GetValue<string>() ?? "";
+            if (!JsonNode.DeepEquals(media, _widgetMedia)) { _widgetMedia = media; WidgetBridge.Nudge(); }
+        }
+        catch (Exception) { }
+        finally { _widgetMediaBusy = false; }
+    }
+
+    private async Task WidgetMediaCommandAsync(string cmd)
+    {
+        switch (_widgetMediaSource, cmd)
+        {
+            case ("local", "toggle"): LocalMusic.TogglePlay(); break;
+            case ("local", "next"): LocalMusic.Next(); break;
+            case ("local", "previous"): LocalMusic.Previous(); break;
+            case ("spotify", "toggle"): SpotifyPlayer.TogglePlay(); break;
+            case (_, "toggle"): await MediaService.PlayPauseAsync(); break;
+            case (_, "next"): await MediaService.NextAsync(); break;
+            case (_, "previous"): await MediaService.PreviousAsync(); break;
+        }
+        await Task.Delay(350);
+        _widgetMediaAt = DateTime.MinValue; // read again straight away
+        await RefreshWidgetMediaAsync();
+    }
+
+    /// <summary>The cover art of what's playing, sent once per song when the widget asks.</summary>
+    private async Task SendWidgetMediaArtAsync(string key)
+    {
+        if (_widgetMediaArt.TryGetValue(key, out var ready)) { WidgetBridge.Send(ready); return; }
+        BitmapSource? art = null;
+        try
+        {
+            if (key.StartsWith("spotify|") && SpotifyPlayer.Track?.ArtUrl is { Length: > 0 } url)
+                art = await ImageLoader.FromUrlAsync(url, 320) as BitmapSource;
+            else if (key.StartsWith("local|") && LocalMusic.Current is { } track && await LocalMusic.ArtAsync(track) is { Length: > 0 } bytes)
+                art = ImageLoader.FromBytes(bytes, 320) as BitmapSource;
+            else if (await MediaService.GetAsync(includeThumbnail: true) is { Thumbnail: { Length: > 0 } thumb })
+                art = ImageLoader.FromBytes(thumb, 320) as BitmapSource;
+        }
+        catch (Exception) { }
+        if (art is { IsFrozen: false } && art.CanFreeze) art = (BitmapSource)art.GetAsFrozen();
+        var message = new JsonObject { ["type"] = "mediaart", ["key"] = key, ["art"] = await Task.Run(() => Encode(art, 240, jpeg: true)) };
+        if (_widgetMediaArt.Count > 30) _widgetMediaArt.Clear();
+        if (art != null) _widgetMediaArt[key] = message;
+        WidgetBridge.Send(message);
     }
 
     /// <summary>The running game's own profile, if it has one.</summary>
@@ -355,14 +481,7 @@ public partial class MainWindow
             "SquareDeck comes with a widget for Xbox Game Bar (Win + G, or the Xbox button): the TDP, sound, brightness, the game's own power profile, " +
             "the ROG Ally's modes and quick toggles while you play. It isn't installed yet. The first time, Windows asks an administrator to trust it.",
             "Install", "Later", "Don't ask again");
-        if (choice == 0)
-        {
-            (bool Ok, string Message) result = (false, "");
-            await RunBusyAsync("Installing the Game Bar widget", async () => result = await WidgetInstaller.InstallAsync(package));
-            await AskAsync(result.Ok ? "Widget installed" : "Widget not installed",
-                result.Ok ? "Open Game Bar (Win + G, or the Xbox button): SquareDeck is in its widget menu."
-                          : result.Message + " You can try again in Settings > Controller and Game Bar widget > Install the widget.", "OK");
-        }
+        if (choice == 0) await InstallWidgetWithScreenAsync(package, update: false);
         else if (choice == 2)
         {
             Settings.WidgetPromptIgnored = true;
@@ -389,17 +508,15 @@ public partial class MainWindow
         await AskMandatoryAsync("Game Bar widget update",
             $"A required update for SquareDeck's Game Bar widget is ready: version {bundled.Version} (you have {installed}). " +
             "This version of SquareDeck needs it, so the widget and the launcher keep working together.", "Update now");
-        while (true)
-        {
-            (bool Ok, string Message) result = (false, "");
-            await RunBusyAsync("Updating the Game Bar widget", async () => result = await WidgetInstaller.InstallAsync(bundled));
-            if (result.Ok)
-            {
-                ShowToast("Xbox Game Bar widget", "Widget updated", "Now on version " + bundled.Version + ".", "", "success");
-                return;
-            }
-            int again = await AskMandatoryAsync("The widget wasn't updated", result.Message, "Try again", "Ask me next time SquareDeck starts");
-            if (again != 0) return;
-        }
+        // The install screen shows each step, and after a failure offers Try again or "Ask me next time".
+        await InstallWidgetWithScreenAsync(bundled, update: true, mandatory: true);
+    }
+
+    /// <summary>Installs or updates the widget on the step-by-step install screen; the result once it closes.</summary>
+    public async Task<(bool Ok, string Message)> InstallWidgetWithScreenAsync(WidgetInstaller.Package package, bool update, bool mandatory = false)
+    {
+        var screen = new SquareDeck.Screens.WidgetInstallScreen(package, update, mandatory);
+        Push(screen);
+        return await screen.Result;
     }
 }

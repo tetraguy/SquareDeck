@@ -43,6 +43,7 @@ public static partial class Labs
         new("vacuumtube", "DeckTube", "YouTube's TV app, made for the controller, with ad blocking, SponsorBlock and DeArrow from VacuumTube: a DeckTube tab on the Music page, next to Spotify", "\uE714", Stores),
         new("musicstreams", "YouTube Music and Apple Music", "Both play inside SquareDeck from Multimedia > Streaming, made for the controller, and keep playing while you browse or play a game", "\uE93C", Stores),
         new("discord", "Discord", "Your Discord status shows the game you're playing from SquareDeck, and the Friends page gets a Discord button to open Discord or your messages", "\uE8BD", Stores),
+        new("widgetmedia", "Media controls in the widget", "When music or video plays from SquareDeck (your music, Spotify, YouTube Music, Apple Music…), the Game Bar widget shows a row with its cover art, play / pause, next and previous", "\uE8D6", Tools),
         new("recomp", "Recomp Zone", "Native PC versions of console games, rebuilt from their code: browse, install, update and play them (from the recomplauncher.com list), on the Stores page", "\uE7FC", Stores),
         new("freegames", "Free games tracker", "Epic, Prime Gaming and Steam giveaways in one place, on the Stores page", "\uE719", Stores),
         new("leaderboard", "Friends leaderboard", "Hours played recently by you and your Steam friends, and the games you share", "\uE716", Stores),

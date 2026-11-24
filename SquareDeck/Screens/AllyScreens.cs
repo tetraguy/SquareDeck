@@ -77,9 +77,16 @@ public sealed class AllyControlScreen : ListScreen
         bool ok = await AllyControl.ApplyLightsAsync(force: true);
         if (!ok)
             Host.ShowToast("ROG ALLY", "Couldn't reach the lights", "SquareDeck will keep trying. Armoury Crate SE may be holding them.", "", "info");
+        else if (AllyControl.DynamicLightingOn)
+            Host.ShowToast("ROG ALLY", "Windows' Dynamic Lighting is on", "It holds the Ally's lights. Turn it off in Settings > Personalization > Dynamic Lighting.", "", "info");
         else if (s.AllyLights == "accent")
             Host.ShowToast("ROG ALLY", "Lights match SquareDeck's accent color", "They follow it when the theme or the game's color changes.", "", "info");
     }
+
+    /// <summary>Windows' Dynamic Lighting holds the Ally's lights while it's on, so nothing else can change them.</summary>
+    private void AddDynamicLightingNote() =>
+        AddRow("Windows' Dynamic Lighting is on", "Open", "", click: () => ProcessUtil.Open("ms-settings:personalization-lighting"),
+            subtitle: "It takes over the Ally's lights, so SquareDeck's changes don't show. Turn off \"Use Dynamic Lighting on my devices\"");
 
     protected override void Build()
     {
@@ -91,6 +98,8 @@ public sealed class AllyControlScreen : ListScreen
         // ---------------------------------------------------------------- lights
         AddHeader("Lights");
         if (!lights) AddNote("SquareDeck couldn't find the Ally's light controller. These settings apply once it's found.");
+        if (AllyControl.DynamicLightingOn) AddDynamicLightingNote();
+        if (s.AllyLights.Length == 0) AddNote("The lights are left as they are. Choose an effect (or a color) and SquareDeck takes them over.");
         var mode = AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights);
         AddRow("Effect", mode.Name ?? "Leave as it is", "",
             click: () => _ = ChooseEffectAsync(),
@@ -99,7 +108,7 @@ public sealed class AllyControlScreen : ListScreen
         {
             AddRow(s.AllyLights == "sticks" ? "Left stick color" : "Color", ColorName(s.AllyLightColor), "",
                 click: () => Host.Push(new LedColorScreen(s.AllyLights == "sticks" ? "Left stick color" : "Light color", s.AllyLightColor,
-                    hex => { s.AllyLightColor = hex; s.Save(); AllyControl.ApplyLights(force: true); })));
+                    hex => { s.AllyLightColor = hex; if (s.AllyLights.Length == 0) s.AllyLights = "solid"; s.Save(); AllyControl.ApplyLights(force: true); Rebuild(); })));
             if (s.AllyLights is "breathing" or "sticks")
                 AddRow(s.AllyLights == "sticks" ? "Right stick color" : "Second color", ColorName(s.AllyLightColor2), "",
                     click: () => Host.Push(new LedColorScreen(s.AllyLights == "sticks" ? "Right stick color" : "Second light color", s.AllyLightColor2,
@@ -123,6 +132,21 @@ public sealed class AllyControlScreen : ListScreen
         AddRow("Pulse red when the battery is low", OnOff(s.AllyLowBatteryFlash), "",
             click: () => Save(() => s.AllyLowBatteryFlash = !s.AllyLowBatteryFlash, () => AllyControl.ApplyLights(force: true)),
             subtitle: "At 15% or less, over whatever the lights are doing, until you plug in");
+
+        // ---- When the lights may light (Armoury Crate SE's power states)
+        AddHeader("When the lights are on");
+        void Power(string label, bool on, Action flip, string subtitle) =>
+            AddRow(label, OnOff(on), "", subtitle: subtitle,
+                click: () => Save(() => { flip(); s.AllyLightPowerSet = true; }, () => { AllyControl.ApplyLightPower(force: true); AllyControl.ApplyLights(force: true); }));
+        if (!s.AllyLightPowerSet) AddNote("Armoury Crate SE's settings apply until you change one here.");
+        Power("Boot up and shut down", s.AllyLightBootShutdown, () => s.AllyLightBootShutdown = !s.AllyLightBootShutdown, "While it starts and while it turns off");
+        Power("Awake, on battery", s.AllyLightAwakeBattery, () => s.AllyLightAwakeBattery = !s.AllyLightAwakeBattery, "While you use it unplugged");
+        if (s.AllyLightAwakeBattery)
+            AddRow("Off after a minute without input", OnOff(s.AllyLightBatteryIdleOff), "",
+                click: () => Save(() => s.AllyLightBatteryIdleOff = !s.AllyLightBatteryIdleOff, () => AllyControl.ApplyLights(force: true)),
+                subtitle: s.AllyLights is "" or "off" ? "On battery. Works with an effect chosen above" : "On battery: they come back the moment you touch it");
+        Power("Awake, plugged in", s.AllyLightAwakePlugged, () => s.AllyLightAwakePlugged = !s.AllyLightAwakePlugged, "While it's charging or on the charger");
+        Power("Sleep", s.AllyLightSleep, () => s.AllyLightSleep = !s.AllyLightSleep, "While it sleeps");
 
         // ---- The Xbox button's light (ROG Xbox Ally)
         if (AllyControl.HasXboxLight)
@@ -148,6 +172,21 @@ public sealed class AllyControlScreen : ListScreen
                     subtitle: "At 15% or less, bright and breathing, until you plug in");
             }
         }
+
+        // ---- Graphics memory (VRAM): shown here, changed in Armoury Crate SE or the UEFI setup
+        AddHeader("Graphics memory (VRAM)");
+        AddRow("Assigned to the graphics now", AllyVram.CurrentText(), "", click: Rebuild,
+            subtitle: "Auto, 4, 6, 8, 12 or 16 GB depending on the model. More helps texture-heavy games and leaves less for Windows");
+        AddRow("Change it in Armoury Crate SE", null, "", click: () => ProcessUtil.Open("asusac://"),
+            subtitle: "Settings > Operating mode > GPU settings > Memory assigned to GPU. It takes effect after a restart");
+        AddRow("Restart into the UEFI setup", null, "", click: async () =>
+            {
+                if (await Host.AskAsync("Restart into the UEFI setup?", "Save what you're doing first. In the setup, look under Advanced for \"UMA frame buffer size\" (Auto, or a size in GB), then save and exit.", "Cancel", "Restart") != 1) return;
+                var result = await AllyVram.RestartToSetupAsync();
+                if (result.Contains("declined")) Host.ShowToast("ROG ALLY", "Not restarted", result, "", "info");
+            },
+            subtitle: "The same setting, before Windows starts. Windows asks first");
+        AddNote("SquareDeck doesn't write this one to the firmware itself: on the Ally X and Xbox Allys ASUS hasn't published the values, and a wrong one can stop the Ally from starting.");
 
         // ---------------------------------------------------------------- performance
         AddHeader("Performance");

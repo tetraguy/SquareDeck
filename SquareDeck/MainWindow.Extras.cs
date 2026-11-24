@@ -238,9 +238,12 @@ public partial class MainWindow
         const int WmHotkey = 0x0312;
         if (message == App.ShowExistingMessage)
         {
-            // SquareDeck was started again: come forward instead of opening a second copy.
+            // SquareDeck was started again: come forward instead of opening a second copy (and, from Game Bar's Home or
+            // Library button in Xbox mode, go there).
             handled = true;
             WindowActivator.BringToFront(this);
+            int where = wParam.ToInt32();
+            if (where is 1 or 2) GameBarGo(where == 2 ? "library" : "home", fresh: false);
             return IntPtr.Zero;
         }
         if (message == App.WidgetWakeMessage)
@@ -265,6 +268,23 @@ public partial class MainWindow
             OnAllyButton(press);
         }
         return IntPtr.Zero;
+    }
+
+    /// <summary>
+    /// Game Bar's Home and Library buttons, with SquareDeck as Xbox mode's home app: Home closes every open page and
+    /// shows the games row; Library does the same, then opens the Library. A question that can't be dismissed (a
+    /// required update) stays. Just after start, it waits for the opening to finish.
+    /// </summary>
+    public async void GameBarGo(string where, bool fresh)
+    {
+        if (fresh) await Task.Delay(TimeSpan.FromSeconds(2.5));
+        // Not over the first-time setup.
+        if (_screens.Any(s => s is SquareDeck.Screens.OnboardingScreen)) return;
+        while (_screens.Count > 0 && !(_screens[^1] is SquareDeck.Screens.MenuScreen { Mandatory: true }) && _screens[^1] is not SquareDeck.Screens.BusyScreen)
+            Pop(_screens[^1]);
+        if (_screens.Count > 0) return; // something that has to stay is open
+        SetMode(HomeView.Games);
+        if (where == "library") Push(new SquareDeck.Screens.LibraryScreen());
     }
 
     // ================================================================ ROG Ally buttons
@@ -391,6 +411,50 @@ public partial class MainWindow
                 if (NightLight.IsOn is bool on) { NightLight.Set(!on); Note(on ? "Night light off" : "Night light on"); }
                 else Note("Night light isn't available here");
                 break;
+            case "cpuboost":
+            {
+                // The running game's own choice when it has one, otherwise the usual setting.
+                bool boost = !TdpControl.EffectiveBoost;
+                if (TdpControl.GameProfile is { CpuBoost: not null } gp) { gp.CpuBoost = boost; Library.Save(); }
+                else { Settings.CpuBoost = boost; Settings.Save(); }
+                TdpControl.UpdateReapplyTimer();
+                _ = TdpControl.ApplyAsync(quiet: true);
+                Note(boost ? "CPU boost on" : "CPU boost off");
+                break;
+            }
+            case "ris":
+            {
+                var ris = AmdAdlx.ImageSharpening;
+                if (ris is bool r && AmdAdlx.SetImageSharpening(!r)) Note(r ? "Image sharpening off" : "Image sharpening on");
+                else Note("Radeon Image Sharpening isn't available here");
+                _widgetSlowAt = DateTime.MinValue;
+                break;
+            }
+            case "chill":
+            {
+                var chill = AmdAdlx.Chill;
+                if (chill is bool c && AmdAdlx.SetChill(!c)) Note(c ? "Radeon Chill off" : "Radeon Chill on");
+                else Note("Radeon Chill isn't available here");
+                _widgetSlowAt = DateTime.MinValue;
+                break;
+            }
+            case "ledlevel" when AllyControl.IsAlly:
+            {
+                // Off, 5, 30, 60, 100, off… (5% when they come back on).
+                var s = Settings;
+                int now = s.AllyLights is "" or "off" ? 0 : AllyControl.BrightnessPercent(s);
+                int next = now switch { 0 => 5, < 30 => 30, < 60 => 60, < 100 => 100, _ => 0 };
+                if (next == 0) { s.AllyLightsLastOn = s.AllyLights; s.AllyLights = "off"; }
+                else
+                {
+                    if (s.AllyLights is "" or "off") s.AllyLights = s.AllyLightsLastOn is { Length: > 0 } last && last != "off" ? last : "solid";
+                    s.AllyLightPercent = next;
+                }
+                s.Save();
+                AllyControl.ApplyLights(force: true);
+                Note(next == 0 ? "Lights off" : $"Lights {next}%");
+                break;
+            }
             // ---- the quick menu's extra buttons
             case "perf":
                 Settings.OsdEnabled = !Settings.OsdEnabled;
