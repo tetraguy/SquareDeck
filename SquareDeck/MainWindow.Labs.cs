@@ -53,6 +53,7 @@ public partial class MainWindow
         _genreTimer.Tick += (_, _) => GenreTick();
         _companionTimer.Tick += (_, _) => CompanionTick();
         _discordTimer.Tick += (_, _) => _ = DiscordTickAsync();
+        InitEight();
         Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
         {
             foreach (var f in Labs.Features) if (f.Id is not ("coverdim" or "covereffect")) OnLabChanged(f.Id);

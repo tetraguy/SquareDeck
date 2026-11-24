@@ -23,7 +23,8 @@ namespace SquareDeck.Widget
     /// The widget: SquareDeck's command center inside Game Bar.
     ///   - a rail on the left with brightness and volume (vertical sliders: A to grab, up / down to change, B to let go),
     ///   - Power: the dial for the TDP, minus and plus, four steps across the chip's range, back to the game's profile,
-    ///   - Live: processor, graphics, frames per second and battery, each with its last half minute,
+    ///   - Live: four tiles you choose (processor, graphics, APU power, TDP, frame rate, temperatures, fan, memory,
+    ///     battery…), each with its last half minute,
     ///   - ROG Ally (on an Ally): the operating mode, fan curve, lights and controller / mouse mode,
     ///   - Quick: overlay, refresh rate, night light, HDR, do not disturb, Wi-Fi, Bluetooth and more.
     /// SquareDeck does the work (it has the permissions); the widget shows what's going on and asks.
@@ -63,11 +64,9 @@ namespace SquareDeck.Widget
         private int _watts, _min = 5, _max = 30;
         private bool _tdpReady;
         // Live
-        private readonly Dictionary<string, (TextBlock Value, Sparkline Line)> _stats = new Dictionary<string, (TextBlock, Sparkline)>();
         private DateTime _lastSample;
         // ROG Ally
         private Border _allyCard;
-        private TextBlock _rpm;
         private readonly Dictionary<string, Button> _modes = new Dictionary<string, Button>(), _fans = new Dictionary<string, Button>();
         private Button _lights, _mouse;
         // Quick
@@ -145,6 +144,8 @@ namespace SquareDeck.Widget
             body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             Grid.SetRow(body, 1);
             body.Children.Add(BuildRail());
+            // The sliders shrink to fit, so the power and SquareDeck buttons under them always show.
+            body.SizeChanged += (o, e) => FitRail(e.NewSize.Height);
 
             var cards = new StackPanel { Margin = new Thickness(0, 0, 14, 18) };
             cards.Children.Add(BuildGame());
@@ -182,11 +183,17 @@ namespace SquareDeck.Widget
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            var logo = new Image { Source = new BitmapImage(new Uri("ms-appx:///Assets/Logo.png")), Width = 36, Height = 36, Margin = new Thickness(0, 0, 12, 0) };
+            // Your profile picture (SquareDeck's logo until it arrives) and your name.
+            var logo = new Grid { Width = 40, Height = 40, Margin = new Thickness(0, 0, 12, 0) };
+            _headerLogo = new Image { Source = new BitmapImage(new Uri("ms-appx:///Assets/Logo.png")), Width = 36, Height = 36 };
+            logo.Children.Add(_headerLogo);
+            _headerAvatar = new Ellipse { Width = 40, Height = 40, Visibility = Visibility.Collapsed };
+            logo.Children.Add(_headerAvatar);
             header.Children.Add(logo);
 
             var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            titles.Children.Add(new TextBlock { Text = "SquareDeck", FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Colors.White) });
+            _headerName = new TextBlock { Text = "SquareDeck", FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis };
+            titles.Children.Add(_headerName);
             _subtitle = new TextBlock { Text = "Command center", FontSize = 12, Foreground = new SolidColorBrush(Subtle), TextTrimming = TextTrimming.CharacterEllipsis };
             titles.Children.Add(_subtitle);
             Grid.SetColumn(titles, 1);
@@ -212,7 +219,8 @@ namespace SquareDeck.Widget
         private FrameworkElement BuildRail()
         {
             var rail = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(6, 4, 6, 18) };
-            var back = new Border
+            _rail = rail;
+            var back = _railBack = new Border
             {
                 CornerRadius = new CornerRadius(22), Padding = new Thickness(0, 14, 0, 14), Width = 56,
                 Background = new SolidColorBrush(Color.FromArgb(0x80, 0x1B, 0x21, 0x29)), Child = rail, VerticalAlignment = VerticalAlignment.Top,
@@ -299,6 +307,26 @@ namespace SquareDeck.Widget
             sure.Items.Add(go);
             sure.Items.Add(cancel);
             sure.ShowAt(at);
+        }
+
+        private StackPanel _rail;
+        private Border _railBack;
+
+        /// <summary>
+        /// Sizes the brightness and volume sliders to the room there is: up to 150 each, down to 56, so everything
+        /// on the rail (mute, power, Open SquareDeck) fits in the widget's height.
+        /// </summary>
+        private void FitRail(double height)
+        {
+            if (_rail == null || _bright == null || height <= 0) return;
+            double now = _bright.Height;
+            _rail.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            double fixedPart = _rail.DesiredSize.Height - 2 * now;
+            double room = height - _railBack.Margin.Top - _railBack.Margin.Bottom - _railBack.Padding.Top - _railBack.Padding.Bottom; // the rail's own margin is in its measured size
+            double each = Math.Max(56, Math.Min(150, Math.Floor((room - fixedPart) / 2)));
+            if (Math.Abs(each - now) < 1) return;
+            _bright.Height = each;
+            _volume.Height = each;
         }
 
         private Slider RailSlider() => new Slider
@@ -645,7 +673,7 @@ namespace SquareDeck.Widget
             _notePill.Background = new SolidColorBrush(Color.FromArgb(0xF0, (byte)(c.R * 0.45), (byte)(c.G * 0.45), (byte)(c.B * 0.45)));
             _dial.SetAccent(c);
             if (_background == "accent") ApplyBackground("accent");
-            _stats["cpu"].Line.SetColor(c);
+            AccentLive(c);
             MarkPresets(_watts);
         }
 
@@ -754,29 +782,7 @@ namespace SquareDeck.Widget
 
         // ---------------------------------------------------------------- Live
 
-        private FrameworkElement BuildLive()
-        {
-            var grid = Columns(4);
-            AddStat(grid, 0, "cpu", "CPU", Teal, 100);
-            AddStat(grid, 1, "gpu", "GPU", Blue, 100);
-            AddStat(grid, 2, "fan", "FAN", Violet, null);
-            AddStat(grid, 3, "battery", "BATTERY", Pink, 100);
-            return Card("", "Live", grid);
-        }
-
-        private void AddStat(Grid grid, int column, string id, string label, Color color, double? max)
-        {
-            var tile = new StackPanel();
-            tile.Children.Add(new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeights.Bold, CharacterSpacing = 80, Foreground = new SolidColorBrush(Subtle) });
-            var value = new TextBlock { Text = "--", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Colors.White), Margin = new Thickness(0, 2, 0, 4) };
-            tile.Children.Add(value);
-            var line = new Sparkline(color, max);
-            tile.Children.Add(line);
-            var box = new Border { Child = tile, CornerRadius = new CornerRadius(14), Padding = new Thickness(10, 8, 10, 8), Background = new SolidColorBrush(Color.FromArgb(0x10, 0xFF, 0xFF, 0xFF)) };
-            Grid.SetColumn(box, column);
-            grid.Children.Add(box);
-            _stats[id] = (value, line);
-        }
+        // BuildLive and the Live tiles are in WidgetPage.Live.cs.
 
         // ---------------------------------------------------------------- ROG Ally
 
@@ -822,8 +828,7 @@ namespace SquareDeck.Widget
             toggles.Children.Add(_mouse);
             body.Children.Add(toggles);
 
-            _rpm = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Subtle) };
-            _allyCard = Card("", "ROG Ally", body, _rpm);
+            _allyCard = Card("", "ROG Ally", body); // the fan speed is in the Live card
             _allyCard.Visibility = Visibility.Collapsed;
             return _allyCard;
         }
@@ -1047,9 +1052,25 @@ namespace SquareDeck.Widget
             if (type == "note") { ShowNote(Str(m, "text")); return; }
             if (type == "state") Apply(m);
             else if (type == "art") ApplyArt(m);
+            else if (type == "avatar") ApplyAvatar(m);
             else if (type == "mediaart") ApplyMediaArt(m);
             else if (type == "wifi") ApplyWifi(m);
             else if (type == "bluetooth") ApplyBluetooth(m);
+        }
+
+        private Image _headerLogo;
+        private Ellipse _headerAvatar;
+        private TextBlock _headerName;
+        private string _avatarAsked;
+
+        /// <summary>Your profile picture from SquareDeck, in a circle in the header.</summary>
+        private async void ApplyAvatar(JsonObject m)
+        {
+            var image = await Decode(Str(m, "image"));
+            if (image == null) return;
+            _headerAvatar.Fill = new ImageBrush { ImageSource = image, Stretch = Stretch.UniformToFill };
+            _headerAvatar.Visibility = Visibility.Visible;
+            _headerLogo.Visibility = Visibility.Collapsed;
         }
 
         private void ShowNote(string text)
@@ -1077,6 +1098,14 @@ namespace SquareDeck.Widget
             var game = Obj(s, "game");
             string device = Str(s, "device");
             _subtitle.Text = device ?? "SquareDeck";
+            string user = Str(s, "user");
+            _headerName.Text = string.IsNullOrWhiteSpace(user) ? "SquareDeck" : user;
+            string avatar = Str(s, "avatar");
+            if (!string.IsNullOrEmpty(avatar) && avatar != _avatarAsked)
+            {
+                _avatarAsked = avatar;
+                _link.Send("avatar");
+            }
             double? battery = Num(s, "battery"), left = Num(s, "left");
             bool plugged = Bool(s, "plugged") == true;
             string time = left == null || left.Value <= 0 ? "" : "  " + (left.Value >= 60 ? Math.Floor(left.Value / 60) + "h " + (left.Value % 60).ToString("00") + "m" : left.Value.ToString("0") + "m");
@@ -1099,12 +1128,7 @@ namespace SquareDeck.Widget
             // Live numbers: one point on each line per second or so.
             bool sample = (DateTime.Now - _lastSample).TotalSeconds > 0.8;
             if (sample) _lastSample = DateTime.Now;
-            Stat("cpu", Num(s, "cpu"), "{0:0}%", sample);
-            Stat("gpu", Num(s, "gpu"), "{0:0}%", sample);
-            double? fanRpm = Num(s, "fan");
-            Stat("fan", fanRpm, "{0:0}", sample);
-            if (fanRpm != null && _stats.ContainsKey("fan")) _stats["fan"].Value.Text = fanRpm.Value >= 1000 ? (fanRpm.Value / 1000).ToString("0.0") + "k" : fanRpm.Value.ToString("0");
-            Stat("battery", battery, "{0:0}%", sample);
+            UpdateLive(s, sample);
 
             // The ROG Ally.
             var ally = Obj(s, "ally");
@@ -1120,8 +1144,6 @@ namespace SquareDeck.Widget
                 SetSegmentText(_lights, lights ? "Lights on" : "Lights off");
                 Mark(_mouse, mouse);
                 SetSegmentText(_mouse, mouse ? "Mouse mode" : "Controller");
-                double? rpm = Num(ally, "rpm");
-                _rpm.Text = rpm == null ? "" : "Fan " + (rpm.Value >= 1000 ? (rpm.Value / 1000).ToString("0.0") + "k" : rpm.Value.ToString("0")) + " rpm";
             }
 
             // Quick toggles.
@@ -1201,14 +1223,6 @@ namespace SquareDeck.Widget
             if (!string.IsNullOrEmpty(method)) parts.Add("via " + method);
             if (!session && profile) parts.Add("game profile");
             _powerInfo.Text = string.Join("  ·  ", parts);
-        }
-
-        private void Stat(string id, double? value, string format, bool sample)
-        {
-            (TextBlock Value, Sparkline Line) stat;
-            if (!_stats.TryGetValue(id, out stat)) return;
-            stat.Value.Text = value == null ? "--" : string.Format(format, value.Value);
-            if (sample && value != null) stat.Line.Add(value.Value);
         }
 
         private static void SetSegmentText(Button b, string text)

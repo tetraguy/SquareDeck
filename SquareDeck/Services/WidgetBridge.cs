@@ -34,6 +34,9 @@ public static class WidgetBridge
     private static CancellationTokenSource? _cts;
     private static readonly List<Client> Clients = new();
     private static HardwareMonitor? _monitor;
+    private static PowerMeter? _power;
+    private static DeviceSensors.Reading? _sensors;
+    private static DateTime _sensorsAt;
     private static readonly SemaphoreSlim Kick = new(0, 1);
     private static int _pipeErrorLogged;
 
@@ -169,6 +172,8 @@ public static class WidgetBridge
             {
                 _monitor?.Dispose();
                 _monitor = null;
+                _power?.Dispose();
+                _power = null;
                 continue;
             }
             try
@@ -183,6 +188,25 @@ public static class WidgetBridge
                     if (cpu is double c) state["cpu"] = Math.Round(c);
                     if (gpu is double g) state["gpu"] = Math.Round(g);
                     if (mhz is int m) state["mhz"] = m;
+                }
+                catch (Exception) { }
+                // More for the Live card's choices: the processor's power use, temperatures, memory and battery draw.
+                try
+                {
+                    _power ??= new PowerMeter();
+                    if (_power.Watts() is double w) state["apu"] = Math.Round(w, 1);
+                    if (DateTime.UtcNow - _sensorsAt > TimeSpan.FromSeconds(2))
+                    {
+                        _sensorsAt = DateTime.UtcNow;
+                        _sensors = DeviceSensors.Read();
+                    }
+                    if (_sensors is { } r)
+                    {
+                        if (r.CpuTemp is int cpuTemp) state["cputemp"] = cpuTemp;
+                        if (r.GpuTemp is int gt) state["gputemp"] = gt;
+                        if (!r.Plugged && r.DrawWatts is double d && d < 0) state["draw"] = Math.Round(-d, 1);
+                    }
+                    if (Hardware.MemoryStatus() is { Total: > 0 } mem) state["ram"] = Math.Round(100.0 * (mem.Total - mem.Available) / mem.Total);
                 }
                 catch (Exception) { }
                 state["type"] = "state";

@@ -19,6 +19,8 @@ public sealed record LabFeature(string Id, string Name, string About, string Gly
 public static partial class Labs
 {
     public const string Storage = "Storage and downloads", Tools = "Tools", Stores = "Stores and friends", Looks = "Looks and sound", Play = "Play";
+    // 8.0
+    public const string Playing = "While you play", LibraryGroup = "Library and Home", Retro = "Retro Lounge", Social = "Friends and media", SystemGroup = "System and troubleshooting";
 
     public static readonly LabFeature[] Features =
     {
@@ -63,6 +65,33 @@ public static partial class Labs
         new("stickers", "Achievement sticker book", "Unlocked achievements as stickers on a corkboard. In a game's options", "\uE8EC", Play),
         new("passport", "Gamer passport", "Stamps for each genre, decade and store you've played", "\uE8F1", Play),
         new("mood", "Mood picker", "Pick a mood and get three games from your library that fit", "\uE76E", Play),
+
+        // ---- 8.0
+        new("fpscap", "Frame rate cap per game", "Cap a game at 30, 40, 45 or 60 FPS (set in its game profile), applied when it starts and lifted when it closes. Uses Radeon's own frame limiter", "\uEC4A", Playing),
+        new("docked", "Docked / TV mode", "When an external display is connected: bigger text and controls, more power, no mouse pointer, and the sound on the TV. All put back when you undock", "\uE7F4", Playing),
+        new("sessiontimer", "Session timer and break reminder", "A gentle reminder after the time you choose, or when the battery gets low, shown over the game", "\uE916", Playing),
+        new("launchopts", "Launch options per game", "Command-line options, environment variables and \u201CRun as administrator\u201D, in each game's profile", "\uE756", Playing),
+        new("scripts", "Scripts before and after a game", "Run a program or command before a game starts and after it closes (a mod manager, closing an app, mounting a drive). In each game's profile", "\uE943", Playing),
+        new("returnanim", "Smooth return after playing", "When a game closes, Home fades back in on the game you launched, instead of jumping", "\uE72B", Playing),
+        new("charger", "Charger check", "Tells you when the charger can't keep up: plugged in, but the battery is still going down", "\uE83E", Playing),
+        new("smartcollections", "Smart collections", "Library shelves that fill themselves: never played, played once and left, short sessions, best on battery and more", "\uE8F1", LibraryGroup),
+        new("dailypick", "Daily pick", "Once a day, one game from your library you haven't played in a while, and why it's worth another look", "\uE734", LibraryGroup),
+        new("gamepass", "Game Pass shelf", "A Game Pass button in the Library: games just added and leaving soon, from Xbox's own lists", "\uE7FC", LibraryGroup),
+        new("trailerpreview", "Trailer previews on Home", "Rest on a game for a moment and its trailer plays, muted, behind the home row", "\uE714", LibraryGroup),
+        new("microsd", "microSD awareness", "Games on each microSD card get their own Library shelf, and stay listed (grayed out) when the card is out", "\uE88E", LibraryGroup),
+        new("rascraper", "Box art and screenshots from ScreenScraper", "Fills in missing Retro Lounge covers and screenshots from ScreenScraper's database (free account needed)", "\uEB9F", Retro),
+        new("rashaders", "Shaders and bezels per console", "A CRT look for NES and SNES, an LCD grid for Game Boy, borders at the sides: chosen per console, for games played in RetroArch", "\uE790", Retro),
+        new("rastates", "Save state browser", "A game's RetroArch save states with their pictures, and \u201CLoad\u201D to start the game straight from one", "\uE74E", Retro),
+        new("rasurprise", "Surprise me", "A button on Retro Lounge's Home that picks a random game for you", "\uE8B1", Retro),
+        new("friendswidget", "Friends playing on Home", "A small card on Home with the Steam friends who are playing right now", "\uE716", Social),
+        new("achtoasts", "Achievement pop-ups", "A pop-up in your style when you unlock a Steam achievement or a RetroAchievement, shown over the game", "\uE734", Social),
+        new("twitch", "Twitch", "Twitch on the Multimedia page's Streaming tab, with the other services", "\uE714", Social),
+        new("crashrecovery", "Crash recovery", "If SquareDeck closes unexpectedly, it offers to go back to where you were and to send the log", "\uE7BA", SystemGroup),
+        new("padtest", "Controller tester", "Every button, trigger and stick live on screen, plus a stick drift check and a rumble test", "\uE7FC", SystemGroup),
+        new("updateguard", "Windows Update guard", "Warns when Windows wants to restart, during a game too, and keeps it from restarting in the hours you play", "\uE895", SystemGroup),
+        new("drivercheck", "Driver check", "Your graphics, BIOS and ASUS driver versions and how old they are, with links to the official downloads", "\uE964", SystemGroup),
+        new("drivenotice", "Drive connected notice", "A notification when a USB drive, external SSD or hard drive, or microSD card is connected: select it to open the drive in SquareDeck's File Explorer", "\uE88E", SystemGroup),
+        new("startupapps", "Startup apps manager", "See the apps that start with Windows and turn them off, right here", "\uE7E8", SystemGroup),
     };
 
     private static Settings? _settings;

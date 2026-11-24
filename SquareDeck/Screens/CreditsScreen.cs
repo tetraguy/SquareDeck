@@ -76,6 +76,12 @@ public sealed class CreditsScreen : ListScreen
 
     private static readonly (string Name, string Author, string Use, string License, string? Link)[] Fonts =
     {
+        ("Forum", "Denis Masharov", "The Olympus style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Forum"),
+        ("Uncial Antiqua", "Astigmatic", "The Dragon's Hoard style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Uncial+Antiqua"),
+        ("Julius Sans One", "Luciano Vergara", "The Aurora style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Julius+Sans+One"),
+        ("Cormorant SC", "Christian Thalmann", "The Chronos style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Cormorant+SC"),
+        ("Shojumaru", "Astigmatic", "The Kitsune Shrine style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Shojumaru"),
+        ("Cinzel Decorative", "Natanael Gama", "The Pharaoh style's font", "SIL Open Font License 1.1", "https://fonts.google.com/specimen/Cinzel+Decorative"),
         ("VT323", "Peter Hull", "Arcade", "SIL Open Font License 1.1", null),
         ("Jersey 10", "Sarah Cadigan-Fried", "Tropical Night", "SIL Open Font License 1.1", null),
         ("Pixel Operator", "Jayvee Enaguas", "Cozy Pixel", "CC0 (public domain)", null),
@@ -88,7 +94,7 @@ public sealed class CreditsScreen : ListScreen
 
     protected override void Build()
     {
-        AddNote("The Advanced and Legendary styles are made from these UI kits, sound packs and fonts. Thank you to everyone who made them.");
+        AddNote("The Advanced, Legendary and Mythical styles are made from these UI kits, sound packs and fonts. Thank you to everyone who made them.");
         Section("UI kits", "", Kits);
         Section("Sounds", "", Sounds);
         Section("Fonts", "", Fonts);

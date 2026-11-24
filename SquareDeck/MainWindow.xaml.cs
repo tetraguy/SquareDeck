@@ -941,6 +941,7 @@ public partial class MainWindow : Window
                     ? ProcessUtil.Open("explorer.exe", item.LaunchPath)       // Xbox / Store game
                 : item.LaunchPath.Contains("://")
                     ? ProcessUtil.Open(item.LaunchPath)                       // another launcher's link
+                    : Eight.HasLaunchOptions(item) ? Eight.StartWithOptions(item, item.LaunchPath, item.LaunchArgs) // its own launch options (Experimental)
                     : ProcessUtil.Start(item.LaunchPath, item.LaunchArgs);    // a program
             StatusText.Text = started ? "" : "Couldn't start " + item.Name + ". Has it been moved or uninstalled?";
             if (started)
@@ -953,7 +954,12 @@ public partial class MainWindow : Window
         {
             // Straight from the game's own program when that's switched on (no Steam "Launching…" pop-up over the
             // splash). Steam must already be running; otherwise, or with no program found, the usual Steam link.
-            if (Settings.SteamDirectLaunch && await Task.Run(() => SteamDirect.SteamIsRunning() ? SteamDirect.FindExe(item, Library.For(item.Key)) : null) is string exe
+            // Experimental: launch options of its own go through Steam's run link, which passes them to the game.
+            if (Labs.On("launchopts") && Eight.Args(item.Key).Length > 0)
+            {
+                started = ProcessUtil.OpenOutside(Eight.SteamRunLink(item));
+            }
+            else if (Settings.SteamDirectLaunch && await Task.Run(() => SteamDirect.SteamIsRunning() ? SteamDirect.FindExe(item, Library.For(item.Key)) : null) is string exe
                 && SteamDirect.Start(item, exe))
             {
                 started = true;
@@ -1332,6 +1338,7 @@ public partial class MainWindow : Window
         {
             case "friend": Push(new FriendsScreen()); return;
             case "battery": Push(new QuickSettingsScreen()); return;
+            case "drive": OpenDriveNotification(title); return;
             case "windows": Push(new NotificationsScreen()); return;
             case "download" when _installing != null: Push(new DetailsScreen(_installing)); return;
         }

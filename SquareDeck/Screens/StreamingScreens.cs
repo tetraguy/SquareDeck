@@ -40,6 +40,9 @@ public sealed record StreamingService(string Id, string Name, string Url, string
         new("tubi", "Tubi", "https://tubitv.com/home",
             // Free; signing in with Google goes through Google's accounts pages.
             new[] { "tubitv.com", "tubi.tv", "accounts.google.com" }, Color.FromRgb(0xFF, 0xFF, 0x13), Color.FromRgb(0x10, 0x10, 0x10)),
+        // Experimental (8.0): Twitch. Signing in goes through its own id and passport pages.
+        new("twitch", "Twitch", "https://www.twitch.tv/",
+            new[] { "twitch.tv" }, Color.FromRgb(0x91, 0x46, 0xFF), Colors.White),
         // Music (Experimental: YouTube Music and Apple Music): they keep playing in the background.
         new("ytmusic", "YouTube Music", "https://music.youtube.com/",
             new[] { "music.youtube.com", "youtube.com", "accounts.google.com", "consent.google.com", "consent.youtube.com", "accounts.youtube.com" },
@@ -51,7 +54,7 @@ public sealed record StreamingService(string Id, string Name, string Url, string
     };
 
     /// <summary>The services to show: the music ones only with their experiment on.</summary>
-    public static IEnumerable<StreamingService> Shown => All.Where(s => !s.Music || Labs.On("musicstreams"));
+    public static IEnumerable<StreamingService> Shown => All.Where(s => (!s.Music || Labs.On("musicstreams")) && (s.Id != "twitch" || Labs.On("twitch")));
 
     /// <summary>The service's logo, if one has been added (Streaming\&lt;id&gt;.png next to SquareDeck.exe).</summary>
     public string? LogoPath

@@ -2230,7 +2230,7 @@ public sealed class StoreSearchScreen : ListScreen
 /// own status; a slim toolbar has the search, sort, view and everything else under More. The header stays put while
 /// the games scroll.
 /// </summary>
-public sealed class LibraryScreen : Screen
+public sealed partial class LibraryScreen : Screen
 {
     private double TileSize => Layout switch { "compact" => 124, "large" => 226, "posters" => 176, "showcase" => 286, "mini" => 92, _ => 164 };
     private bool ListLayout => Layout is "list" or "focus";
@@ -2589,6 +2589,7 @@ public sealed class LibraryScreen : Screen
         _ when filter.StartsWith("col:") => CollectionOf(filter)?.Name ?? "Collection",
         "rated" => "4 stars and up",
         _ when filter.StartsWith("status:") => filter[7..],
+        _ when filter.StartsWith("smart:") || filter.StartsWith("card:") => EightFilterName(filter),
         _ => filter[4..]
     };
 
@@ -2605,6 +2606,7 @@ public sealed class LibraryScreen : Screen
         _ when filter.StartsWith("col:") => CollectionOf(filter)?.Games.Contains(g.Key) == true,
         "rated" => Host.Library.Find(g.Key) is { Rating: >= 4 },
         _ when filter.StartsWith("status:") => Host.Library.Find(g.Key)?.Status == filter[7..],
+        _ when filter.StartsWith("smart:") || filter.StartsWith("card:") => EightMatches(g, filter),
         _ when filter.StartsWith("src:") => g.IsInstalled && g.SourceName == filter[4..],
         _ => string.Equals(Host.CategoryOf(g), filter[4..], StringComparison.OrdinalIgnoreCase)
     };
@@ -3004,7 +3006,8 @@ public sealed class LibraryScreen : Screen
     /// <summary>The tab a filter belongs under (store, category and status chips refine Installed; a collection is under Collections).</summary>
     private string TabOf(string filter) => filter switch
     {
-        _ when filter.StartsWith("src:") || filter.StartsWith("cat:") || filter.StartsWith("status:") || filter == "rated" || filter == "installed" => "all",
+        _ when filter.StartsWith("src:") || filter.StartsWith("cat:") || filter.StartsWith("status:") || filter == "rated" || filter == "installed"
+               || filter.StartsWith("smart:") || filter.StartsWith("card:") => "all",
         _ when filter.StartsWith("col:") => "collections",
         _ => filter
     };
@@ -3066,6 +3069,7 @@ public sealed class LibraryScreen : Screen
             RetroUi.Logo(64) is { } retro ? new Image { Source = retro, Width = 20, Height = 20 } : null);
         if (Labs.On("mood")) Action("\uE76E", "How are you feeling?", "Pick a mood, get three games that fit", () => new MoodScreen());
         if (Labs.On("boss")) Action("\uE7EF", "Fight the Backlog Boss", "Your unfinished games as a boss to defeat, an hour at a time", () => new BossScreen());
+        if (Labs.On("gamepass")) Action("\uE7FC", "Game Pass", "Games just added to Game Pass and leaving soon", () => new GamePassScreen());
         if (Labs.On("passport")) Action("", "My Gamer Passport", "Stamps for every genre, decade and store you've played", () => new PassportScreen(),
             PassportArt.Icon(16, Brushes.Transparent));
     }
@@ -3114,6 +3118,7 @@ public sealed class LibraryScreen : Screen
                 foreach (var st in statuses) Add("status:" + st, st, everything.Count(g => Matches(g, "status:" + st)), "");
                 if (anyRated) Add("rated", "4 stars and up", everything.Count(g => Matches(g, "rated")), "");
             }
+            AddEightChips(everything, (f, l, c, g) => Add(f, l, c, g));
         }
         _chipScroll.Visibility = _chips.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }

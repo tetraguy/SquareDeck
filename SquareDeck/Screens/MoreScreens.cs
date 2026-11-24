@@ -1454,7 +1454,8 @@ public sealed class NotificationsScreen : Screen
                 content.Children.Add(text);
 
                 var row = new Button { Style = Ui.StyleOf("RowButton"), Content = content, HorizontalContentAlignment = HorizontalAlignment.Stretch };
-                row.Click += (_, _) => _ = Host.AskAsync(entry.Title, entry.Text + "\n\n" + entry.When.ToString("f"), "OK");
+                if (entry.Kind == "drive") row.Click += (_, _) => Host.OpenNotification("drive", entry.Title, entry.Text, null); // opens the drive
+                else row.Click += (_, _) => _ = Host.AskAsync(entry.Title, entry.Text + "\n\n" + entry.When.ToString("f"), "OK");
                 _rows.Children.Add(row);
             }
         }

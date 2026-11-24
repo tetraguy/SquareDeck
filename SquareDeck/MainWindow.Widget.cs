@@ -51,6 +51,9 @@ public partial class MainWindow
         {
             ["version"] = Updater.Current.ToString(),
             ["device"] = Handheld.IsHandheld ? Handheld.DisplayName : Environment.MachineName,
+            // You, in the widget's header: your name, and your profile picture (sent when the widget asks for this key).
+            ["user"] = UserName.Display,
+            ["avatar"] = s.Avatar + "|" + WidgetAccent(),
             ["accent"] = WidgetAccent(),
             ["background"] = s.WidgetBackground,
             ["quick"] = new JsonArray((RunningProfile()?.WidgetQuick ?? s.WidgetQuick ?? Settings.WidgetQuickTiles.Select(t => t.Id).ToList()).Select(x => (JsonNode)x).ToArray()),
@@ -199,6 +202,9 @@ public partial class MainWindow
                 break;
             case "art" when Str("key") is { Length: > 0 } key:
                 _ = SendWidgetArtAsync(key);
+                break;
+            case "avatar":
+                SendWidgetAvatar();
                 break;
             case "tdpstep" when Int("delta") is int delta && TdpControl.Ready:
                 TdpControl.SetSessionWatts(TdpControl.EffectiveWatts + Math.Clamp(delta, -10, 10));
@@ -440,6 +446,27 @@ public partial class MainWindow
         if (_widgetArt.Count > 20) _widgetArt.Clear();
         _widgetArt[key] = art;
         WidgetBridge.Send(art);
+    }
+
+    /// <summary>Your profile picture, drawn as on Home (a preset, your own picture or your Steam one), for the widget's header.</summary>
+    private void SendWidgetAvatar()
+    {
+        try
+        {
+            const int size = 128;
+            var face = Avatars.Build(Settings.Avatar, size);
+            face.Measure(new Size(size, size));
+            face.Arrange(new Rect(0, 0, size, size));
+            face.UpdateLayout();
+            var bitmap = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(face);
+            bitmap.Freeze();
+            WidgetBridge.Send(new JsonObject
+            {
+                ["type"] = "avatar", ["key"] = Settings.Avatar + "|" + WidgetAccent(), ["image"] = Encode(bitmap, size, jpeg: false),
+            });
+        }
+        catch (Exception ex) { CrashLog.Write("Widget avatar", ex); }
     }
 
     private static string? Encode(BitmapSource? source, int width, bool jpeg)

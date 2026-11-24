@@ -31,6 +31,7 @@ public sealed record UiStyle
     public string[]? RingColors { get; init; }  // the highlight ring as a gradient (Switch); null = the highlight color
     public AdvancedSkin? Skin { get; init; }      // Advanced styles: their artwork (Skins\), drawn over the Switch layout
     public bool Legendary { get; init; }          // an Advanced style drawn by Claude, shown in Themes > Legendary instead of Advanced
+    public bool Mythical { get; init; }           // the top tier: drawn by Claude with the richest artwork, shown in Themes > Mythical
     public string? Unlock { get; init; }          // an Unlockable style's goal ("hours:10", "achievements:100", "finished:10", "streak:7", "nights:5"); see StyleUnlocks
     public string? SkinVariant { get; init; }     // the color variant of that artwork in use (set from settings)
     public bool Glass { get; init; }           // frosted panels with a bright rim over blurred art
@@ -1154,6 +1155,67 @@ public static class UiStyles
             HeroOpacity = 0, Footer = "line", Shadow = "hard", Backdrop = new[] { "#FFF6D6", "#FFE58A" }, PageScrim = 0.55,
             Legendary = true, Skin = new AdvancedSkin("halftone"), TileAnimation = "jelly"
         },
+        // 7.3.46: the Mythical tier, drawn by Claude: each a world of its own, down to the switches and the pointer.
+        new()
+        {
+            Id = "myth-olympus", Name = "Olympus", Sounds = "chime", NavSounds = "glass", Music = "track:Daybreak", Moving = "", Wallpaper = "image:Olympus.jpg",
+            Description = "The home of the gods above the clouds: white marble cards veined in grey with gold Greek-key corners, pop-ups headed in Aegean blue with gold rules and a thunderbolt, home buttons crowned in gold laurel, switches that charge a lightning bolt, a gold thunderbolt pointer, and a marble temple glowing at sunset on a sea of clouds while Zeus's lightning cracks a storm.",
+            Light = new[] { "#F4EFE6", "#1E2A44", "#6A6A72", "#FFFFFF", "#ECE5D8", "#2A55A0" }, ForceLight = true,
+            Font = "file:Forum-Regular.ttf#Forum", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#C9A24A", "#FFF1C2", "#2A55A0", "#FFF1C2", "#C9A24A" },
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "bokeh", Backdrop = new[] { "#FBE9D4", "#C9B6DA" }, PageScrim = 0.35,
+            Mythical = true, Skin = new AdvancedSkin("olympus"), TileAnimation = "breathe"
+        },
+        new()
+        {
+            Id = "myth-hoard", Name = "Dragon's Hoard", Sounds = "deep", NavSounds = "marimba", Music = "track:Dreamcore", Moving = "", Wallpaper = "image:DragonsHoard.jpg",
+            Description = "A dragon's lair: polished obsidian cards held at the corners by gold claws set with rubies, pop-ups headed in smouldering red with a dragon's eye, home buttons ringed in gold spikes and ruby, switches where a sleeping eye opens and glows, a gold pointer with a ruby, and a dragon coiled behind mountains of gold, one eye open, embers drifting up.",
+            Dark = new[] { "#0C0505", "#F6E7D0", "#C2A68C", "#1E0E0C", "#180A08", "#FF5A3C" }, Mode = "dark",
+            Font = "file:UncialAntiqua-Regular.ttf#Uncial Antiqua", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#F2C760", "#FF5A3C", "#FFE7A8", "#C2380E", "#F2C760" },
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#1C0A08", "#080303" }, PageScrim = 0.55,
+            Mythical = true, Skin = new AdvancedSkin("hoard"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "myth-aurora", Name = "Aurora", Sounds = "glass", NavSounds = "glass", Music = "track:Waves", Moving = "", Wallpaper = "image:Aurora.jpg",
+            Description = "The northern lights: night-ice cards with the aurora glowing along their top and snowflakes in the corners, pop-ups headed by ribbons of green, teal and violet, hexagonal ice-crystal home buttons, switches that fill with aurora light, and curtains of the aurora swaying over snowy peaks, mirrored in a frozen lake.",
+            Dark = new[] { "#06111D", "#EFFFFA", "#9CC6D4", "#0C2236", "#0A1C2C", "#5CF2B0" }, Mode = "dark",
+            Font = "file:JuliusSansOne-Regular.ttf#Julius Sans One", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#5CF2B0", "#2ED3C6", "#6A7CFF", "#B36BFF", "#5CF2B0" },
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#0B2034", "#050B1C" }, PageScrim = 0.5,
+            Mythical = true, Skin = new AdvancedSkin("aurora"), TileAnimation = "breathe"
+        },
+        new()
+        {
+            Id = "myth-chronos", Name = "Chronos", Sounds = "tick", NavSounds = "tick", Music = "track:Jewels", Moving = "", Wallpaper = "image:Chronos.jpg",
+            Description = "A master watchmaker's piece: cream guilloché enamel cards with rose-gold gears set with rubies, pop-ups headed in blued-steel enamel with a little watch face, home buttons that are watch dials in knurled rose gold, switches with a gear that turns blue, a blued watch-hand pointer, and a great dial with Roman numerals opening onto its turning gears and balance wheel.",
+            Light = new[] { "#F4EDDD", "#1A2440", "#6A6A7A", "#FFFDF8", "#EEE4D0", "#2E5FD0" }, ForceLight = true,
+            Font = "file:CormorantSC-Regular.ttf#Cormorant SC", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#E8B08C", "#FFE6D6", "#2E5FD0", "#FFE6D6", "#E8B08C" },
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#FBF6EA", "#E8DCC2" }, PageScrim = 0.35,
+            Mythical = true, Skin = new AdvancedSkin("chronos"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-kitsune", Name = "Kitsune Shrine", Sounds = "kalimba", NavSounds = "soft", Music = "track:Relaxing", Moving = "", Wallpaper = "image:KitsuneShrine.jpg",
+            Description = "A fox spirit's shrine by moonlight: indigo cards washed with seigaiha waves and a sakura blossom in each corner, pop-ups headed in vermilion lacquer with a torii gate, home buttons ringed by nine blue fox-fires for nine tails, switches where a sakura blooms, a vermilion pointer, and a path of torii gates and lanterns under a full moon, a fox and its fox-fire waiting among falling petals.",
+            Dark = new[] { "#0C0A1A", "#FFF1E0", "#C9B8D6", "#1A1430", "#151026", "#FF5A3C" }, Mode = "dark",
+            Font = "file:Shojumaru-Regular.ttf#Shojumaru", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#E8432B", "#FFC2D1", "#7FE0FF", "#FFC2D1", "#E8432B" },
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "float", Backdrop = new[] { "#1A1238", "#0A0814" }, PageScrim = 0.5,
+            Mythical = true, Skin = new AdvancedSkin("kitsune"), TileAnimation = "float"
+        },
+        new()
+        {
+            Id = "myth-pharaoh", Name = "Pharaoh", Sounds = "chime", NavSounds = "marimba", Music = "track:Sun Rays", Moving = "", Wallpaper = "image:Pharaoh.jpg",
+            Description = "A pharaoh's treasury: lapis lazuli cards flecked with gold and little gold pyramids with turquoise capstones at the corners, pop-ups headed in gold banded with lapis and turquoise under a winged sun, home buttons wearing a jewelled collar, switches with the Eye of Horus, a gold pointer, and pyramids catching the moon beneath the Milky Way and a great golden winged sun.",
+            Dark = new[] { "#081A44", "#F8EED6", "#B9C4E6", "#0E2A6B", "#0C2460", "#F2C14E" }, Mode = "dark",
+            Font = "file:CinzelDecorative-Regular.ttf#Cinzel Decorative", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#F2C760", "#2EC4B6", "#FFF4C8", "#123A8C", "#F2C760" },
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#0A1240", "#2A1A3A" }, PageScrim = 0.5,
+            Mythical = true, Skin = new AdvancedSkin("pharaoh"), TileAnimation = "glow"
+        },
         // 7.2: Unlockable styles, earned by playing (Themes > Unlockable). Drawn by Claude.
         new()
         {
@@ -1402,6 +1464,9 @@ public static class UiStyles
 
     /// <summary>Whether a style is one of the Legendary ones (Advanced styles drawn by Claude: Settings > Themes > Legendary).</summary>
     public static bool IsLegendary(string? id) => Advanced.Any(s => s.Id == id && s.Legendary);
+
+    /// <summary>Whether a style is one of the Mythical ones (the top tier, drawn by Claude: Settings > Themes > Mythical).</summary>
+    public static bool IsMythical(string? id) => Advanced.Any(s => s.Id == id && s.Mythical);
 
     /// <summary>
     /// How many styles come with SquareDeck (Basic plus Advanced), counted from the lists themselves, so text that

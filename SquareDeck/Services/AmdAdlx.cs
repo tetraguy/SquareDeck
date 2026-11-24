@@ -103,4 +103,76 @@ public static class AmdAdlx
     /// <summary>Radeon Chill: on, off, or null where it isn't available. (Turning it on turns Anti-Lag off, as AMD Software does.)</summary>
     public static bool? Chill => Get(ServicesGetChill, ChillSupported, ChillEnabled);
     public static bool SetChill(bool on) => Set(ServicesGetChill, ChillSupported, ChillSetEnabled, on);
+
+    // ---- 8.0: a frame rate cap for one game (Experimental "Frame rate cap per game")
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int IntOut(IntPtr self, out int value);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int IntIn(IntPtr self, int value);
+
+    // IADLX3DFrameRateTargetControl (I3DSettings.h): IsSupported, IsEnabled, GetFPS, GetFPSRange, SetEnabled, SetFPS.
+    private const int ServicesGetFrtc = 9;
+    private const int FrtcSupported = 3, FrtcEnabled = 4, FrtcGetFps = 5, FrtcSetEnabled = 7, FrtcSetFps = 8;
+    // IADLX3DChill: IsSupported, IsEnabled, GetFPSRange, GetMinFPS, GetMaxFPS, SetEnabled, SetMinFPS, SetMaxFPS.
+    private const int ChillGetMin = 6, ChillGetMax = 7, ChillSetMin = 9, ChillSetMax = 10;
+
+    /// <summary>What the frame limiter was set to before a cap, to put back afterwards.</summary>
+    public sealed record CapState(string Method, bool Enabled, int First, int Second);
+
+    /// <summary>
+    /// Caps the frame rate: Radeon's Frame Rate Target Control where the driver offers it, otherwise Radeon Chill with
+    /// its lowest and highest rate both set to the cap. Returns what was there before (null: no AMD limiter).
+    /// </summary>
+    public static CapState? ApplyCap(int fps)
+    {
+        var frtc = With<CapState?>(ServicesGetFrtc, f =>
+        {
+            if (!Ok(Fn<BoolOut>(f, FrtcSupported)(f, out var sup)) || sup == 0) return null;
+            Fn<BoolOut>(f, FrtcEnabled)(f, out var on);
+            Fn<IntOut>(f, FrtcGetFps)(f, out var old);
+            var before = new CapState("frtc", on != 0, old, 0);
+            if (!Ok(Fn<IntIn>(f, FrtcSetFps)(f, fps)) || !Ok(Fn<BoolIn>(f, FrtcSetEnabled)(f, 1))) return null;
+            return before;
+        });
+        if (frtc != null) return frtc;
+        return With<CapState?>(ServicesGetChill, f =>
+        {
+            if (!Ok(Fn<BoolOut>(f, ChillSupported)(f, out var sup)) || sup == 0) return null;
+            Fn<BoolOut>(f, ChillEnabled)(f, out var on);
+            Fn<IntOut>(f, ChillGetMin)(f, out var min);
+            Fn<IntOut>(f, ChillGetMax)(f, out var max);
+            var before = new CapState("chill", on != 0, min, max);
+            // The highest first when lowering, the lowest first when raising, so min never goes above max.
+            if (fps < max) { Fn<IntIn>(f, ChillSetMin)(f, fps); Fn<IntIn>(f, ChillSetMax)(f, fps); }
+            else { Fn<IntIn>(f, ChillSetMax)(f, fps); Fn<IntIn>(f, ChillSetMin)(f, fps); }
+            if (!Ok(Fn<BoolIn>(f, ChillSetEnabled)(f, 1))) return null;
+            return before;
+        });
+    }
+
+    /// <summary>Puts the frame limiter back as <see cref="ApplyCap"/> found it.</summary>
+    public static void RestoreCap(CapState before)
+    {
+        if (before.Method == "frtc")
+            With<bool>(ServicesGetFrtc, f =>
+            {
+                if (before.First > 0) Fn<IntIn>(f, FrtcSetFps)(f, before.First);
+                Fn<BoolIn>(f, FrtcSetEnabled)(f, before.Enabled ? (byte)1 : (byte)0);
+                return true;
+            });
+        else
+            With<bool>(ServicesGetChill, f =>
+            {
+                if (before.Second > 0) { Fn<IntIn>(f, ChillSetMax)(f, before.Second); if (before.First > 0) Fn<IntIn>(f, ChillSetMin)(f, before.First); }
+                Fn<BoolIn>(f, ChillSetEnabled)(f, before.Enabled ? (byte)1 : (byte)0);
+                return true;
+            });
+    }
+
+    /// <summary>Which limiter a cap would use: "Frame Rate Target Control", "Radeon Chill", or null (none here).</summary>
+    public static string? CapMethod()
+    {
+        bool frtc = With<bool>(ServicesGetFrtc, f => Ok(Fn<BoolOut>(f, FrtcSupported)(f, out var sup)) && sup != 0);
+        if (frtc) return "Frame Rate Target Control";
+        return Chill != null ? "Radeon Chill" : null;
+    }
 }

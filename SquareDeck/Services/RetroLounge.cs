@@ -966,6 +966,9 @@ public static class RetroLounge
         ShareBios(system, emu, install);
         string args = emu.Args.Replace("{rom}", rom).Replace("{core}", core).Replace("{fs}", Config.FullScreen ? emu.FullScreen : "");
         if (Config.FullScreen && emu.FullScreen.Length > 0 && !emu.Args.Contains("{fs}")) args = emu.FullScreen + " " + args;
+        // Experimental: the console's shader and bezel, and a save state to start from (RetroArch only).
+        if (emuId == "retroarch" && RetroEight.ExtraArgs(game, install) is { Length: > 0 } extra) args = extra + " " + args;
+        else RetroEight.PendingSlot = null;
         return (install.Program, Regex.Replace(args, @"\s{2,}", " ").Trim(), install.Folder);
     }
 
@@ -995,6 +998,7 @@ public static class RetroLounge
     {
         var (program, arguments, folder) = await CommandAsync(game, player);
         var process = Process.Start(new ProcessStartInfo(program, arguments) { WorkingDirectory = folder, UseShellExecute = false });
+        RetroEight.Running = process != null ? game : null;
         var state = StateOf(game);
         state.LastPlayed = DateTime.Now;
         state.Plays++;
@@ -1005,6 +1009,7 @@ public static class RetroLounge
         _ = Task.Run(async () =>
         {
             try { await process.WaitForExitAsync(); } catch (Exception) { }
+            if (ReferenceEquals(RetroEight.Running, game)) RetroEight.Running = null;
             double minutes = (DateTime.Now - started).TotalMinutes;
             if (minutes < 0.2) return;
             System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => { StateOf(game).Minutes += minutes; SaveConfig(); Played?.Invoke(); });
@@ -1045,6 +1050,9 @@ public static class RetroLounge
         try
         {
             if (kind == "Named_Boxarts" && LocalArt(g) is { } local) image = ImageLoader.FromBytes(await File.ReadAllBytesAsync(local, ct).ConfigureAwait(false), width);
+            // Experimental: pictures downloaded from ScreenScraper.
+            if (image == null && kind == "Named_Boxarts" && RetroEight.Cover(g) is { } scraped) image = ImageLoader.FromBytes(await File.ReadAllBytesAsync(scraped, ct).ConfigureAwait(false), width);
+            if (image == null && kind is "Named_Snaps" or "Named_Titles" && RetroEight.Snap(g) is { } snap) image = ImageLoader.FromBytes(await File.ReadAllBytesAsync(snap, ct).ConfigureAwait(false), width);
             var system = SystemOf(g.System);
             if (image == null && Config.OnlineArt && system != null && system.Thumbs.Length > 0)
             {
@@ -1081,6 +1089,9 @@ public static class RetroLounge
     }
 
     public static void ForgetArt() { lock (ArtMemory) ArtMemory.Clear(); }
+
+    /// <summary>Forgets one game's pictures in memory (after new ones were downloaded for it).</summary>
+    public static void ForgetArt(RetroGame g) { lock (ArtMemory) foreach (var k in ArtMemory.Keys.Where(k => k.EndsWith("|" + g.Key)).ToList()) ArtMemory.Remove(k); }
 
     private static string? LocalArt(RetroGame g)
     {

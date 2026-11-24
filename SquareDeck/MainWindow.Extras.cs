@@ -969,6 +969,7 @@ public partial class MainWindow
         }
 
         if (launch.Previous != null || launch.Quiet) _activeLaunch = launch;
+        await OnGameStartingEightAsync(game); // Experimental 8.0: frame cap, script before, session timer
     }
 
     /// <summary>Puts back whatever <see cref="PrepareLaunchAsync"/> changed.</summary>
@@ -1016,6 +1017,7 @@ public partial class MainWindow
             Playtime.Save();
             SessionLog.Finish(key, name, started, seconds); // battery and performance for this game
             if (game != null && Labs.On("closelaunchers")) _ = CloseLauncherAfterAsync(game);
+            OnGameEndedEight(key, game); // Experimental 8.0: frame cap back, script after
             if (_activeLaunch != null && _activeLaunch.Game.Key == key) _ = RestoreLaunchAsync();
 
             // Steam games wait a moment so the summary can include achievements; the rest report straight away.

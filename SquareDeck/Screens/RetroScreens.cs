@@ -222,7 +222,7 @@ internal static class RetroUi
 /// favorites, new arrivals), Consoles, Games (every game, filtered and sorted), Emulators (download, update, set up),
 /// BIOS (what each console needs and what's there), Downloads and Setup (ROM folders and preferences).
 /// </summary>
-public sealed class RetroLoungeScreen : GridScreen
+public sealed partial class RetroLoungeScreen : GridScreen
 {
     private static readonly (string Id, string Name, string Glyph)[] Sections =
     {
@@ -592,6 +592,7 @@ public sealed class RetroLoungeScreen : GridScreen
         var played = all.Select(g => (Game: g, State: RetroLounge.PeekState(g))).Where(x => x.State?.LastPlayed != null).OrderByDescending(x => x.State!.LastPlayed).Select(x => x.Game).ToList();
         var hero = played.FirstOrDefault() ?? all.Where(g => RetroLounge.PeekState(g)?.Favorite == true).FirstOrDefault() ?? all.OrderByDescending(g => g.Added).First();
         Body.Children.Add(BuildHero(hero, played.Count > 0));
+        AddSurprise(all); // Experimental: Surprise me
 
         if (played.Count > 0) { var shelf = Shelf("Keep playing"); foreach (var g in played.Take(15)) GameTile(shelf, g); }
         var favorites = all.Where(g => RetroLounge.PeekState(g)?.Favorite == true).OrderBy(g => g.Title, StringComparer.OrdinalIgnoreCase).ToList();
@@ -1321,7 +1322,7 @@ public sealed class RetroSystemScreen : GridScreen
 }
 
 /// <summary>One game: play it (or get what plays it), choose its emulator, favorite it, add it to Home, and its details.</summary>
-public sealed class RetroGameScreen : ListScreen
+public sealed partial class RetroGameScreen : ListScreen
 {
     private readonly RetroGame _game;
     private readonly RetroSystem? _system;
@@ -1392,6 +1393,7 @@ public sealed class RetroGameScreen : ListScreen
         AddNote(_game.Discs.Count > 1 ? string.Join("\n", _game.Discs.Select(Path.GetFileName)) : _game.Path);
 
         AddExtras(s);
+        AddEightRows(); // Experimental: save states, ScreenScraper
 
         AddHeader("More");
         string? folder = Directory.Exists(_game.Path) ? _game.Path : Path.GetDirectoryName(_game.Path);

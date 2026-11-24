@@ -158,6 +158,7 @@ public partial class MainWindow
             UpdateBackgroundMode();
             if (_screens.Count > 0) _screens[^1].FocusDefault();
             else Keyboard.Focus(this);
+            if (_screens.Count == 0) ReturnAnimationEight(); // Experimental: back on the game you launched
         }
         catch (Exception) { }
         finally { _comingBack = false; }

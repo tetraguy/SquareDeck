@@ -214,7 +214,7 @@ public sealed class SliderDialog : Screen
 
 
 /// <summary>PC settings to switch to while one game runs.</summary>
-public sealed class GameProfileScreen : ListScreen
+public sealed partial class GameProfileScreen : ListScreen
 {
     private readonly Game _game;
 
@@ -321,6 +321,7 @@ public sealed class GameProfileScreen : ListScreen
         // AMD Adrenalin settings for this game (with Adrenaline Hook on, and AMD graphics).
         if (Host.Settings.ExperimentAdrenalineHook && AdrenalineHook.HasAmdGraphics) AddAmdSection(p);
 
+        AddEightRows(); // Experimental (8.0): frame cap, launch options, scripts
         if (!p.IsEmpty) AddRow("Clear this profile", glyph: "", click: () => { Host.Library.For(_game.Key).Profile = null; Saved(); });
     }
 

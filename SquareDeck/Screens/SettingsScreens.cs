@@ -12,7 +12,7 @@ namespace SquareDeck.Screens;
 /// Settings. The first page is a short list of categories; each opens a page of its own, so no list is
 /// longer than a screen or two.
 /// </summary>
-public sealed class SettingsScreen : ListScreen
+public sealed partial class SettingsScreen : ListScreen
 {
     private static readonly (string Id, string Name, string Glyph, string About)[] Categories =
     {
@@ -953,7 +953,7 @@ public sealed class SettingsScreen : ListScreen
         // Basic: the styles drawn by SquareDeck (and yours). Advanced: styles made from UI kits, with their own
         // panels, buttons, switches, pointer and icons.
         var tabs = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 2) };
-        foreach (var (id, label, glyph) in new[] { ("basic", "Basic", "\uE771"), ("advanced", "Advanced", "\uE7F4"), ("legendary", "Legendary", "\uE734"), ("unlockable", "Unlockable", "\uE72E") })
+        foreach (var (id, label, glyph) in new[] { ("basic", "Basic", "\uE771"), ("advanced", "Advanced", "\uE7F4"), ("legendary", "Legendary", "\uE734"), ("mythical", "Mythical", "\uE945"), ("unlockable", "Unlockable", "\uE72E") })
         {
             var chip = new Button
             {
@@ -984,6 +984,7 @@ public sealed class SettingsScreen : ListScreen
         const double W = 296;
         if (_stylesTab == "advanced") { BuildAdvancedStyles(s, W, legendary: false); return; }
         if (_stylesTab == "legendary") { BuildAdvancedStyles(s, W, legendary: true); return; }
+        if (_stylesTab == "mythical") { BuildAdvancedStyles(s, W, legendary: false, mythical: true); return; }
         if (_stylesTab == "unlockable") { BuildAdvancedStyles(s, W, legendary: false, unlockable: true); return; }
 
         AddRow("Surprise me", null, "\uE8B1", subtitle: "Switch to a random style you're not using now", click: () =>
@@ -1047,17 +1048,18 @@ public sealed class SettingsScreen : ListScreen
     }
 
     /// <summary>Which tab of Themes is showing: the Basic styles, the Advanced ones or the Legendary ones.</summary>
-    private static string _stylesTab = UiStyles.Current.Unlock != null ? "unlockable" : UiStyles.IsLegendary(UiStyles.Current.Id) ? "legendary" : UiStyles.IsAdvanced(UiStyles.Current.Id) ? "advanced" : "basic";
+    private static string _stylesTab = UiStyles.Current.Unlock != null ? "unlockable" : UiStyles.IsMythical(UiStyles.Current.Id) ? "mythical" : UiStyles.IsLegendary(UiStyles.Current.Id) ? "legendary" : UiStyles.IsAdvanced(UiStyles.Current.Id) ? "advanced" : "basic";
 
     /// <summary>
     /// The Advanced tab (styles made from UI kits, each with a color choice where the kit has several) or the Legendary
     /// tab (Advanced styles whose artwork was drawn from scratch by Claude). Both are UiStyles.Advanced, split by Legendary.
     /// </summary>
-    private void BuildAdvancedStyles(Settings s, double W, bool legendary, bool unlockable = false)
+    private void BuildAdvancedStyles(Settings s, double W, bool legendary, bool unlockable = false, bool mythical = false)
     {
         var current = UiStyles.Current;
         var list = unlockable ? UiStyles.Advanced.Where(x => x.Unlock != null).ToList()
-                              : UiStyles.Advanced.Where(x => x.Legendary == legendary && x.Unlock == null).ToList();
+                              : mythical ? UiStyles.Advanced.Where(x => x.Mythical).ToList()
+                              : UiStyles.Advanced.Where(x => x.Legendary == legendary && !x.Mythical && x.Unlock == null).ToList();
         if (unlockable)
         {
             foreach (var st in StyleUnlocks.Update(Host.AllGames, Host.Playtime, Host.Achievements, Host.Library))
@@ -1079,6 +1081,7 @@ public sealed class SettingsScreen : ListScreen
         }
 
         AddHeader((unlockable ? $"Unlockable styles  ·  {list.Count(x => !StyleUnlocks.IsLocked(x))} of {list.Count} unlocked"
+                   : mythical ? "Mythical styles  ·  " + list.Count
                    : legendary ? "Legendary styles  ·  " + list.Count : "Advanced styles  ·  " + list.Count));
         var shelf = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         foreach (var style in list)
@@ -1101,6 +1104,10 @@ public sealed class SettingsScreen : ListScreen
         if (unlockable)
             AddNote("Unlockable styles are earned by playing: each one opens up when you reach its goal, and SquareDeck lets you know. " +
                     "They're Advanced styles with their own artwork, font, sounds and music.");
+        else if (mythical)
+            AddNote("Mythical styles are the top tier: each one is a world of its own, drawn from scratch down to the last detail. Their " +
+                    "cards, buttons, pop-ups, switches, check boxes, pointer, icons and wallpaper share one idea, with a font, a highlight in its own " +
+                    "colors, interface sounds, music and a moving touch on the home screen to match.");
         else if (legendary)
             AddNote("Legendary styles are drawn from scratch: every panel, button, pop-up, " +
                     "switch, check box, pointer, icon and wallpaper. They keep the Switch layout, and with matching on each brings its own " +
@@ -1142,6 +1149,29 @@ public sealed class SettingsScreen : ListScreen
                 }
             }
             catch (Exception) { }
+        }
+        if (st.Mythical)
+        {
+            // Mythical: a frame of the style's own highlight colors with a light sweeping round it, and a gem badge.
+            var colors = (st.RingColors ?? new[] { "#F2C760", "#B36BFF", "#5CF2B0", "#F2C760" })
+                .Select(c => (Color)ColorConverter.ConvertFromString(c)).ToArray();
+            var rim = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1), MappingMode = BrushMappingMode.RelativeToBoundingBox };
+            for (int i = 0; i < colors.Length; i++) rim.GradientStops.Add(new GradientStop(colors[i], i / (double)Math.Max(1, colors.Length - 1)));
+            var spin = new RotateTransform(0, 0.5, 0.5);
+            rim.RelativeTransform = spin;
+            if (!Theme.ReduceMotion)
+                spin.BeginAnimation(RotateTransform.AngleProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromSeconds(6)) { RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
+            frame.Children.Add(new Border { CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(3), BorderBrush = rim });
+            var gem = new StackPanel { Orientation = Orientation.Horizontal };
+            gem.Children.Add(new TextBlock { Text = "\u25C6", FontSize = 11, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+            gem.Children.Add(new TextBlock { Text = "MYTHICAL", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
+            var badgeBack = new LinearGradientBrush(colors.First(), colors[colors.Length / 2], 0);
+            frame.Children.Add(new Border
+            {
+                Child = gem, CornerRadius = new CornerRadius(10), Padding = new Thickness(9, 3, 10, 4), Margin = new Thickness(10, 10, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Background = badgeBack,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 10, ShadowDepth = 0, Opacity = 0.6, Color = colors.First() }
+            });
         }
         if (inUse)
         {
@@ -3165,7 +3195,7 @@ public sealed class SettingsScreen : ListScreen
             if (c == 0) Labs.Put("closelaunchers.steam", "1");
             else if (c == 1) Labs.Put("closelaunchers.steam", "0");
         },
-        _ => null
+        _ => EightPage(id)
     };
 
     /// <summary>A feature that has left Experimental: its switch, and a row to open its page while it's on.</summary>

@@ -3,6 +3,110 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.0.4
+
+- **Drive connected notice** (Settings > Experimental): when a USB drive, an external SSD or hard drive, or a microSD
+  card is connected, a notification says so, with its name, size and free space. Select it (or the notification
+  later, in the notification center) to open the drive in SquareDeck's File Explorer.
+
+## 8.0.3
+
+- **Game Bar widget 1.5.1:** the header shows you: your profile picture (the one on Home: a preset, your own picture
+  or your Steam picture) and your name, above the device's name, instead of SquareDeck's logo and name.
+
+## 8.0.2
+
+- **Game Bar widget 1.5:**
+  - **Live tiles you choose:** select any of the four tiles to pick what it shows: processor or graphics use, APU
+    power (what the chip is using right now), the TDP limit in effect, power from the battery, frames per second,
+    processor or graphics temperature, processor speed, fan speed, memory in use, battery or battery time left.
+    "Back to the usual four" puts them back.
+  - The brightness and volume sliders shrink to fit the widget's height, so the power and Open SquareDeck buttons
+    under them always show.
+- SquareDeck sends the widget the APU's power use (from Windows' energy meter, where the processor reports it),
+  temperatures, memory in use and battery draw.
+
+## 8.0.1
+
+- **Game Bar widget 1.4.1:**
+  - Its own icons in Game Bar's home bar, menu and title bar: white on the dark bar, and dark when it's selected (or
+    with Game Bar's light theme), like Microsoft's own widgets.
+  - The ROG Ally card no longer repeats the fan speed: it's in the Live card.
+  - Rebuild the widget package in Visual Studio (Create App Packages) to get it.
+
+## 8.0.0
+
+Twenty-four new experimental features. Each is off until you turn it on in Settings > Experimental, where most also
+have a page of their own options.
+
+- **While you play**
+  - **Frame rate cap per game:** 30, 36, 40, 45, 50, 60, 72, 90 or 120 FPS in a game's profile, or one cap for
+    every game. Applied when the game starts and put back when it closes, with Radeon's own limiter (Frame Rate
+    Target Control, or Radeon Chill where that isn't offered).
+  - **Docked / TV mode:** when a TV or monitor is connected, text and controls grow to 130%, the TDP goes to its
+    highest, the mouse pointer hides and the sound moves to the TV. Unplug and it all goes back.
+  - **Session timer and break reminder:** a nudge over the game after the time you choose, and once when the
+    battery gets low.
+  - **Launch options per game:** command-line options for any game (Steam ones through Steam's run link), and for
+    games started from their own program, environment variables and "Run as administrator".
+  - **Scripts before and after a game:** a program, script or command run hidden before it starts (waiting for it,
+    if you like) and after it closes.
+  - **Smooth return after playing:** Home fades back in on the game you launched.
+  - **Charger check:** says when you're plugged in but the battery is still going down.
+- **Library and Home**
+  - **Smart collections:** Library chips that fill themselves: Never played, Played once and left, Short sessions,
+    Best on battery, Not played in a year, Big and rarely played, and Most played.
+  - **Daily pick:** once a day, a game you haven't played in a while and why it's worth another look.
+  - **Game Pass shelf:** a Game Pass button in the Library with Xbox's "Recently added" and "Leaving soon" lists,
+    the month's announcements, and your Xbox games.
+  - **Trailer previews on Home:** rest on a Steam game and its trailer plays, muted, behind the home row.
+  - **microSD awareness:** a Library chip for each card, with its games still listed when it's out, and a notice
+    when a card goes in or comes out.
+- **Retro Lounge**
+  - **Box art and screenshots from ScreenScraper:** fills in missing covers and screenshots (free account and a
+    ScreenScraper developer ID needed).
+  - **Shaders and bezels per console:** a shader and a bezel for each console's RetroArch games, with suggested
+    CRT and LCD looks.
+  - **Save state browser:** a game's save states with their pictures; pick one to start the game from it.
+  - **Surprise me:** a random game, to look at or to play straight away.
+- **Friends and media**
+  - **Friends playing on Home:** a small card with the Steam friends in a game right now.
+  - **Achievement pop-ups:** a pop-up in your style's colors over the game when you unlock a Steam achievement or a
+    RetroAchievement.
+  - **Twitch:** on the Multimedia page's Streaming tab.
+- **System and troubleshooting**
+  - **Crash recovery:** after an unexpected close, an offer to go back to the page you were on, or to send the log.
+  - **Controller tester:** every button, trigger and stick live, a drift check, and a rumble test.
+  - **Windows Update guard:** warns during a game when Windows wants to restart, and sets active hours or pauses
+    updates for a week.
+  - **Driver check:** graphics, BIOS and ASUS driver versions and dates, flagging any over six months old, with
+    links to the official downloads.
+  - **Startup apps manager:** turn apps that start with Windows on or off, right in SquareDeck.
+
+## 7.3.46
+
+- **Mythical styles:** a new tier in Settings > Themes, above Legendary.
+  - Six styles, each a world of its own, drawn from scratch: cards, buttons, pop-ups, home buttons, switches, check
+    boxes, pointer, icons and wallpaper.
+  - Each brings its own font, a highlight ring in its own colors, interface sounds, music, a tile animation and a
+    moving touch on the home screen.
+  - Their cards in Themes wear a slowly turning rim in the style's colors and a MYTHICAL badge.
+  - The six:
+    - **Olympus:** marble and gold Greek keys, laurel home buttons, thunderbolt switches, and a temple above the
+      clouds at sunset with Zeus's lightning.
+    - **Dragon's Hoard:** obsidian with gold claws and rubies, a dragon's eye in the pop-ups, switches where a
+      sleeping eye opens, and a dragon coiled behind mountains of gold.
+    - **Aurora:** night ice with snowflakes, hexagonal ice home buttons, switches that fill with aurora light, and
+      the northern lights over snowy peaks and a frozen lake.
+    - **Chronos:** cream guilloché enamel, rose-gold gears with rubies, watch-dial home buttons, a blued
+      watch-hand pointer, and a great dial opening onto its turning movement.
+    - **Kitsune Shrine:** indigo seigaiha waves, sakura, vermilion torii pop-ups, home buttons ringed by nine
+      fox-fires, and a moonlit path of torii gates and lanterns.
+    - **Pharaoh:** lapis lazuli with gold, pyramids and turquoise, jewelled-collar home buttons, Eye of Horus
+      switches, and pyramids beneath the Milky Way and a golden winged sun.
+- New fonts (all SIL Open Font License): Forum, Uncial Antiqua, Julius Sans One, Cormorant SC, Shojumaru and Cinzel
+  Decorative.
+
 ## 7.3.45
 
 - **Device health** (Settings home, and the top of your device's section):
