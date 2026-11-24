@@ -69,7 +69,27 @@ public static class AllyControl
         ("balanced", "Balanced", "ASUS's own curve", new byte[] { 8, 17, 22, 26, 34, 41, 48, 69 }),
         ("cool", "Cool", "Spins up earlier to keep it cooler", new byte[] { 20, 28, 35, 42, 50, 60, 70, 90 }),
         ("max", "Full speed", "Loud, coolest; for long sessions plugged in", new byte[] { 70, 75, 80, 85, 90, 95, 99, 99 }),
+        ("custom", "Custom", "Your own curve (Settings > Experimental > Custom fan curve)", null),
     };
+
+    /// <summary>The curves to offer: Custom only while its Experimental feature is on.</summary>
+    public static (string Id, string Name, string About, byte[]? Duties)[] FanChoices =>
+        FanCurves.Where(f => f.Id != "custom" || Labs.On("fancurve")).ToArray();
+
+    /// <summary>The custom curve: 8 temperatures (°C), then 8 fan speeds (%), saved under Labs "fan.custom".</summary>
+    public static byte[] CustomCurve
+    {
+        get
+        {
+            var parts = Labs.Get("fan.custom").Split(',');
+            if (parts.Length == 16 && parts.All(p => byte.TryParse(p, out _))) return parts.Select(byte.Parse).ToArray();
+            var c = new byte[16];
+            Array.Copy(AsusAcpi.DefaultCpuCurve, c, 8);
+            Array.Copy(FanCurves.First(f => f.Id == "balanced").Duties!, 0, c, 8, 8);
+            return c;
+        }
+        set => Labs.Put("fan.custom", string.Join(",", value));
+    }
 
     public static readonly int[] ChargeLimits = { 0, 60, 70, 80, 90, 100 };
 
@@ -126,7 +146,13 @@ public static class AllyControl
         // The running game's profile may have a fan curve of its own.
         string fanId = (_playing ? _runningProfile?.FanCurve : null) ?? s.AllyFan;
         var fan = FanCurves.FirstOrDefault(f => f.Id == fanId);
-        if (fan.Duties != null)
+        if (fan.Id == "custom" && !Labs.On("fancurve")) fan = default;
+        if (fan.Id == "custom")
+        {
+            AsusAcpi.SetFanCurve(CustomCurve);
+            _fanTouched = true;
+        }
+        else if (fan.Duties != null)
         {
             var curve = new byte[16];
             Array.Copy(AsusAcpi.DefaultCpuCurve, curve, 8); // the temperatures
@@ -134,7 +160,7 @@ public static class AllyControl
             AsusAcpi.SetFanCurve(curve);
         }
         else if (_fanTouched) AsusAcpi.ResetFanCurves();
-        _fanTouched = fan.Duties != null;
+        if (fan.Id != "custom") _fanTouched = fan.Duties != null;
         // A new ASUS mode puts the firmware's own power limits back: re-apply SquareDeck's TDP after it.
         if (mode.Mode >= 0 && TdpControl.Ready)
             System.Windows.Application.Current?.Dispatcher.BeginInvoke(new Action(() => _ = TdpControl.ApplyAsync(quiet: true)));

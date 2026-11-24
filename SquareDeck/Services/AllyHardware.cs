@@ -113,6 +113,25 @@ public static class AsusAcpi
 
     public static bool Supports(uint device) => Available && Get(device) >= 0;
 
+    // CPU core configuration (Armoury Crate's "CPU Core Configuration"): values are 0x0E0P, E-cores in the high byte,
+    // P-cores in the low byte. The endpoints were documented by G-Helper; SquareDeck's own code.
+    public const uint CoresNow = 0x001200D2, CoresMax = 0x001200D3, CoresMin = 0x001200D4;
+
+    /// <summary>(E-cores, P-cores) from one of the core endpoints, or null when the firmware doesn't offer it.</summary>
+    public static (int E, int P)? Cores(uint device = CoresNow)
+    {
+        int value = Get(device);
+        if (value < 0) return null;
+        return ((value >> 8) & 0xFF, value & 0xFF);
+    }
+
+    /// <summary>Asks the firmware for this many cores from the next restart. At least one P-core is always kept.</summary>
+    public static bool SetCores(int e, int p)
+    {
+        if (!Available || e is < 0 or > 16 || p is < 1 or > 16) return false;
+        return Set(CoresNow, (e << 8) | p) >= 0;
+    }
+
     /// <summary>The power limits in watts: sustained (SPL), slow (sPPT) and fast (fPPT) boost.</summary>
     public static bool SetPowerLimits(int sustained, int slow, int fast)
     {

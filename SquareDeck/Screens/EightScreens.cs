@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
@@ -35,6 +36,9 @@ public sealed partial class SettingsScreen
         "startupapps" => () => Host.Push(new StartupAppsScreen()),
         "twitch" => () => { var t = StreamingService.All.First(s => s.Id == "twitch"); _ = StreamingScreen.OpenAsync(Host, t); },
         "dailypick" => () => _ = ShowDailyPickAsync(),
+        "visualmodes" => () => Host.Push(new VisualModesScreen()),
+        "cpucores" => () => Host.Push(new CpuCoresScreen()),
+        "fancurve" => () => Host.Push(new CustomFanScreen()),
         _ => null
     };
 
@@ -764,5 +768,248 @@ public sealed class StartupAppsScreen : ListScreen
         }
         if (apps.Count == 0) AddRow("Nothing starts with Windows", null, "");
         AddRow("Open Windows' Startup apps", null, "", click: () => ProcessUtil.OpenOutside("ms-settings:startupapps"));
+    }
+}
+
+// ==================================================================== visual modes (ASUS GameVisual)
+
+public sealed class VisualModesScreen : ListScreen
+{
+    public VisualModesScreen() : base("Visual modes") { }
+
+    private string? _message;
+
+    protected override void Build()
+    {
+        if (!VisualModes.Available)
+        {
+            AddNote("ASUS's display tool wasn't found on this PC. It comes with the ASUS System Control Interface driver and needs the ASUS Optimization service, both part of Armoury Crate's install on ASUS handhelds and laptops.");
+            return;
+        }
+        if (_message != null) AddNote(_message);
+
+        bool? oled = AmdOled.IsOn();
+        if (oled != null)
+        {
+            AddHeader("OLED screen");
+            AddRow("AMD OLED Power Optimization", oled == true ? "On" : "Off", "\uE7F4",
+                click: oled == true ? (Action)(async () =>
+                {
+                    if (await Host.AskAsync("Turn off OLED Power Optimization?",
+                        "AMD's driver manages the OLED panel's colors to save a little battery, and while it does, visual modes do nothing. Turning it off lets your mode apply. It can be turned back on in AMD Software: Display.",
+                        "Turn off", "Cancel") != 0) return;
+                    if (!AmdOled.TurnOff()) { _message = "AMD's driver didn't accept the change. Try AMD Software: Display > OLED Power Optimization."; Rebuild(); return; }
+                    _message = await VisualModes.ApplyAsync(VisualModes.SavedMode, VisualModes.SavedTemperature) ?? "OLED Power Optimization is off, and your visual mode is applied.";
+                    Rebuild();
+                }) : null,
+                subtitle: oled == true ? "Visual modes have no effect while it's on. Select to turn it off" : "Off, so visual modes apply");
+        }
+
+        int current = VisualModes.SavedMode, temp = VisualModes.SavedTemperature;
+        AddHeader("Mode");
+        foreach (var m in VisualModes.Modes)
+        {
+            var mode = m;
+            AddRow(m.Name, m.Id == current ? "\u2713" : null, "\uE790", click: async () =>
+            {
+                _message = await VisualModes.ApplyAsync(mode.Id, temp);
+                Rebuild();
+            }, subtitle: m.About);
+        }
+
+        var uses = VisualModes.Modes.First(x => x.Id == current).UsesTemperature;
+        AddHeader("Color temperature");
+        int index = Math.Max(0, Array.FindIndex(VisualModes.Temperatures, t => t.Value == temp));
+        if (index < 0 || VisualModes.Temperatures[index].Value != temp) index = Array.FindIndex(VisualModes.Temperatures, t => t.Value == VisualModes.Neutral);
+        AddRow("Color temperature", uses ? VisualModes.Temperatures[index].Name : "Not used by " + VisualModes.Modes.First(x => x.Id == current).Name, "\uE706",
+            click: uses ? (Action)(async () =>
+            {
+                var next = VisualModes.Temperatures[(index + 1) % VisualModes.Temperatures.Length];
+                _message = await VisualModes.ApplyAsync(current, next.Value);
+                Rebuild();
+            }) : null,
+            subtitle: uses ? "Select to step from warmest to coldest" : "Eyecare and Disabled set their own");
+
+        AddNote("Your mode is put back each time SquareDeck starts. Visual modes don't work while HDR is on, or when only an external display is in use. Armoury Crate may change the mode too: the last one set wins.");
+    }
+}
+
+// ==================================================================== CPU core configuration (ASUS firmware)
+
+public sealed class CpuCoresScreen : ListScreen
+{
+    public CpuCoresScreen() : base("CPU core configuration") { }
+
+    private int? _p, _e;   // the choice on this page, before Apply
+    private string? _message;
+
+    protected override void Build()
+    {
+        var now = AsusAcpi.Cores();
+        var max = AsusAcpi.Cores(AsusAcpi.CoresMax);
+        if (now is not { } cur || max is not { } top)
+        {
+            AddNote("This device's firmware doesn't offer core configuration (it needs an ASUS handheld or laptop whose BIOS has it, and the ASUS System Control Interface driver).");
+            return;
+        }
+        int pMax = top.P > 0 ? top.P : Math.Max(cur.P, 1), eMax = top.E > 0 ? top.E : cur.E;
+        int pMin = 1, eMin = 0;
+        if (AsusAcpi.Cores(AsusAcpi.CoresMin) is { } low && low.P > 0) { pMin = Math.Min(low.P, pMax); eMin = Math.Min(low.E, eMax); }
+        int p = Math.Clamp(_p ?? cur.P, pMin, pMax), e = Math.Clamp(_e ?? cur.E, eMin, eMax);
+
+        AddNote(_message ?? $"Enabled now: {cur.P} P-cores and {cur.E} E-cores, of {pMax} and {eMax}. P-cores are the fast ones; E-cores are smaller and use less power. Fewer cores can stretch the battery in light or older games; demanding games want them all.");
+        AddHeader("Cores");
+        AddRow("P-cores", p.ToString(), "\uE950", click: () => { _p = p >= pMax ? pMin : p + 1; Rebuild(); }, subtitle: $"Select to change ({pMin}\u2013{pMax})");
+        if (eMax > 0)
+            AddRow("E-cores", e.ToString(), "\uE950", click: () => { _e = e >= eMax ? eMin : e + 1; Rebuild(); }, subtitle: $"Select to change ({eMin}\u2013{eMax})");
+        bool changed = p != cur.P || e != cur.E;
+        AddRow("Apply", changed ? $"{p} P + {e} E" : null, "\uE73E", click: changed ? (Action)(async () =>
+        {
+            int c = await Host.AskAsync("Apply and restart?",
+                $"The firmware enables {p} P-cores and {e} E-cores from the next restart. Save your work first. To undo, come back here and choose {pMax} and {eMax}.",
+                "Apply and restart now", "Apply, restart later", "Cancel");
+            if (c == 2 || c < 0) return;
+            if (!AsusAcpi.SetCores(e, p)) { _message = "The firmware didn't accept that. Nothing was changed."; Rebuild(); return; }
+            if (c == 0) { Power.Restart(); return; }
+            _p = _e = null;
+            _message = $"Saved: {p} P-cores and {e} E-cores from the next restart.";
+            Rebuild();
+        }) : null, subtitle: changed ? "Needs a restart" : "Change a count above first");
+        AddRow("All cores", $"{pMax} P + {eMax} E", "\uE777", click: () => { _p = pMax; _e = eMax; Rebuild(); }, subtitle: "Back to the full CPU (then Apply)");
+        AddNote("The setting lives in the device's firmware, so it stays even if SquareDeck is closed or uninstalled, and Armoury Crate shows the same choice.");
+    }
+}
+
+// ==================================================================== custom fan curve (ASUS firmware)
+
+public sealed class CustomFanScreen : ListScreen
+{
+    public CustomFanScreen() : base("Custom fan curve") { }
+
+    private byte[] _curve = AllyControl.CustomCurve;
+    private string? _message;
+    private const int MinTemp = 30, MaxTemp = 100;
+
+    protected override void Build()
+    {
+        if (!AsusAcpi.Available)
+            AddNote("SquareDeck couldn't reach ASUS's firmware driver (ATKACPI), so the curve can be drawn but not applied on this PC.");
+        AddNote(_message ?? "Eight points: the fan speed at each temperature. Highlight a point, then \u2190 \u2192 changes its fan speed and LB / RB its temperature (or select it to step the speed up). Speeds never go down as it gets hotter.");
+        Rows.Children.Add(Chart());
+
+        bool inUse = Host.Settings.AllyFan == "custom";
+        AddRow(inUse ? "In use" : "Use this curve", inUse ? "\u2713" : null, "\uE9CA", click: () =>
+        {
+            AllyControl.CustomCurve = _curve;
+            Host.Settings.AllyFan = "custom";
+            Host.Settings.Save();
+            _ = Task.Run(AllyControl.ApplyPower);
+            _message = "Applied. Fans follow your curve now, and again each time SquareDeck starts. A game profile's own fan curve still comes first while that game runs.";
+            Rebuild();
+        }, subtitle: inUse ? "Changes below are applied as you make them" : "Makes Custom the fan curve in Settings");
+
+        AddHeader("Points");
+        for (int i = 0; i < 8; i++)
+        {
+            int index = i;
+            var row = AddRow($"Point {i + 1}", $"{_curve[i]} \u00B0C  \u2192  {(_curve[i + 8] == 0 ? "Off" : _curve[i + 8] + "%")}", "\uE9CA",
+                click: () => Change(index, speed: _curve[index + 8] >= 95 ? -_curve[index + 8] : 5, temp: 0));
+            row.Tag = index;
+        }
+        AddHeader("Start from");
+        foreach (var preset in AllyControl.FanCurves.Where(f => f.Duties != null))
+        {
+            var p = preset;
+            AddRow(p.Name, null, "\uE72C", click: () =>
+            {
+                var c = new byte[16];
+                Array.Copy(AsusAcpi.DefaultCpuCurve, c, 8);
+                Array.Copy(p.Duties!, 0, c, 8, 8);
+                _curve = c;
+                Save();
+                Rebuild();
+            }, subtitle: p.About);
+        }
+        AddNote("The firmware caps speeds at 99%. Running too quiet makes the APU hotter, and it slows itself down to stay safe; Windows and Armoury Crate can't harm it either way.");
+    }
+
+    public override bool OnAction(NavAction action)
+    {
+        if (Keyboard.FocusedElement is Button { Tag: int index })
+        {
+            switch (action)
+            {
+                case NavAction.Left: Change(index, -5, 0); return true;
+                case NavAction.Right: Change(index, 5, 0); return true;
+                case NavAction.LB: Change(index, 0, -2); return true;
+                case NavAction.RB: Change(index, 0, 2); return true;
+            }
+        }
+        return base.OnAction(action);
+    }
+
+    private void Change(int i, int speed, int temp)
+    {
+        var c = (byte[])_curve.Clone();
+        // Temperatures stay in order, at least 2 °C apart; speeds never drop as it gets hotter.
+        int lo = i == 0 ? MinTemp : c[i - 1] + 2, hi = i == 7 ? MaxTemp : c[i + 1] - 2;
+        c[i] = (byte)Math.Clamp(c[i] + temp, lo, Math.Max(lo, hi));
+        c[i + 8] = (byte)Math.Clamp(c[i + 8] + speed, 0, 100);
+        for (int k = i + 1; k < 8; k++) c[k + 8] = Math.Max(c[k + 8], c[i + 8]);
+        for (int k = i - 1; k >= 0; k--) c[k + 8] = Math.Min(c[k + 8], c[i + 8]);
+        _curve = c;
+        Save();
+        Rebuild();
+    }
+
+    private void Save()
+    {
+        AllyControl.CustomCurve = _curve;
+        if (Host.Settings.AllyFan == "custom") _ = Task.Run(AllyControl.ApplyPower);
+    }
+
+    /// <summary>The curve as a graph: temperature across (20–110 °C), fan speed up (0–100%).</summary>
+    private UIElement Chart()
+    {
+        const double W = 900, H = 300, L = 60, B = 36, T = 14, R = 20;
+        double X(double t) => L + (t - 20) / 90 * (W - L - R);
+        double Y(double d) => T + (1 - d / 100) * (H - T - B);
+        var canvas = new Canvas { Width = W, Height = H };
+        Brush faint = new SolidColorBrush(Color.FromArgb(50, 255, 255, 255));
+        for (int t = 20; t <= 110; t += 10)
+        {
+            canvas.Children.Add(new Line { X1 = X(t), X2 = X(t), Y1 = T, Y2 = H - B, Stroke = faint, StrokeThickness = 1 });
+            var label = new TextBlock { Text = t.ToString(), FontSize = 14, Opacity = 0.7 };
+            label.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+            Canvas.SetLeft(label, X(t) - 9); Canvas.SetTop(label, H - B + 6);
+            canvas.Children.Add(label);
+        }
+        for (int d = 0; d <= 100; d += 25)
+        {
+            canvas.Children.Add(new Line { X1 = L, X2 = W - R, Y1 = Y(d), Y2 = Y(d), Stroke = faint, StrokeThickness = 1 });
+            var label = new TextBlock { Text = d == 0 ? "Off" : d + "%", FontSize = 14, Opacity = 0.7 };
+            label.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+            Canvas.SetLeft(label, 6); Canvas.SetTop(label, Y(d) - 10);
+            canvas.Children.Add(label);
+        }
+        var line = new Polyline { StrokeThickness = 3 };
+        line.SetResourceReference(Shape.StrokeProperty, "AccentBrush");
+        for (int i = 0; i < 8; i++) line.Points.Add(new Point(X(_curve[i]), Y(Math.Min((int)_curve[i + 8], 100))));
+        canvas.Children.Add(line);
+        int focused = Keyboard.FocusedElement is Button { Tag: int f } ? f : -1;
+        for (int i = 0; i < 8; i++)
+        {
+            double size = i == focused ? 18 : 12;
+            var dot = new Ellipse { Width = size, Height = size };
+            dot.SetResourceReference(Shape.FillProperty, "AccentBrush");
+            Canvas.SetLeft(dot, X(_curve[i]) - size / 2); Canvas.SetTop(dot, Y(Math.Min((int)_curve[i + 8], 100)) - size / 2);
+            canvas.Children.Add(dot);
+        }
+        var title = new TextBlock { Text = "Fan speed by temperature (\u00B0C)", FontSize = 15, Opacity = 0.8, Margin = new Thickness(0, 0, 0, 6) };
+        title.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+        var panel = new StackPanel { Margin = new Thickness(0, 10, 0, 16), HorizontalAlignment = HorizontalAlignment.Center };
+        panel.Children.Add(title);
+        panel.Children.Add(canvas);
+        return panel;
     }
 }

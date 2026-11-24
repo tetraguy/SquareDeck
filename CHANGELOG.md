@@ -3,6 +3,20 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.5
+
+- Experimental: **Custom fan curve** (System). Set the fan speed at eight temperatures on a graph (← → for speed, LB / RB for temperature), start from Quiet, Balanced, Cool or Full speed, then "Use this curve". "Custom" then appears wherever fans are chosen (Settings, the ROG Ally page, game profiles) and is applied at start like the others. Speeds never drop as the temperature rises.
+
+## 8.1.4
+
+- Experimental: **CPU core configuration** (System). Choose how many P-cores and E-cores are enabled, like Armoury Crate's More Settings, then apply and restart now or later. Reads the firmware's current, maximum and minimum counts; "All cores" puts the full CPU back. The ASUS firmware endpoints were documented by G-Helper (SquareDeck's own code).
+
+## 8.1.3
+
+- Experimental: **Visual modes** (System). ASUS GameVisual modes (Default, Racing, Scenery, RTS/RPG, FPS, Cinema, Vivid, Eyecare, Disabled) and color temperature (Warmest to Coldest), through ASUS's AsusSplendid tool. The mode is put back each time SquareDeck starts.
+- AMD OLED Power Optimization is detected (AMD's display library, with the driver's registry setting as a fallback). While it's on, visual modes have no effect, so the page shows it and can turn it off.
+- Credits: G-Helper (seerge), which documented the commands; GPL-3.0, no code copied.
+
 ## 8.1.2
 
 - **Close game from the Game Bar widget** now works like closing it from SquareDeck: Game Bar closes, SquareDeck

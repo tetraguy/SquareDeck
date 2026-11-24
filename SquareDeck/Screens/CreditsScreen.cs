@@ -68,6 +68,7 @@ public sealed class CreditsScreen : ListScreen
         ("EmuDeck, ES-DE and RetroBat", "Their teams", "Retro Lounge's ideas: one folder per console with BIOS beside it, portable emulators, and the folder names it recognizes (no code used)", "GPL-3.0 / MIT (ideas only)", "https://www.emudeck.com"),
         ("7-Zip", "Igor Pavlov", "Retro Lounge unpacks .7z emulator downloads with your 7-Zip, or 7-Zip's standalone 7zr.exe from 7-zip.org", "GNU LGPL", "https://www.7-zip.org"),
         ("GoTweaks", "corando98", "The way SquareDeck's Xbox Game Bar widget reaches the launcher from inside Game Bar (a pipe sandboxed apps may open)", "MIT License", "https://github.com/corando98/GoTweaks"),
+        ("G-Helper", "seerge", "Visual modes (the AsusSplendid commands and AMD\u2019s OLED Power Optimization) and the CPU core configuration endpoints, as G-Helper documents them (SquareDeck\u2019s own code)", "GPL-3.0 (no code copied)", "https://github.com/seerge/g-helper"),
         ("VacuumTube", "shy and contributors", "Powers DeckTube on the Music page (its page scripts, bundled in VacuumTube\\vacuumtube.js)", "MIT License", "https://github.com/shy1132/VacuumTube"),
         ("GamerPower", "GamerPower", "The free games list (Free games tracker, on the Stores page)", "Free API; data credited to GamerPower", "https://www.gamerpower.com/"),
         ("Windows 2000 icons", "Microsoft", "Retro Windows (Home button icons)", "Windows 2000's icons belong to Microsoft; from a Stardock IconPackager set", null),

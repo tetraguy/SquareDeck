@@ -2313,7 +2313,7 @@ public sealed partial class SettingsScreen : ListScreen
         AddHeader("Fans and temperature");
         var fan = AllyControl.FanCurves.FirstOrDefault(f => f.Id == s.AllyFan);
         AddRow("Fan curve", fan.Name ?? "Leave as it is", "",
-            click: () => AllyPick("Fan curve", AllyControl.FanCurves, f => f.Name + (f.About.Length > 0 ? "  ·  " + f.About : ""), f => s.AllyFan = f.Id, () => Task.Run(AllyControl.ApplyPower)),
+            click: () => AllyPick("Fan curve", AllyControl.FanChoices, f => f.Name + (f.About.Length > 0 ? "  ·  " + f.About : ""), f => s.AllyFan = f.Id, () => Task.Run(AllyControl.ApplyPower)),
             subtitle: string.IsNullOrEmpty(fan.About) ? "How fast the fans spin as it warms up" : fan.About);
         if (acpi)
         {

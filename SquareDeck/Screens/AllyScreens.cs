@@ -208,7 +208,7 @@ public sealed class AllyControlScreen : ListScreen
             subtitle: "The same as Armoury Crate's Silent, Performance and Turbo. The TDP limit (Processor power, in this device's section of Settings), when on, is applied on top");
         var fan = AllyControl.FanCurves.FirstOrDefault(f => f.Id == s.AllyFan);
         AddRow("Fans", fan.Name ?? "Leave as it is", "",
-            click: () => Pick("Fans", AllyControl.FanCurves, f => f.Name, f => s.AllyFan = f.Id, () => Task.Run(AllyControl.ApplyPower)),
+            click: () => Pick("Fans", AllyControl.FanChoices, f => f.Name, f => s.AllyFan = f.Id, () => Task.Run(AllyControl.ApplyPower)),
             subtitle: string.IsNullOrEmpty(fan.About) ? null : fan.About);
         if (acpi && AsusAcpi.FanRpm(AsusAcpi.CpuFan) is int rpm) AddRow("Fan speed now", rpm.ToString("N0") + " RPM", "", click: Rebuild, subtitle: "Select to refresh");
 

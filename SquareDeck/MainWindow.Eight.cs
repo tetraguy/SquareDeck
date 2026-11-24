@@ -41,6 +41,9 @@ public partial class MainWindow
                 case "smartcollections": case "microsd": Eight.ForgetShelves(); break;
             }
         };
+        // Visual modes: the chosen GameVisual mode is put back at start (Windows or Armoury Crate may have reset it).
+        if (Labs.On("visualmodes") && (VisualModes.SavedMode != VisualModes.DefaultMode || VisualModes.SavedTemperature != VisualModes.Neutral))
+            _ = Task.Run(() => VisualModes.ApplyAsync(VisualModes.SavedMode, VisualModes.SavedTemperature));
         // TV mode's bigger text is put back if SquareDeck closed while docked and is now on the built-in screen.
         if (Labs.Get("docked.prevtext") is { Length: > 0 } prev && int.TryParse(prev, out var text) && !Eight.ExternalDisplay())
         {

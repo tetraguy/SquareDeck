@@ -296,7 +296,7 @@ public sealed partial class GameProfileScreen : ListScreen
             AddHeader("While playing (ROG Ally)");
             AddRow("Fan curve", p.FanCurve == null ? "Default" : AllyControl.FanCurves.FirstOrDefault(f => f.Id == p.FanCurve).Name ?? p.FanCurve, "\uE9CA", click: async () =>
             {
-                var curves = AllyControl.FanCurves.Where(f => f.Id.Length > 0).ToArray();
+                var curves = AllyControl.FanChoices.Where(f => f.Id.Length > 0).ToArray();
                 int choice = await Host.AskAsync("Fan curve while playing", null, curves.Select(f => f.Name + "  \u00B7  " + f.About).Prepend("Default (Settings')").ToArray());
                 if (choice < 0) return;
                 Profile.FanCurve = choice == 0 ? null : curves[choice - 1].Id;
