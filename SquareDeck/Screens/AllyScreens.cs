@@ -71,7 +71,9 @@ public sealed class AllyControlScreen : ListScreen
         int choice = await Host.AskAsync("Light effect", null, modes.Select(m => m.Name).ToArray());
         if (choice < 0 || choice >= modes.Length) return;
         s.AllyLights = modes[choice].Id;
+        bool woke = s.AllyLights is not ("" or "off") && AllyControl.WakeLights(s);
         s.Save();
+        if (woke) Host.ShowToast("ROG ALLY", "\"Awake\" is back on", "It was off in When the lights are on, which kept the lights dark whatever the effect.", "", "info");
         Rebuild();
         if (s.AllyLights.Length == 0) return; // "leave as it is" changes nothing
         bool ok = await AllyControl.ApplyLightsAsync(force: true);
@@ -98,6 +100,8 @@ public sealed class AllyControlScreen : ListScreen
         // ---------------------------------------------------------------- lights
         AddHeader("Lights");
         if (!lights) AddNote("SquareDeck couldn't find the Ally's light controller. These settings apply once it's found.");
+        if (s.AllyLights is not ("" or "off") && AllyControl.AwakeOff(s))
+            AddNote("The lights are dark: \"Awake\" is off under When the lights are on (" + (Battery.IsPluggedIn() ? "plugged in" : "on battery") + "). Turn it on there, or choose the effect again.");
         if (AllyControl.DynamicLightingOn) AddDynamicLightingNote();
         if (s.AllyLights.Length == 0) AddNote("The lights are left as they are. Choose an effect (or a color) and SquareDeck takes them over.");
         var mode = AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights);
@@ -154,7 +158,7 @@ public sealed class AllyControlScreen : ListScreen
             AddHeader("Xbox button light");
             var states = new[] { ("", "Leave as it is"), ("on", "On"), ("off", "Off") };
             AddRow("Light", states.FirstOrDefault(x => x.Item1 == s.AllyXboxLight).Item2 ?? "Leave as it is", "",
-                click: () => Pick("Xbox button light", states, x => x.Item2, x => s.AllyXboxLight = x.Item1, () => AllyControl.ApplyXboxLight(force: true)),
+                click: () => Pick("Xbox button light", states, x => x.Item2, x => { s.AllyXboxLight = x.Item1; if (x.Item1 == "on") AllyControl.WakeLights(s); }, () => AllyControl.ApplyXboxLight(force: true)),
                 subtitle: s.AllyXboxLight.Length == 0 ? "Armoury Crate SE (or the last setting) decides" : "The green glow in the Xbox button");
             if (s.AllyXboxLight == "on")
             {

@@ -449,6 +449,7 @@ public partial class MainWindow
                 {
                     if (s.AllyLights is "" or "off") s.AllyLights = s.AllyLightsLastOn is { Length: > 0 } last && last != "off" ? last : "solid";
                     s.AllyLightPercent = next;
+                    AllyControl.WakeLights(s);
                 }
                 s.Save();
                 AllyControl.ApplyLights(force: true);
@@ -1479,7 +1480,7 @@ public partial class MainWindow
     /// Opens SquareDeck's widget in Xbox Game Bar (it replaced the in-game quick menu): the widget straight away when
     /// it's installed, as ASUS's Command Center button does it; otherwise Game Bar itself.
     /// </summary>
-    private void OpenWidget()
+    public void OpenWidget()
     {
         if (WidgetInstaller.FamilyName() is { } family)
             ProcessUtil.Open($"ms-gamebar://launchForeground/activate/{family}_App_SquareDeckWidget");

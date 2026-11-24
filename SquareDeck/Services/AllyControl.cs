@@ -341,6 +341,23 @@ public static class AllyControl
         return AllyHid.SetLights(mode, one, two, speed) && bright;
     }
 
+    /// <summary>
+    /// The lights are being turned on: if "When the lights are on" has "awake" switched off for how the Ally is powered
+    /// right now, the rings (and the Xbox button) would stay dark whatever effect is chosen, so "awake" goes back on,
+    /// on battery and plugged in. True when it changed (to say so).
+    /// </summary>
+    public static bool WakeLights(Settings s)
+    {
+        if (!s.AllyLightPowerSet) return false;
+        if (Battery.IsPluggedIn() ? s.AllyLightAwakePlugged : s.AllyLightAwakeBattery) return false;
+        s.AllyLightAwakeBattery = true;
+        s.AllyLightAwakePlugged = true;
+        return true;
+    }
+
+    /// <summary>"Awake" is off for how the Ally is powered now, so the lights stay dark while it's in use.</summary>
+    public static bool AwakeOff(Settings s) => s.AllyLightPowerSet && !(Battery.IsPluggedIn() ? s.AllyLightAwakePlugged : s.AllyLightAwakeBattery);
+
     /// <summary>On or off from a button or the quick menu: off, or back to the chosen effect (one color if none).</summary>
     public static bool ToggleLights()
     {
@@ -348,6 +365,7 @@ public static class AllyControl
         if (s.AllyLights is "" or "off")
         {
             s.AllyLights = s.AllyLightsLastOn.Length > 0 ? s.AllyLightsLastOn : "solid";
+            WakeLights(s);
         }
         else
         {

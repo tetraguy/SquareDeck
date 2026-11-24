@@ -204,7 +204,15 @@ public sealed class WidgetInstallScreen : Screen
             UiSound.Toast();
             _title.Text = _update ? "The widget is updated" : "The widget is installed";
             _subtitle.Text = "Open Game Bar with Win + G or the Xbox button: SquareDeck is in its widget menu.";
-            Buttons(("", "Open Game Bar", () => { ProcessUtil.Open("ms-gamebar:"); Finish(true, message); }),
+            Buttons(("", "Open Game Bar", () =>
+                    {
+                        // A bare "ms-gamebar:" link does nothing; Game Bar opens on SquareDeck's widget instead (as the
+                        // Ally's Command Center button opens ASUS's). Game Bar was closed for the install, so it gets a
+                        // moment to come back, and this pop-up closes first so Game Bar isn't behind it.
+                        var host = Host;
+                        Finish(true, message);
+                        _ = Task.Delay(700).ContinueWith(_ => host.Dispatcher.BeginInvoke(new Action(host.OpenWidget)));
+                    }),
                     ("", "Done", () => Finish(true, message)));
         }
         else

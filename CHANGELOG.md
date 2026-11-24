@@ -3,6 +3,22 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 7.3.42
+
+- Fixed: Open Game Bar at the end of a widget install did nothing. It used a bare Game Bar link that Windows ignores.
+  It now opens Game Bar straight on SquareDeck's widget, the way the Ally's Command Center button opens ASUS's. The
+  pop-up closes first so Game Bar isn't hidden behind it, and Game Bar, closed for the install, gets a moment to
+  start again.
+
+## 7.3.41
+
+- **Fixed: Ally lights stuck dark.** With "Awake, on battery" and "Awake, plugged in" both off under When the lights
+  are on, the controller keeps the rings and the Xbox button dark whatever effect is chosen. SquareDeck sent every
+  effect anyway and reported success, so nothing seemed wrong. Now:
+  - choosing an effect, turning the lights on (a button, the quick menu or the widget's LED tile), or setting the Xbox
+    button light to On switches "awake" back on, and says so;
+  - the light settings say when "awake" is keeping the lights dark.
+
 ## 7.3.40
 
 - **Xbox Game Bar widget 1.4: Wi-Fi, Bluetooth and Airplane mode.**
