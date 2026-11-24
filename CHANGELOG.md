@@ -3,6 +3,12 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.2
+
+- **Close game from the Game Bar widget** now works like closing it from SquareDeck: Game Bar closes, SquareDeck
+  comes forward over the game, and its "Closing software" animation plays while the game is stopped, then Home.
+  (Widget 1.6.1 tells SquareDeck whether Game Bar is open or the widget is only pinned.)
+
 ## 8.1.1
 
 - **Recomp Zone: "Locate installed"** lets you choose the game's folder as well as its program. The chooser now has a

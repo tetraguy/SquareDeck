@@ -451,7 +451,14 @@ namespace SquareDeck.Widget
             {
                 _closeArmed = DateTime.MinValue;
                 _closeLabel.Text = "Closing…";
-                _link.Send("closegame");
+                // SquareDeck comes forward and plays its closing animation; it closes Game Bar first when it's open
+                // (not just this widget pinned), so the animation isn't hidden behind it.
+                var close = new JsonObject();
+                close["op"] = JsonValue.CreateStringValue("closegame");
+                bool barOpen = true;
+                try { barOpen = _widget == null || _widget.GameBarDisplayMode == XboxGameBarDisplayMode.Foreground; } catch (Exception) { }
+                close["bar"] = JsonValue.CreateBooleanValue(barOpen);
+                _link.Send(close);
                 return;
             }
             _closeArmed = DateTime.Now;

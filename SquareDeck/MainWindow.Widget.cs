@@ -200,7 +200,7 @@ public partial class MainWindow
                 _ = SendWidgetMediaArtAsync(mediaKey);
                 break;
             case "closegame":
-                _ = CloseGameFromWidgetAsync();
+                _ = CloseGameFromWidgetAsync(Bool("bar") == true);
                 break;
             case "art" when Str("key") is { Length: > 0 } key:
                 _ = SendWidgetArtAsync(key);
@@ -404,11 +404,40 @@ public partial class MainWindow
         return Color.FromRgb((byte)(c.R + (255 - c.R) * mix), (byte)(c.G + (255 - c.G) * mix), (byte)(c.B + (255 - c.B) * mix));
     }
 
-    private async Task CloseGameFromWidgetAsync()
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+
+    /// <summary>Win + G: closes Game Bar's overlay when it's open (the same keys that opened it).</summary>
+    private static void ToggleGameBar()
+    {
+        const byte Win = 0x5B, G = 0x47;
+        const uint Up = 0x2;
+        keybd_event(Win, 0, 0, UIntPtr.Zero);
+        keybd_event(G, 0, 0, UIntPtr.Zero);
+        keybd_event(G, 0, Up, UIntPtr.Zero);
+        keybd_event(Win, 0, Up, UIntPtr.Zero);
+    }
+
+    /// <summary>
+    /// Close game, from the widget: like closing it from SquareDeck. Game Bar closes (when it's open, not just the widget
+    /// pinned), SquareDeck comes forward over the game, and its "Closing software" animation plays while the game is
+    /// stopped, then Home.
+    /// </summary>
+    private async Task CloseGameFromWidgetAsync(bool barOpen)
     {
         try
         {
-            if (AllGames.FirstOrDefault(g => g.IsRunning) is { } running) await StopGameAsync(running, confirm: false);
+            if (AllGames.FirstOrDefault(g => g.IsRunning) is { } running)
+            {
+                if (barOpen)
+                {
+                    ToggleGameBar();
+                    await Task.Delay(450); // its overlay fades out
+                }
+                WindowActivator.ShowOnTop(this);
+                await Task.Delay(120);
+                await StopGameAsync(running, confirm: false);
+            }
             else if (WindowActivator.FrontApp() is { } front) await WindowActivator.CloseAppAsync(front);
         }
         catch (Exception ex) { CrashLog.Write("Widget close game", ex); }
