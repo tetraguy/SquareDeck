@@ -109,6 +109,9 @@
     <Compile Include="WidgetPage.xaml.cs">
       <DependentUpon>WidgetPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="WidgetPage.Radios.cs">
+      <DependentUpon>WidgetPage.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Link\DeckLink.cs" />
     <Compile Include="Controls\PowerDial.cs" />
     <Compile Include="Controls\Sparkline.cs" />

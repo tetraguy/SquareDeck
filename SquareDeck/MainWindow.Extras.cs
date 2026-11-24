@@ -469,6 +469,9 @@ public partial class MainWindow
             case "bluetooth":
                 _ = ToggleRadioAsync(action == "wifi" ? Windows.Devices.Radios.RadioKind.WiFi : Windows.Devices.Radios.RadioKind.Bluetooth, action == "wifi" ? "Wi-Fi" : "Bluetooth");
                 break;
+            case "airplane":
+                _ = ToggleAirplaneAsync();
+                break;
             case "dnd":
                 // For now (not the setting): Windows' notifications off or on; put back when SquareDeck closes.
                 bool quiet = !Settings.ToastsSuppressed;

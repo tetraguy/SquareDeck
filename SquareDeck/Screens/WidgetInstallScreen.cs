@@ -46,8 +46,7 @@ public sealed class WidgetInstallScreen : Screen
         var head = new DockPanel { Margin = new Thickness(0, 0, 0, 22) };
         var icon = new Border { Width = 64, Height = 64, CornerRadius = new CornerRadius(16), Margin = new Thickness(0, 0, 18, 0), ClipToBounds = true };
         icon.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-        string logo = Path.Combine(AppContext.BaseDirectory, "Assets", "SquareDeck.png");
-        if (File.Exists(logo) && ImageLoader.FromFile(logo, 128) is { } picture) icon.Child = new Image { Source = picture, Margin = new Thickness(10) };
+        icon.Child = WidgetGlyph();
         DockPanel.SetDock(icon, Dock.Left);
         head.Children.Add(icon);
         var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -143,6 +142,25 @@ public sealed class WidgetInstallScreen : Screen
     }
 
     public override void FocusDefault() => _buttons.Children.OfType<Button>().FirstOrDefault()?.Focus();
+
+    /// <summary>
+    /// The widget's gray glyph, as Game Bar's widget list shows it (Widget\SquareDeck.Widget\SquareDeck-glyph.svg):
+    /// a rounded square outline with a small filled square in its lower right. Drawn here, so it needs no file.
+    /// </summary>
+    private static UIElement WidgetGlyph()
+    {
+        var gray = new SolidColorBrush(Color.FromRgb(0xE8, 0xE8, 0xE8));
+        gray.Freeze();
+        var canvas = new Canvas { Width = 1024, Height = 1024 };
+        // WPF draws a stroke inside the shape (SVG centers it), so the outline's box is the SVG's grown by half the stroke.
+        var frame = new System.Windows.Shapes.Rectangle { Width = 832, Height = 832, RadiusX = 172, RadiusY = 172, Stroke = gray, StrokeThickness = 104 };
+        Canvas.SetLeft(frame, 96); Canvas.SetTop(frame, 96);
+        var dot = new System.Windows.Shapes.Rectangle { Width = 232, Height = 232, RadiusX = 56, RadiusY = 56, Fill = gray };
+        Canvas.SetLeft(dot, 520); Canvas.SetTop(dot, 520);
+        canvas.Children.Add(frame);
+        canvas.Children.Add(dot);
+        return new Viewbox { Child = canvas, Margin = new Thickness(12), Stretch = Stretch.Uniform };
+    }
 
     private void ShowElapsed()
     {

@@ -76,6 +76,7 @@ public sealed class Settings
         ("playpause", "Play / pause"), ("wifi", "Wi-Fi"), ("bluetooth", "Bluetooth"), ("keyboard", "Keyboard"), ("taskmanager", "Task Manager"),
         ("amdoverlay", "AMD overlay"), ("screenoff", "Screen off"), ("mic", "Microphone"), ("desktop", "Show desktop"), ("amdmetrics", "AMD metrics"),
         ("cpuboost", "CPU boost"), ("ris", "Image sharpening"), ("chill", "Radeon Chill"), ("ledlevel", "LED brightness"),
+        ("airplane", "Airplane mode"),
     };
     /// <summary>The widget's cards that show, in order (Power always shows).</summary>
     public List<string>? WidgetSections { get; set; } = new(WidgetSectionIds);

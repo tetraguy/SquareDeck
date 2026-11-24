@@ -159,6 +159,7 @@ namespace SquareDeck.Widget
             Grid.SetColumn(scroll, 1);
             body.Children.Add(scroll);
             Root.Children.Add(body);
+            Root.Children.Add(BuildSheet()); // the Wi-Fi and Bluetooth panels, over the cards
 
             // The line that says what just happened ("120 Hz", "Fans: Cool"), at the bottom.
             _note = new TextBlock { FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Colors.White) };
@@ -853,7 +854,7 @@ namespace SquareDeck.Widget
             ("taskmanager", "", "Task Manager"), ("amdoverlay", "", "AMD overlay"), ("screenoff", "", "Screen off"),
             ("mic", "\uE720", "Microphone"), ("desktop", "\uE7F4", "Show desktop"), ("amdmetrics", "\uE9D9", "AMD metrics"),
             ("cpuboost", "\uE945", "CPU boost"), ("ris", "\uE91B", "Image sharpening"), ("chill", "\uE9CA", "Radeon Chill"),
-            ("ledlevel", "\uEA80", "LED brightness"),
+            ("ledlevel", "\uEA80", "LED brightness"), ("airplane", "\uE709", "Airplane mode"),
         };
 
         private List<string> _quickShown;      // the tiles chosen, in order (null: all of them)
@@ -939,6 +940,8 @@ namespace SquareDeck.Widget
 
         private void QuickPressed(string id)
         {
+            // Wi-Fi and Bluetooth open their panel: the switch, then networks to join or devices to connect and pair.
+            if (id == "wifi" || id == "bluetooth") { OpenSheet(id); return; }
             if (id == "refresh" && _rates.Length > 1)
             {
                 int next = _rates.FirstOrDefault(r => r > _hz);
@@ -1045,6 +1048,8 @@ namespace SquareDeck.Widget
             if (type == "state") Apply(m);
             else if (type == "art") ApplyArt(m);
             else if (type == "mediaart") ApplyMediaArt(m);
+            else if (type == "wifi") ApplyWifi(m);
+            else if (type == "bluetooth") ApplyBluetooth(m);
         }
 
         private void ShowNote(string text)
@@ -1132,6 +1137,9 @@ namespace SquareDeck.Widget
                 bool? ris = Bool(toggles, "ris"), chill = Bool(toggles, "chill");
                 MarkQuick("ris", ris, ris == null ? "No sharpening" : null);
                 MarkQuick("chill", chill, chill == null ? "No Chill" : null);
+                MarkQuick("wifi", Bool(toggles, "wifi"));
+                MarkQuick("bluetooth", Bool(toggles, "bluetooth"));
+                MarkQuick("airplane", Bool(toggles, "airplane"));
                 double? led = Num(toggles, "ledlevel");
                 MarkQuick("ledlevel", led == null ? (bool?)null : led.Value > 0, led == null ? "No LEDs" : led.Value > 0 ? "LEDs " + led.Value.ToString("0") + "%" : "LEDs off");
             }

@@ -3,6 +3,28 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 7.3.40
+
+- **Xbox Game Bar widget 1.4: Wi-Fi, Bluetooth and Airplane mode.**
+  - **Wi-Fi:** selecting the Wi-Fi tile opens a panel in the widget with Wi-Fi's switch and the networks nearby,
+    strongest first. Select one to join. For a secured network Windows doesn't know, a password box opens under it;
+    a wrong password asks again. Select the network you're on to disconnect.
+  - **Bluetooth:** the Bluetooth tile opens a panel with Bluetooth's switch and your paired devices. Select one to
+    connect it or remove it. Add a device looks for devices in pairing mode; select one to pair it.
+    - "Connect" reconnects headphones, speakers and headsets. Windows has no connect call for apps, so SquareDeck
+      switches their audio services off and on, as several Bluetooth tray tools do.
+    - Controllers, keyboards and mice connect by themselves once they're on.
+  - **Airplane mode:** a new tile, also offered in Quick > Edit. It works like the Action Center's button and lights
+    up while airplane mode is on. If Windows won't take the change, it opens the airplane mode settings.
+  - The Wi-Fi, Bluetooth and Airplane mode tiles light up to show what's on.
+  - Build and package the widget again to get it.
+
+## 7.3.39
+
+- **Widget install pop-up:** the box in the top left now shows the widget's gray icon, the one Game Bar's widget
+  list shows. It was empty because the picture it looked for isn't copied next to SquareDeck. The icon is now drawn
+  in code, so there's no file to go missing.
+
 ## 7.3.38
 
 - **Retro Lounge music.** Retro Lounge now has its own background music ("Pixel Dreams" by DJLofi). It comes in as

@@ -17,7 +17,7 @@ public partial class MainWindow
     private static readonly HashSet<string> WidgetActions = new()
     {
         "perf", "refresh", "nightlight", "hdr", "dnd", "wifi", "bluetooth", "keyboard", "taskmanager", "lights", "padmouse",
-        "playpause", "screenoff", "amdoverlay", "amdmetrics", "home", "mic", "desktop", "cpuboost", "ris", "chill", "ledlevel",
+        "playpause", "screenoff", "amdoverlay", "amdmetrics", "home", "mic", "desktop", "cpuboost", "ris", "chill", "ledlevel", "airplane",
     };
 
     private DateTime _widgetSlowAt = DateTime.MinValue;
@@ -116,6 +116,7 @@ public partial class MainWindow
         if (DateTime.Now - _widgetSlowAt > TimeSpan.FromSeconds(4))
         {
             _widgetSlowAt = DateTime.Now;
+            _ = RefreshWidgetRadiosAsync();
             try { _widgetNight = NightLight.IsOn; } catch (Exception) { _widgetNight = null; }
             try { _widgetHdr = Hdr.Get(); } catch (Exception) { _widgetHdr = null; }
             if (AdrenalineHook.HasAmdGraphics)
@@ -139,6 +140,7 @@ public partial class MainWindow
             ["cpuboost"] = TdpControl.Ready ? TdpControl.EffectiveBoost : null,
             ["ris"] = _widgetRis, ["chill"] = _widgetChill,
         };
+        AddWidgetRadioToggles((JsonObject)state["toggles"]!);
         // The Ally's light brightness, for the LED tile (off, or a percentage).
         if (AllyControl.IsAlly) state["toggles"]!["ledlevel"] = s.AllyLights is "" or "off" ? 0 : AllyControl.BrightnessPercent(s);
         // What SquareDeck plays (Settings > Experimental > Media controls in the widget): read every second or two.
@@ -240,6 +242,9 @@ public partial class MainWindow
                 break;
             case "open":
                 RunAllyAction("home");
+                break;
+            case var radio when WidgetRadioOps.Contains(radio):
+                WidgetRadioRequest(op, request);
                 break;
             case "quicktiles" when request["ids"] is JsonArray ids:
             {
