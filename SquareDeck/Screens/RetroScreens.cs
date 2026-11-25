@@ -348,11 +348,27 @@ public sealed partial class RetroLoungeScreen : GridScreen
         RetroLounge.ForgetArt();
     }
 
+    private bool _asking;
+
+    /// <summary>B on the zone itself asks before leaving, so a stray press doesn't drop you out of it.</summary>
+    private async Task ConfirmLeaveAsync(string zone)
+    {
+        if (_asking) return;
+        _asking = true;
+        try
+        {
+            if (await Host.AskAsync("Leave " + zone + "?", "You'll go back to the home screen. You can come back any time.", "Leave", "Stay") == 0)
+                Host.Pop(this);
+        }
+        finally { _asking = false; }
+    }
+
     private void OnPlayed() { if (_section == "home" && Host?.IsTop(this) == true) KeepFocus(() => Build(focus: false)); }
 
     public override bool OnAction(NavAction action)
     {
         if (_intro != null) return action != NavAction.Back;
+        if (action == NavAction.Back) { _ = ConfirmLeaveAsync("Retro Lounge"); return true; }
         switch (action)
         {
             case NavAction.LB or NavAction.RB:

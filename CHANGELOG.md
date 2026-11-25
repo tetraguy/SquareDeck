@@ -3,6 +3,10 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.9
+
+- Recomp Zone and Retro Lounge ask "Leave …?" (Leave / Stay) when you press B on the zone itself, so a stray press doesn't drop you back to the home screen. Backing out of a game's page or the opening animation works as before.
+
 ## 8.1.8
 
 - New sound packs: **EDGE UI Sounds** (rmvdesign), **Tactile UI** (Charmics), **PSP Sounds** (SGL-Galaxy) and **Purple Lavender Switches** (DreamerSouls, keyboard-switch clicks). They're in Settings > Sound like the others, and the credits list them.

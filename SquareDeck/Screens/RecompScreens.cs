@@ -203,6 +203,21 @@ public sealed class RecompZoneScreen : GridScreen
         if (build) Build();
     }
 
+    private bool _asking;
+
+    /// <summary>B on the zone itself asks before leaving, so a stray press doesn't drop you out of it.</summary>
+    private async Task ConfirmLeaveAsync(string zone)
+    {
+        if (_asking) return;
+        _asking = true;
+        try
+        {
+            if (await Host.AskAsync("Leave " + zone + "?", "You'll go back to the home screen. You can come back any time.", "Leave", "Stay") == 0)
+                Host.Pop(this);
+        }
+        finally { _asking = false; }
+    }
+
     public override bool OnAction(NavAction action)
     {
         if (_intro != null)
@@ -211,6 +226,7 @@ public sealed class RecompZoneScreen : GridScreen
             if (action == NavAction.Accept) { _introSkip?.Cancel(); return true; }
             return action != NavAction.Back;
         }
+        if (action == NavAction.Back) { _ = ConfirmLeaveAsync("Recomp Zone"); return true; }
         switch (action)
         {
             case NavAction.LB or NavAction.RB:
