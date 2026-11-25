@@ -3,6 +3,15 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.10
+
+- **No sound at the edge**: moving around only clicks (and buzzes) when something actually moved. At the bottom of a page, or the edge of a row, pressing on is silent.
+- **Artwork picker stays open**: after a SteamGridDB image (cover, icon, capsule, hero, logo…) downloads and applies, the picker stays open on the same image, so you can change the next one without searching again. (Choosing a cover while adding a game still returns to the form.)
+- **Recompiling animation** for games started from Recomp Zone: the original console's machine code (MIPS for N64 and PlayStation, PowerPC for GameCube, Wii and Xbox 360…) streams in on one side, x86-64 streams out on the other, and the cover is rebuilt block by block as the functions are translated, then "Native ✓". About 2.6 seconds; B skips it. It can be turned off in Settings, next to the splash screen.
+- **Widget brightness**: the slider now follows the real brightness (read every couple of seconds, so changes from Windows, the keys or adaptive brightness show), and dragging it no longer lags: only the newest level is applied instead of every step in turn, and the connection to Windows' brightness control is kept open instead of reopened for each change.
+- **Experimental: Widget: wattage look**. Smaller looks for the Power card: slim bar, mini dial beside the presets, number only (select it for the full dial), or preset chips with a custom chip. Choose in Settings > Experimental (the full dial stays available). Widget 1.6.2.0.
+- Widget: if part of an update fails, the widget now says so once ("Widget problem: …") instead of quietly skipping the rest, so the experimental cards can't silently stop updating.
+
 ## 8.1.9
 
 - Recomp Zone and Retro Lounge ask "Leave …?" (Leave / Stay) when you press B on the zone itself, so a stray press doesn't drop you back to the home screen. Backing out of a game's page or the opening animation works as before.

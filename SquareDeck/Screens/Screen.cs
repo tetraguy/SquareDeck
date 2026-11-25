@@ -43,6 +43,13 @@ public abstract class Screen : UserControl
     /// <summary>Gives the screen first go at an input. Return true if it was handled.</summary>
     public virtual bool OnAction(NavAction action) => false;
 
+    /// <summary>Puts the highlight back where it was (when that's still on this page), or on the default.</summary>
+    protected void Refocus(IInputElement? element)
+    {
+        if (element is UIElement e && IsAncestorOf(e) && e.IsVisible) e.Focus();
+        else FocusDefault();
+    }
+
     public virtual void FocusDefault() => FindFirstFocusable(this)?.Focus();
 
     /// <summary>Focuses the default control once layout has caught up.</summary>

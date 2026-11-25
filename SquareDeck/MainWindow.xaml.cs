@@ -910,6 +910,14 @@ public partial class MainWindow : Window
             if (!await countdown.Result) return;
         }
 
+        // Recomp Zone games: a short "recompiling" animation (console machine code in, native PC code out).
+        if (item.IsRecomp && !item.IsRunning && Settings.RecompLaunchAnimation)
+        {
+            var recompile = new RecompileScreen(item);
+            Push(recompile);
+            await recompile.Result;
+        }
+
         // Performance Boost: free memory first, with its animation. With the launch splash on, the splash fades in
         // over the end of the boost (a cross-fade) instead of the boost closing to the home screen first.
         LaunchSplashScreen? splash = null;
@@ -1968,8 +1976,29 @@ public partial class MainWindow : Window
         {
             case NavAction.Accept: UiSound.Select(); break;
             case NavAction.Back: UiSound.Back(); break;
-            case NavAction.Left or NavAction.Right or NavAction.Up or NavAction.Down: UiSound.Move(); break;
         }
+
+        // Moving around: the click (and buzz) only when something actually moved. At the bottom or edge of a page,
+        // pressing on is silent.
+        if (action is NavAction.Left or NavAction.Right or NavAction.Up or NavAction.Down)
+        {
+            var before = MoveSnapshot();
+            _moveHappened = false;
+            HandleCore(action);
+            if (_moveHappened || !before.Equals(MoveSnapshot())) UiSound.Move();
+            return;
+        }
+        HandleCore(action);
+    }
+
+    /// <summary>Set by anything that handles a direction in a way the snapshot can't see (a page's own handling, a scroll).</summary>
+    private bool _moveHappened;
+
+    private (object? Focus, int Screens, int Selected, int Top, int Button, int Footer, int Mode) MoveSnapshot() =>
+        (Keyboard.FocusedElement, _screens.Count, GameList.SelectedIndex, _topIndex, _buttonIndex, _footerIndex, (int)_mode);
+
+    private void HandleCore(NavAction action)
+    {
 
         // LB / RB flip through the main pages from wherever that makes sense.
         if (action is NavAction.LB or NavAction.RB)
@@ -2094,7 +2123,7 @@ public partial class MainWindow : Window
 
     private void HandleScreen(Screen top, NavAction action)
     {
-        if (top.OnAction(action)) return;
+        if (top.OnAction(action)) { _moveHappened = true; return; }
 
         var focused = Keyboard.FocusedElement as UIElement;
         bool inside = focused != null && top.IsAncestorOf(focused);
@@ -2103,7 +2132,9 @@ public partial class MainWindow : Window
         if (inside && focused is Slider slider && action is (NavAction.Left or NavAction.Right))
         {
             double step = action == NavAction.Right ? slider.LargeChange : -slider.LargeChange;
+            double was = slider.Value;
             slider.Value = Math.Clamp(slider.Value + step, slider.Minimum, slider.Maximum);
+            if (slider.Value != was) _moveHappened = true;
             return;
         }
 
@@ -2131,7 +2162,10 @@ public partial class MainWindow : Window
                 direction is FocusNavigationDirection.Up or FocusNavigationDirection.Down &&
                 FindScrollable(top) is { } scroller)
             {
-                scroller.ScrollToVerticalOffset(scroller.VerticalOffset + (direction == FocusNavigationDirection.Down ? 120 : -120));
+                bool down = direction == FocusNavigationDirection.Down;
+                // Already at the end: nothing to scroll, so no sound.
+                if (down ? scroller.VerticalOffset < scroller.ScrollableHeight - 0.5 : scroller.VerticalOffset > 0.5) _moveHappened = true;
+                scroller.ScrollToVerticalOffset(scroller.VerticalOffset + (down ? 120 : -120));
             }
             // Pages made of tiles (library, captures, pickers, Explorer, Multimedia) buzz like the home row does.
             if (top is GridScreen or LibraryScreen or ExplorerScreen or MediaScreen && !ReferenceEquals(Keyboard.FocusedElement, focused)) Rumble();

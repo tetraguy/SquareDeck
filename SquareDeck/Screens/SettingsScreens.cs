@@ -2791,6 +2791,8 @@ public sealed partial class SettingsScreen : ListScreen
         }, subtitle: "A moment to change your mind, with Start now and Cancel");
         AddRow("Ask about updates before playing", OnOff(s.AskAboutUpdates), "\uE896", click: () => Toggle(() => s.AskAboutUpdates = !s.AskAboutUpdates),
             subtitle: "When a Steam game has an update waiting: update it first, or play anyway");
+        AddRow("Recompiling animation for Recomp Zone games", OnOff(s.RecompLaunchAnimation), "\uE943", click: () => Toggle(() => s.RecompLaunchAnimation = !s.RecompLaunchAnimation),
+            subtitle: "The console's machine code streams in and native PC code streams out as the cover is rebuilt");
         AddRow("Splash screen while a game starts", OnOff(s.LaunchSplash), "\uE7F4", click: () => Toggle(() => s.LaunchSplash = !s.LaunchSplash),
             subtitle: "The game's cover fills the screen until the game is running");
         if (s.LaunchSplash)

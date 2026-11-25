@@ -685,6 +685,7 @@ namespace SquareDeck.Widget
             if (_background == "accent") ApplyBackground("accent");
             AccentLive(c);
             MarkPresets(_watts);
+            UpdatePowerLooks();
         }
 
         private static bool TryParseColor(string hex, out Color color)
@@ -746,6 +747,7 @@ namespace SquareDeck.Widget
                 _presets[i] = b;
             }
             body.Children.Add(presets);
+            BuildPowerLooks(body, presets); // the smaller looks (WidgetPage.PowerLooks.cs)
 
             var foot = new Grid { Margin = new Thickness(0, 12, 0, 0) };
             _powerInfo = new TextBlock { FontSize = 11, Foreground = new SolidColorBrush(Subtle), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(2, 0, 120, 0) };
@@ -777,6 +779,7 @@ namespace SquareDeck.Widget
             _userTdp = DateTime.Now;
             _dial.SetWatts(watts);
             MarkPresets(watts);
+            UpdatePowerLooks();
             _link.Send("tdp", "watts", watts);
         }
 
@@ -1060,13 +1063,26 @@ namespace SquareDeck.Widget
         {
             string type = Str(m, "type");
             if (type == "note") { ShowNote(Str(m, "text")); return; }
-            if (type == "state") { Apply(m); ApplyEight(m); }
+            if (type == "state")
+            {
+                try { Apply(m); } catch (Exception ex) { ReportOnce("state", ex); }
+                try { ApplyEight(m); } catch (Exception ex) { ReportOnce("experimental", ex); }
+            }
             else if (type == "art") ApplyArt(m);
             else if (type == "achievements" || type == "genie" || type == "apps" || type == "theme" || type == "companion") ApplyEightMessage(type, m);
             else if (type == "avatar") ApplyAvatar(m);
             else if (type == "mediaart") ApplyMediaArt(m);
             else if (type == "wifi") ApplyWifi(m);
             else if (type == "bluetooth") ApplyBluetooth(m);
+        }
+
+        private readonly HashSet<string> _reported = new HashSet<string>();
+
+        /// <summary>Shows a problem once (instead of the widget quietly not updating), so it can be reported.</summary>
+        private void ReportOnce(string part, Exception ex)
+        {
+            if (!_reported.Add(part)) return;
+            ShowNote("Widget problem (" + part + "): " + ex.Message);
         }
 
         private Image _headerLogo;
@@ -1203,6 +1219,7 @@ namespace SquareDeck.Widget
             if (!ready)
             {
                 _dial.SetEmpty("Not set up");
+                UpdatePowerLooks();
                 bool canApply = tdp != null && Bool(tdp, "canApply") == true;
                 _powerHelp.Text = canApply
                     ? "TDP control is off. Turn it on in SquareDeck's settings, on your handheld's page."
@@ -1234,6 +1251,7 @@ namespace SquareDeck.Widget
             if (!string.IsNullOrEmpty(method)) parts.Add("via " + method);
             if (!session && profile) parts.Add("game profile");
             _powerInfo.Text = string.Join("  ·  ", parts);
+            UpdatePowerLooks();
         }
 
         private static void SetSegmentText(Button b, string text)

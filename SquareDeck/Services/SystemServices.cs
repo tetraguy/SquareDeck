@@ -582,50 +582,96 @@ public static class Brightness
         finally { Gate.Release(); }
     }
 
+    private static readonly object Pending = new();
+    private static int? _target;      // the level asked for most recently, not yet applied
+    private static bool _applying;
+    private static DateTime _lastSet;
+
+    /// <summary>When the brightness was last changed from SquareDeck (a read just after may still see the old level).</summary>
+    public static bool RecentlySet => (DateTime.UtcNow - _lastSet).TotalSeconds < 1.5;
+
+    /// <summary>
+    /// Sets the level. Quick changes in a row (a slider being dragged) don't queue up: only the newest level is applied,
+    /// so the screen keeps up with the slider instead of working through every step behind it.
+    /// </summary>
     public static async Task SetAsync(int percent)
     {
         percent = Math.Clamp(percent, 0, 100);
         Last = percent;
-        await Gate.WaitAsync().ConfigureAwait(false);
+        _lastSet = DateTime.UtcNow;
+        lock (Pending) { _target = percent; if (_applying) return; _applying = true; }
         try
         {
-            if (!_directFailed)
+            while (true)
             {
-                try { await Task.Run(() => WriteDirect(percent)).ConfigureAwait(false); return; }
-                catch (Exception) { _directFailed = true; }
+                int level;
+                lock (Pending) { if (_target is not int t) { _applying = false; return; } level = t; _target = null; }
+                await Gate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    if (!_directFailed)
+                    {
+                        try { await Task.Run(() => WriteDirect(level)).ConfigureAwait(false); continue; }
+                        catch (Exception) { _directFailed = true; }
+                    }
+                    await ProcessUtil.RunPowerShellAsync(
+                        "Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightnessMethods | " +
+                        $"Invoke-CimMethod -MethodName WmiSetBrightness -Arguments @{{Timeout=1; Brightness={level}}} | Out-Null").ConfigureAwait(false);
+                }
+                catch (Exception) { }
+                finally { _lastSet = DateTime.UtcNow; Gate.Release(); }
             }
-            await ProcessUtil.RunPowerShellAsync(
-                "Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightnessMethods | " +
-                $"Invoke-CimMethod -MethodName WmiSetBrightness -Arguments @{{Timeout=1; Brightness={percent}}} | Out-Null").ConfigureAwait(false);
         }
-        catch (Exception) { }
-        finally { Gate.Release(); }
+        catch (Exception) { lock (Pending) _applying = false; }
     }
 
-    /// <summary>The WMI namespace with the screen's brightness, through Windows' own scripting object.</summary>
+    /// <summary>Reads the real level now and then (for the widget), unless SquareDeck has just changed it.</summary>
+    public static void Refresh()
+    {
+        if (RecentlySet || _applying || Gate.CurrentCount == 0) return;
+        _ = Task.Run(GetAsync);
+    }
+
+    private static dynamic? _service;
+    private static dynamic? _methods;
+
+    /// <summary>The WMI namespace with the screen's brightness, through Windows' own scripting object (kept, since connecting is slow).</summary>
     private static dynamic Wmi()
     {
+        if (_service != null) return _service;
         var type = Type.GetTypeFromProgID("WbemScripting.SWbemLocator") ?? throw new NotSupportedException();
         dynamic locator = Activator.CreateInstance(type)!;
-        return locator.ConnectServer(".", "root\\WMI");
+        return _service = locator.ConnectServer(".", "root\\WMI");
     }
 
     /// <summary>Null when there's no built-in screen whose brightness Windows controls. Throws if WMI can't be used.</summary>
     private static int? ReadDirect()
     {
-        dynamic service = Wmi();
-        foreach (dynamic monitor in service.ExecQuery("SELECT CurrentBrightness FROM WmiMonitorBrightness"))
-            return Math.Clamp(Convert.ToInt32(monitor.CurrentBrightness), 0, 100);
-        return null;
+        try { return Read(); }
+        catch (Exception) { _service = null; _methods = null; return Read(); } // the kept connection went stale: once more
+
+        static int? Read()
+        {
+            dynamic service = Wmi();
+            foreach (dynamic monitor in service.ExecQuery("SELECT CurrentBrightness FROM WmiMonitorBrightness"))
+                return Math.Clamp(Convert.ToInt32(monitor.CurrentBrightness), 0, 100);
+            return null;
+        }
     }
 
     private static void WriteDirect(int percent)
     {
-        dynamic service = Wmi();
-        foreach (dynamic methods in service.ExecQuery("SELECT * FROM WmiMonitorBrightnessMethods"))
+        try { Write(percent); }
+        catch (Exception) { _service = null; _methods = null; Write(percent); }
+
+        static void Write(int percent)
         {
-            methods.WmiSetBrightness(1, (byte)percent);
-            return;
+            if (_methods == null)
+            {
+                dynamic service = Wmi();
+                foreach (dynamic methods in service.ExecQuery("SELECT * FROM WmiMonitorBrightnessMethods")) { _methods = methods; break; }
+            }
+            _methods?.WmiSetBrightness(1, (byte)percent);
         }
     }
 }

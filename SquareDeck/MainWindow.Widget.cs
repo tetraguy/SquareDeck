@@ -14,6 +14,8 @@ namespace SquareDeck;
 public partial class MainWindow
 {
     /// <summary>The quick buttons the widget may press (the same actions as the quick menu and the Ally's buttons).</summary>
+    private int _brightRead;
+
     private static readonly HashSet<string> WidgetActions = new()
     {
         "perf", "refresh", "nightlight", "hdr", "dnd", "wifi", "bluetooth", "keyboard", "taskmanager", "lights", "padmouse",
@@ -103,7 +105,11 @@ public partial class MainWindow
         if (AsusAcpi.Available && AsusAcpi.FanRpm(AsusAcpi.CpuFan) is int fan) state["fan"] = fan;
         if (Audio.GetVolume() is int volume) state["volume"] = volume;
         state["muted"] = Audio.GetMute();
+        // The real level, read every couple of seconds, so a change made elsewhere (Windows, the brightness keys,
+        // adaptive brightness) shows on the widget's slider too.
+        if (Brightness.Supported != false && ++_brightRead % 2 == 0) Brightness.Refresh();
         if (Brightness.Supported != false && Brightness.Last is int level) state["brightness"] = level;
+
 
         // The ROG Ally: its operating mode, fans, lights and controller mode.
         if (AllyControl.IsAlly)

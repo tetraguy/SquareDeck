@@ -780,6 +780,9 @@ namespace SquareDeck.Widget
                 if (_labs.Contains("wach")) _link.Send("achievements");
             }
 
+            // Power: the wattage look (Experimental).
+            ApplyPowerLook(_labs.Contains("wpowerlook") ? (Str(s, "powerlook") ?? "dial") : "dial");
+
             // Power: frame cap and Auto TDP.
             _capRow.Visibility = _labs.Contains("wfpscap") ? Visibility.Visible : Visibility.Collapsed;
             int cap = (int)(Num(s, "fpscap") ?? 0);

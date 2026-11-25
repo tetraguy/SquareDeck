@@ -23,7 +23,7 @@ public partial class MainWindow
     private static readonly string[] WidgetLabs =
     {
         "wfpscap", "wautotdp", "wthermal", "wnotes", "wach", "wgenie", "wpad", "wfriends", "winbox", "wdownloads",
-        "wparty", "wapps", "wshortcuts", "wcards", "wgameaware", "wpresets", "wtheme", "wcompanion",
+        "wparty", "wapps", "wshortcuts", "wcards", "wgameaware", "wpresets", "wtheme", "wcompanion", "wpowerlook",
     };
 
     /// <summary>Every card the widget has, in its usual order (the editor's list).</summary>
@@ -73,6 +73,7 @@ public partial class MainWindow
         }
         if (Labs.On("wautotdp"))
             state["autotdp"] = new JsonObject { ["on"] = _autoTdpOn, ["target"] = _autoTdpTarget, ["status"] = _autoTdpStatus };
+        if (Labs.On("wpowerlook")) state["powerlook"] = Labs.Has("w.powerlook") ? Labs.Get("w.powerlook") : "bar";
         if (Labs.On("wthermal")) state["templimit"] = Settings.TdpTempLimit > 0 ? Settings.TdpTempLimit : 95;
         if (Labs.On("wnotes") && key != null) state["notes"] = Library.Find(key)?.Notes ?? "";
         if (Labs.On("wpad"))

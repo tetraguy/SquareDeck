@@ -261,6 +261,8 @@ public sealed class Settings
 
     /// <summary>Show a splash screen with the game's cover from pressing Play until the game is running.</summary>
     public bool LaunchSplash { get; set; } = true;
+    /// <summary>Recomp Zone games start with a short "recompiling" animation.</summary>
+    public bool RecompLaunchAnimation { get; set; } = true;
 
     /// <summary>Limit for downloaded art and video, in megabytes. 0 means no limit.</summary>
     public int CacheLimitMb { get; set; }

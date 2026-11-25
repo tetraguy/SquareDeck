@@ -20,6 +20,27 @@ public sealed partial class SettingsScreen
     /// <summary>The category on show, so crash recovery can bring it back.</summary>
     internal string CurrentCategory => _category;
 
+    /// <summary>The widget's wattage looks (Experimental), as the widget names them.</summary>
+    public static readonly (string Id, string Name, string About)[] PowerLooks =
+    {
+        ("bar", "Slim bar", "One thin bar with the watts in the middle, minus and plus on each side"),
+        ("mini", "Mini dial", "A small ring with the number inside, beside the four presets"),
+        ("number", "Number only", "Just \u201C15 W\u201D with arrows; select the number for the full dial"),
+        ("chips", "Preset chips", "A row of preset buttons (10, 15, 20, 25 W\u2026) and a custom chip for exact watts"),
+        ("dial", "Full dial", "The big dial and preset cards, as before"),
+    };
+
+    private async Task PickPowerLookAsync()
+    {
+        string now = Labs.Has("w.powerlook") ? Labs.Get("w.powerlook") : "bar";
+        var names = PowerLooks.Select(l => (l.Id == now ? "\u2713  " : "") + l.Name + "  \u2014  " + l.About).ToArray();
+        int pick = await Host.AskAsync("Widget: wattage look", "How the TDP shows in the widget's Power card. The widget changes within a second.", names);
+        if (pick < 0 || pick >= PowerLooks.Length) return;
+        Labs.Put("w.powerlook", PowerLooks[pick].Id);
+        if (!Labs.On("wpowerlook")) Labs.Set("wpowerlook", true);
+        Rebuild();
+    }
+
     private Action? EightPage(string id) => id switch
     {
         "fpscap" => () => Host.Push(new FpsCapScreen()),
@@ -37,6 +58,7 @@ public sealed partial class SettingsScreen
         "twitch" => () => { var t = StreamingService.All.First(s => s.Id == "twitch"); _ = StreamingScreen.OpenAsync(Host, t); },
         "dailypick" => () => _ = ShowDailyPickAsync(),
         "visualmodes" => () => Host.Push(new VisualModesScreen()),
+        "wpowerlook" => () => _ = PickPowerLookAsync(),
         "cpucores" => () => Host.Push(new CpuCoresScreen()),
         "fancurve" => () => Host.Push(new CustomFanScreen()),
         _ => null

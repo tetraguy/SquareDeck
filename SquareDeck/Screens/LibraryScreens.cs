@@ -105,6 +105,7 @@ public sealed class ArtPickerScreen : GridScreen
     {
         if (_busy) return;
         _busy = true;
+        var keep = System.Windows.Input.Keyboard.FocusedElement;
         var sheet = new DownloadSheet(preview, _w, _h, $"Downloading {KindName}…");
         ShowOver(sheet);
         var progress = new Progress<(long Done, long? Total)>(p => sheet.Report(p.Total is > 0 ? (double)p.Done / p.Total.Value : 0, p.Done, p.Total));
@@ -142,7 +143,10 @@ public sealed class ArtPickerScreen : GridScreen
             {
                 Host.RefreshArt(_item, _kind);
                 await sheet.DoneAsync("Applied", $"The new {KindName} is now used for {_item.Name}.");
-                Host.Pop(this);
+                // The picker stays open, so another image (or another tab: icon, capsule…) can be chosen straight away.
+                await sheet.HideAsync();
+                _busy = false;
+                Refocus(keep);
                 return;
             }
         }
@@ -338,6 +342,7 @@ public sealed class CoverPickerScreen : GridScreen
         if (_busy) return;
         _busy = true;
         var what = asIcon ? "icon" : "cover";
+        var keep = System.Windows.Input.Keyboard.FocusedElement;
         var sheet = new DownloadSheet(preview, TileSize, TileSize, $"Downloading {what}\u2026");
         ShowOver(sheet);
         var progress = new Progress<(long Done, long? Total)>(p => sheet.Report(p.Total is > 0 ? (double)p.Done / p.Total.Value : 0, p.Done, p.Total));
@@ -375,7 +380,11 @@ public sealed class CoverPickerScreen : GridScreen
             if (_picked != null) _picked(path);
             else Host.SetCustomCover(_item, path);
             await sheet.DoneAsync("Applied", $"The new {what} is now used for {_item.Name}.");
-            Host.Pop(this);
+            // Choosing for a game being added hands the image back; otherwise the picker stays open for more changes.
+            if (_picked != null) { Host.Pop(this); return; }
+            await sheet.HideAsync();
+            _busy = false;
+            Refocus(keep);
             return;
         }
         await sheet.FailedAsync("Check the internet connection, or pick another image.");
