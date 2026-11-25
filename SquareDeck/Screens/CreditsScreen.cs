@@ -37,6 +37,10 @@ public sealed class CreditsScreen : ListScreen
     {
         ("Free Essential UI Sound Pack", "CAPTNPHANTOM", "Essential UI and Essential UI Soft sounds", "UI SFX by CAPTNPHANTOM", null),
         ("UI & Menu SFX (free)", "Northleaf Studio", "Northleaf UI sounds", "Royalty-free", "https://northleafstudio.itch.io/"),
+        ("EDGE UI Sounds", "rmvdesign", "EDGE UI Sounds pack (Blueprint, Bauhaus, Circuit, Hologram)", "Community sound pack", null),
+        ("Tactile UI", "Charmics", "Tactile UI pack (Origami, Matcha, Corner Café, Scholar)", "Community sound pack", null),
+        ("PSP Sounds", "SGL-Galaxy", "PSP Sounds pack (Nostalgia, Rewind, Analog Signal)", "Community sound pack", null),
+        ("Purple Lavender Switches", "DreamerSouls", "Keyboard-switch moving-around clicks (Lavender Fields, Late Night Study, Scholar)", "Community sound pack", null),
         ("At Rest, Daybreak and Thinking of You", "Kevin MacLeod (incompetech.com)", "Scholar's music, and in the music list", "Licensed under Creative Commons: By Attribution 4.0", "https://incompetech.com/"),
         ("Windows 2000 sounds", "Microsoft", "Windows 2000 sounds (Retro Windows)", "From Sample Focus", null),
         ("Ubuntu font", "Dalton Maag for Canonical", "The Ubuntu style's font", "Ubuntu Font Licence 1.0", "https://design.ubuntu.com/font"),

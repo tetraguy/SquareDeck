@@ -1,0 +1,110 @@
+{
+  "name": "Tactile UI",
+  "author": "Charmics",
+  "version": "v1.2",
+  "manifest_version": 2,
+  "music": false,
+  "mappings": {
+    "bumper_end.wav": [
+      "stop.wav"
+    ],
+    "confirmation_negative.wav": [
+      "select.wav"
+    ],
+    "confirmation_positive.wav": [
+      "select.wav"
+    ],
+    "deck_ui_achievement_toast.wav": [
+      "launch.wav"
+    ],
+    "deck_ui_bumper_end_02.wav": [
+      "stop.wav"
+    ],
+    "deck_ui_default_activation.wav": [
+      "select.wav"
+    ],
+    "deck_ui_hide_modal.wav": [
+      "cancel.wav"
+    ],
+    "deck_ui_into_game_detail.wav": [
+      "confirm.wav"
+    ],
+    "deck_ui_launch_game.wav": [
+      "launch.wav"
+    ],
+    "deck_ui_message_toast.wav": [
+      "launch.wav"
+    ],
+    "deck_ui_misc_01.wav": [
+      "launch.wav"
+    ],
+    "deck_ui_misc_08.wav": [
+      "launch.wav"
+    ],
+    "deck_ui_misc_10.wav": [
+      "select.wav"
+    ],
+    "deck_ui_navigation.wav": [
+      "select.wav"
+    ],
+    "deck_ui_out_of_game_detail.wav": [
+      "cancel.wav"
+    ],
+    "deck_ui_show_modal.wav": [
+      "confirm.wav"
+    ],
+    "deck_ui_side_menu_fly_in.wav": [
+      "confirm.wav"
+    ],
+    "deck_ui_side_menu_fly_out.wav": [
+      "cancel.wav"
+    ],
+    "deck_ui_slider_down.wav": [
+      "select.wav"
+    ],
+    "deck_ui_slider_up.wav": [
+      "select.wav"
+    ],
+    "deck_ui_switch_toggle_off.wav": [
+      "launch.wav"
+    ],
+    "deck_ui_switch_toggle_on.wav": [
+      "launch.wav"
+    ],
+    "deck_ui_tab_transition_01.wav": [
+      "select.wav"
+    ],
+    "deck_ui_tile_scroll.wav": [
+      "launch.wav"
+    ],
+    "deck_ui_toast.wav": [
+      "launch.wav"
+    ],
+    "deck_ui_typing.wav": [
+      "select.wav"
+    ],
+    "deck_ui_volume.wav": [
+      "launch.wav"
+    ],
+    "pop_sound.wav": [
+      "launch.wav"
+    ],
+    "steam_at_mention.m4a": [
+      "launch.wav"
+    ],
+    "steam_chatroom_notification.m4a": [
+      "launch.wav"
+    ],
+    "ui_steam_message_old_smooth.m4a": [
+      "launch.wav"
+    ],
+    "ui_steam_smoother_friend_join.m4a": [
+      "launch.wav"
+    ],
+    "ui_steam_smoother_friend_online.m4a": [
+      "launch.wav"
+    ]
+  },
+  "ignore": [],
+  "id": "171f5d6e-e8d3-4f42-a290-1f7db701dc4d"
+}

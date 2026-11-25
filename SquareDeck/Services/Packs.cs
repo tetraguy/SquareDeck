@@ -125,6 +125,24 @@ public static class SoundPacks
         return null;
     }
 
+    /// <summary>Every file the pack maps to the first of these names that it provides (several takes of one sound).</summary>
+    public static string[] ResolveAll(SoundPack pack, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (pack.Mappings.TryGetValue(name, out var mapped))
+            {
+                var found = mapped.Select(f => Path.Combine(pack.Folder, f)).Where(File.Exists).ToArray();
+                if (found.Length > 0) return found;
+                continue;
+            }
+            if (pack.Ignore.Contains(name)) continue;
+            var direct = Path.Combine(pack.Folder, name);
+            if (File.Exists(direct)) return new[] { direct };
+        }
+        return Array.Empty<string>();
+    }
+
     public static byte[]? ReadSound(SoundPack pack, params string[] names)
     {
         try { return Resolve(pack, names) is string path ? File.ReadAllBytes(path) : null; }

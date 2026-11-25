@@ -126,6 +126,11 @@ public static class UiSound
         lock (Gate)
         {
             MoveClip = new Clip(sounds.Move);
+            _moveVariants = null;
+            if (SoundPacks.Find(string.IsNullOrEmpty(navSet) ? set : navSet) is { } navPack
+                && SoundPacks.ResolveAll(navPack, MoveNames) is { Length: > 1 } takes)
+                _moveVariants = takes.Select(f => { try { return new Clip(File.ReadAllBytes(f)); } catch (Exception) { return null; } })
+                    .Where(c => c != null).Select(c => c!).ToArray();
             SelectClip = new Clip(sounds.Select);
             BackClip = new Clip(sounds.Back);
             ErrorClip = new Clip(sounds.Error);
@@ -219,7 +224,8 @@ public static class UiSound
         byte[]? packLaunch = null;
         if (SoundPacks.Find(set) is { } pack)
         {
-            move = SoundPacks.ReadSound(pack, "deck_ui_navigation.wav", "deck_ui_misc_10.wav") ?? move;
+            // A keyboard-switch pack only has typing sounds: those make a fine "moving around" click.
+            move = SoundPacks.ReadSound(pack, MoveNames) ?? move;
             select = SoundPacks.ReadSound(pack, "deck_ui_default_activation.wav", "deck_ui_into_game_detail.wav") ?? select;
             back = SoundPacks.ReadSound(pack, "deck_ui_out_of_game_detail.wav", "deck_ui_hide_modal.wav") ?? back;
             error = SoundPacks.ReadSound(pack, "deck_ui_bumper_end_02.wav", "bumper_end.wav", "confirmation_negative.wav") ?? error;
@@ -230,6 +236,11 @@ public static class UiSound
         }
         return new SoundBytes(move, select, back, error, startup, toast, page, packLaunch);
     }
+
+    private static readonly string[] MoveNames = { "deck_ui_navigation.wav", "deck_ui_misc_10.wav", "deck_ui_typing.wav" };
+
+    /// <summary>When the moving-around pack offers several takes of the sound (a keyboard pack's nine keys), one is picked each time.</summary>
+    private static Clip[]? _moveVariants;
 
     private static byte[]? _packLaunch;
     private static string _chimeId = "rise", _chimeFile = "";
@@ -258,7 +269,7 @@ public static class UiSound
         }
     }
 
-    public static void Move() { if (MoveEnabled) Play(MoveClip); }
+    public static void Move() { if (MoveEnabled) Play(_moveVariants is { Length: > 1 } v ? v[Random.Shared.Next(v.Length)] : MoveClip); }
     public static void Select() { if (SelectEnabled) Play(SelectClip); }
     public static void Back() { if (SelectEnabled) Play(BackClip); }
     public static void Error() { Alerted?.Invoke("error"); Play(ErrorClip); }

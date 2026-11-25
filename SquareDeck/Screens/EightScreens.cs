@@ -533,7 +533,7 @@ public sealed class ControllerTesterScreen : Screen, IPagePad
     private DateTime? _bHeld;
     private DateTime _rumbled;
     private double _restL, _restR;
-    private const double Pad = 150;
+    private const double Pad = 130;
 
     private static Ellipse Dot()
     {
@@ -594,7 +594,7 @@ public sealed class ControllerTesterScreen : Screen, IPagePad
             ring.SetResourceReference(Shape.FillProperty, "CircleBrush");
             canvas.Children.Add(ring);
             canvas.Children.Add(dot);
-            var p = new StackPanel { Margin = new Thickness(24, 0, 24, 0) };
+            var p = new StackPanel { Margin = new Thickness(12, 0, 12, 0) };
             var head = Row(Ui.Text(label, 15, "FgBrush", bold: true));
             p.Children.Add(head);
             canvas.Margin = new Thickness(0, 8, 0, 6);
@@ -606,32 +606,36 @@ public sealed class ControllerTesterScreen : Screen, IPagePad
         }
 
         var body = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        // The handheld itself, drawn, so the test matches the device in your hands.
+        body.Children.Add(Row(Trigger("LT", _lt), Key("LB", 0x0100, 90), new Border { Width = 120 }, Key("RB", 0x0200, 90), Trigger("RT", _rt)));
+        // The middle: View / Guide / Menu, under a drawing of the handheld when there is one (so the test matches the
+        // device in your hands), sits between the two sticks.
+        var center = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 10, 0) };
         if (OemGlyphs.Load(OemGlyphs.Controller) is { } device)
         {
-            var picture = new Image { Source = device, Height = 210, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 6) };
+            var picture = new Image { Source = device, Width = 340, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center };
             RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.HighQuality);
-            body.Children.Add(picture);
-            var name = Ui.Text(Handheld.DisplayName, 15, "SubtleBrush");
+            center.Children.Add(picture);
+            var name = Ui.Text(Handheld.DisplayName, 14, "SubtleBrush");
             name.HorizontalAlignment = HorizontalAlignment.Center;
-            name.Margin = new Thickness(0, 0, 0, 10);
-            body.Children.Add(name);
+            name.Margin = new Thickness(0, 4, 0, 6);
+            center.Children.Add(name);
         }
-        body.Children.Add(Row(Trigger("LT", _lt), Key("LB", 0x0100, 90), new Border { Width = 120 }, Key("RB", 0x0200, 90), Trigger("RT", _rt)));
-        body.Children.Add(Row(Key("View", 0x0020, 80), Key("Guide", 0x0400, 80), Key("Menu", 0x0010, 80)));
+        center.Children.Add(Row(Key("View", 0x0020, 72), Key("Guide", 0x0400, 72), Key("Menu", 0x0010, 72)));
         var middle = Row(
-            new StackPanel { Children = { Row(Key("▲", 0x0001)), Row(Key("◀", 0x0004), new Border { Width = 72 }, Key("▶", 0x0008)), Row(Key("▼", 0x0002)) }, Margin = new Thickness(0, 0, 20, 0), VerticalAlignment = VerticalAlignment.Center },
+            new StackPanel { Children = { Row(Key("▲", 0x0001)), Row(Key("◀", 0x0004), new Border { Width = 72 }, Key("▶", 0x0008)), Row(Key("▼", 0x0002)) }, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center },
             Stick("Left stick", _ls, _lsText, 0x0040),
+            center,
             Stick("Right stick", _rs, _rsText, 0x0080),
-            new StackPanel { Children = { Row(Key("Y", 0x8000)), Row(Key("X", 0x4000), new Border { Width = 72 }, Key("B", 0x2000)), Row(Key("A", 0x1000)) }, Margin = new Thickness(20, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
-        middle.Margin = new Thickness(0, 18, 0, 10);
+            new StackPanel { Children = { Row(Key("Y", 0x8000)), Row(Key("X", 0x4000), new Border { Width = 72 }, Key("B", 0x2000)), Row(Key("A", 0x1000)) }, Margin = new Thickness(16, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+        middle.Margin = new Thickness(0, 14, 0, 10);
         body.Children.Add(middle);
         _status.HorizontalAlignment = HorizontalAlignment.Center;
         _status.TextAlignment = TextAlignment.Center;
         _status.TextWrapping = TextWrapping.Wrap;
         _status.MaxWidth = 900;
         body.Children.Add(_status);
-        SetPage("Controller tester", body, "Hold B, or press View + Menu together, to leave      Pull both triggers all the way to test rumble");
+        var fit = new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = body };
+        SetPage("Controller tester", fit, "Hold B (or View + Menu) to leave      Both triggers fully: rumble");
         _timer.Tick += (_, _) => Tick();
     }
 

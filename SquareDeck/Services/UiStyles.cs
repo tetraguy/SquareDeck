@@ -436,7 +436,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "analog-signal", Name = "Analog Signal", Sounds = "retro", Music = "track:Es Vapour", Moving = "Analog", Wallpaper = "",
+            Id = "analog-signal", Name = "Analog Signal", Sounds = "pack:PSP Sounds", Music = "track:Es Vapour", Moving = "Analog", Wallpaper = "",
             Description = "A late-night broadcast on an old tube TV: amber phosphor highlights, monospaced type, scanlines and retro bleeps.",
             Dark = new[] { "#0C0C0C", "#F2EFE6", "#A8A397", "#1C1B19", "#171614", "#FFB000" },
             Font = "file:HomeVideo-Regular.ttf#Home Video", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
@@ -512,7 +512,7 @@ public static class UiStyles
             Description = "Lo-fi beats to play games to: violet night, a warm desk-lamp highlight, soft clicks and coffee-shop music.",
             Dark = new[] { "#141020", "#F3ECFF", "#A89CC4", "#221B33", "#1C162B", "#FFB86B" },
             Font = "file:Always_be_honest.otf#Always be honest", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
-            HeroOpacity = 0, Footer = "pill"
+            HeroOpacity = 0, Footer = "pill", NavSounds = "pack:Purple Lavender Switches"
         },
         new()
         {
@@ -548,7 +548,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "corner-cafe", Name = "Corner Café", Sounds = "soft", Music = "track:Coffee Shop", Moving = "", Wallpaper = "image:Cafe.jpg",
+            Id = "corner-cafe", Name = "Corner Café", Sounds = "pack:Tactile UI", Music = "track:Coffee Shop", Moving = "", Wallpaper = "image:Cafe.jpg",
             Description = "Your favorite table by the window: espresso browns, a caramel highlight, cozy serif type and café music.",
             Dark = new[] { "#17110D", "#F8EFE6", "#BCA592", "#2A1F18", "#231A14", "#D98C4A" },
             Font = "file:Dreamink_Cream_Ginger.ttf#Dreamink Cream Ginger", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
@@ -600,7 +600,7 @@ public static class UiStyles
             Description = "Rows of lavender in Provence: soft lilac and white, a violet highlight, light chimes and a sweet melody.",
             Light = new[] { "#F5F0FB", "#2B2140", "#6F6488", "#FFFFFF", "#E9E0F5", "#8E6CEF" }, ForceLight = true,
             Font = "file:ForbiddenLove.otf#Forbidden Love", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
-            HeroOpacity = 0, Footer = "pill", PageScrim = 0.4
+            HeroOpacity = 0, Footer = "pill", PageScrim = 0.4, NavSounds = "pack:Purple Lavender Switches"
         },
         new()
         {
@@ -628,7 +628,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "nostalgia", Name = "Nostalgia", Sounds = "retro", Music = "track:Recuerdos", Moving = "", Wallpaper = "image:Nostalgia.jpg",
+            Id = "nostalgia", Name = "Nostalgia", Sounds = "pack:PSP Sounds", Music = "track:Recuerdos", Moving = "", Wallpaper = "image:Nostalgia.jpg",
             Description = "Old photos in a shoebox: sepia browns, a faded-orange highlight, paper grain, retro bleeps and memories in the music.",
             Dark = new[] { "#1B1410", "#FCEFDC", "#C7AB8E", "#2D221B", "#261D17", "#E9965A" },
             Font = "Georgia, Segoe UI", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
@@ -860,7 +860,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "hologram", Name = "Hologram", Sounds = "glass", Music = "track:Aero", Moving = "", Wallpaper = "",
+            Id = "hologram", Name = "Hologram", Sounds = "pack:EDGE UI Sounds", Music = "track:Aero", Moving = "", Wallpaper = "",
             Description = "Iridescent and see-through: milky glass over a pearly gradient, glassy shapes floating by, a lilac highlight and airy lettering.",
             Light = new[] { "#F2F0FF", "#221E3C", "#6A6490", "#C8FFFFFF", "#A8FFFFFF", "#8A5CFF" }, ForceLight = true,
             Font = "file:Vislar-Thin.otf#Vislar#Vislar Thin", TileCorner = 22, RowCorner = 22, RingThickness = 3, Buttons = "circle",
@@ -892,7 +892,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "rewind", Name = "Rewind", Sounds = "retro", Music = "track:Recuerdos", Moving = "", Wallpaper = "",
+            Id = "rewind", Name = "Rewind", Sounds = "pack:PSP Sounds", Music = "track:Recuerdos", Moving = "", Wallpaper = "",
             Description = "Press play: the deep blue of a VCR's screen, a worn tape rolling by with its counter running, scan lines, a white highlight and camcorder lettering.",
             Dark = new[] { "#0018A8", "#FFFFFF", "#B8C4FF", "#0A26C4", "#0820B8", "#FFFFFF" },
             Font = "file:HomeVideo-Regular.ttf#Home Video", TileCorner = 2, RowCorner = 4, RingThickness = 3, Buttons = "circle",
@@ -932,7 +932,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "matcha", Name = "Matcha", Sounds = "soft", Music = "track:Relaxing", NavSounds = "kalimba", TileAnimation = "float", Moving = "", Wallpaper = "",
+            Id = "matcha", Name = "Matcha", Sounds = "pack:Tactile UI", Music = "track:Relaxing", TileAnimation = "float", Moving = "", Wallpaper = "",
             Description = "A slow afternoon tea: whisked-green and oat-milk cream, paper grain, a matcha highlight, a friendly humanist font and relaxing music.",
             Light = new[] { "#F3F1E4", "#2A3324", "#66705A", "#FFFFFF", "#E4E8D0", "#5E9B3A" }, ForceLight = true,
             Font = "Candara, Segoe UI", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
@@ -1002,7 +1002,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "adv-origami", Name = "Origami", Sounds = "tick", NavSounds = "soft", Music = "track:Sweetness", Moving = "", Wallpaper = "image:Origami.jpg",
+            Id = "adv-origami", Name = "Origami", Sounds = "pack:Tactile UI", Music = "track:Sweetness", Moving = "", Wallpaper = "image:Origami.jpg",
             Description = "Folded paper: paper cards with a folded corner, coral paper buttons, pop-ups whose header is a folded flap, pinwheel home buttons, switches that fold into a pinwheel, a paper-airplane pointer, and layered paper mountains with cranes.",
             Light = new[] { "#F3EDE4", "#2E3447", "#7A7F8F", "#FFFFFF", "#E9E1D6", "#F27D72" }, ForceLight = true,
             Font = "file:VarelaRound-Regular.ttf#Varela Round", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
@@ -1085,7 +1085,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "adv-blueprint", Name = "Blueprint", Sounds = "tick", NavSounds = "tick", Music = "track:Gaming Vibes", Moving = "", Wallpaper = "image:Blueprint.jpg",
+            Id = "adv-blueprint", Name = "Blueprint", Sounds = "pack:EDGE UI Sounds", Music = "track:Gaming Vibes", Moving = "", Wallpaper = "image:Blueprint.jpg",
             Description = "An engineer's drawing: gridded blueprint cards with registration marks, pop-ups headed by a title block, measuring-dial home buttons, crosshair switches, a drafting pointer, and a fully dimensioned technical drawing of a handheld behind it all.",
             Dark = new[] { "#0B2A55", "#F2F7FF", "#A8C1E3", "#11366A", "#0F3163", "#FFD34D" }, Mode = "dark",
             Font = "file:ShareTechMono-Regular.ttf#Share Tech Mono", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
@@ -1094,7 +1094,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "adv-circuit", Name = "Circuit", Sounds = "retro", NavSounds = "laser", Music = "track:Fraxsu", Moving = "", Wallpaper = "image:Circuit.jpg",
+            Id = "adv-circuit", Name = "Circuit", Sounds = "pack:EDGE UI Sounds", Music = "track:Fraxsu", Moving = "", Wallpaper = "image:Circuit.jpg",
             Description = "A circuit board up close: green solder-mask cards with gold traces and vias, buttons that are little chips with gold pins, gold-ringed home buttons, switches that light an LED, gold pads for check boxes, and a processor with data pulsing along its traces.",
             Dark = new[] { "#04140C", "#E8FFF0", "#8DBFA3", "#0A2618", "#082014", "#F2C14E" }, Mode = "dark",
             Font = "file:ChakraPetch-Regular.ttf#Chakra Petch", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
@@ -1112,7 +1112,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "adv-bauhaus", Name = "Bauhaus", Sounds = "tick", NavSounds = "marimba", Music = "track:Jewels", Moving = "", Wallpaper = "image:Bauhaus.jpg",
+            Id = "adv-bauhaus", Name = "Bauhaus", Sounds = "pack:EDGE UI Sounds", Music = "track:Jewels", Moving = "", Wallpaper = "image:Bauhaus.jpg",
             Description = "A Bauhaus poster: cream cards with a red quarter-circle and a yellow square, yellow buttons with a hard black shadow, a blue pop-up header with a circle and triangle, yellow-and-red ring buttons, switches with a square that turns into a circle, and a poster of bold shapes.",
             Light = new[] { "#F2EDE3", "#1A1A1A", "#5E5A52", "#FBF8F2", "#ECE5D8", "#D7263D" }, ForceLight = true,
             Font = "file:JosefinSans-Regular.ttf#Josefin Sans", TileCorner = 0, RowCorner = 2, RingThickness = 4, Buttons = "circle",
@@ -1424,12 +1424,12 @@ public static class UiStyles
         },
         new()
         {
-            Id = "adv-scholar", Name = "Scholar", Sounds = "soft", Music = "track:Daybreak", Moving = "", Wallpaper = "",
+            Id = "adv-scholar", Name = "Scholar", Sounds = "pack:Tactile UI", Music = "track:Daybreak", Moving = "", Wallpaper = "",
             Description = "A tidy study desk: soft white cards on warm paper with notebook lines, pale blue buttons with an ink-blue edge, pop-ups in speech bubbles, round ink-blue home buttons, check-box switches and calm piano.",
             Light = new[] { "#F4F1EA", "#22252B", "#666B73", "#FFFFFF", "#E9E5DC", "#2F5DA8" }, ForceLight = true,
             Font = "file:AfacadFlux-Regular.ttf#Afacad Flux", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "bar", Shadow = "soft", Backdrop = new[] { "#F7F4EE", "#ECE7DC" }, PageScrim = 0.25,
-            Overlay = "notebook", Skin = new AdvancedSkin("scholar"), TileAnimation = "lift", NavSounds = "soft"
+            Overlay = "notebook", Skin = new AdvancedSkin("scholar"), TileAnimation = "lift", NavSounds = "pack:Purple Lavender Switches"
         },
         new()
         {

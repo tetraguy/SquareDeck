@@ -3,6 +3,20 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.8
+
+- New sound packs: **EDGE UI Sounds** (rmvdesign), **Tactile UI** (Charmics), **PSP Sounds** (SGL-Galaxy) and **Purple Lavender Switches** (DreamerSouls, keyboard-switch clicks). They're in Settings > Sound like the others, and the credits list them.
+- A pack with only typing sounds (like Purple Lavender Switches) now works as a moving-around sound, and when a pack offers several takes of that sound (nine keys), a different one plays each time, so it feels like real switches.
+- Styles that use them:
+  - EDGE UI Sounds: Blueprint (Advanced), Bauhaus, Circuit, Hologram.
+  - Tactile UI: Origami, Matcha, Corner Café, Scholar.
+  - PSP Sounds: Nostalgia, Rewind, Analog Signal.
+  - Purple Lavender Switches for moving around: Lavender Fields, Late Night Study, Scholar.
+
+## 8.1.7
+
+- Controller tester: rearranged so everything fits. The handheld drawing now sits in the middle, between the two sticks, with View / Guide / Menu under it; the sticks are a little smaller; and the whole page shrinks to fit the screen if it would otherwise be cut off. The hint line at the bottom is shorter so it isn't cut off either.
+
 ## 8.1.6
 
 - **Your handheld's own buttons**: on a recognized handheld, "How buttons are drawn" (Settings, and the style builder) offers "{device} buttons", e.g. "ROG Xbox Ally X20 buttons". The hints then show the face buttons, bumpers and triggers as they're printed on the device, like the Xbox Ally's colored ABXY. If you plug in another controller (PlayStation, Switch), or use the keyboard, the standard icons come back.
