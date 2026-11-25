@@ -331,11 +331,73 @@ public abstract class Screen : UserControl
         footer.Children.Add(hint);
         Grid.SetRow(footer, 2);
         root.Children.Add(footer);
+        _footer = footer;
 
         Content = root;
     }
 
     private Grid? _bodyHost;
+    private Grid? _footer;
+
+    /// <summary>
+    /// The page drawn like the Switch 2's System Settings (Experimental > New Settings UI): a plain light or dark
+    /// page, the gear and title on the left with a line under them, and a line over the button hints with the
+    /// controller at the left.
+    /// </summary>
+    /// <summary>Takes the colors of the UI style in use again (it may have just been changed, from Themes).</summary>
+    protected void RefreshSwitch2Colors()
+    {
+        if (_pageRoot == null) return;
+        Switch2Settings.ApplyColors(this);
+        _pageRoot.Background = new System.Windows.Media.SolidColorBrush(Switch2Settings.Background);
+    }
+
+    protected void UseSwitch2Chrome(string title)
+    {
+        if (_pageRoot == null) return;
+        Switch2Settings.ApplyColors(this);
+        _pageRoot.Background = new System.Windows.Media.SolidColorBrush(Switch2Settings.Background);
+        if (_wallpaperLayer != null) _wallpaperLayer.Visibility = Visibility.Collapsed;
+        if (_wallpaperScrim != null) _wallpaperScrim.Visibility = Visibility.Collapsed;
+        // Backdrop pictures, wallpaper, tints and scrims (layers behind the page that don't take input).
+        foreach (var layer in _pageRoot.Children.OfType<UIElement>().Where(e => Grid.GetRowSpan(e) >= 2 && !e.IsHitTestVisible).ToList())
+            layer.Visibility = Visibility.Collapsed;
+        if (_backdrop != null) _backdrop.Visibility = Visibility.Collapsed;
+
+        if (_header != null && _titleText != null)
+        {
+            _header.Children.Remove(_titleText);
+            var name = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var gear = Ui.Glyph("\uE713", 34, "FgBrush");
+            gear.VerticalAlignment = VerticalAlignment.Center;
+            gear.Margin = new Thickness(0, 2, 16, 0);
+            name.Children.Add(gear);
+            var text = Ui.Text(title, 34, "FgBrush");
+            text.VerticalAlignment = VerticalAlignment.Center;
+            name.Children.Add(text);
+            _titleText = text;
+            _header.Children.Add(name);
+            _header.Margin = new Thickness(78, 26, 62, 0);
+        }
+        var under = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(40, 0, 40, 0) };
+        under.SetResourceReference(Shape.FillProperty, "S2Line");
+        _pageRoot.Children.Add(under);
+
+        if (_footer != null)
+        {
+            _footer.Background = null;
+            _footer.Margin = new Thickness(40, 0, 40, 0);
+            foreach (var old in _footer.Children.OfType<Rectangle>().ToList()) _footer.Children.Remove(old);
+            var over = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Top };
+            over.SetResourceReference(Shape.FillProperty, "S2Line");
+            _footer.Children.Insert(0, over);
+            var pad = Ui.Glyph(Ui.HandheldGlyph, 30, "FgBrush");
+            pad.HorizontalAlignment = HorizontalAlignment.Left;
+            pad.VerticalAlignment = VerticalAlignment.Center;
+            pad.Margin = new Thickness(16, 2, 0, 0);
+            _footer.Children.Add(pad);
+        }
+    }
 
     /// <summary>"Settings" as "S E T T I N G S": the thin, widely spaced capitals some looks title their pages with.</summary>
     private static string Spaced(string title) => string.Join("\u2009", title.ToUpperInvariant().ToCharArray());
@@ -460,6 +522,9 @@ public abstract class ListScreen : Screen
 
     protected abstract void Build();
 
+    /// <summary>After the rows are built and grouped: a page can redraw them its own way (New Settings UI).</summary>
+    protected virtual void AfterBuild() { }
+
     public override void OnShown() => Rebuild();
 
     /// <summary>Recreates the rows and keeps the highlight on the same position.</summary>
@@ -475,6 +540,7 @@ public abstract class ListScreen : Screen
         Rows.Children.Clear();
         Build();
         Ui.GroupRows(Rows); // runs of rows become grouped cards
+        AfterBuild();
 
         buttons = Rows.Children.OfType<Button>().ToList();
         if (buttons.Count == 0 || SuppressAutoFocus) return;
@@ -721,6 +787,8 @@ public sealed class MenuScreen : Screen
         }
 
         var buttons = new StackPanel { Margin = new Thickness(0, inputInitial != null ? 8 : 20, 0, 0) };
+        _choices = buttons;
+        _heading = heading;
         for (int i = 0; i < options.Count; i++)
         {
             int index = i;
@@ -761,6 +829,53 @@ public sealed class MenuScreen : Screen
         };
         backdrop.Children.Add(Ui.SkinBox(box));
         Content = backdrop;
+        _box = box;
+        _shade = backdrop;
+    }
+
+    private StackPanel? _choices;
+    private TextBlock? _heading;
+    private Border? _box;
+    private Grid? _shade;
+
+    /// <summary>
+    /// Drawn like the Switch 2's pop-up lists (New Settings UI, over Settings): a light floating card, the choices on
+    /// thin lines with a round mark at the right, filled in blue for the one in use (a choice written with ✓).
+    /// </summary>
+    public void UseSwitch2Look()
+    {
+        if (_choices == null || _box == null) return;
+        Switch2Settings.ApplyColors(this);
+        if (_shade != null) _shade.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x55, 0, 0, 0));
+        _box.Background = new System.Windows.Media.SolidColorBrush(Switch2Settings.Card);
+        _box.BorderThickness = new Thickness(0);
+        _box.CornerRadius = new CornerRadius(16);
+        _box.Padding = new Thickness(26, 24, 26, 20);
+        if (_heading != null) { _heading.FontSize = 22; _heading.FontWeight = FontWeights.Normal; }
+        foreach (var row in _choices.Children.OfType<Button>())
+        {
+            row.Style = Switch2Settings.RowStyle;
+            row.Margin = new Thickness(0);
+            row.Resources.Remove("RowCorner");
+            if (row.Content is not Grid grid) continue;
+            var label = grid.Children.OfType<TextBlock>().FirstOrDefault(t => Grid.GetColumn(t) == 1);
+            bool chosen = false;
+            if (label != null && label.Text.StartsWith("\u2713"))
+            {
+                chosen = true;
+                label.Text = label.Text.TrimStart('\u2713').TrimStart();
+                label.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+            }
+            foreach (var badge in grid.Children.OfType<FrameworkElement>().Where(e => Grid.GetColumn(e) == 0).ToList()) badge.Visibility = Visibility.Collapsed;
+            var ring = new Grid { Width = 30, Height = 30, Margin = new Thickness(16, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            var outer = new Ellipse { StrokeThickness = chosen ? 0 : 2 };
+            if (chosen) outer.SetResourceReference(Shape.FillProperty, "AccentBrush");
+            else outer.SetResourceReference(Shape.StrokeProperty, "SubtleBrush");
+            ring.Children.Add(outer);
+            if (chosen) ring.Children.Add(new Ellipse { Width = 11, Height = 11, Fill = System.Windows.Media.Brushes.White });
+            Grid.SetColumn(ring, 2);
+            grid.Children.Add(ring);
+        }
     }
 
     // ---------------------------------------------------------------- on-screen keyboard

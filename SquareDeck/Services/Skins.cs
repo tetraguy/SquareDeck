@@ -138,6 +138,8 @@ public static class Skins
     public static void Apply(UiStyle style, ResourceDictionary res, Brush circle)
     {
         var skin = style.Skin is { } advanced ? Load(FolderFor(advanced, style.SkinVariant)) : null;
+        // A style of your own can borrow another style's home button icons on their own (My own style).
+        if (skin == null && !string.IsNullOrEmpty(style.IconSkin) && Load(style.IconSkin) is { } donor) skin = IconsOnly(donor);
         Current = skin;
         res["SkinPanel"] = skin?.Panel;
         res["SkinPanelSlice"] = skin?.PanelSlice ?? new Thickness(0);
@@ -154,6 +156,18 @@ public static class Skins
         res["SkinButtonFill"] = skin?.Button != null ? Brushes.Transparent : circle;
         res["SkinDialogFill"] = skin?.Dialog != null ? Brushes.Transparent : res["DialogBrush"];
         ApplyCursor(skin);
+    }
+
+    private static readonly Dictionary<string, Loaded> IconCache = new();
+
+    /// <summary>Just a kit's icons (and their color for the symbols it has none for), without its panels, buttons or pointer.</summary>
+    private static Loaded IconsOnly(Loaded donor)
+    {
+        if (IconCache.TryGetValue(donor.Folder, out var known)) return known;
+        var icons = new Loaded { Folder = donor.Folder + "#icons", IconPixel = donor.IconPixel, GlyphColor = donor.GlyphColor };
+        foreach (var kv in donor.Icons) icons.Icons[kv.Key] = kv.Value;
+        IconCache[donor.Folder] = icons;
+        return icons;
     }
 
     private static Cursor? _cursor;

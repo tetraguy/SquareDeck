@@ -111,8 +111,22 @@ public sealed class UiStyleScreen : GridScreen
         Host.ShowToast("UI style", style.Name + " applied", Host.Settings.StyleMatching ? "With its colors, wallpaper, sounds and music" : "Your colors, wallpaper and sounds are kept", "", "info", remember: false);
     }
 
+    /// <summary>What a style of your own adds to the drawing: the button pictures in the hints, and the Continue tile.</summary>
+    internal sealed record Extras(string Glyphs, bool ContinueTile);
+
+    private static readonly Dictionary<string, ImageSource?> Pictures = new();
+
+    private static ImageSource? Picture(string? path)
+    {
+        if (path == null) return null;
+        if (Pictures.TryGetValue(path, out var known)) return known;
+        var image = ImageLoader.FromFile(path, 96);
+        Pictures[path] = image;
+        return image;
+    }
+
     /// <summary>A small drawing of the home screen in this style.</summary>
-    internal static UIElement Preview(UiStyle s)
+    internal static UIElement Preview(UiStyle s, Extras? extras = null)
     {
         bool dark = !s.ForceLight && (s.Light == null || Theme.CurrentIsDark);
         var p = UiStyles.PaletteFor(s, dark);
@@ -184,10 +198,12 @@ public sealed class UiStyleScreen : GridScreen
             bool selected = i == 0;
             double grow = selected ? Math.Max(1, s.SelectGrow) : 1;
             double size = (tileBox - inner * 2) * grow;
-            double tx = x + inner - (size - (tileBox - inner * 2)) / 2, ty = tileTop + inner - (size - (tileBox - inner * 2)) / 2;
+            // Tall (2:3 poster) or rectangle (header capsule) game art changes the tiles' shape.
+            double tw = s.Portrait ? size * 0.7 : s.Wide ? size * 1.55 : size, th = s.Wide ? size * 0.72 : size;
+            double tx = x + inner - (size - (tileBox - inner * 2)) / 2, ty = tileTop + inner - (size - (tileBox - inner * 2)) / 2 + (size - th);
             var face = new Rectangle
             {
-                Width = size * K, Height = size * K, RadiusX = corner, RadiusY = corner,
+                Width = tw * K, Height = th * K, RadiusX = corner, RadiusY = corner,
                 Fill = Brush(colors[i % colors.Length]), // covers show at full strength in every style, glass included
                 Stroke = s.Glass ? new SolidColorBrush(Color.FromArgb(0x70, 0xFF, 0xFF, 0xFF)) : null, StrokeThickness = 0.6
             };
@@ -200,7 +216,7 @@ public sealed class UiStyleScreen : GridScreen
                 double ring = s.RingThickness * scale;
                 var outline = new Rectangle
                 {
-                    Width = (size + inner * 2 - gap * 2) * K, Height = (size + inner * 2 - gap * 2) * K,
+                    Width = (tw + inner * 2 - gap * 2) * K, Height = (th + inner * 2 - gap * 2) * K,
                     Stroke = accent, StrokeThickness = Math.Max(1, ring * K * 1.4), RadiusX = corner + 1.5, RadiusY = corner + 1.5
                 };
                 // A gradient ring (Switch).
@@ -218,7 +234,14 @@ public sealed class UiStyleScreen : GridScreen
                 if (s.Title == "above")
                     Add(c, new Rectangle { Width = 90 * K * 1.6, Height = 4, Fill = accent, RadiusX = 2, RadiusY = 2 }, (x + 8) * K, (listTop + 18 * scale) * K);
             }
-            x += 270 * scale;
+            // Continue where you left off: the first game carries a "Continue" pill.
+            if (selected && extras?.ContinueTile == true)
+            {
+                var pill = new Border { CornerRadius = new CornerRadius(5), Background = accent, Padding = new Thickness(5, 1, 6, 1) };
+                pill.Child = new TextBlock { Text = "\u25B6 Continue", FontSize = 8, FontWeight = FontWeights.Bold, Foreground = Brushes.White };
+                Add(c, pill, (tx + 6) * K, (ty + th) * K - 16);
+            }
+            x += (Math.Max(size, tw) + (270 * scale - size)) ;
         }
 
         // Big title and Play button (PlayStation), or the name beside the row (Steam).
@@ -278,6 +301,12 @@ public sealed class UiStyleScreen : GridScreen
                 b.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = accentColor, BlurRadius = 6, ShadowDepth = 0 };
             }
             Add(c, b, (bx + margin + 9) * K, (by + 9) * K);
+            // The style's drawn icons (an Advanced style's, or the ones a style of your own borrows).
+            if (i < IconOrder.Length && IconsOf(s) is { } icons && icons.TryGetValue(IconOrder[i], out var icon))
+            {
+                double isz = Math.Min(bw, bh) * 0.5 * K;
+                Add(c, new Image { Source = icon, Width = isz, Height = isz, Stretch = Stretch.Uniform }, (bx + margin + bw / 2) * K - isz / 2, (by + bh / 2) * K - isz / 2);
+            }
             if (s.Gloss)
             {
                 // The shine across the top half.
@@ -300,6 +329,41 @@ public sealed class UiStyleScreen : GridScreen
         else if (s.Footer == "line")
             Add(c, new Rectangle { Width = W - 60 * K, Height = 0.6, Fill = fg }, 30 * K, H - rows[6] * K);
 
+        // The button hints, in the chosen button pictures: laid out as a row (so each label gets its own room) and
+        // set against the right edge, centred on the footer.
+        if (extras != null)
+        {
+            var hints = new StackPanel { Orientation = Orientation.Horizontal };
+            foreach (var (button, words) in new[] { ("A", "Start"), ("Y", "Options"), ("B", "Back") })
+            {
+                FrameworkElement mark;
+                if (Picture(Hints.PreviewFile(extras.Glyphs, button)) is { } glyph)
+                {
+                    var img = new Image { Source = glyph, Width = 11, Height = 11, Stretch = Stretch.Uniform };
+                    if (extras.Glyphs == "pixel") RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.NearestNeighbor);
+                    mark = img;
+                }
+                else
+                {
+                    // Simple: the letter on a filled disc, as the real hint bar draws it (Ui.Pill), sized to sit in the middle.
+                    var ring = new Grid { Width = 11, Height = 11 };
+                    ring.Children.Add(new Ellipse { Fill = fg });
+                    ring.Children.Add(new Viewbox
+                    {
+                        Width = 5.4, Height = 5.4, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                        Child = new TextBlock { Text = button, FontWeight = FontWeights.Bold, Foreground = bg, FontFamily = new FontFamily("Segoe UI") }
+                    });
+                    mark = ring;
+                }
+                mark.VerticalAlignment = VerticalAlignment.Center;
+                hints.Children.Add(mark);
+                hints.Children.Add(new TextBlock { Text = words, FontSize = 8, Foreground = fg, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 10, 0) });
+            }
+            hints.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double footer = rows[6] * K;
+            Add(c, hints, W - 30 * K - hints.DesiredSize.Width + 10, H - footer / 2 - hints.DesiredSize.Height / 2);
+        }
+
         }
 
         if (UiStyles.OverlayBrush(s) is { } overlay)
@@ -313,6 +377,21 @@ public sealed class UiStyleScreen : GridScreen
         var frame = new Border { Width = W, Height = H, CornerRadius = new CornerRadius(12), Child = c, ClipToBounds = true };
         c.Clip = new RectangleGeometry(new Rect(0, 0, W, H), 12, 12);
         return frame;
+    }
+
+    private static readonly string[] IconOrder = { "home", "favorites", "apps", "captures", "music", "friends", "news", "browser", "settings" };
+
+    /// <summary>The drawn home button icons a style shows, if any.</summary>
+    private static Dictionary<string, ImageSource>? IconsOf(UiStyle s)
+    {
+        try
+        {
+            string? folder = s.Skin is { } skin ? Skins.FolderFor(skin, s.SkinVariant) : s.IconSkin;
+            if (string.IsNullOrEmpty(folder)) return null;
+            var loaded = Skins.Load(folder);
+            return loaded is { Icons.Count: > 0 } ? loaded.Icons : null;
+        }
+        catch (Exception) { return null; }
     }
 
     /// <summary>A sketch of the hero, toprow, sidebar and stage arrangements (in home-screen pixels, 1280 × 720).</summary>

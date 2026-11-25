@@ -3,6 +3,89 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.25
+- Twitch on the Multimedia page's Streaming tab now shows the Twitch logo on its tile and in the menu, instead of its name on purple.
+
+## 8.1.24
+- The Switch 2 style Settings (formerly New Settings UI in Experimental) is now the default look for Settings, turned on for everyone with this update.
+- Its switch now lives in Settings > Display, under "Settings view and unlockables". Turn it off to go back to the classic Settings and its five layouts (Settings view style only shows while it's off).
+
+## 8.1.23
+- New Settings UI (Experimental) now follows your UI style: the page, text, lines, highlight card, switches, highlight ring and glow take the style's own colors (and its gradient ring when it has one), and the style's font carries through. The Switch style keeps the exact Basic White / Basic Black look.
+- Choosing a UI style in Themes shows on the settings page straight away, no reopen needed.
+
+## 8.1.22
+
+- Experimental: **New Settings UI** (Looks and sound). Settings drawn like the Nintendo Switch 2's System Settings:
+  - A plain light (Basic White) or dark (Basic Black) page, following your theme, with "System Settings" and the gear at the top, a line under it, and a line over the button hints with the handheld at the left.
+  - The sections listed on the left as plain names, ruled into groups, the one you're in in blue with a bar beside it, and a thin line between the list and the settings.
+  - Settings as flat rows on thin lines, no icons, values in blue, pill switches (blue when on), and section titles with a short bar.
+  - The highlight as a white card with a soft blue, purple and pink rim.
+  - Choice pop-ups as a floating card with a round mark beside each choice, filled in blue for the one in use.
+  Settings reopens in the new look when you switch it on or off.
+
+## 8.1.21
+
+- Retro Lounge's experimental features are out of Experimental and always there now (all but Surprise me, which stays in Experimental):
+  - Shaders and bezels per console, and box art and screenshots from ScreenScraper: Retro Lounge > Setup > Looks and artwork.
+  - The save state browser: on each RetroArch game's page, with "Load" to start straight from a save.
+
+## 8.1.20
+
+- The widget's frame cap buttons (Off, 30, 40 and 60 FPS in the Power card, with "Save to this game") are out of Experimental: always there now.
+
+## 8.1.19
+
+More out of Experimental:
+- **Always there now**:
+  - Frame rate cap per game: Games > While playing, and in each game's profile.
+  - Launch options per game, and scripts before and after a game: in each game's profile.
+  - In the widget: media controls, Auto TDP, the thermal warning, game notes, launch apps and shortcuts, the card editor (order and hiding), a layout per game, presets per game, and the wattage look (Controller > Xbox Game Bar widget, where the full dial is the default).
+- **With a switch, turned on for everyone once**:
+  - Charger check: Power > This device.
+  - Widget: match my style, and Widget: companion: Controller > Xbox Game Bar widget.
+- **Session timer and break reminder**, and **Docked / TV mode**: Games > While playing, with their switches as you had them, since they change how SquareDeck behaves.
+
+## 8.1.18
+
+Out of Experimental, into their own places in Settings:
+- **Always there now**:
+  - Visual modes and CPU core configuration: ROG Ally page > Display and processor.
+  - Custom fan curve: ROG Ally page > Fans and temperature (Custom is always offered as a fan curve).
+  - Controller tester: Controller > Vibration and testing. The older test stays as "Simple controller test".
+  - Driver check: System > Tools.
+  - Startup apps: System > Starting with Windows.
+  - Twitch on the Streaming tab, and "Learn more about…" in a game's About card.
+- **With a switch, turned on for everyone once**:
+  - Crash recovery: Data > Updates.
+  - Drive connected notice: System > Notifications.
+  - microSD awareness: Games > Library and stores.
+  - Achievement pop-ups in your style: Games > Achievements, play time and captures.
+- **Windows Update guard**: System > Windows, with its switch as you had it, since it changes a Windows setting.
+
+## 8.1.17
+
+- Style builder: the button hints in the picture now look like the real hint bar. With Simple, each letter sits centered on a filled disc (as SquareDeck draws it), the hints are spaced by their own width so "Options" no longer crowds "Back", and the row is centered in the footer. The Button pictures chooser draws Simple the same way.
+
+## 8.1.16
+
+- The menu music pauses while you create or edit a style, so the sounds and music you try are heard on their own, and carries on from the same spot when you leave the style builder.
+
+## 8.1.15
+
+- **The style builder shows every choice**:
+  - The picture of your style now shows the button pictures in its hint line (simple, controller icons, pixel art or your handheld's own), tall or rectangle game art as tall or wide tiles, the Continue tile when it's on, and the drawn home button icons when your style has them.
+  - Button pictures and Icons are chosen from pictures: each choice shows the buttons (or the home screen with those icons), and the picture on the left follows.
+  - Animations play as you choose them: home buttons and the selected game on a sample button and tile under the picture, opening pages on the picture itself, and the startup, closing, game-start and update screen animations full screen (closing puts SquareDeck back afterwards).
+  - Music plays a taste (about twelve seconds, with the menu music hushed) when you pick it; sounds already played when picked.
+
+## 8.1.14
+
+- **My own style**: a new tab in Themes, next to Mythical, for the styles you make. "Your styles" moved there from Basic, with Create a style and Import a style.
+- **Remix any style**: a style of your own can now start from any ready-made style (Basic, Advanced, Legendary or Mythical), and "Take pieces from another style" borrows from any of them: its wallpaper or moving background, music, interface sounds, navigation sound, font and home button icons, one at a time or all together.
+- The pickers in the style builder include every style's pieces too: the Advanced, Legendary and Mythical wallpapers, their fonts (the Mythical typefaces as well), and a new **Icons** choice to use the drawn home button icons of an Advanced, Legendary or Mythical style.
+- Animations in a style of your own: the startup animation (now with every startup animation), the closing animation, and new **Updating SquareDeck** and **Update screen vibration** choices for the update screen.
+
 ## 8.1.13
 
 - Experimental: **Widget: rumble**. The controller gives a short buzz each time the highlight moves in the Game Bar widget, like moving around SquareDeck. It uses the rumble strength from Settings > Controller, only for controller (or keyboard) moves, not taps. Widget 1.6.9.0.

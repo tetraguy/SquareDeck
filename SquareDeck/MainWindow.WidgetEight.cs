@@ -73,7 +73,7 @@ public partial class MainWindow
         }
         if (Labs.On("wautotdp"))
             state["autotdp"] = new JsonObject { ["on"] = _autoTdpOn, ["target"] = _autoTdpTarget, ["status"] = _autoTdpStatus };
-        if (Labs.On("wpowerlook")) state["powerlook"] = Labs.Has("w.powerlook") ? Labs.Get("w.powerlook") : "bar";
+        if (Labs.On("wpowerlook")) state["powerlook"] = Labs.Has("w.powerlook") ? Labs.Get("w.powerlook") : "dial";
         if (Labs.On("wthermal")) state["templimit"] = Settings.TdpTempLimit > 0 ? Settings.TdpTempLimit : 95;
         if (Labs.On("wnotes") && key != null) state["notes"] = Library.Find(key)?.Notes ?? "";
         if (Labs.On("wpad"))

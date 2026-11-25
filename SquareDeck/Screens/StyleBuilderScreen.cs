@@ -47,7 +47,8 @@ public sealed class StyleBuilderScreen : ListScreen
         _about.TextWrapping = TextWrapping.Wrap;
         _about.TextTrimming = TextTrimming.None;
         left.Children.Add(_about);
-        var tip = Ui.Text("The picture changes as you choose. Sounds play when you pick them. The moving decorations of some effects show on the home screen.", 13, "SubtleBrush");
+        left.Children.Add(BuildDemo());
+        var tip = Ui.Text("Every choice shows here as you make it: the picture follows your colors, art, icons, button pictures and Continue; sounds and music play when you pick them; animations play here or full screen.", 13, "SubtleBrush");
         tip.TextWrapping = TextWrapping.Wrap;
         tip.TextTrimming = TextTrimming.None;
         tip.Margin = new Thickness(2, 14, 0, 0);
@@ -60,6 +61,21 @@ public sealed class StyleBuilderScreen : ListScreen
         grid.Children.Add(RowsScroll);
     }
 
+    private bool _holdingMusic;
+
+    /// <summary>The menu music pauses while you build a style, so its sounds and music are heard on their own.</summary>
+    public override void OnShown()
+    {
+        base.OnShown();
+        if (!_holdingMusic) { _holdingMusic = true; Host.HoldMenuMusic(true); }
+    }
+
+    public override void OnClosed()
+    {
+        base.OnClosed();
+        if (_holdingMusic) { _holdingMusic = false; Host.HoldMenuMusic(false); }
+    }
+
     public override void OnResumed()
     {
         base.OnResumed();
@@ -69,7 +85,7 @@ public sealed class StyleBuilderScreen : ListScreen
     private void UpdatePreview()
     {
         var style = _draft.ToStyle();
-        _preview.Child = new Viewbox { Width = 500, Stretch = Stretch.Uniform, Child = UiStyleScreen.Preview(style) };
+        _preview.Child = new Viewbox { Width = 500, Stretch = Stretch.Uniform, Child = UiStyleScreen.Preview(style, new UiStyleScreen.Extras(_draft.Glyphs, _draft.ContinueTile)) };
         _name.Text = _draft.Name + (_dirty ? "  •" : "");
         _about.Text = style.Description + (_dirty ? " Not saved yet." : "");
         _name.FontFamily = AppFonts.Family(style.Font);
@@ -90,74 +106,87 @@ public sealed class StyleBuilderScreen : ListScreen
         UpdatePreview();
 
         AddHeader("Name");
-        AddRow("Name", d.Name, "", click: () => _ = RenameAsync(), subtitle: "What it's called in Themes");
-        AddRow("Starting point", start.Name, "", click: () => _ = RestartAsync(),
-            subtitle: "The ready-made style yours is built on. Choose another to start again from it");
+        AddRow("Name", d.Name, "\uE8AC", click: () => _ = RenameAsync(), subtitle: "What it's called in Themes");
+        AddRow("Starting point", start.Name + "  \u00B7  " + MyStyles.TierOf(start), "\uE8B1", click: () => _ = RestartAsync(),
+            subtitle: "The ready-made style yours is built on (Basic, Advanced, Legendary or Mythical). Choose another to start again from it");
+
+        AddHeader("Remix");
+        AddRow("Take pieces from another style", null, "\uE8B1", click: () => _ = RemixAsync(),
+            subtitle: "Its wallpaper or moving background, music, sounds, font or icons, from any Basic, Advanced, Legendary or Mythical style");
 
         AddHeader("Background");
-        AddRow("Wallpaper or moving background", BackgroundName(d), "", click: ChooseBackground,
+        AddRow("Wallpaper or moving background", BackgroundName(d), "\uE91B", click: ChooseBackground,
             subtitle: "A picture, a gradient, a moving background, or one of your own");
 
         AddHeader("Sound");
-        AddRow("Background music", MusicName(d.Music), "", click: () => _ = ChooseMusicAsync(), subtitle: "Plays quietly on the home screen and in menus");
-        AddRow("Interface sounds", UiSound.SetName(d.Sounds), "", click: () => _ = ChooseSoundsAsync(nav: false),
+        AddRow("Background music", MusicName(d.Music), "\uE8D6", click: () => _ = ChooseMusicAsync(), subtitle: "Plays quietly on the home screen and in menus");
+        AddRow("Interface sounds", UiSound.SetName(d.Sounds), "\uE767", click: () => _ = ChooseSoundsAsync(nav: false),
             subtitle: "Selecting, going back, pages and pop-ups");
-        AddRow("Navigation sound", d.NavSounds.Length == 0 ? "Same as interface sounds" : UiSound.SetName(d.NavSounds), "",
+        AddRow("Navigation sound", d.NavSounds.Length == 0 ? "Same as interface sounds" : UiSound.SetName(d.NavSounds), "\uE7C9",
             click: () => _ = ChooseSoundsAsync(nav: true), subtitle: "Moving the highlight around");
 
         AddHeader("Colors");
-        AddRow("Light, dark or OLED", MyStyles.Modes.FirstOrDefault(m => m.Id == d.Mode).Name ?? "Dark", "", click: () => _ = ChooseModeAsync());
-        AddRow("Color theme", PaletteName(d.Palette), "", click: ChoosePalette, subtitle: "The background, text, buttons and tiles");
-        AddRow("Highlight color", AccentName(d.Accent), "", click: () => _ = ChooseAccentAsync(), subtitle: "The ring around the selection and other highlights");
+        AddRow("Light, dark or OLED", MyStyles.Modes.FirstOrDefault(m => m.Id == d.Mode).Name ?? "Dark", "\uE793", click: () => _ = ChooseModeAsync());
+        AddRow("Color theme", PaletteName(d.Palette), "\uE790", click: ChoosePalette, subtitle: "The background, text, buttons and tiles");
+        AddRow("Highlight color", AccentName(d.Accent), "\uE7E6", click: () => _ = ChooseAccentAsync(), subtitle: "The ring around the selection and other highlights");
 
         AddHeader("Type and shape");
-        AddRow("Font", d.Font == "style" ? "From the starting style" : SettingsScreen.UiFonts.FirstOrDefault(f => f.Id == d.Font).Name ?? "Custom", "", click: ChooseFont);
-        AddRow("Corners", d.Corners < 0 ? "From the starting style" : MyStyles.CornerChoices.FirstOrDefault(c => c.Radius == d.Corners).Name ?? d.Corners + " px", "",
+        AddRow("Font", d.Font == "style" ? "From the starting style" : SettingsScreen.UiFonts.FirstOrDefault(f => f.Id == d.Font).Name ?? FontName(d.Font), "\uE8D2", click: ChooseFont);
+        AddRow("Corners", d.Corners < 0 ? "From the starting style" : MyStyles.CornerChoices.FirstOrDefault(c => c.Radius == d.Corners).Name ?? d.Corners + " px", "\uE71A",
             click: () => _ = ChooseCornersAsync(), subtitle: "How round the tiles, rows and panels are");
 
         AddHeader("Home screen");
-        AddRow("Button shape", NameIn(MyStyles.Shapes, d.ButtonShape), "", click: () => Pick("Button shape", "The buttons under the games.", MyStyles.Shapes, () => d.ButtonShape, (c, v) => c.ButtonShape = v));
-        AddRow("Button look", NameIn(MyStyles.Fills, d.ButtonFill), "", click: () => Pick("Button look", "How the buttons are filled and lit.", MyStyles.Fills, () => d.ButtonFill, (c, v) => c.ButtonFill = v));
-        AddRow("Glow around the selection", d.Glow ? "On" : "Off", "", click: () => { d.Glow = !d.Glow; Changed(); },
+        AddRow("Button shape", NameIn(MyStyles.Shapes, d.ButtonShape), "\uEA3A", click: () => Pick("Button shape", "The buttons under the games.", MyStyles.Shapes, () => d.ButtonShape, (c, v) => c.ButtonShape = v));
+        AddRow("Button look", NameIn(MyStyles.Fills, d.ButtonFill), "\uE771", click: () => Pick("Button look", "How the buttons are filled and lit.", MyStyles.Fills, () => d.ButtonFill, (c, v) => c.ButtonFill = v));
+        AddRow("Glow around the selection", d.Glow ? "On" : "Off", "\uE706", click: () => { d.Glow = !d.Glow; Changed(); },
             subtitle: "A soft glow in the highlight color around the selected game and button");
-        AddRow("Button shelf", NameIn(MyStyles.Shelves, d.Shelf), "", click: () => Pick("Button shelf", "A shelf behind all the buttons, or none.", MyStyles.Shelves, () => d.Shelf, (c, v) => c.Shelf = v));
-        AddRow("Footer", NameIn(MyStyles.Footers, d.Footer), "", click: () => Pick("Footer", "Behind the button hints at the bottom.", MyStyles.Footers, () => d.Footer, (c, v) => c.Footer = v));
-        AddRow("Button pictures", SquareDeck.Hints.Looks.FirstOrDefault(x => x.Id == d.Glyphs).Name ?? "Simple", "", click: () => _ = ChooseGlyphsAsync(),
+        AddRow("Button shelf", NameIn(MyStyles.Shelves, d.Shelf), "\uE8A9", click: () => Pick("Button shelf", "A shelf behind all the buttons, or none.", MyStyles.Shelves, () => d.Shelf, (c, v) => c.Shelf = v));
+        AddRow("Footer", NameIn(MyStyles.Footers, d.Footer), "\uE8A5", click: () => Pick("Footer", "Behind the button hints at the bottom.", MyStyles.Footers, () => d.Footer, (c, v) => c.Footer = v));
+        AddRow("Button pictures", SquareDeck.Hints.Looks.FirstOrDefault(x => x.Id == d.Glyphs).Name ?? "Simple", "\uE7FC", click: () => _ = ChooseGlyphsAsync(),
             subtitle: "How controller buttons are drawn in hints: simple, controller icons or pixel art");
-        AddRow("Game art", NameIn(MyStyles.Arts, d.TileArt), "", click: ChooseArt, subtitle: "Square, tall or rectangle");
-        AddRow("Continue where you left off", d.ContinueTile ? "On" : "Off", "", click: () => { d.ContinueTile = !d.ContinueTile; Changed(); },
+        AddRow("Icons", IconsName(d), "\uE8B9", click: () => _ = ChooseIconsAsync(),
+            subtitle: "The home buttons' icons: the plain symbols, or the drawn icons of an Advanced, Legendary or Mythical style");
+        AddRow("Game art", NameIn(MyStyles.Arts, d.TileArt), "\uE8B9", click: ChooseArt, subtitle: "Square, tall or rectangle");
+        AddRow("Continue where you left off", d.ContinueTile ? "On" : "Off", "\uE768", click: () => { d.ContinueTile = !d.ContinueTile; Changed(); },
             subtitle: "The last game you played first on the home row, ready to carry on");
 
         AddHeader("Effect");
-        AddRow("Effect", NameOf(d.Effect), "", click: ChooseEffect,
+        AddRow("Effect", NameOf(d.Effect), "\uE781", click: ChooseEffect,
             subtitle: "Halftone, comic book, retro, futuristic, synthwave, Y2K, dreamcore and more");
 
         AddHeader("Animations");
-        AddRow("Home buttons", NameIn(SettingsScreen.ButtonStyles, d.ButtonAnimation), "",
-            click: () => _ = ChooseFromAsync("Home buttons", "How the home buttons react when highlighted.", SettingsScreen.ButtonStyles, v => d.ButtonAnimation = v));
-        AddRow("Opening pages", NameIn(SettingsScreen.PageStyles, d.PageAnimation), "",
-            click: () => _ = ChooseFromAsync("Opening pages", "How pages and pop-ups appear.", SettingsScreen.PageStyles, v => d.PageAnimation = v));
-        AddRow("Selected game", NameIn(Motion.TileHighlights, d.TileAnimation), "",
-            click: () => _ = ChooseFromAsync("Selected game", "How the highlighted game stands out on the home row.", Motion.TileHighlights, v => d.TileAnimation = v));
-        AddRow("Startup", NameIn(MainWindow.BootAnimations, d.BootAnimation), "",
-            click: () => _ = ChooseFromAsync("Startup animation", "Plays when SquareDeck opens.", MainWindow.BootAnimations, v => d.BootAnimation = v));
-        AddRow("Closing", NameIn(MainWindow.ExitStyles, d.ExitAnimation), "",
-            click: () => _ = ChooseFromAsync("Closing animation", "Plays when you exit SquareDeck.", MainWindow.ExitStyles, v => d.ExitAnimation = v));
+        AddRow("Home buttons", NameIn(SettingsScreen.ButtonStyles, d.ButtonAnimation), "\uE7C9",
+            click: () => _ = ChooseFromAsync("Home buttons", "How the home buttons react when highlighted.", SettingsScreen.ButtonStyles, v => d.ButtonAnimation = v, DemoButton));
+        AddRow("Opening pages", NameIn(SettingsScreen.PageStyles, d.PageAnimation), "\uE8A7",
+            click: () => _ = ChooseFromAsync("Opening pages", "How pages and pop-ups appear.", SettingsScreen.PageStyles, v => d.PageAnimation = v, DemoPage));
+        AddRow("Selected game", NameIn(Motion.TileHighlights, d.TileAnimation), "\uE7FC",
+            click: () => _ = ChooseFromAsync("Selected game", "How the highlighted game stands out on the home row.", Motion.TileHighlights, v => d.TileAnimation = v, DemoTile));
+        var boots = MainWindow.BootAnimations.Concat(MainWindow.MoreBootAnimations.Where(m => MainWindow.BootAnimations.All(b => b.Id != m.Id))).ToArray();
+        AddRow("Startup", NameIn(boots, d.BootAnimation), "\uE7E8",
+            click: () => _ = ChooseFromAsync("Startup animation", "Plays when SquareDeck opens.", boots, v => d.BootAnimation = v, id => Host.PreviewIntro(id)));
+        AddRow("Closing", NameIn(MainWindow.ExitStyles, d.ExitAnimation), "\uE711",
+            click: () => _ = ChooseFromAsync("Closing animation", "Plays when you exit SquareDeck.", MainWindow.ExitStyles, v => d.ExitAnimation = v, id => _ = Host.PreviewExitAsync(id)));
         var launch = LaunchSplashScreen.Styles.Select(x => (x.Id, x.Name)).Append(("random", "Surprise me")).ToArray();
-        AddRow("Starting a game", NameIn(launch, d.LaunchAnimation), "",
-            click: () => _ = ChooseFromAsync("Starting a game", "The splash while a game starts.", launch, v => d.LaunchAnimation = v));
+        AddRow("Starting a game", NameIn(launch, d.LaunchAnimation), "\uE768",
+            click: () => _ = ChooseFromAsync("Starting a game", "The splash while a game starts.", launch, v => d.LaunchAnimation = v, id => Host.Push(LaunchSplashScreen.Preview(id))));
+        var updateLooks = new[] { ("", "Leave mine as it is") }.Concat(SilentUpdate.Looks).ToArray();
+        AddRow("Updating SquareDeck", NameIn(updateLooks, d.UpdateLook), "\uE895",
+            click: () => _ = ChooseFromAsync("Update screen animation", "Plays on the screen that installs SquareDeck's updates.", updateLooks, v => d.UpdateLook = v, id => Host.PreviewUpdateScreen(id, d.UpdateHaptic)));
+        var updateBuzz = new[] { ("", "Leave mine as it is") }.Concat(SilentUpdate.Haptics).ToArray();
+        AddRow("Update screen vibration", NameIn(updateBuzz, d.UpdateHaptic), "\uE7FC",
+            click: () => _ = ChooseFromAsync("Update screen vibration", "How the controller buzzes while an update installs.", updateBuzz, v => d.UpdateHaptic = v, id => Host.PreviewUpdateScreen(d.UpdateLook, id)));
 
         AddHeader("Windows lock screen");
-        AddRow("Lock screen picture", LockName(d), "", click: () => _ = ChooseLockScreenAsync(),
+        AddRow("Lock screen picture", LockName(d), "\uE72E", click: () => _ = ChooseLockScreenAsync(),
             subtitle: "Put on the Windows lock screen when you choose this style");
 
         AddHeader(_isNew ? "Save" : "Save and share");
-        AddRow("Save and use", null, "", click: () => _ = SaveAsync(use: true), subtitle: "Keeps your style and switches to it");
-        AddRow("Save", null, "", click: () => _ = SaveAsync(use: false), subtitle: "Keeps it in Your styles for later");
+        AddRow("Save and use", null, "\uE73E", click: () => _ = SaveAsync(use: true), subtitle: "Keeps your style and switches to it");
+        AddRow("Save", null, "\uE74E", click: () => _ = SaveAsync(use: false), subtitle: "Keeps it in Your styles for later");
         if (!_isNew)
         {
-            AddRow("Export", null, "", click: () => _ = ExportAsync(), subtitle: "Saves it as a file to share or keep, with any pictures, videos and music of your own");
-            AddRow("Delete this style", null, "", click: () => _ = DeleteAsync());
+            AddRow("Export", null, "\uEDE1", click: () => _ = ExportAsync(), subtitle: "Saves it as a file to share or keep, with any pictures, videos and music of your own");
+            AddRow("Delete this style", null, "\uE74D", click: () => _ = DeleteAsync());
         }
     }
 
@@ -172,7 +201,8 @@ public sealed class StyleBuilderScreen : ListScreen
         if (d.Moving.Length > 0) return Path.IsPathRooted(d.Moving) ? "Your video" : d.Moving + " (moving)";
         if (d.Wallpaper.Length == 0) return "None";
         if (d.Wallpaper.StartsWith("preset:") && int.TryParse(d.Wallpaper[7..], out var i) && i >= 0 && i < Theme.Wallpapers.Length) return Theme.Wallpapers[i].Name + " gradient";
-        if (d.Wallpaper.StartsWith("image:")) return Theme.PictureWallpapers.FirstOrDefault(p => p.File == d.Wallpaper[6..]).Name ?? "Picture";
+        if (d.Wallpaper.StartsWith("image:")) return Theme.PictureWallpapers.FirstOrDefault(p => p.File == d.Wallpaper[6..]).Name
+            ?? (MyStyles.Everything().FirstOrDefault(st => st.Wallpaper == d.Wallpaper) is { } from ? from.Name + "'s picture" : "Picture");
         return "Your picture";
     }
 
@@ -204,6 +234,87 @@ public sealed class StyleBuilderScreen : ListScreen
         _ => "Your picture"
     };
 
+    private static string FontName(string font) =>
+        font.Contains('#') ? font[(font.LastIndexOf('#') + 1)..] : font.StartsWith("file:") ? Path.GetFileNameWithoutExtension(font[5..]) : font.Split(',')[0].Trim();
+
+    private static string IconsName(CustomStyle d)
+    {
+        if (d.IconsFrom.Length > 0 && UiStyles.Advanced.FirstOrDefault(x => x.Id == d.IconsFrom) is { } from) return from.Name + "'s icons";
+        return MyStyles.BuiltIn(d.BasedOn).Skin != null ? "From the starting style" : "Plain symbols";
+    }
+
+    // ================================================================ trying animations
+
+    private readonly Border _demoTile = new() { Width = 70, Height = 70, CornerRadius = new CornerRadius(12), Margin = new Thickness(8) };
+    private readonly Border _demoRing = new() { Width = 84, Height = 84, CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(3) };
+    private readonly Button _demoButton = new() { Width = 56, Height = 56, Focusable = false, IsHitTestVisible = false };
+    private Grid? _demoTileHost;
+
+    /// <summary>A game tile and a home button under the picture, where the home button, page and selected-game animations play.</summary>
+    private UIElement BuildDemo()
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 0) };
+        var label = Ui.Text("Animations play here", 13, "SubtleBrush");
+        label.VerticalAlignment = VerticalAlignment.Center;
+        label.Width = 130;
+        label.TextWrapping = TextWrapping.Wrap;
+        row.Children.Add(label);
+        _demoTile.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+        _demoTile.Opacity = 0.85;
+        _demoRing.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+        _demoTileHost = new Grid { Width = 96, Height = 96, Margin = new Thickness(10, 0, 20, 0) };
+        _demoTileHost.Children.Add(_demoTile);
+        _demoTileHost.Children.Add(_demoRing);
+        _demoRing.Visibility = Visibility.Hidden;
+        row.Children.Add(_demoTileHost);
+        _demoButton.Style = Ui.StyleOf("RoundButton");
+        _demoButton.Content = Ui.Glyph("\uE80F", 22, "FgBrush");
+        row.Children.Add(_demoButton);
+        return row;
+    }
+
+    /// <summary>How a home button reacts when it's highlighted, played on the sample button.</summary>
+    private async void DemoButton(string style)
+    {
+        string was = Motion.ButtonStyle;
+        bool wasOn = Motion.ButtonAnimations;
+        Motion.ButtonStyle = style;
+        Motion.ButtonAnimations = true;
+        UiSound.Move();
+        Motion.Highlight(_demoButton, true);
+        await Task.Delay(1100);
+        Motion.Highlight(_demoButton, false);
+        await Task.Delay(300);
+        Motion.ButtonStyle = was;
+        Motion.ButtonAnimations = wasOn;
+    }
+
+    /// <summary>How the selected game stands out, played on the sample tile for a few seconds.</summary>
+    private async void DemoTile(string style)
+    {
+        string was = Motion.TileStyle;
+        Motion.TileStyle = style;
+        _demoRing.Visibility = Visibility.Visible;
+        UiSound.Move();
+        Motion.GrowTile(_demoTileHost, true);
+        Motion.StartPulse(_demoRing);
+        await Task.Delay(2600);
+        Motion.StopPulse(_demoRing);
+        Motion.GrowTile(_demoTileHost, false);
+        _demoRing.Visibility = Visibility.Hidden;
+        Motion.TileStyle = was;
+    }
+
+    /// <summary>How pages open, played on the picture of your style.</summary>
+    private void DemoPage(string style)
+    {
+        string was = Motion.PageStyle;
+        Motion.PageStyle = style;
+        UiSound.Page();
+        try { Motion.OpenPage(_preview, false); }
+        finally { Motion.PageStyle = was; }
+    }
+
     // ================================================================ pickers
 
     /// <summary>A small picture of the home screen with one change made.</summary>
@@ -212,7 +323,7 @@ public sealed class StyleBuilderScreen : ListScreen
         var d = _draft.Copy();
         change(d);
         var grid = new Grid();
-        grid.Children.Add(new Viewbox { Width = PreviewPickerScreen.W, Height = PreviewPickerScreen.H, Stretch = Stretch.UniformToFill, Child = UiStyleScreen.Preview(d.ToStyle()) });
+        grid.Children.Add(new Viewbox { Width = PreviewPickerScreen.W, Height = PreviewPickerScreen.H, Stretch = Stretch.UniformToFill, Child = UiStyleScreen.Preview(d.ToStyle(), new UiStyleScreen.Extras(d.Glyphs, d.ContinueTile)) });
         if (caption != null)
         {
             var band = new Border { VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(0xC8, 0, 0, 0)), Padding = new Thickness(10, 5, 10, 6) };
@@ -242,6 +353,13 @@ public sealed class StyleBuilderScreen : ListScreen
         foreach (var (_, names) in MainWindow.DynamicBackgrounds)
             foreach (var name in names) options.Add(("moving:" + name, name, "Moving background"));
         foreach (var (name, file) in Theme.PictureWallpapers) options.Add(("image:" + file, name, "Picture"));
+        // The pictures that come with the Advanced, Legendary and Mythical styles (and any other style's own).
+        foreach (var st in MyStyles.Everything())
+        {
+            if (!st.Wallpaper.StartsWith("image:") || options.Any(o => o.Id == st.Wallpaper)) continue;
+            if (!File.Exists(Path.Combine(AppContext.BaseDirectory, "Wallpapers", st.Wallpaper[6..]))) continue;
+            options.Add((st.Wallpaper, st.Name, MyStyles.TierOf(st) + " style's picture"));
+        }
         for (int i = 0; i < Theme.Wallpapers.Length; i++) options.Add(("preset:" + i, Theme.Wallpapers[i].Name, "Gradient"));
 
         string Current() => d.Moving.Length > 0 ? (Path.IsPathRooted(d.Moving) ? "keep-video" : "moving:" + d.Moving)
@@ -269,7 +387,7 @@ public sealed class StyleBuilderScreen : ListScreen
         else if (id.StartsWith("preset:") && Theme.WallpaperBrush(id) is { } gradient) grid.Children.Add(new Rectangle { Fill = gradient });
         else
         {
-            string glyph = id switch { "own-picture" => "", "own-video" or "keep-video" => "", _ => "" };
+            string glyph = id switch { "own-picture" => "\uEB9F", "own-video" or "keep-video" => "\uE714", _ => "\uE711" };
             var icon = Ui.Glyph(glyph, 40, "SubtleBrush");
             icon.HorizontalAlignment = HorizontalAlignment.Center;
             icon.VerticalAlignment = VerticalAlignment.Center;
@@ -341,6 +459,7 @@ public sealed class StyleBuilderScreen : ListScreen
             catch (Exception ex) { await Host.AskAsync("Couldn't add the music", ex.Message, "OK"); return; }
         }
         Changed();
+        if (_draft.Music.Length > 0) Host.PreviewMusic(_draft.Music); // a taste of it
     }
 
     private async Task ChooseSoundsAsync(bool nav)
@@ -401,7 +520,14 @@ public sealed class StyleBuilderScreen : ListScreen
     private void ChooseFont()
     {
         var start = MyStyles.BuiltIn(_draft.BasedOn);
-        var options = SettingsScreen.UiFonts.Select(f => f.Id == "style" ? (f.Id, "From the starting style", "The starting style's own font") : f).ToArray();
+        var list = SettingsScreen.UiFonts.Select(f => f.Id == "style" ? (f.Id, "From the starting style", "The starting style's own font") : f).ToList();
+        // The fonts the other styles come with (the Mythical ones' own typefaces too).
+        foreach (var st in MyStyles.Everything())
+        {
+            if (string.IsNullOrEmpty(st.Font) || list.Any(o => o.Item1 == st.Font)) continue;
+            list.Add((st.Font, FontName(st.Font), "From " + st.Name + " (" + MyStyles.TierOf(st) + ")"));
+        }
+        var options = list.ToArray();
         Host.Push(new PreviewPickerScreen("Font", "Used everywhere in SquareDeck with this style.", options, () => _draft.Font,
             id => PreviewPickerScreen.Font(id == "style" ? start.Font : id), id => { _draft.Font = id; _dirty = true; }));
     }
@@ -416,13 +542,55 @@ public sealed class StyleBuilderScreen : ListScreen
         Changed();
     }
 
-    private async Task ChooseGlyphsAsync()
+    private Task ChooseGlyphsAsync()
     {
-        int choice = await Host.AskAsync("Button pictures", "How controller buttons are drawn in the hints.", SquareDeck.Hints.Looks.Select(l => l.Name).ToArray());
-        if (choice < 0) return;
-        _draft.Glyphs = SquareDeck.Hints.Looks[choice].Id;
-        Changed();
+        var options = SquareDeck.Hints.Looks.Select(l => (l.Id, l.Name, "How controller buttons are drawn in the hints")).ToArray();
+        Host.Push(new PreviewPickerScreen("Button pictures", "How controller buttons are drawn in the hints. The picture of your style shows them too.",
+            options, () => _draft.Glyphs, GlyphFace, id => { _draft.Glyphs = id; _dirty = true; }));
+        return Task.CompletedTask;
     }
+
+    /// <summary>The four face buttons and the bumpers in a look, with the hint line under them as it would read.</summary>
+    private static FrameworkElement GlyphFace(string look)
+    {
+        var grid = new Grid();
+        grid.SetResourceReference(Panel.BackgroundProperty, "CardBrush");
+        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+        foreach (var b in new[] { "A", "B", "X", "Y", "LB", "RB" }) row.Children.Add(GlyphPicture(look, b, 34));
+        stack.Children.Add(row);
+        var hint = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) };
+        foreach (var (b, words) in new[] { ("A", "Start"), ("B", "Back") })
+        {
+            hint.Children.Add(GlyphPicture(look, b, 20));
+            var t = Ui.Text(words, 14, "FgBrush");
+            t.Margin = new Thickness(4, 0, 14, 0);
+            t.VerticalAlignment = VerticalAlignment.Center;
+            hint.Children.Add(t);
+        }
+        stack.Children.Add(hint);
+        grid.Children.Add(stack);
+        return grid;
+    }
+
+    private static FrameworkElement GlyphPicture(string look, string button, double size)
+    {
+        if (SquareDeck.Hints.PreviewFile(look, button) is { } file && ImageLoader.FromFile(file, 96) is { } picture)
+        {
+            var img = new Image { Source = picture, Width = size, Height = size, Margin = new Thickness(3), Stretch = Stretch.Uniform };
+            if (look == "pixel") RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.NearestNeighbor);
+            return img;
+        }
+        // Simple: the letter on a filled disc, as the hint bar draws it.
+        var ring = new Border { Width = size, Height = size, CornerRadius = new CornerRadius(size / 2), Margin = new Thickness(3) };
+        ring.SetResourceReference(Border.BackgroundProperty, "FgBrush");
+        var letter = Ui.Text(button, size * (button.Length > 1 ? 0.36 : 0.5), "BgBrush", bold: true);
+        letter.HorizontalAlignment = HorizontalAlignment.Center;
+        letter.VerticalAlignment = VerticalAlignment.Center;
+        ring.Child = letter;
+        return ring;
+    }
+
 
     private void ChooseArt() =>
         Host.Push(new PreviewPickerScreen("Game art", "The shape of the games on the home row.", MyStyles.Arts, () => _draft.TileArt,
@@ -435,12 +603,81 @@ public sealed class StyleBuilderScreen : ListScreen
             id => Mini(d => d.Effect = id, MyStyles.Effects.First(e => e.Id == id).About), id => { _draft.Effect = id; _dirty = true; }));
     }
 
-    private async Task ChooseFromAsync(string title, string? message, (string Id, string Name)[] options, Action<string> set)
+    /// <summary>The home button icons: the symbols, or another style's drawn icons.</summary>
+    private Task ChooseIconsAsync()
+    {
+        var sets = MyStyles.IconSets();
+        bool startHas = MyStyles.BuiltIn(_draft.BasedOn).Skin != null;
+        var options = new List<(string Id, string Name, string About)> { ("", startHas ? "From the starting style" : "Plain symbols", startHas ? "The starting style's own artwork" : "SquareDeck's symbols") };
+        options.AddRange(sets.Select(x => (x.Id, x.Name + "  \u00B7  " + MyStyles.TierOf(x), "Its drawn home button icons")));
+        Host.Push(new PreviewPickerScreen("Icons", "The pictures on the home screen's round buttons." +
+            (startHas ? " Your starting style has artwork of its own, so its icons are used; start from a Basic style to borrow another style's." : ""),
+            options.ToArray(), () => _draft.IconsFrom, id => Mini(d => d.IconsFrom = id), id => { _draft.IconsFrom = id; _dirty = true; }));
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Remix: pick any ready-made style (Basic to Mythical), then which of its pieces to take: its background, music,
+    /// interface and navigation sounds, font and icons, one at a time or all together.
+    /// </summary>
+    private Task RemixAsync()
+    {
+        var options = MyStyles.Everything().Select(s => (s.Id, s.Name + "  ·  " + MyStyles.TierOf(s), s.Description)).ToArray();
+        PreviewPickerScreen? picker = null;
+        picker = new PreviewPickerScreen("Take pieces from a style", "Choose the style to borrow from. Next you choose which of its pieces to take.",
+            options, () => "", id => new Viewbox { Width = PreviewPickerScreen.W, Height = PreviewPickerScreen.H, Stretch = Stretch.UniformToFill, Child = UiStyleScreen.Preview(UiStyles.Find(id)) },
+            id =>
+            {
+                Host.Pop(picker!);
+                _ = TakePiecesAsync(UiStyles.Find(id));
+            });
+        Host.Push(picker);
+        return Task.CompletedTask;
+    }
+
+    private async Task TakePiecesAsync(UiStyle from)
+    {
+        await Task.Delay(150); // the picker closes first
+        bool hasIcons = MyStyles.IconFolder(from.Id) != null;
+        var pieces = new List<(string Id, string Name)>
+        {
+            ("all", "All of these"),
+            ("background", from.Moving.Length > 0 ? "Its moving background" : from.Wallpaper.Length > 0 ? "Its wallpaper" : "Its background (plain)"),
+            ("music", from.Music.Length > 0 ? "Its music: " + MusicName(from.Music) : "Its music (none)"),
+            ("sounds", "Its interface sounds: " + UiSound.SetName(from.Sounds)),
+            ("nav", "Its navigation sound: " + UiSound.SetName(from.NavSounds ?? from.Sounds)),
+            ("font", "Its font: " + FontName(from.Font)),
+        };
+        if (hasIcons) pieces.Add(("icons", "Its icons"));
+        while (true)
+        {
+            int choice = await Host.AskAsync("From " + from.Name, "Pick a piece to take. You can take more than one; choose Done when you're finished.", pieces.Select(p => p.Name).Append("Done").ToArray());
+            if (choice < 0 || choice >= pieces.Count) break;
+            string what = pieces[choice].Id;
+            bool all = what == "all";
+            if (all || what == "background") { _draft.Wallpaper = from.Wallpaper; _draft.Moving = from.Moving; }
+            if (all || what == "music") _draft.Music = from.Music;
+            if (all || what == "sounds") _draft.Sounds = from.Sounds;
+            if (all || what == "nav") _draft.NavSounds = from.NavSounds ?? "";
+            if (all || what == "font") _draft.Font = from.Font;
+            if ((all || what == "icons") && hasIcons) _draft.IconsFrom = from.Id;
+            _dirty = true;
+            UpdatePreview();
+            if (what is "sounds" or "nav") UiSound.Preview(what == "nav" ? (from.NavSounds ?? from.Sounds) : from.Sounds, move: what == "nav");
+            else UiSound.Select();
+            if (all) break;
+        }
+        Rebuild();
+    }
+
+    private async Task ChooseFromAsync(string title, string? message, (string Id, string Name)[] options, Action<string> set, Action<string>? play = null)
     {
         int choice = await Host.AskAsync(title, message, options.Select(o => o.Name).ToArray());
         if (choice < 0) return;
         set(options[choice].Id);
         Changed();
+        // The choice, shown straight away (the pop-up has closed by now).
+        if (play != null) { await Task.Delay(250); try { play(options[choice].Id); } catch (Exception) { } }
     }
 
     private async Task ChooseLockScreenAsync()
@@ -481,8 +718,8 @@ public sealed class StyleBuilderScreen : ListScreen
 
     private async Task RestartAsync()
     {
-        var options = UiStyles.All.Select(s => (s.Id, s.Name, s.Description)).ToArray();
-        var picker = new PreviewPickerScreen("Starting point", "Start again from a ready-made style: everything here changes to that style's choices (the name stays).",
+        var options = MyStyles.Everything().Select(s => (s.Id, s.Name + "  \u00B7  " + MyStyles.TierOf(s), s.Description)).ToArray();
+        var picker = new PreviewPickerScreen("Starting point", "Start again from any ready-made style, Basic to Mythical: everything here changes to that style's choices (the name stays).",
             options, () => _draft.BasedOn, id => new Viewbox { Width = PreviewPickerScreen.W, Height = PreviewPickerScreen.H, Stretch = Stretch.UniformToFill, Child = UiStyleScreen.Preview(UiStyles.Find(id)) },
             id =>
             {

@@ -1807,6 +1807,7 @@ public partial class MainWindow : Window
     public async Task<int> AskAsync(string title, string? message, params string[] options)
     {
         var dialog = new MenuScreen(title, message, options);
+        if (SquareDeck.Screens.Switch2Settings.On && _screens.Count > 0 && _screens[^1] is SquareDeck.Screens.SettingsScreen) dialog.UseSwitch2Look();
         Push(dialog);
         return await dialog.Result;
     }
@@ -2854,6 +2855,16 @@ public partial class MainWindow : Window
     public void PreviewIntro()
     {
         if (IntroLayer.Children.Count == 0) PlayIntro();
+    }
+
+    /// <summary>A given startup animation, played now (the style builder), without changing the setting.</summary>
+    public void PreviewIntro(string style)
+    {
+        if (IntroLayer.Children.Count > 0) return;
+        string was = Settings.BootAnimation;
+        Settings.BootAnimation = style;
+        try { PlayIntro(); }
+        finally { Settings.BootAnimation = was; }
     }
 
     /// <summary>A short animation and chime over the home screen while it loads.</summary>

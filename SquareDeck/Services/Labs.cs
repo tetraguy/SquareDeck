@@ -115,6 +115,7 @@ public static partial class Labs
         new("wtheme", "Widget: match my style", "The widget takes on the current SquareDeck style: its colors, font and wallpaper (Mythical styles too)", "\uE790", WidgetGroup),
         new("wrumble", "Widget: rumble", "The controller buzzes as you move around the widget, like it does in SquareDeck (uses the rumble strength from Settings > Controller)", "\uE7FC", WidgetGroup),
         new("wpowerlook", "Widget: wattage look", "A smaller look for the TDP in the widget's Power card: slim bar, mini dial beside the presets, the number alone (select it for the full dial) or preset chips. Select to choose", "\uE945", WidgetGroup),
+        new("newsettings", "Switch 2 style Settings", "Settings drawn like the Nintendo Switch 2\u2019s System Settings: flat rows on thin lines, values in blue, pill switches, sections listed on the left with a blue bar, and the soft blue-to-pink highlight. Light or dark, following your theme", "\uE713", Looks),
         new("wcompanion", "Widget: companion", "Your pixel companion in the widget's header, reacting to achievements, low battery and long sessions", "\uE899", WidgetGroup),
         new("startupapps", "Startup apps manager", "See the apps that start with Windows and turn them off, right here", "\uE7E8", SystemGroup),
     };
@@ -124,7 +125,28 @@ public static partial class Labs
     // ---- features that have left Experimental (7.2)
 
     /// <summary>Always on: they're simply part of SquareDeck now, with no switch.</summary>
-    public static readonly HashSet<string> AlwaysOn = new() { "move", "storage", "cleanup", "fixgame", "sticks", "battery", "gamegenie", "unlockables" };
+    public static readonly HashSet<string> AlwaysOn = new()
+    {
+        "move", "storage", "cleanup", "fixgame", "sticks", "battery", "gamegenie", "unlockables",
+        // 8.1.18
+        "visualmodes", "cpucores", "fancurve", "padtest", "drivercheck", "startupapps", "twitch", "aboutgame",
+        // 8.1.19
+        "fpscap", "launchopts", "scripts", "widgetmedia", "wautotdp", "wthermal", "wnotes", "wapps", "wcards", "wgameaware",
+        "wpresets", "wpowerlook",
+        // 8.1.20
+        "wfpscap",
+        // 8.1.21: Retro Lounge (all but Surprise me)
+        "rascraper", "rashaders", "rastates",
+    };
+
+    /// <summary>On for everyone once (when updating to 8.1.19), with a switch in their new place in Settings.</summary>
+    public static readonly HashSet<string> DefaultOn819 = new() { "charger", "wtheme", "wcompanion" };
+
+    /// <summary>On for everyone once (when updating to 8.1.24), with a switch in Settings > Display.</summary>
+    public static readonly HashSet<string> DefaultOn8124 = new() { "newsettings" };
+
+    /// <summary>On for everyone once (when updating to 8.1.18), with a switch in their new place in Settings.</summary>
+    public static readonly HashSet<string> DefaultOn818 = new() { "crashrecovery", "drivenotice", "microsd", "achtoasts" };
 
     /// <summary>On for everyone once (when updating to 7.2), with a switch in their new place in Settings.</summary>
     public static readonly HashSet<string> DefaultOn = new() { "installestimate", "boss", "mood", "passport", "vacuumtube", "musicstreams", "recomp", "freegames", "leaderboard" };
@@ -134,7 +156,13 @@ public static partial class Labs
     {
         "overnight", "discord", "achshot", "watermark", "guides", "trailers", "steamfullscreen", "refund", "milestones", "diary",
         "closelaunchers", "autoupdate", "settingsview", "styleschedule", "coverdim", "covereffect", "tilt", "dust", "companion", "genresound",
-        "wallpaperengine", "bugreport", "stickers"
+        "wallpaperengine", "bugreport", "stickers",
+        // 8.1.18: out of Experimental. Windows Update guard keeps its switch as you had it (it changes a Windows setting).
+        "crashrecovery", "drivenotice", "microsd", "achtoasts", "updateguard",
+        // 8.1.19. Docked / TV mode and the session timer keep their switches as you had them (they change how things behave).
+        "charger", "wtheme", "wcompanion", "docked", "sessiontimer",
+        // 8.1.24: the Switch 2 style Settings is the default look.
+        "newsettings",
     }));
 
     public static LabFeature? Feature(string id) => Features.FirstOrDefault(f => f.Id == id);
@@ -147,6 +175,24 @@ public static partial class Labs
         {
             foreach (var id in DefaultOn) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
             settings.LabsGraduated72 = true;
+            settings.Save();
+        }
+        if (!settings.LabsGraduated818)
+        {
+            foreach (var id in DefaultOn818) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
+            settings.LabsGraduated818 = true;
+            settings.Save();
+        }
+        if (!settings.LabsGraduated819)
+        {
+            foreach (var id in DefaultOn819) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
+            settings.LabsGraduated819 = true;
+            settings.Save();
+        }
+        if (!settings.LabsGraduated8124)
+        {
+            foreach (var id in DefaultOn8124) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
+            settings.LabsGraduated8124 = true;
             settings.Save();
         }
     }

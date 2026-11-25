@@ -1117,6 +1117,23 @@ public sealed partial class RetroLoungeScreen : GridScreen
         dat.Click += (_, _) => _ = RetroAccount.VerifyAsync(Host);
         Body.Children.Add(dat);
 
+        Heading("Looks and artwork");
+        foreach (var (label, value, glyph, about, tag, open) in new (string, string?, string, string, string, Action)[]
+        {
+            ("Shaders and bezels per console", null, "\uE7F4", "A CRT look for NES and SNES, an LCD grid for Game Boy, borders at the sides: chosen per console",
+                "pref:shaders", () => Host.Push(new RetroLooksScreen())),
+            ("Box art and screenshots from ScreenScraper", RetroEight.User.Length > 0 ? RetroEight.User : "Sign in", "\uEB9F",
+                "Fills in missing covers and screenshots from ScreenScraper's database (a free account)", "pref:scraper", () => Host.Push(new ScreenScraperScreen())),
+        })
+        {
+            var row = Ui.Row(label, value, glyph, subtitle: about);
+            row.Tag = tag;
+            row.Margin = new Thickness(0, 2, 10, 2);
+            row.Click += (_, _) => open();
+            Body.Children.Add(row);
+        }
+        Note("Each game's page shows its RetroArch save states, with \u201CLoad\u201D to start straight from one.");
+
         Heading("Preferences");
         void Toggle(string label, bool on, Action flip, string subtitle, string tag)
         {

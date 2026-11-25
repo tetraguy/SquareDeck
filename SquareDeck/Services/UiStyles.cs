@@ -30,6 +30,7 @@ public sealed record UiStyle
     public bool Glow { get; init; }            // a soft glow in the highlight color around the selection
     public string[]? RingColors { get; init; }  // the highlight ring as a gradient (Switch); null = the highlight color
     public AdvancedSkin? Skin { get; init; }      // Advanced styles: their artwork (Skins\), drawn over the Switch layout
+    public string? IconSkin { get; init; }        // a style of your own: another style's home button icons only (a Skins\ folder), when it has no artwork of its own
     public bool Legendary { get; init; }          // an Advanced style drawn by Claude, shown in Themes > Legendary instead of Advanced
     public bool Mythical { get; init; }           // the top tier: drawn by Claude with the richest artwork, shown in Themes > Mythical
     public string? Unlock { get; init; }          // an Unlockable style's goal ("hours:10", "achievements:100", "finished:10", "streak:7", "nights:5"); see StyleUnlocks

@@ -81,6 +81,20 @@ public static class Hints
     /// The picture for a role ("Select", "Back"...) or shoulder button ("LB"...) in the chosen look, for the device in
     /// use. Null with the simple look, or when the set has no picture for it (the name on a pill is shown instead).
     /// </summary>
+    /// <summary>
+    /// A controller button's picture in a given look, for previews (A, B, X, Y by Xbox position; LB, RB, LT, RT), with
+    /// the controller in use now. Null for "text" (drawn as a plain letter) or when there's no picture.
+    /// </summary>
+    public static string? PreviewFile(string look, string button)
+    {
+        if (look == "text") return null;
+        if (look == "oem") { if (OemGlyphs.File(button) is { } own) return own; look = "default"; }
+        string family = look == "pixel" && !Directory.Exists(Path.Combine(GlyphsFolder, "pixel", Style)) ? "xbox" : Style;
+        var path = Path.Combine(GlyphsFolder, look, family, button + ".png");
+        if (!File.Exists(path)) path = Path.Combine(GlyphsFolder, look, "xbox", button + ".png");
+        return File.Exists(path) ? path : null;
+    }
+
     public static string? GlyphFile(string token)
     {
         if (Look == "text") return null;

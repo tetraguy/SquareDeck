@@ -32,7 +32,7 @@ public sealed partial class SettingsScreen
 
     private async Task PickPowerLookAsync()
     {
-        string now = Labs.Has("w.powerlook") ? Labs.Get("w.powerlook") : "bar";
+        string now = Labs.Has("w.powerlook") ? Labs.Get("w.powerlook") : "dial";
         var names = PowerLooks.Select(l => (l.Id == now ? "\u2713  " : "") + l.Name + "  \u2014  " + l.About).ToArray();
         int pick = await Host.AskAsync("Widget: wattage look", "How the TDP shows in the widget's Power card. The widget changes within a second.", names);
         if (pick < 0 || pick >= PowerLooks.Length) return;

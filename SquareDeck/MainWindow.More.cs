@@ -708,10 +708,26 @@ public partial class MainWindow
         ("curtain", "Curtain"), ("tv", "Old TV switch-off"), ("random", "Surprise me")
     };
 
-    /// <summary>Plays the chosen closing animation. The window closes when it has finished.</summary>
-    private async Task PlayExitAnimationAsync()
+    /// <summary>
+    /// A closing animation played for a look (the style builder), then everything put back: SquareDeck stays open.
+    /// </summary>
+    public async Task PreviewExitAsync(string style)
     {
-        string style = Settings.ExitStyle;
+        var background = Background;
+        try { await PlayExitAnimationAsync(style); } catch (Exception) { }
+        await Task.Delay(350);
+        IntroLayer.Children.Clear();
+        RootGrid.BeginAnimation(OpacityProperty, null);
+        RootGrid.Opacity = 1;
+        RootGrid.RenderTransform = null;
+        Background = background;
+        UiSound.Select();
+    }
+
+    /// <summary>Plays the chosen closing animation. The window closes when it has finished.</summary>
+    private async Task PlayExitAnimationAsync(string? choice = null)
+    {
+        string style = choice ?? Settings.ExitStyle;
         if (style == "random")
         {
             var choices = ExitStyles.Where(s => s.Id != "random").ToArray();
@@ -932,6 +948,55 @@ public partial class MainWindow
             ProcessUtil.Open(release.PageUrl);
     }
 
+    /// <summary>The update screen with a given animation and vibration (the style builder), nothing installed.</summary>
+    public void PreviewUpdateScreen(string? look, string? haptic)
+    {
+        string Hex(string key, string fallback) => (Application.Current.Resources[key] as SolidColorBrush)?.Color.ToString() ?? fallback;
+        try
+        {
+            SilentUpdate.Preview(Hex("BgBrush", "#FF0B0E14"), Hex("FgBrush", "#FFFFFFFF"), Hex("AccentBrush", "#FF2E9BFF"),
+                Settings.RumbleStrength > 0 ? Settings.RumbleStrength / 100.0 : 0, string.IsNullOrEmpty(look) ? Settings.UpdaterLook : look,
+                string.IsNullOrEmpty(haptic) ? Settings.UpdaterHaptic : haptic);
+        }
+        catch (Exception ex) { ShowToast("UPDATES", "Couldn't show the update screen", ex.Message, "", "info"); }
+    }
+
+    private MediaPlayer? _musicTaste;
+    private DispatcherTimer? _musicTasteTimer;
+
+    /// <summary>
+    /// A taste of a menu music choice (the style builder): about twelve seconds, with the menu music hushed meanwhile.
+    /// </summary>
+    public void PreviewMusic(string id)
+    {
+        try
+        {
+            _musicTaste?.Stop();
+            _musicTaste?.Close();
+            _musicTasteTimer?.Stop();
+            string? file = id.StartsWith("file:", StringComparison.Ordinal) ? id[5..] : BackgroundMusic.Resolve(id);
+            if (file == null || !System.IO.File.Exists(file)) return;
+            double volume = Math.Clamp(Settings.MenuMusicVolume, 0, 100) / 100.0;
+            if (volume <= 0) volume = 0.4;
+            if (_menuMusic != null) _menuMusic.Volume = 0;
+            var player = new MediaPlayer { Volume = volume };
+            player.Open(new Uri(file));
+            player.Play();
+            _musicTaste = player;
+            _musicTasteTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
+            _musicTasteTimer.Tick += (_, _) =>
+            {
+                _musicTasteTimer!.Stop();
+                player.Stop();
+                player.Close();
+                if (ReferenceEquals(_musicTaste, player)) _musicTaste = null;
+                if (_menuMusic != null) _menuMusic.Volume = Math.Clamp(Settings.MenuMusicVolume, 0, 100) / 100.0;
+            };
+            _musicTasteTimer.Start();
+        }
+        catch (Exception) { }
+    }
+
     /// <summary>Settings > Updates > Try the update screen: the real window, with nothing installed.</summary>
     public void PreviewUpdateScreen()
     {
@@ -1124,8 +1189,27 @@ public partial class MainWindow
     private bool _musicFading, _fadeInNext;
     private System.Windows.Threading.DispatcherTimer? _musicFade;
 
+    private int _musicHolds;
+
+    /// <summary>
+    /// Pauses the menu music while something needs quiet (the style builder, so its sounds and music can be heard on
+    /// their own), and lets it carry on from the same spot afterwards.
+    /// </summary>
+    public void HoldMenuMusic(bool hold)
+    {
+        _musicHolds = Math.Max(0, _musicHolds + (hold ? 1 : -1));
+        try
+        {
+            if (_musicHolds > 0) { _menuMusic?.Pause(); return; }
+            if (_menuMusic != null && _menuMusicPlaying) _menuMusic.Play();
+            UpdateMenuMusic();
+        }
+        catch (Exception) { }
+    }
+
     private void UpdateMenuMusic()
     {
+        if (_musicHolds > 0) { try { _menuMusic?.Pause(); } catch (Exception) { } return; } // held quiet (the style builder)
         string choice = Settings.MenuMusic;
         if (choice.Length > 0 && GenreMusic is { } genre) choice = genre; // experimental: music that follows the genre
         if (PageMusic() is { } page) choice = "file:" + page; // Recomp Zone's or Retro Lounge's own, at the same loudness

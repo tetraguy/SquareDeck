@@ -52,6 +52,11 @@ public sealed class CustomStyle
     public string BootAnimation { get; set; } = "logo";
     public string ExitAnimation { get; set; } = "logo";
     public string LaunchAnimation { get; set; } = "classic";
+    public string UpdateLook { get; set; } = "";         // the update screen's animation ("" = leave yours)
+    public string UpdateHaptic { get; set; } = "";       // and its vibration
+
+    // Home button icons borrowed from another style (its id; "" = the starting style's own, or the symbols).
+    public string IconsFrom { get; set; } = "";
 
     // Windows lock screen: "" leaves it alone, "wallpaper" uses this style's picture, or a picture ("image:File.jpg" or a file).
     public string LockScreen { get; set; } = "";
@@ -90,6 +95,7 @@ public sealed class CustomStyle
             Portrait = TileArt == "tall", Wide = TileArt == "wide",
             Footer = Footer,
             Layout = "classic", NavTabs = false,
+            IconSkin = MyStyles.IconFolder(IconsFrom),
         };
         if (Corners >= 0) s = s with { TileCorner = Corners, RowCorner = Math.Max(4, Corners) };
         // Your own highlight color replaces a gradient ring.
@@ -156,8 +162,41 @@ public static class MyStyles
     /// <summary>Where a style's own files (your picture, video or lock screen picture) are kept.</summary>
     public static string FolderFor(string id) => Path.Combine(Settings.DataDir, "Styles", id);
 
-    /// <summary>A ready-made style (custom styles can only start from those).</summary>
-    public static UiStyle BuiltIn(string id) => UiStyles.All.FirstOrDefault(x => x.Id == UiStyles.Upgrade(id)) ?? UiStyles.All[0];
+    /// <summary>A ready-made style to start from: Basic, Advanced, Legendary or Mythical (My own style can start from any).</summary>
+    public static UiStyle BuiltIn(string id) =>
+        UiStyles.All.FirstOrDefault(x => x.Id == UiStyles.Upgrade(id)) ?? UiStyles.Advanced.FirstOrDefault(x => x.Id == id) ?? UiStyles.All[0];
+
+    /// <summary>Which tab a ready-made style is on.</summary>
+    public static string TierOf(UiStyle s) =>
+        s.Mythical ? "Mythical" : s.Unlock != null ? "Unlockable" : s.Legendary ? "Legendary" : UiStyles.IsAdvanced(s.Id) ? "Advanced" : "Basic";
+
+    /// <summary>Every ready-made style there is to remix from, in tab order (locked Unlockable ones aren't offered yet).</summary>
+    public static List<UiStyle> Everything()
+    {
+        var list = new List<UiStyle>(UiStyles.All);
+        list.AddRange(UiStyles.Advanced.Where(x => !x.Legendary && !x.Mythical && x.Unlock == null));
+        list.AddRange(UiStyles.Advanced.Where(x => x.Legendary && !x.Mythical && x.Unlock == null));
+        list.AddRange(UiStyles.Advanced.Where(x => x.Mythical));
+        list.AddRange(UiStyles.Advanced.Where(x => x.Unlock != null && !StyleUnlocks.IsLocked(x)));
+        return list;
+    }
+
+    /// <summary>The Skins folder with a style's home button icons, or null when it has none.</summary>
+    public static string? IconFolder(string? styleId)
+    {
+        if (string.IsNullOrEmpty(styleId)) return null;
+        var st = UiStyles.Advanced.FirstOrDefault(x => x.Id == styleId);
+        if (st?.Skin is not { } skin) return null;
+        try
+        {
+            var folder = Skins.FolderFor(skin, null);
+            return Directory.Exists(Path.Combine(folder, "icons")) ? folder : null;
+        }
+        catch (Exception) { return null; }
+    }
+
+    /// <summary>The styles whose home button icons can be borrowed.</summary>
+    public static List<UiStyle> IconSets() => Everything().Where(x => IconFolder(x.Id) != null).ToList();
 
     /// <summary>
     /// Effects: a pattern laid over everything, a gentle moving decoration behind the home screen, and whether the
@@ -269,6 +308,8 @@ public static class MyStyles
         s.ExitStyle = c.ExitAnimation;
         s.ExitAnimation = true;
         s.LaunchAnimation = c.LaunchAnimation;
+        if (c.UpdateLook.Length > 0) s.UpdaterLook = c.UpdateLook;
+        if (c.UpdateHaptic.Length > 0) s.UpdaterHaptic = c.UpdateHaptic;
         // The style's own font and game art (your choices in Look and feel would cover them).
         s.UiFont = "style";
         s.TileArt = "style";
