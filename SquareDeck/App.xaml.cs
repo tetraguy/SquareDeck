@@ -96,8 +96,60 @@ public partial class App : Application
         return SquareDeck.Services.HomeApp.IsHomeApp ? "home" : "";
     }
 
+    /// <summary>
+    /// The widget step of an update (started by the update screen once the new SquareDeck is installed): when the
+    /// widget is installed and the new SquareDeck brings a newer one, it's updated now, so both are done in one go
+    /// instead of a pop-up asking later. Each step is written to <paramref name="statusFile"/> for the update screen
+    /// ("step|id|percent|detail"), then the outcome: "ok|version", "skip" or "fail|why". A widget that isn't installed
+    /// is left alone (installing it for the first time is still offered, since it asks an administrator).
+    /// </summary>
+    private void RunWidgetUpdate(string? statusFile)
+    {
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        void Write(string line)
+        {
+            if (string.IsNullOrEmpty(statusFile)) return;
+            try { System.IO.File.WriteAllText(statusFile, line); } catch (Exception) { }
+        }
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var installed = SquareDeck.Services.WidgetInstaller.InstalledVersion();
+                var package = SquareDeck.Services.WidgetInstaller.Find();
+                if (package == null || installed == null || installed >= package.Version) Write("skip");
+                else
+                {
+                    var progress = new InlineProgress<SquareDeck.Services.WidgetInstaller.Step>(s =>
+                        Write($"step|{s.Id}|{(s.Percent ?? -1).ToString(System.Globalization.CultureInfo.InvariantCulture)}|{s.Detail}"));
+                    var (ok, message) = await SquareDeck.Services.WidgetInstaller.InstallAsync(package, progress);
+                    Write(ok ? "ok|" + package.Version : "fail|" + message.Replace('|', '/'));
+                }
+            }
+            catch (Exception ex) { Write("fail|" + ex.Message.Replace('|', '/')); }
+            Dispatcher.Invoke(Shutdown);
+        });
+    }
+
+    /// <summary>Progress reported straight away on the reporting thread (there's no window to post it to).</summary>
+    private sealed class InlineProgress<T> : IProgress<T>
+    {
+        private readonly Action<T> _report;
+        public InlineProgress(Action<T> report) => _report = report;
+        public void Report(T value) => _report(value);
+    }
+
+    /// <summary>Run by the updater after SquareDeck itself has installed: updates the Game Bar widget too, with no window.</summary>
+    public const string WidgetUpdateArgument = "--update-widget";
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        int widgetAt = Array.IndexOf(e.Args, WidgetUpdateArgument);
+        if (widgetAt >= 0)
+        {
+            RunWidgetUpdate(widgetAt + 1 < e.Args.Length ? e.Args[widgetAt + 1] : null);
+            return;
+        }
         StartRequest = ReadRequest(e.Args);
         // Only one SquareDeck at a time (per Windows user).
         _single = new Mutex(true, @"Local\SquareDeck.SingleInstance", out bool created);

@@ -95,8 +95,31 @@ namespace SquareDeck.Widget
             // The Quick card stays last, as before.
             cards.Children.Remove(_quickCard);
             cards.Children.Add(_quickCard);
+            Root.GotFocus += OnWidgetFocus; // rumble while moving around (Experimental)
             _achTimer.Tick += (s, e) => { if (_labs.Contains("wach") && _runningName.Length > 0) _link.Send("achievements"); };
             _achTimer.Start();
+        }
+
+        // ---- rumble while moving around
+
+        private DateTime _lastRumble = DateTime.MinValue;
+        private object _lastFocused;
+
+        /// <summary>
+        /// The highlight moved to something new with the controller (or keyboard): asks SquareDeck for a short buzz, as
+        /// moving around SquareDeck itself does. Not for taps or mouse clicks, and at most every 40 ms.
+        /// </summary>
+        private void OnWidgetFocus(object sender, RoutedEventArgs e)
+        {
+            if (!_labs.Contains("wrumble")) return;
+            var control = e.OriginalSource as Control;
+            if (control == null || control.FocusState != FocusState.Keyboard) return;
+            if (ReferenceEquals(control, _lastFocused)) return;
+            _lastFocused = control;
+            var now = DateTime.Now;
+            if ((now - _lastRumble).TotalMilliseconds < 40) return;
+            _lastRumble = now;
+            _link.Send("navrumble");
         }
 
         // ---- Power: frame cap and Auto TDP
@@ -781,108 +804,146 @@ namespace SquareDeck.Widget
             }
 
             // Power: the wattage look (Experimental).
-            ApplyPowerLook(_labs.Contains("wpowerlook") ? (Str(s, "powerlook") ?? "dial") : "dial");
+            Guard("wattage look", () =>
+            {
+                ApplyPowerLook(_labs.Contains("wpowerlook") ? (Str(s, "powerlook") ?? "dial") : "dial");
+            });
 
             // Power: frame cap and Auto TDP.
-            _capRow.Visibility = _labs.Contains("wfpscap") ? Visibility.Visible : Visibility.Collapsed;
-            int cap = (int)(Num(s, "fpscap") ?? 0);
-            foreach (var kv in _capButtons) Mark(kv.Value, kv.Key == cap);
-            var auto = Obj(s, "autotdp");
-            _autoRow.Visibility = _labs.Contains("wautotdp") ? Visibility.Visible : Visibility.Collapsed;
-            if (auto != null)
+            Guard("frame cap and Auto TDP", () =>
             {
-                _autoSyncing = true;
-                _autoSwitch.IsOn = Bool(auto, "on") == true;
-                _autoSyncing = false;
-                _autoTarget = (int)(Num(auto, "target") ?? 40);
-                foreach (var kv in _autoTargets) Mark(kv.Value, kv.Key == _autoTarget);
-                _autoStatus.Text = Str(auto, "status") ?? "";
-            }
+                if (_capRow == null) return;
+                _capRow.Visibility = _labs.Contains("wfpscap") ? Visibility.Visible : Visibility.Collapsed;
+                int cap = (int)(Num(s, "fpscap") ?? 0);
+                foreach (var kv in _capButtons) Mark(kv.Value, kv.Key == cap);
+                var auto = Obj(s, "autotdp");
+                _autoRow.Visibility = _labs.Contains("wautotdp") ? Visibility.Visible : Visibility.Collapsed;
+                if (auto != null)
+                {
+                    _autoSyncing = true;
+                    _autoSwitch.IsOn = Bool(auto, "on") == true;
+                    _autoSyncing = false;
+                    _autoTarget = (int)(Num(auto, "target") ?? 40);
+                    foreach (var kv in _autoTargets) Mark(kv.Value, kv.Key == _autoTarget);
+                    _autoStatus.Text = Str(auto, "status") ?? "";
+                }
+            });
 
             // Live: running hot.
-            double? temp = Num(s, "cputemp");
-            double limit = Num(s, "templimit") ?? 95;
-            bool hot = _labs.Contains("wthermal") && temp != null && temp.Value >= limit - 5;
-            _heatNote.Visibility = hot ? Visibility.Visible : Visibility.Collapsed;
-            if (hot) _heatNote.Text = "Running hot: " + temp.Value.ToString("0") + "°, close to the " + limit.ToString("0") + "° limit. A lower TDP or frame cap cools it down.";
-            _liveCard.BorderBrush = new SolidColorBrush(hot ? AmberColor : Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF));
-            _liveCard.BorderThickness = new Thickness(hot ? 2 : 1);
+            Guard("thermal warning", () =>
+            {
+                double? temp = Num(s, "cputemp");
+                double limit = Num(s, "templimit") ?? 95;
+                bool hot = _labs.Contains("wthermal") && temp != null && temp.Value >= limit - 5;
+                if (_heatNote != null) _heatNote.Visibility = hot ? Visibility.Visible : Visibility.Collapsed;
+                if (hot && _heatNote != null) _heatNote.Text = "Running hot: " + temp.Value.ToString("0") + "°, close to the " + limit.ToString("0") + "° limit. A lower TDP or frame cap cools it down.";
+                _liveCard.BorderBrush = new SolidColorBrush(hot ? AmberColor : Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF));
+                _liveCard.BorderThickness = new Thickness(hot ? 2 : 1);
+            });
 
             // Live tiles from a layout or preset.
-            string live = Str(s, "live");
-            if (live != null) ApplyLiveIds(live);
+            Guard("Live tiles", () =>
+            {
+                string live = Str(s, "live");
+                if (live != null) ApplyLiveIds(live);
+            });
 
             // Cards.
-            if (_labs.Contains("wnotes"))
+            Guard("game notes", () =>
             {
-                string notes = Str(s, "notes");
-                _notesText.Text = string.IsNullOrWhiteSpace(notes) ? (running.Length > 0 ? "No notes yet for " + running + "." : "Start a game to see its notes.") : notes;
-            }
-            var pad = Obj(s, "pad");
-            if (pad != null)
+                if (_labs.Contains("wnotes"))
+                {
+                    string notes = Str(s, "notes");
+                    _notesText.Text = string.IsNullOrWhiteSpace(notes) ? (running.Length > 0 ? "No notes yet for " + running + "." : "Start a game to see its notes.") : notes;
+                }
+            });
+            Guard("controller card", () =>
             {
-                string battery = Str(pad, "battery");
-                _padBattery.Text = Bool(pad, "connected") == true ? "Battery: " + (battery ?? "unknown") : "No controller found";
-                if ((DateTime.Now - _userRumble).TotalSeconds > 1.5) { _padSyncing = true; _padRumble.Value = Num(pad, "rumble") ?? 0; _padSyncing = false; }
-            }
-            if (_labs.Contains("wfriends")) ApplyFriends(s);
-            if (_labs.Contains("winbox")) ApplyInbox(s);
-            if (_labs.Contains("wdownloads")) ApplyDownloads(s);
-            _invite.Visibility = _labs.Contains("wparty") && Str(s, "party") != null ? Visibility.Visible : Visibility.Collapsed;
-            _appsBlock.Visibility = _labs.Contains("wapps") ? Visibility.Visible : Visibility.Collapsed;
-            _pagesBlock.Visibility = _labs.Contains("wshortcuts") ? Visibility.Visible : Visibility.Collapsed;
-            string appsKey = Str(s, "appskey");
-            if (_labs.Contains("wapps") && appsKey != null && appsKey != _appsAsked) { _appsAsked = appsKey; _link.Send("apps"); }
+                var pad = Obj(s, "pad");
+                if (pad != null)
+                {
+                    string battery = Str(pad, "battery");
+                    _padBattery.Text = Bool(pad, "connected") == true ? "Battery: " + (battery ?? "unknown") : "No controller found";
+                    if ((DateTime.Now - _userRumble).TotalSeconds > 1.5) { _padSyncing = true; _padRumble.Value = Num(pad, "rumble") ?? 0; _padSyncing = false; }
+                }
+            });
+            Guard("friends", () => { if (_labs.Contains("wfriends")) ApplyFriends(s); });
+            Guard("notifications", () => { if (_labs.Contains("winbox")) ApplyInbox(s); });
+            Guard("downloads", () => { if (_labs.Contains("wdownloads")) ApplyDownloads(s); });
+            Guard("invite", () => { if (_invite != null) _invite.Visibility = _labs.Contains("wparty") && Str(s, "party") != null ? Visibility.Visible : Visibility.Collapsed; });
+            Guard("launch apps and shortcuts", () =>
+            {
+                _appsBlock.Visibility = _labs.Contains("wapps") ? Visibility.Visible : Visibility.Collapsed;
+                _pagesBlock.Visibility = _labs.Contains("wshortcuts") ? Visibility.Visible : Visibility.Collapsed;
+                string appsKey = Str(s, "appskey");
+                if (_labs.Contains("wapps") && appsKey != null && appsKey != _appsAsked) { _appsAsked = appsKey; _link.Send("apps"); }
+            });
 
             // Theme and companion.
-            string themeKey = _labs.Contains("wtheme") ? Str(s, "themekey") : null;
-            if (themeKey != null && themeKey != _themeAsked) { _themeAsked = themeKey; _link.Send("theme"); }
-            if (themeKey == null && _themed) ResetTheme();
-            var companion = _labs.Contains("wcompanion") ? Obj(s, "companion") : null;
-            _companionBox.Visibility = companion != null ? Visibility.Visible : Visibility.Collapsed;
-            if (companion != null)
+            Guard("style match and companion", () =>
             {
-                _companionSays.Text = Str(companion, "says") ?? "";
-                ToolTipService.SetToolTip(_companionImage, Str(companion, "name") ?? "");
-                string key = Str(companion, "key") ?? "";
-                if (key != _companionAsked) { _companionAsked = key; _link.Send("companion", "mood", Str(companion, "mood") ?? "happy"); }
-            }
+                string themeKey = _labs.Contains("wtheme") ? Str(s, "themekey") : null;
+                if (themeKey != null && themeKey != _themeAsked) { _themeAsked = themeKey; _link.Send("theme"); }
+                if (themeKey == null && _themed) ResetTheme();
+                var companion = _labs.Contains("wcompanion") ? Obj(s, "companion") : null;
+                if (_companionBox != null) _companionBox.Visibility = companion != null ? Visibility.Visible : Visibility.Collapsed;
+                if (companion != null && _companionBox != null)
+                {
+                    _companionSays.Text = Str(companion, "says") ?? "";
+                    ToolTipService.SetToolTip(_companionImage, Str(companion, "name") ?? "");
+                    string key = Str(companion, "key") ?? "";
+                    if (key != _companionAsked) { _companionAsked = key; _link.Send("companion", "mood", Str(companion, "mood") ?? "happy"); }
+                }
+            });
 
             // Which experimental cards show.
-            ShowCard("notes", _labs.Contains("wnotes") && running.Length > 0);
-            ShowCard("achievements", _labs.Contains("wach"));
-            ShowCard("genie", _labs.Contains("wgenie"));
-            ShowCard("controller", _labs.Contains("wpad"));
-            ShowCard("friends", _labs.Contains("wfriends"));
-            ShowCard("inbox", _labs.Contains("winbox"));
-            ShowCard("downloads", _labs.Contains("wdownloads"));
-            ShowCard("launch", _labs.Contains("wapps") || _labs.Contains("wshortcuts"));
+            Guard("showing the cards", () =>
+            {
+                ShowCard("notes", _labs.Contains("wnotes") && running.Length > 0);
+                ShowCard("achievements", _labs.Contains("wach"));
+                ShowCard("genie", _labs.Contains("wgenie"));
+                ShowCard("controller", _labs.Contains("wpad"));
+                ShowCard("friends", _labs.Contains("wfriends"));
+                ShowCard("inbox", _labs.Contains("winbox"));
+                ShowCard("downloads", _labs.Contains("wdownloads"));
+                ShowCard("launch", _labs.Contains("wapps") || _labs.Contains("wshortcuts"));
+            });
 
             // Layout: order and hidden cards.
-            var layout = Obj(s, "layout");
-            bool editing = _labs.Contains("wcards") || _labs.Contains("wpresets");
-            _editButton.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
-            if (layout != null)
+            Guard("card order", () =>
             {
-                var order = Arr(layout, "order");
-                if (order != null && _editor.Visibility != Visibility.Visible)
+                var layout = Obj(s, "layout");
+                bool editing = _labs.Contains("wcards") || _labs.Contains("wpresets");
+                if (_editButton != null) _editButton.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+                if (layout != null)
                 {
-                    _order = order.Where(v => v.ValueType == JsonValueType.String).Select(v => v.GetString()).Where(id => Array.IndexOf(CardIds, id) >= 0).ToList();
-                    foreach (var id in CardIds) if (!_order.Contains(id)) _order.Add(id);
-                    var hidden = Arr(layout, "hidden");
-                    _hidden = hidden == null ? new HashSet<string>() : new HashSet<string>(hidden.Where(v => v.ValueType == JsonValueType.String).Select(v => v.GetString()));
+                    var order = Arr(layout, "order");
+                    if (order != null && _editor.Visibility != Visibility.Visible)
+                    {
+                        _order = order.Where(v => v.ValueType == JsonValueType.String).Select(v => v.GetString()).Where(id => Array.IndexOf(CardIds, id) >= 0).ToList();
+                        foreach (var id in CardIds) if (!_order.Contains(id)) _order.Add(id);
+                        var hidden = Arr(layout, "hidden");
+                        _hidden = hidden == null ? new HashSet<string>() : new HashSet<string>(hidden.Where(v => v.ValueType == JsonValueType.String).Select(v => v.GetString()));
+                    }
+                    ApplyOrder(false);
+                    _powerCard.Visibility = Visibility.Visible; // shown unless hidden here (nothing else hides it)
+                    foreach (var id in _hidden) { var card = CardOf(id); if (card != null) card.Visibility = Visibility.Collapsed; }
+                    string gameName = Str(layout, "game");
+                    bool hasPreset = Bool(layout, "preset") == true;
+                    bool presets = _labs.Contains("wpresets") && !string.IsNullOrEmpty(gameName);
+                    _presetSave.Visibility = presets ? Visibility.Visible : Visibility.Collapsed;
+                    _presetClear.Visibility = presets && hasPreset ? Visibility.Visible : Visibility.Collapsed;
+                    _editorPresetNote.Text = presets ? (hasPreset ? gameName + " uses its own preset." : "Save this setup (cards, Live tiles and Quick tiles) to " + gameName + ".")
+                        : _labs.Contains("wgameaware") && !string.IsNullOrEmpty(gameName) ? "Changes are remembered for " + gameName + "." : "";
                 }
-                ApplyOrder(false);
-                _powerCard.Visibility = Visibility.Visible; // shown unless hidden here (nothing else hides it)
-                foreach (var id in _hidden) { var card = CardOf(id); if (card != null) card.Visibility = Visibility.Collapsed; }
-                string gameName = Str(layout, "game");
-                bool hasPreset = Bool(layout, "preset") == true;
-                bool presets = _labs.Contains("wpresets") && !string.IsNullOrEmpty(gameName);
-                _presetSave.Visibility = presets ? Visibility.Visible : Visibility.Collapsed;
-                _presetClear.Visibility = presets && hasPreset ? Visibility.Visible : Visibility.Collapsed;
-                _editorPresetNote.Text = presets ? (hasPreset ? gameName + " uses its own preset." : "Save this setup (cards, Live tiles and Quick tiles) to " + gameName + ".")
-                    : _labs.Contains("wgameaware") && !string.IsNullOrEmpty(gameName) ? "Changes are remembered for " + gameName + "." : "";
-            }
+            });
+        }
+
+        /// <summary>Runs one part of an update; if it fails, the rest still runs and the problem is shown once, named.</summary>
+        private void Guard(string part, Action action)
+        {
+            try { action(); }
+            catch (Exception ex) { ReportOnce(part, ex); }
         }
 
         private void ShowCard(string id, bool on)

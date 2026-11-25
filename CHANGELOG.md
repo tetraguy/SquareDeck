@@ -3,6 +3,22 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.13
+
+- Experimental: **Widget: rumble**. The controller gives a short buzz each time the highlight moves in the Game Bar widget, like moving around SquareDeck. It uses the rumble strength from Settings > Controller, only for controller (or keyboard) moves, not taps. Widget 1.6.9.0.
+
+## 8.1.12
+
+- **One update for both**: when SquareDeck updates and the new version brings a newer Game Bar widget, the update screen updates the widget too, right after SquareDeck installs ("Updating the Game Bar widget…", with its progress on the same bar), instead of a pop-up asking later on the home screen. It ends with "SquareDeck and its widget are up to date", and SquareDeck says so when it opens.
+- The new SquareDeck does the widget step itself (no window), so it always uses the newest install steps. A widget that isn't installed yet is still offered as before (the first install asks an administrator). If the widget step fails, SquareDeck says why and the usual update pop-up offers it again.
+- Settings > Updates > Try the update screen shows the widget step too.
+
+## 8.1.11
+
+- Widget 1.6.6.0: the experimental cards no longer depend on each other. Each part of an update (wattage look, frame cap and Auto TDP, thermal warning, Live tiles, notes, controller, friends, notifications, downloads, invite, launch, style match and companion, card order) runs on its own, so a problem in one no longer stops all the others from appearing. The same goes for the Power, Game and Live cards.
+- When a part does fail, the widget names it and where: "Widget problem (friends): NullReferenceException [ApplyFriends]", shown once.
+- Header pieces that might be missing (edit button, companion, thermal note, invite) are now skipped safely instead of failing the update.
+
 ## 8.1.10
 
 - **No sound at the edge**: moving around only clicks (and buzzes) when something actually moved. At the bottom of a page, or the edge of a row, pressing on is silent.

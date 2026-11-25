@@ -60,7 +60,8 @@ public static class SilentUpdate
             .Replace("__MSI__", Q(msi)).Replace("__EXE__", Q(exe)).Replace("__PID__", Environment.ProcessId.ToString())
             .Replace("__LOG__", Q(Path.Combine(folder, "install.log"))).Replace("__RESULT__", Q(ResultFile))
             .Replace("__READY__", Q(ready)).Replace("__VERSION__", Q(version)).Replace("__LOGO__", Q(logo))
-            .Replace("__RESTART__", App.RestartArgument)
+            .Replace("__RESTART__", App.RestartArgument).Replace("__WIDGETARG__", App.WidgetUpdateArgument)
+            .Replace("__WIDGETSTATUS__", Q(Path.Combine(folder, "widget-update.txt")))
             .Replace("__RUMBLE__", Math.Clamp(rumble, 0, 1).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))
             .Replace("__STYLE__", Resolve(Looks, look)).Replace("__HAPTIC__", Resolve(Haptics, haptic))
             .Replace("__PREVIEW__", preview ? "True" : "False")
@@ -76,15 +77,19 @@ public static class SilentUpdate
         return ready;
     }
 
-    /// <summary>What the last silent update did, read once at start: (Windows Installer exit code, version), or null.</summary>
-    public static (int Code, string Version)? TakeResult()
+    /// <summary>
+    /// What the last silent update did, read once at start: (Windows Installer exit code, version, widget step), or
+    /// null. The widget step is "ok", "skip", "fail" (with <c>WidgetMessage</c>) or "" when it didn't run.
+    /// </summary>
+    public static (int Code, string Version, string Widget, string WidgetMessage)? TakeResult()
     {
         try
         {
             if (!File.Exists(ResultFile)) return null;
             var parts = File.ReadAllText(ResultFile).Trim().TrimStart('\uFEFF').Split('|');
             File.Delete(ResultFile);
-            return int.TryParse(parts[0], out int code) ? (code, parts.Length > 1 ? parts[1] : "") : null;
+            if (!int.TryParse(parts[0], out int code)) return null;
+            return (code, parts.Length > 1 ? parts[1] : "", parts.Length > 2 ? parts[2] : "", parts.Length > 3 ? parts[3] : "");
         }
         catch (Exception) { return null; }
     }
@@ -102,6 +107,8 @@ $version = '__VERSION__'
 $style = '__STYLE__'
 $haptic = '__HAPTIC__'
 $preview = [bool]::Parse('__PREVIEW__')
+$widgetStatus = '__WIDGETSTATUS__'
+$script:widgetProc = $null; $script:widgetAt = $null; $script:widgetResult = ''; $script:widgetCode = 0
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
 
 # ---------------------------------------------------------------- the controller: vibration, and buttons (to close the preview)
@@ -541,12 +548,12 @@ function Read-Log {
 
 function Finish([int]$code) {
   $script:code = $code
-  if (-not $preview) { Set-Content -Path $result -Value "$code|$version" -Encoding UTF8 }
+  if (-not $preview) { Set-Content -Path $result -Value "$code|$version|$($script:widgetResult)" -Encoding UTF8 }
   $shine.Visibility = 'Collapsed'
   Quiet
   if ($code -eq 0 -or $code -eq 3010) {
     SuccessPattern
-    $script:target = 1.0; $title.Text = 'SquareDeck is up to date'
+    $script:target = 1.0; $title.Text = $(if ($script:widgetResult -like 'ok*') { 'SquareDeck and its widget are up to date' } else { 'SquareDeck is up to date' })
     SetStage $(if ($preview) { 'Done! (This was a preview.)' } else { 'Done! Opening SquareDeck...' })
     FadeTo $ring 0 0.4
     FadeTo $ring2 0 0.4
@@ -564,6 +571,19 @@ function Finish([int]$code) {
   }
   $note.Text = ''
   $script:state = 'done'; $script:doneAt = Get-Date
+}
+
+# After SquareDeck installs: if the widget is installed and the new SquareDeck brings a newer one, update it now.
+function StartWidget([int]$code) {
+  if (-not ($code -eq 0 -or $code -eq 3010)) { Finish $code; return }
+  $script:widgetCode = $code; $script:widgetAt = Get-Date; $script:widgetStage = ''
+  if ($preview) { SetStage 'Updating the Game Bar widget...'; $script:target = [Math]::Max($script:target, 0.93); $script:state = 'widget'; return }
+  try { Remove-Item -Path $widgetStatus -Force -ErrorAction SilentlyContinue } catch { }
+  try {
+    $script:widgetProc = Start-Process -FilePath $exe -ArgumentList @('__WIDGETARG__', "`"$widgetStatus`"") -PassThru -WindowStyle Hidden
+    SetStage 'Checking the Game Bar widget...'
+    $script:state = 'widget'
+  } catch { Finish $code }
 }
 
 function CloseAll {
@@ -617,14 +637,37 @@ $timer.Add_Tick({
         if (($now - $script:simAt).TotalMilliseconds -gt 1100) {
           $script:simAt = $now
           if ($script:simIndex -lt $order.Count) { ReachStep $order[$script:simIndex]; $script:simIndex++ }
-          else { Finish 0 }
+          else { StartWidget 0 }
         }
       } else {
         Read-Log
-        if ($script:proc.HasExited) { Read-Log; Finish $script:proc.ExitCode }
+        if ($script:proc.HasExited) { Read-Log; StartWidget $script:proc.ExitCode }
       }
       # Between steps the bar keeps creeping toward the next one, so it never looks stuck.
       if ($script:state -eq 'install' -and $script:target -lt 0.92) { $script:target += 0.0006 }
+    }
+    'widget' {
+      # The Game Bar widget, updated by the new SquareDeck (it knows the steps), while this screen keeps going.
+      $line = ''
+      try { if (Test-Path $widgetStatus) { $line = (Get-Content -Path $widgetStatus -Raw -ErrorAction Stop).Trim() } } catch { }
+      if ($line -like 'step|*') {
+        $parts = $line.Split('|', 4)
+        $pct = 0.0; [double]::TryParse($parts[2], [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$pct) | Out-Null
+        $stage = switch ($parts[1]) { 'trust' { 'Game Bar widget: Windows may ask an administrator to trust it...' } 'close' { 'Game Bar widget: closing Game Bar...' } 'install' { 'Updating the Game Bar widget...' } 'verify' { 'Game Bar widget: checking it''s there...' } default { 'Updating the Game Bar widget...' } }
+        if ($stage -ne $script:widgetStage) { $script:widgetStage = $stage; SetStage $stage }
+        if ($parts[1] -eq 'install' -and $pct -ge 0) { $script:target = [Math]::Max($script:target, 0.93 + 0.06 * $pct / 100) }
+      }
+      $ended = ($preview -and ($now - $script:widgetAt).TotalSeconds -gt 2.2) -or
+               ($script:widgetProc -ne $null -and $script:widgetProc.HasExited) -or
+               ($script:widgetProc -eq $null -and -not $preview) -or
+               (($now - $script:widgetAt).TotalMinutes -gt 6)
+      if ($ended) {
+        if ($preview) { $line = 'ok|preview' }
+        elseif ($line -like 'step|*' -or $line -eq '') { $line = 'fail|The widget update didn''t finish' }
+        $script:widgetResult = $line
+        Finish $script:widgetCode
+      }
+      if ($script:target -lt 0.985) { $script:target += 0.0004 }
     }
     'done' {
       $wait = if ($script:code -eq 0 -or $script:code -eq 3010) { 2.6 } else { 3.5 }

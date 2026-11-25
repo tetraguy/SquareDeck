@@ -23,7 +23,7 @@ public partial class MainWindow
     private static readonly string[] WidgetLabs =
     {
         "wfpscap", "wautotdp", "wthermal", "wnotes", "wach", "wgenie", "wpad", "wfriends", "winbox", "wdownloads",
-        "wparty", "wapps", "wshortcuts", "wcards", "wgameaware", "wpresets", "wtheme", "wcompanion", "wpowerlook",
+        "wparty", "wapps", "wshortcuts", "wcards", "wgameaware", "wpresets", "wtheme", "wcompanion", "wpowerlook", "wrumble",
     };
 
     /// <summary>Every card the widget has, in its usual order (the editor's list).</summary>
@@ -154,6 +154,10 @@ public partial class MainWindow
         var running = AllGames.FirstOrDefault(g => g.IsRunning);
         switch (op)
         {
+            case "navrumble":
+                // Moving around the widget (Experimental): the same short buzz as in SquareDeck.
+                if (Labs.On("wrumble")) { if (Int("ms") is int ms) Rumble(Math.Clamp(ms, 10, 200)); else Rumble(); }
+                return true;
             case "fpscap" when Int("value") is int fps:
                 _ = SetWidgetCapAsync(fps);
                 return true;

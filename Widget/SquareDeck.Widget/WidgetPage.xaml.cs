@@ -1082,7 +1082,19 @@ namespace SquareDeck.Widget
         private void ReportOnce(string part, Exception ex)
         {
             if (!_reported.Add(part)) return;
-            ShowNote("Widget problem (" + part + "): " + ex.Message);
+            // Where it happened (the first line of the stack), so it can be found and fixed.
+            string where = "";
+            try
+            {
+                string first = (ex.StackTrace ?? "").Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "";
+                int paren = first.IndexOf('(');
+                if (paren > 0) first = first.Substring(0, paren);
+                if (first.StartsWith("at ")) first = first.Substring(3);
+                if (first.Length > 0) where = " [" + first.Replace("SquareDeck.Widget.WidgetPage.", "") + "]";
+            }
+            catch (Exception) { }
+            ShowNote("Widget problem (" + part + "): " + ex.GetType().Name + where);
+            System.Diagnostics.Debug.WriteLine("Widget problem (" + part + "): " + ex);
         }
 
         private Image _headerLogo;
@@ -1138,8 +1150,8 @@ namespace SquareDeck.Widget
             string time = left == null || left.Value <= 0 ? "" : "  " + (left.Value >= 60 ? Math.Floor(left.Value / 60) + "h " + (left.Value % 60).ToString("00") + "m" : left.Value.ToString("0") + "m");
             _battery.Text = battery == null ? "" : (plugged ? "\u26A1 " : "") + battery.Value.ToString("0") + "%" + time;
 
-            ApplyPower(Obj(s, "tdp"));
-            ApplyGame(game);
+            Guard("power card", () => ApplyPower(Obj(s, "tdp")));
+            Guard("game card", () => ApplyGame(game));
 
             // The rail (left alone while you're moving it, so it doesn't jump back).
             _syncing = true;
@@ -1155,7 +1167,7 @@ namespace SquareDeck.Widget
             // Live numbers: one point on each line per second or so.
             bool sample = (DateTime.Now - _lastSample).TotalSeconds > 0.8;
             if (sample) _lastSample = DateTime.Now;
-            UpdateLive(s, sample);
+            Guard("live card", () => UpdateLive(s, sample));
 
             // The ROG Ally.
             var ally = Obj(s, "ally");

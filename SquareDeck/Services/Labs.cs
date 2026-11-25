@@ -113,6 +113,7 @@ public static partial class Labs
         new("wgameaware", "Widget: layout per game", "Each game remembers the widget's card order, hidden cards and Live tiles from the last time you played it", "\uE8A9", WidgetGroup),
         new("wpresets", "Widget: presets per game", "\u201CSave this setup to the game\u201D in the card editor: card order, hidden cards, Live tiles and Quick tiles", "\uE74E", WidgetGroup),
         new("wtheme", "Widget: match my style", "The widget takes on the current SquareDeck style: its colors, font and wallpaper (Mythical styles too)", "\uE790", WidgetGroup),
+        new("wrumble", "Widget: rumble", "The controller buzzes as you move around the widget, like it does in SquareDeck (uses the rumble strength from Settings > Controller)", "\uE7FC", WidgetGroup),
         new("wpowerlook", "Widget: wattage look", "A smaller look for the TDP in the widget's Power card: slim bar, mini dial beside the presets, the number alone (select it for the full dial) or preset chips. Select to choose", "\uE945", WidgetGroup),
         new("wcompanion", "Widget: companion", "Your pixel companion in the widget's header, reacting to achievements, low battery and long sessions", "\uE899", WidgetGroup),
         new("startupapps", "Startup apps manager", "See the apps that start with Windows and turn them off, right here", "\uE7E8", SystemGroup),

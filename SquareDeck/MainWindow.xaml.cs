@@ -174,7 +174,11 @@ public partial class MainWindow : Window
             // After a silent update: say whether it worked.
             if (SilentUpdate.TakeResult() is { } update)
             {
-                if (update.Code is 0 or 3010)
+                if (update.Code is 0 or 3010 && update.Widget == "ok")
+                    ShowToast("Updated", "SquareDeck " + Updater.Current + " and its widget", $"Both updated: the Game Bar widget is now version {update.WidgetMessage}. See what's new in Settings > About.", "", "success");
+                else if (update.Code is 0 or 3010 && update.Widget == "fail")
+                    ShowToast("Updated", "SquareDeck " + Updater.Current, "SquareDeck updated, but the widget didn't: " + update.WidgetMessage + " It's offered again in a moment.", "", "warning");
+                else if (update.Code is 0 or 3010)
                     ShowToast("Updated", "SquareDeck " + Updater.Current, "The update installed. See what's new in Settings > About.", "", "success");
                 else if (update.Code is not (1602 or 1223))
                     ShowToast("Update", "The update didn't install", $"Windows Installer stopped with error {update.Code}. Try again from Settings > About.", "", "warning");
