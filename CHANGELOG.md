@@ -3,6 +3,13 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.6
+
+- **Your handheld's own buttons**: on a recognized handheld, "How buttons are drawn" (Settings, and the style builder) offers "{device} buttons", e.g. "ROG Xbox Ally X20 buttons". The hints then show the face buttons, bumpers and triggers as they're printed on the device, like the Xbox Ally's colored ABXY. If you plug in another controller (PlayStation, Switch), or use the keyboard, the standard icons come back.
+- **Controller tester**: shows a drawing of your handheld above the test, and its buttons drawn as on the device.
+- Sets for 28 handhelds: ROG Ally and ROG Xbox Ally (the X20 included), Legion Go / Go 2 / Go S, MSI Claw and Claw A8, AYANEO (Air, 2, 3, Kun, Neo, Next, Slide), GPD (Win 3, Win 4, Win Mini, Win Max 2), ONEXPLAYER (2, X1, G1, ONEXFLY F1), AOKZOE A1, AYN Loki, Zotac Zone, Anbernic Win600, TECNO Pocket Go and TECTOY Zeenix. On any other PC the option isn't shown.
+- The pictures come from victor-borges' Handheld Controller Glyphs (MIT License), drawn to PNG (Glyphs\oem, with its license) and credited on the Credits page.
+
 ## 8.1.5
 
 - Experimental: **Custom fan curve** (System). Set the fan speed at eight temperatures on a graph (← → for speed, LB / RB for temperature), start from Quiet, Balanced, Cool or Full speed, then "Use this curve". "Custom" then appears wherever fans are chosen (Settings, the ROG Ally page, game profiles) and is applied at start like the others. Speeds never drop as the temperature rises.

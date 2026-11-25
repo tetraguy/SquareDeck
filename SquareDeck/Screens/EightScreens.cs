@@ -549,10 +549,17 @@ public sealed class ControllerTesterScreen : Screen, IPagePad
             var b = new Border { Width = width, Height = 44, CornerRadius = new CornerRadius(10), Margin = new Thickness(4), BorderThickness = new Thickness(2) };
             b.SetResourceReference(Border.BorderBrushProperty, "SubtleBrush");
             b.SetResourceReference(Border.BackgroundProperty, "CardBrush");
-            var t = Ui.Text(label, 15, "FgBrush", bold: true);
-            t.HorizontalAlignment = HorizontalAlignment.Center;
-            t.VerticalAlignment = VerticalAlignment.Center;
-            b.Child = t;
+            // On a handheld with its own set: the button as it's printed on the device.
+            string own = label switch { "▲" or "▼" or "◀" or "▶" or "L3" or "R3" => "", _ => label };
+            if (own.Length > 0 && OemGlyphs.Load(OemGlyphs.File(own)) is { } glyph)
+                b.Child = new Image { Source = glyph, Height = 32, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            else
+            {
+                var t = Ui.Text(label, 15, "FgBrush", bold: true);
+                t.HorizontalAlignment = HorizontalAlignment.Center;
+                t.VerticalAlignment = VerticalAlignment.Center;
+                b.Child = t;
+            }
             _buttons[mask] = b;
             return b;
         }
@@ -599,6 +606,17 @@ public sealed class ControllerTesterScreen : Screen, IPagePad
         }
 
         var body = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        // The handheld itself, drawn, so the test matches the device in your hands.
+        if (OemGlyphs.Load(OemGlyphs.Controller) is { } device)
+        {
+            var picture = new Image { Source = device, Height = 210, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 6) };
+            RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.HighQuality);
+            body.Children.Add(picture);
+            var name = Ui.Text(Handheld.DisplayName, 15, "SubtleBrush");
+            name.HorizontalAlignment = HorizontalAlignment.Center;
+            name.Margin = new Thickness(0, 0, 0, 10);
+            body.Children.Add(name);
+        }
         body.Children.Add(Row(Trigger("LT", _lt), Key("LB", 0x0100, 90), new Border { Width = 120 }, Key("RB", 0x0200, 90), Trigger("RT", _rt)));
         body.Children.Add(Row(Key("View", 0x0020, 80), Key("Guide", 0x0400, 80), Key("Menu", 0x0010, 80)));
         var middle = Row(

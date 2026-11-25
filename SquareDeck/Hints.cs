@@ -59,12 +59,12 @@ public static class Hints
     }
 
     /// <summary>How the buttons are drawn: plain names on a pill, or one of the built-in picture sets.</summary>
-    public static readonly (string Id, string Name)[] Looks =
-    {
-        ("text", "Simple"), ("default", "Controller icons"), ("pixel", "Pixel art")
-    };
+    /// <remarks>"oem" (the handheld's own buttons, as printed on it) is offered only on a handheld that has a set.</remarks>
+    public static (string Id, string Name)[] Looks => OemGlyphs.Available
+        ? new[] { ("text", "Simple"), ("default", "Controller icons"), ("pixel", "Pixel art"), ("oem", Handheld.DisplayName + " buttons") }
+        : new[] { ("text", "Simple"), ("default", "Controller icons"), ("pixel", "Pixel art") };
 
-    /// <summary>"text", "default" or "pixel" (folders in Glyphs\ next to the program).</summary>
+    /// <summary>"text", "default", "pixel" or "oem" (folders in Glyphs\ next to the program).</summary>
     public static string Look { get; private set; } = "text";
 
     public static void SetLook(string look)
@@ -106,7 +106,16 @@ public static class Hints
             };
         }
         if (name.Length == 0) return null;
-        var path = Path.Combine(GlyphsFolder, Look, family, name + ".png");
+        string look = Look;
+        if (look == "oem")
+        {
+            // The handheld's own pictures while its built-in controller (an Xbox-style pad) is in use; another
+            // controller (a PlayStation or Switch one) gets the standard icons.
+            if (!Keyboard && family == "xbox" && OemGlyphs.File(name) is { } own) return own;
+            look = "default";
+            if (Keyboard) family = Theme.CurrentIsDark ? "keyboard-light" : "keyboard-dark";
+        }
+        var path = Path.Combine(GlyphsFolder, look, family, name + ".png");
         return File.Exists(path) ? path : null;
     }
 
