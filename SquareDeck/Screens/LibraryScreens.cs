@@ -515,6 +515,9 @@ public sealed class DetailsScreen : Screen
     private const double CardRadius = 12;
 
     private readonly Game _game;
+
+    /// <summary>The game this page is about.</summary>
+    public Game Game => _game;
     private readonly CancellationTokenSource _cts = new();
 
     // The artwork banner behind the top of the page, which fades as the page scrolls.
@@ -653,6 +656,12 @@ public sealed class DetailsScreen : Screen
         };
 
         SetPage("", _scroll, "{Select}  Choose      {Details}  Collections      {Options}  Rating and notes      {Back}  Back", wide: true);
+        if (Switch2Pages.SystemOn)
+        {
+            // Switch 2 style (Experimental): the UI style's colors, bar-and-name section titles, flat rows and rimmed tiles.
+            RefreshSwitch2Colors();
+            Switch2Pages.AutoRestyle(_page);
+        }
         BuildHero();
     }
 
@@ -952,6 +961,7 @@ public sealed class DetailsScreen : Screen
     {
         var t = Ui.Text(text, 22, "FgBrush", bold: true);
         t.Margin = new Thickness(2, 30, 0, 12);
+        if (Switch2Pages.SystemOn) t.Tag = "s2title"; // redrawn as a bar-and-name heading
         return t;
     }
 
@@ -3088,10 +3098,10 @@ public sealed partial class LibraryScreen : Screen
         // Retro Lounge: emulators and your own classic games, with its own emblem.
         Action("\uE7FC", "Retro Lounge", "Emulators and your classic games, in one place", () => new RetroLoungeScreen(),
             RetroUi.Logo(64) is { } retro ? new Image { Source = retro, Width = 20, Height = 20 } : null);
-        if (Labs.On("mood")) Action("\uE76E", "How are you feeling?", "Pick a mood, get three games that fit", () => new MoodScreen());
-        if (Labs.On("boss")) Action("\uE7EF", "Fight the Backlog Boss", "Your unfinished games as a boss to defeat, an hour at a time", () => new BossScreen());
+        if (Labs.On("mood")) Action("\uE76E", "How are you feeling?", "Pick a mood, get three games that fit", () => PlayPages.Mood());
+        if (Labs.On("boss")) Action("\uE7EF", "Fight the Backlog Boss", "Your unfinished games as a boss to defeat, an hour at a time", () => PlayPages.Boss());
         if (Labs.On("gamepass")) Action("\uE7FC", "Game Pass", "Games just added to Game Pass and leaving soon", () => new GamePassScreen());
-        if (Labs.On("passport")) Action("", "My Gamer Passport", "Stamps for every genre, decade and store you've played", () => new PassportScreen(),
+        if (Labs.On("passport")) Action("", "My Gamer Passport", "Stamps for every genre, decade and store you've played", () => PlayPages.Passport(),
             PassportArt.Icon(16, Brushes.Transparent));
     }
 

@@ -445,7 +445,7 @@
             <Grid x:Name="FooterGrid" Grid.Row="6" Margin="30,0">
                 <Rectangle x:Name="FooterLine" Height="1" VerticalAlignment="Top" Fill="{DynamicResource FgBrush}"/>
                 <StackPanel x:Name="FooterLeft" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="26,0,0,0">
-                    <TextBlock Text="&#xE7FC;" FontFamily="Segoe MDL2 Assets" FontSize="30"
+                    <TextBlock x:Name="FooterPad" Text="&#xE7FC;" FontFamily="Segoe MDL2 Assets" FontSize="30"
                                Foreground="{DynamicResource FgBrush}" VerticalAlignment="Center"/>
 
                     <!-- What's playing, with play / pause; shown only while something is -->

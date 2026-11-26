@@ -58,6 +58,12 @@ public static class Switch2Settings
 
     private static SolidColorBrush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
+    /// <summary>Reads the UI style's colors again, for things drawn outside a page (the game cards, the return).</summary>
+    public static void Refresh() => _p = Palette();
+
+    /// <summary>The highlight's rim, for things drawn outside a page.</summary>
+    public static Brush RimBrush => Rim();
+
     /// <summary>The page's own colors, set on the page so everything on it picks them up.</summary>
     public static void ApplyColors(FrameworkElement page)
     {

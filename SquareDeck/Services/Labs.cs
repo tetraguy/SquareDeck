@@ -74,6 +74,7 @@ public static partial class Labs
         new("launchopts", "Launch options per game", "Command-line options, environment variables and \u201CRun as administrator\u201D, in each game's profile", "\uE756", Playing),
         new("scripts", "Scripts before and after a game", "Run a program or command before a game starts and after it closes (a mod manager, closing an app, mounting a drive). In each game's profile", "\uE943", Playing),
         new("returnanim", "Smooth return after playing", "When a game closes, Home fades back in on the game you launched, instead of jumping", "\uE72B", Playing),
+        new("s2game", "Switch 2 style launch, stop and return", "The launch countdown, the Stop game confirmation (and Stopping…), the update-before-playing card and \"is still running\" in your UI style's colors and the Switch 2 manner: a plain card, quiet text, flat buttons with the soft rimmed highlight. And when a game closes, the Switch way back: the game's cover large on the page color, flying down into its tile on Home as the screen fades back", "\uE768", Playing),
         new("charger", "Charger check", "Tells you when the charger can't keep up: plugged in, but the battery is still going down", "\uE83E", Playing),
         new("smartcollections", "Smart collections", "Library shelves that fill themselves: never played, played once and left, short sessions, best on battery and more", "\uE8F1", LibraryGroup),
         new("dailypick", "Daily pick", "Once a day, one game from your library you haven't played in a while, and why it's worth another look", "\uE734", LibraryGroup),
@@ -116,6 +117,23 @@ public static partial class Labs
         new("wrumble", "Widget: rumble", "The controller buzzes as you move around the widget, like it does in SquareDeck (uses the rumble strength from Settings > Controller)", "\uE7FC", WidgetGroup),
         new("wpowerlook", "Widget: wattage look", "A smaller look for the TDP in the widget's Power card: slim bar, mini dial beside the presets, the number alone (select it for the full dial) or preset chips. Select to choose", "\uE945", WidgetGroup),
         new("newsettings", "Switch 2 style Settings", "Settings drawn like the Nintendo Switch 2\u2019s System Settings: flat rows on thin lines, values in blue, pill switches, sections listed on the left with a blue bar, and the soft blue-to-pink highlight. Light or dark, following your theme", "\uE713", Looks),
+        new("newlibrary", "Switch 2 style Library", "The game library laid out like the Switch 2\u2019s System Settings: sections on the left with a blue bar and a storage gauge, games as flat rows with small covers, play time in blue, grouped under Today, This week or A, B, C, and the soft highlight. Follows your UI style", "\uE8F1", Looks),
+        new("switchboot", "Switch-style game boot", "Starting a game plays the Switch's own boot: the cover rushes toward you as the screen fades to black, then the game's icon waits in the middle with the ring of dots turning in the corner until the game is up. Plays even with the launch splash off", "\uE7FC", Play),
+        new("storeintro", "Store opening animations", "Opening Steam, Xbox, Epic Games, Ubisoft Connect or another store from the Stores page plays a shopping-and-gaming animation in the store's colors (a shopping cart, a shopping bag, an arcade coin slot or a store shelf) and keeps it going until the store is up", "\uE719", Stores),
+        new("wfpsslider", "Widget: frame cap slider", "The Game Bar widget\u2019s frame cap becomes an Off button and a slider from 30 to 120 FPS (in steps of 5), and the Save button goes: the cap you set is kept for that game straight away", "\uEC4A", WidgetGroup),
+        new("ws2", "Switch 2 style widget", "The Game Bar widget dressed like SquareDeck's Switch 2 style pages, in the colors of the UI style you use: a plain panel in the page color, a thin line under the header, each card titled with a short bar and its name, quiet cards and tiles, and the highlight in the style's color", "\uE8A9", WidgetGroup),
+        new("switchbootplus", "Switch boot: logo and loading line", "With the Switch-style game boot, the Hide hint goes, the game\u2019s logo sits in the top-left corner (its name when there\u2019s no logo), and in the bottom-right corner, beside the turning ring, a line keeps changing as it loads: Warming up the pixels\u2026, Spawning the player\u2026, Checking for dragons\u2026 and more", "\uE7FC", Play),
+        new("s2setup", "Switch 2 style first-time setup", "The welcome pages (first start, or Settings > Run first-time setup again) laid out like the Switch 2\u2019s System Settings, in your UI style\u2019s colors: System Setup with the gear and a line under it, every step listed down the left with a tick on the ones done and a progress bar, the page on the right with bar-and-name headings and rimmed cards, and a line over Back, Skip and Next", "\uE713", Looks),
+        new("s2apps", "Switch 2 style Installed apps", "Settings > Apps > Installed apps, and the page for each app (uninstall, modify, repair, reset), laid out like the Switch 2\u2019s System Settings, in your UI style\u2019s colors: All, desktop and Store apps and the sort order down the left with their counts, the space your apps use with the five biggest as a bar, flat rows with blue sizes, and each app\u2019s page headed by its icon, name, publisher and size", "\uE71D", Looks),
+        new("plxcontinue", "Continue where you left off parallax", "On Home, while the Continue where you left off game is there, moving the handheld moves its artwork in depth with the gyro: the art slides and leans one way, the logo and name drift the other, and in the big-artwork Home layout the artwork behind the page moves too. Whatever angle you hold it at becomes the middle after a moment. Select to choose how deep", "\uE8B4", Looks),
+        new("s2play", "Switch 2 style Passport, Backlog Boss, Mood picker, Leaderboard and Free games", "My Gamer Passport, the Backlog Boss, How are you feeling?, the Friends leaderboard and Free games rebuilt like the Switch 2 style pages, in your UI style\u2019s colors, with much more in each: a passport page and over 60 stamps in levels; the boss\u2019s health log, your pace and tonight\u2019s target; eleven moods and how long you\u2019ve got; a podium, what friends play, games in common, awards and your place over time; and free games from Epic (with next week\u2019s), Steam, Amazon Prime Gaming, GOG, Ubisoft, EA, Battle.net and itch.io, free loot, and deals from many stores including your wishlist", "\uE8A9", Looks),
+        new("s2toast", "Switch 2 style notifications", "The pop-ups in the bottom right corner (achievements, downloads, friends, battery, Windows notifications) drawn like the Switch 2 style pages, in your UI style\u2019s colors: a soft rounded card with a thin line around it, the icon in a rounded square, the heading as a short colored bar and its name, and a slim bar along the bottom that runs down while it\u2019s up. Slides in from the right", "\uEA8F", Looks),
+        new("zoneexit", "Recomp Zone and Retro Lounge goodbyes", "Choosing Leave in Recomp Zone or Retro Lounge plays a goodbye in the zone\u2019s spirit. Recomp Zone unlinks: the page breaks into tiles that turn into lines of machine code and stream into a glowing core on the blueprint grid, which collapses as \u201Cexit(0)\u201D types itself out. Retro Lounge switches off like an old CRT TV: the picture squashes to a bright line, then to a dot that fades", "\uE7E8", Playing),
+        new("oemfooter", "Your handheld in the corner", "The controller symbol at the bottom left of Home (and of the Switch 2 style pages) becomes a drawing of the handheld SquareDeck detected, the same one the controller tester shows, in your UI style's text color", "\uE7FC", Looks),
+        new("s2pages", "Switch 2 style Captures, Multimedia and Stores", "Captures, Multimedia and Stores laid out like the Switch 2\u2019s System Settings, as the new Settings and Library are: sections on the left with a blue bar, thin lines, bar-and-name headings, rows and tiles with the soft highlight. Follows your UI style", "\uE8A9", Looks),
+        new("s2tools", "Switch 2 style Recomp Zone, Retro Lounge, Explorer and Task Manager", "Recomp Zone, Retro Lounge, Explorer and Task Manager laid out like the Switch 2\u2019s System Settings, as the new Settings and Library are: the title with a line under it, sections on the left with a blue bar, flat rows and tiles with the soft highlight. Follows your UI style", "\uE7FC", Looks),
+        new("s2social", "Switch 2 style News, Friends and Your profile", "News, Friends and Your profile laid out like the Switch 2\u2019s System Settings, as the new Settings and Library are: the title with a line under it, sections down the left with a blue bar, bar-and-name headings, and stories, friends and cards with the soft highlight. Follows your UI style", "\uE789", Looks),
+        new("s2system", "Switch 2 style menus, Search, Browser, Notifications and game pages", "The Quick menu, the Power menu, the Wi-Fi and Bluetooth blades, Search, the Browser, the Notifications blade, a game's page and its options menu in the Switch 2 manner of the new Settings and Library: the UI style's colors, flat rows on thin lines, bar-and-name headings and the soft rimmed highlight", "\uE713", Looks),
         new("wcompanion", "Widget: companion", "Your pixel companion in the widget's header, reacting to achievements, low battery and long sessions", "\uE899", WidgetGroup),
         new("startupapps", "Startup apps manager", "See the apps that start with Windows and turn them off, right here", "\uE7E8", SystemGroup),
     };
@@ -145,6 +163,9 @@ public static partial class Labs
     /// <summary>On for everyone once (when updating to 8.1.24), with a switch in Settings > Display.</summary>
     public static readonly HashSet<string> DefaultOn8124 = new() { "newsettings" };
 
+    /// <summary>On for everyone once (when updating to 8.1.58): every look and sound experiment, the Switch boot and the other launch, store and zone animations, and the widget's Switch 2 style and frame cap slider. Each keeps a switch in its new place in Settings.</summary>
+    public static readonly HashSet<string> DefaultOn8158 = new() { "newlibrary", "s2pages", "s2tools", "s2social", "s2system", "s2play", "s2apps", "s2setup", "s2toast", "oemfooter", "plxcontinue", "switchboot", "switchbootplus", "s2game", "zoneexit", "storeintro", "rasurprise", "ws2", "wfpsslider" };
+
     /// <summary>On for everyone once (when updating to 8.1.18), with a switch in their new place in Settings.</summary>
     public static readonly HashSet<string> DefaultOn818 = new() { "crashrecovery", "drivenotice", "microsd", "achtoasts" };
 
@@ -163,6 +184,8 @@ public static partial class Labs
         "charger", "wtheme", "wcompanion", "docked", "sessiontimer",
         // 8.1.24: the Switch 2 style Settings is the default look.
         "newsettings",
+        // 8.1.58: the Switch 2 style everywhere, and the launch, store and zone animations, are the defaults.
+        "newlibrary", "s2pages", "s2tools", "s2social", "s2system", "s2play", "s2apps", "s2setup", "s2toast", "oemfooter", "plxcontinue", "switchboot", "switchbootplus", "s2game", "zoneexit", "storeintro", "rasurprise", "ws2", "wfpsslider",
     }));
 
     public static LabFeature? Feature(string id) => Features.FirstOrDefault(f => f.Id == id);
@@ -193,6 +216,12 @@ public static partial class Labs
         {
             foreach (var id in DefaultOn8124) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
             settings.LabsGraduated8124 = true;
+            settings.Save();
+        }
+        if (!settings.LabsGraduated8158)
+        {
+            foreach (var id in DefaultOn8158) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
+            settings.LabsGraduated8158 = true;
             settings.Save();
         }
     }

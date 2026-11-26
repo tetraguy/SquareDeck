@@ -84,6 +84,16 @@ public sealed partial class ExplorerScreen : Screen
             Focusable = false, PanningMode = PanningMode.VerticalOnly, Content = _nav
         });
         _sidebar.Child = sideDock;
+        if (_s2)
+        {
+            // Switch 2 style (Experimental): no card behind the sidebar, a thin line beside it, the name in the title.
+            _sidebar.Background = Brushes.Transparent;
+            _sidebar.SetResourceReference(Border.BorderBrushProperty, "S2Line");
+            _sidebar.BorderThickness = new Thickness(0, 0, 1, 0);
+            _sidebar.CornerRadius = new CornerRadius(0);
+            _sidebar.Padding = new Thickness(0, 6, 9, 8);
+            brand.Visibility = Visibility.Collapsed;
+        }
 
         // Top bar: sidebar, back, up, path, filter, grid/list, menu.
         var top = new DockPanel { Margin = new Thickness(0, 0, 0, 10), LastChildFill = true };
@@ -134,7 +144,12 @@ public sealed partial class ExplorerScreen : Screen
 
         SetPage("Explorer", _layout,
             "{Select}  Open      {Back}  Back      {Details}  Actions      {Options}  Select      LB  Sidebar      RB  Next tab", wide: true);
-        CompactHeader();
+        if (_s2)
+        {
+            UseSwitch2Chrome("Explorer", "\uEC50");
+            Switch2Pages.AutoRestyle(_files, 54);
+        }
+        else CompactHeader();
     }
 
     private static UIElement DockTo(UIElement element, System.Windows.Controls.Dock side)
@@ -162,7 +177,42 @@ public sealed partial class ExplorerScreen : Screen
         _ = LoadAsync(keepFocus: false);
     }
 
-    public override void OnResumed() => BuildSidebar();
+    public override void OnResumed()
+    {
+        if (_s2) RefreshSwitch2Colors();
+        BuildSidebar();
+    }
+
+    /// <summary>Experimental: Switch 2 style Recomp Zone, Retro Lounge, Explorer and Task Manager.</summary>
+    private readonly bool _s2 = Switch2Pages.ToolsOn;
+
+    /// <summary>The sidebar as the Switch 2's sections: plain names (no icons), the place you're in blue with a bar.</summary>
+    private void RestyleSidebar()
+    {
+        var row = Ui.StyleOf("RowButton");
+        var words = System.Globalization.CultureInfo.CurrentCulture.TextInfo;
+        foreach (var child in _nav.Children.OfType<FrameworkElement>().ToList())
+        {
+            if (child is TextBlock header)
+            {
+                header.Text = words.ToTitleCase(header.Text.ToLowerInvariant());
+                header.FontSize = 15;
+                header.FontWeight = FontWeights.Normal;
+                header.Margin = new Thickness(40, header.Margin.Top + 4, 0, 4);
+            }
+            else if (child is Button { Style: var st } button && st == row)
+            {
+                button.Style = Switch2Settings.NavStyle;
+                button.MinHeight = 50;
+                button.FontSize = 17;
+                button.Margin = new Thickness(0);
+                button.Resources.Remove("RowCorner");
+                if (button.Content is Grid grid)
+                    foreach (var icon in grid.Children.OfType<FrameworkElement>().Where(e => Grid.GetColumn(e) == 0)) icon.Visibility = Visibility.Collapsed;
+                if (button.Content is Grid g2) g2.ColumnDefinitions[0].Width = new GridLength(0);
+            }
+        }
+    }
 
     public override void OnClosed()
     {
@@ -697,6 +747,7 @@ public sealed partial class ExplorerScreen : Screen
             catch (Exception) { }
         }
         Ui.GroupRows(_nav);
+        if (_s2) RestyleSidebar();
     }
 
     private void Section(string text)

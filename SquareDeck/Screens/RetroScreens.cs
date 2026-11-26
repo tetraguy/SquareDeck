@@ -271,6 +271,11 @@ public sealed partial class RetroLoungeScreen : GridScreen
         RetroDownloads.Changed += OnDownloadsChanged;
         RetroDownloads.Progressed += OnDownloadProgress;
         RetroLounge.Played += OnPlayed;
+        if (_s2)
+        {
+            UseSwitch2Chrome("Retro Lounge", "\uE7FC");
+            Switch2Pages.AutoRestyle(Body);
+        }
     }
 
     /// <summary>Opening: the TV switches on while the ROM folders are looked through, then fades into Home.</summary>
@@ -331,6 +336,7 @@ public sealed partial class RetroLoungeScreen : GridScreen
 
     public override void OnResumed()
     {
+        if (_s2) RefreshSwitch2Colors();
         if (_intro != null) return;
         BuildNav();
         // Back from a game, a console or an emulator: what was played, installed or changed shows straight away.
@@ -357,8 +363,21 @@ public sealed partial class RetroLoungeScreen : GridScreen
         _asking = true;
         try
         {
+            // The zone's music fades down while you decide, and back up if you stay.
+            Host.DuckMusic(true);
             if (await Host.AskAsync("Leave " + zone + "?", "You'll go back to the home screen. You can come back any time.", "Leave", "Stay") == 0)
+            {
+                Host.ResetMusicDuck(); // the zone's music fades out from here; the launcher's comes in at its usual level
+                if (ZoneExit.On)
+                {
+                    // Experimental: a goodbye in the zone's own spirit before Home comes back.
+                    var (layer, done) = ZoneExit.Retro(this);
+                    ShowOver(layer);
+                    await done;
+                }
                 Host.Pop(this);
+            }
+            else Host.DuckMusic(false);
         }
         finally { _asking = false; }
     }
@@ -391,10 +410,19 @@ public sealed partial class RetroLoungeScreen : GridScreen
 
     // ---------------------------------------------------------------- the sidebar
 
-    private bool NavCollapsed => _compact && !_nav.IsKeyboardFocusWithin;
+    private bool NavCollapsed => !_s2 && _compact && !_nav.IsKeyboardFocusWithin;
+
+    /// <summary>Experimental: Switch 2 style Recomp Zone, Retro Lounge, Explorer and Task Manager.</summary>
+    private readonly bool _s2 = Switch2Pages.ToolsOn;
 
     private FrameworkElement BuildNavPanel()
     {
+        if (_s2)
+        {
+            // The Switch 2's list of sections: plain names, no card behind them, a thin line beside.
+            BuildNav();
+            return Switch2Pages.SidebarHolder(_nav);
+        }
         var box = new Border { Child = _nav, Padding = new Thickness(8), CornerRadius = new CornerRadius(18), VerticalAlignment = VerticalAlignment.Top };
         var tint = new Border { CornerRadius = new CornerRadius(18), Opacity = 0.55 };
         tint.SetResourceReference(Border.BackgroundProperty, "TileBrush");
@@ -421,10 +449,24 @@ public sealed partial class RetroLoungeScreen : GridScreen
         {
             int count = id == "downloads" ? badge : 0;
             Button b;
-            if (collapsed)
+            if (_s2)
             {
-                b = Ui.BladeButton(glyph, name, selected: id == _section);
-                b.Margin = new Thickness(0, 2, 0, 2);
+                if (id == "downloads" && _nav.Children.Count > 0) _nav.Children.Add(Switch2Pages.NavLine()); // browsing above, managing below
+                b = Switch2Pages.NavItem(name, count > 0 ? count.ToString() : null, id == _section, () => { });
+            }
+            else if (collapsed)
+            {
+                // The same row as the open sidebar, with only its icon: plain in the text color, the section showing in
+                // the highlight color, and the row's own highlight when moved onto. (The home row's blade tiles drew
+                // every icon in the highlight color on a tinted card, which didn't match the open sidebar.)
+                var mark = Ui.Glyph(glyph, 22);
+                mark.ClearValue(TextBlock.ForegroundProperty); // takes the row's color
+                mark.HorizontalAlignment = HorizontalAlignment.Center;
+                mark.VerticalAlignment = VerticalAlignment.Center;
+                var blade = new Grid { Width = 40, Height = 40 };
+                blade.Children.Add(mark);
+                b = new Button { Style = Ui.StyleOf("RowButton"), Content = blade, ToolTip = name, Width = 64, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 2) };
+                if (id == _section) b.Tag = "selected";
             }
             else
             {

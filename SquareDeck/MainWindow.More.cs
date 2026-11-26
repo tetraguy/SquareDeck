@@ -182,6 +182,103 @@ public partial class MainWindow
         catch (Exception) { }
     }
 
+    /// <summary>Where the heart shows: over the game's tile on the home row, otherwise over what was used to change it.</summary>
+    private Point HeartCenter(Game item, FrameworkElement? from)
+    {
+        FrameworkElement? anchor = _screens.Count == 0 && GameList.ItemContainerGenerator.ContainerFromItem(item) is ListBoxItem tile
+            ? tile : from ?? Keyboard.FocusedElement as FrameworkElement;
+        return anchor != null && anchor.IsVisible
+            ? anchor.TranslatePoint(new Point(anchor.ActualWidth / 2, anchor.ActualHeight / 2), IntroLayer)
+            : new Point(IntroLayer.ActualWidth / 2, IntroLayer.ActualHeight / 2);
+    }
+
+    /// <summary>
+    /// The favorite heart in reverse, when a game leaves favorites: the heart pops up the same way, a jagged crack runs
+    /// down it, and its two halves fall apart, tipping away from each other as they fade.
+    /// </summary>
+    private void ShowHeartBreak(Game item, FrameworkElement? from)
+    {
+        try
+        {
+            var center = HeartCenter(item, from);
+            // The heart drawn as a shape (64 x 60), so it can be cut along the crack.
+            var heart = Geometry.Parse("M32,58 C10,40 2,28 2,18 C2,8 10,2 18,2 C25,2 30,7 32,11 C34,7 39,2 46,2 C54,2 62,8 62,18 C62,28 54,40 32,58 Z");
+            var crack = new[] { new Point(32, 6), new Point(27, 17), new Point(36, 27), new Point(28, 38), new Point(35, 48), new Point(32, 64) };
+            Geometry Side(bool left)
+            {
+                var figure = new PathFigure { StartPoint = new Point(left ? 0 : 64, 0), IsClosed = true };
+                figure.Segments.Add(new LineSegment(new Point(32, 0), true));
+                foreach (var p in crack) figure.Segments.Add(new LineSegment(p, true));
+                figure.Segments.Add(new LineSegment(new Point(left ? 0 : 64, 64), true));
+                return new PathGeometry(new[] { figure });
+            }
+            var color = new SolidColorBrush(Color.FromRgb(0xE0, 0x4A, 0x68));
+            var halves = new List<(System.Windows.Shapes.Path Path, TranslateTransform Move, RotateTransform Tip)>();
+            var holder = new Grid
+            {
+                Width = 64, Height = 64, IsHitTestVisible = false, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(center.X - 32, center.Y - 38, 0, 0), RenderTransformOrigin = new Point(0.5, 0.5),
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 16, ShadowDepth = 0, Opacity = 0.6 }
+            };
+            foreach (bool left in new[] { true, false })
+            {
+                var move = new TranslateTransform();
+                var tip = new RotateTransform(0, left ? 22 : 42, 40);
+                var group = new TransformGroup();
+                group.Children.Add(tip);
+                group.Children.Add(move);
+                var half = new System.Windows.Shapes.Path { Data = heart, Fill = color, Clip = Side(left), RenderTransform = group };
+                holder.Children.Add(half);
+                halves.Add((half, move, tip));
+            }
+            var scale = new ScaleTransform(0.2, 0.2);
+            holder.RenderTransform = scale;
+            IntroLayer.Children.Add(holder);
+
+            if (Theme.ReduceMotion)
+            {
+                scale.ScaleX = scale.ScaleY = 1;
+                halves[0].Move.X = -6; halves[1].Move.X = 6;
+                var hold = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+                hold.Tick += (_, _) => { hold.Stop(); IntroLayer.Children.Remove(holder); };
+                hold.Start();
+                return;
+            }
+
+            // Pop up, as the favorite heart does.
+            var pop = new System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames();
+            pop.KeyFrames.Add(new System.Windows.Media.Animation.EasingDoubleKeyFrame(0.2, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.Zero)));
+            pop.KeyFrames.Add(new System.Windows.Media.Animation.EasingDoubleKeyFrame(1.25, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(220)),
+                new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }));
+            pop.KeyFrames.Add(new System.Windows.Media.Animation.EasingDoubleKeyFrame(1.0, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(360))));
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+
+            // A little shudder, then the halves come apart: each slides out and down, tipping away from the other.
+            var ease = new System.Windows.Media.Animation.QuadraticEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn };
+            for (int i = 0; i < 2; i++)
+            {
+                int side = i == 0 ? -1 : 1;
+                var (_, move, tip) = halves[i];
+                var shake = new System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames { BeginTime = TimeSpan.FromMilliseconds(380) };
+                shake.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(side * 2, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(40))));
+                shake.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(side * -1, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(80))));
+                shake.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(side * 1, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(120))));
+                shake.KeyFrames.Add(new System.Windows.Media.Animation.EasingDoubleKeyFrame(side * 18, System.Windows.Media.Animation.KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(600)), ease));
+                move.BeginAnimation(TranslateTransform.XProperty, shake);
+                move.BeginAnimation(TranslateTransform.YProperty,
+                    new System.Windows.Media.Animation.DoubleAnimation(0, 30, TimeSpan.FromMilliseconds(480)) { BeginTime = TimeSpan.FromMilliseconds(500), EasingFunction = ease });
+                tip.BeginAnimation(RotateTransform.AngleProperty,
+                    new System.Windows.Media.Animation.DoubleAnimation(0, side * 24, TimeSpan.FromMilliseconds(480)) { BeginTime = TimeSpan.FromMilliseconds(500), EasingFunction = ease });
+            }
+            var fade = new System.Windows.Media.Animation.DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(420)) { BeginTime = TimeSpan.FromMilliseconds(660) };
+            fade.Completed += (_, _) => IntroLayer.Children.Remove(holder);
+            holder.BeginAnimation(OpacityProperty, fade);
+            Rumble();
+        }
+        catch (Exception) { }
+    }
+
     // ================================================================ graphics memory
 
     private bool _gpuSaving;
@@ -990,7 +1087,7 @@ public partial class MainWindow
                 player.Stop();
                 player.Close();
                 if (ReferenceEquals(_musicTaste, player)) _musicTaste = null;
-                if (_menuMusic != null) _menuMusic.Volume = Math.Clamp(Settings.MenuMusicVolume, 0, 100) / 100.0;
+                if (_menuMusic != null) _menuMusic.Volume = MusicLevel;
             };
             _musicTasteTimer.Start();
         }
@@ -1191,6 +1288,53 @@ public partial class MainWindow
 
     private int _musicHolds;
 
+    // ---- the music lowered while a question is asked (leaving Recomp Zone or Retro Lounge)
+
+    private double _duck = 1;
+    private System.Windows.Threading.DispatcherTimer? _duckTimer;
+
+    /// <summary>How loud the menu music plays now: its setting, lowered while a question is being asked.</summary>
+    private double MusicLevel => Math.Clamp(Settings.MenuMusicVolume, 0, 100) / 100.0 * _duck;
+
+    /// <summary>
+    /// Fades the music down to a third while a question is asked ("Leave Recomp Zone?"), and back up to where it was
+    /// if you stay, so the moment feels like the zone holding its breath.
+    /// </summary>
+    public void DuckMusic(bool down)
+    {
+        double target = down ? 0.3 : 1;
+        _duckTimer?.Stop();
+        if (Theme.ReduceMotion) { _duck = target; ApplyDuck(); return; }
+        double start = _duck;
+        var begun = DateTime.Now;
+        double ms = down ? 650 : 900; // a little slower coming back up
+        _duckTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(30) };
+        _duckTimer.Tick += (_, _) =>
+        {
+            double t = Math.Min(1, (DateTime.Now - begun).TotalMilliseconds / ms);
+            double eased = t * t * (3 - 2 * t); // smooth at both ends
+            _duck = start + (target - start) * eased;
+            ApplyDuck();
+            if (t >= 1) _duckTimer?.Stop();
+        };
+        _duckTimer.Start();
+    }
+
+    /// <summary>
+    /// Back to full straight away, without touching the track that's playing: used when leaving, so the zone's music
+    /// fades out from where it is and the launcher's own comes in at its usual level.
+    /// </summary>
+    public void ResetMusicDuck()
+    {
+        _duckTimer?.Stop();
+        _duck = 1;
+    }
+
+    private void ApplyDuck()
+    {
+        try { if (_menuMusic != null && !_musicFading) _menuMusic.Volume = MusicLevel; } catch (Exception) { }
+    }
+
     /// <summary>
     /// Pauses the menu music while something needs quiet (the style builder, so its sounds and music can be heard on
     /// their own), and lets it carry on from the same spot afterwards.
@@ -1257,7 +1401,7 @@ public partial class MainWindow
                 _menuMusicChoice = choice;
                 if (choice.StartsWith("file:", StringComparison.Ordinal) && !Theme.ReduceMotion) _fadeInNext = true; // Recomp Zone's music rises in
             }
-            _menuMusic!.Volume = Math.Clamp(Settings.MenuMusicVolume, 0, 100) / 100.0;
+            _menuMusic!.Volume = MusicLevel;
 
             bool busy = (_screens.Count > 0 && _screens[^1] is ViewerScreen or BrowserScreen or MediaScreen or MusicSearchScreen or StreamingScreen) || CloudOpen || LocalMusic.IsPlaying
                         || (Settings.MenuMusicPausesForMedia && (_mediaPlaying || SpotifyPlayer.IsPlaying));
@@ -1300,7 +1444,7 @@ public partial class MainWindow
             {
                 bool wasPlaying = _menuMusicPlaying;
                 OpenMenuMusic(next);
-                _menuMusic!.Volume = Math.Clamp(Settings.MenuMusicVolume, 0, 100) / 100.0;
+                _menuMusic!.Volume = MusicLevel;
                 _menuMusicPlaying = wasPlaying;
                 if (wasPlaying) _menuMusic.Play();
                 return;

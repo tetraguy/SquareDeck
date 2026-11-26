@@ -108,11 +108,11 @@ public sealed class StyleBuilderScreen : ListScreen
         AddHeader("Name");
         AddRow("Name", d.Name, "\uE8AC", click: () => _ = RenameAsync(), subtitle: "What it's called in Themes");
         AddRow("Starting point", start.Name + "  \u00B7  " + MyStyles.TierOf(start), "\uE8B1", click: () => _ = RestartAsync(),
-            subtitle: "The ready-made style yours is built on (Basic, Advanced, Legendary or Mythical). Choose another to start again from it");
+            subtitle: "The ready-made style yours is built on (Legendary or Mythical). Choose another to start again from it");
 
         AddHeader("Remix");
         AddRow("Take pieces from another style", null, "\uE8B1", click: () => _ = RemixAsync(),
-            subtitle: "Its wallpaper or moving background, music, sounds, font or icons, from any Basic, Advanced, Legendary or Mythical style");
+            subtitle: "Its wallpaper or moving background, music, sounds, font or icons, from any Legendary or Mythical style");
 
         AddHeader("Background");
         AddRow("Wallpaper or moving background", BackgroundName(d), "\uE91B", click: ChooseBackground,
@@ -145,7 +145,7 @@ public sealed class StyleBuilderScreen : ListScreen
         AddRow("Button pictures", SquareDeck.Hints.Looks.FirstOrDefault(x => x.Id == d.Glyphs).Name ?? "Simple", "\uE7FC", click: () => _ = ChooseGlyphsAsync(),
             subtitle: "How controller buttons are drawn in hints: simple, controller icons or pixel art");
         AddRow("Icons", IconsName(d), "\uE8B9", click: () => _ = ChooseIconsAsync(),
-            subtitle: "The home buttons' icons: the plain symbols, or the drawn icons of an Advanced, Legendary or Mythical style");
+            subtitle: "The home buttons' icons: the plain symbols, or the drawn icons of a Legendary or Mythical style");
         AddRow("Game art", NameIn(MyStyles.Arts, d.TileArt), "\uE8B9", click: ChooseArt, subtitle: "Square, tall or rectangle");
         AddRow("Continue where you left off", d.ContinueTile ? "On" : "Off", "\uE768", click: () => { d.ContinueTile = !d.ContinueTile; Changed(); },
             subtitle: "The last game you played first on the home row, ready to carry on");
@@ -617,7 +617,7 @@ public sealed class StyleBuilderScreen : ListScreen
     }
 
     /// <summary>
-    /// Remix: pick any ready-made style (Basic to Mythical), then which of its pieces to take: its background, music,
+    /// Remix: pick any ready-made style (Legendary or Mythical), then which of its pieces to take: its background, music,
     /// interface and navigation sounds, font and icons, one at a time or all together.
     /// </summary>
     private Task RemixAsync()
@@ -719,7 +719,7 @@ public sealed class StyleBuilderScreen : ListScreen
     private async Task RestartAsync()
     {
         var options = MyStyles.Everything().Select(s => (s.Id, s.Name + "  \u00B7  " + MyStyles.TierOf(s), s.Description)).ToArray();
-        var picker = new PreviewPickerScreen("Starting point", "Start again from any ready-made style, Basic to Mythical: everything here changes to that style's choices (the name stays).",
+        var picker = new PreviewPickerScreen("Starting point", "Start again from any ready-made style, Legendary or Mythical: everything here changes to that style's choices (the name stays).",
             options, () => _draft.BasedOn, id => new Viewbox { Width = PreviewPickerScreen.W, Height = PreviewPickerScreen.H, Stretch = Stretch.UniformToFill, Child = UiStyleScreen.Preview(UiStyles.Find(id)) },
             id =>
             {

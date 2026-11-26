@@ -30,6 +30,8 @@ public sealed class GameOptionsScreen : Screen
     {
         _game = game;
 
+        bool s2 = Switch2Pages.SystemOn; // Experimental: Switch 2 style
+        if (s2) Switch2Settings.ApplyColors(this);
         // Header: artwork behind, the logo (or the name until the logo arrives, or if there is none).
         var header = new Grid { Height = 150, ClipToBounds = true };
         _art.Source = game.Cover;
@@ -39,6 +41,7 @@ public sealed class GameOptionsScreen : Screen
         var fade = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
         var bg = (Application.Current.Resources["DialogBrush"] as SolidColorBrush)?.Color
                  ?? (Application.Current.Resources["BgBrush"] as SolidColorBrush)?.Color ?? Colors.Black;
+        if (s2) bg = Switch2Settings.Card;
         fade.GradientStops.Add(new GradientStop(Color.FromArgb(0x60, bg.R, bg.G, bg.B), 0));
         fade.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, bg.R, bg.G, bg.B), 1));
         header.Children.Add(new Border { Background = fade });
@@ -59,7 +62,8 @@ public sealed class GameOptionsScreen : Screen
             var o = options[i];
             if (i == 0 || options[i - 1].Group != o.Group)
             {
-                var h = Ui.Text(o.Group.ToUpperInvariant(), 12, "SubtleBrush", bold: true);
+                var h = Ui.Text(s2 ? o.Group : o.Group.ToUpperInvariant(), 12, "SubtleBrush", bold: true);
+                if (s2) h.Tag = "group"; // drawn as a bar-and-name heading below
                 h.Margin = new Thickness(8, i == 0 ? 2 : 14, 0, 6);
                 _rows.Children.Add(h);
             }
@@ -71,6 +75,14 @@ public sealed class GameOptionsScreen : Screen
             _rows.Children.Add(row);
         }
         Ui.GroupRows(_rows);
+        if (s2)
+        {
+            // Switch 2 style: flat rows on thin lines, no icons, headings with a short bar.
+            Switch2Settings.Restyle(_rows);
+            foreach (var h in _rows.Children.OfType<FrameworkElement>().Where(e => e.Tag as string == "s2header"))
+                h.Margin = new Thickness(14, _rows.Children.IndexOf(h) == 0 ? 4 : 20, 0, 4);
+            foreach (var r in _rows.Children.OfType<Button>()) r.MinHeight = 58;
+        }
 
         var body = new ScrollViewer
         {
@@ -93,6 +105,7 @@ public sealed class GameOptionsScreen : Screen
         box.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
         box.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
         box.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
+        if (s2) { box.Background = new SolidColorBrush(Switch2Settings.Card); box.BorderThickness = new Thickness(0); }
         // Rounded corners for the artwork too.
         box.Loaded += (_, _) => panel.Clip = new RectangleGeometry(new Rect(0, 0, box.ActualWidth, box.ActualHeight), 22, 22);
 

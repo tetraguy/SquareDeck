@@ -23,7 +23,7 @@ public partial class MainWindow
     private static readonly string[] WidgetLabs =
     {
         "wfpscap", "wautotdp", "wthermal", "wnotes", "wach", "wgenie", "wpad", "wfriends", "winbox", "wdownloads",
-        "wparty", "wapps", "wshortcuts", "wcards", "wgameaware", "wpresets", "wtheme", "wcompanion", "wpowerlook", "wrumble",
+        "wparty", "wapps", "wshortcuts", "wcards", "wgameaware", "wpresets", "wtheme", "wcompanion", "wpowerlook", "wrumble", "ws2", "wfpsslider",
     };
 
     /// <summary>Every card the widget has, in its usual order (the editor's list).</summary>
@@ -44,6 +44,18 @@ public partial class MainWindow
         var on = WidgetLabs.Where(Labs.On).ToList();
         state["labs"] = new JsonArray(on.Select(x => (JsonNode)x).ToArray());
         if (on.Count == 0) return;
+        if (Labs.On("ws2"))
+        {
+            // Experimental: the Switch 2 style widget, in the colors of the UI style in use.
+            SquareDeck.Screens.Switch2Settings.Refresh();
+            static string Hex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            state["s2"] = new JsonObject
+            {
+                ["bg"] = Hex(SquareDeck.Screens.Switch2Settings.Background), ["fg"] = Hex(SquareDeck.Screens.Switch2Settings.Text),
+                ["sub"] = Hex(SquareDeck.Screens.Switch2Settings.Subtle), ["line"] = Hex(SquareDeck.Screens.Switch2Settings.Line),
+                ["accent"] = Hex(SquareDeck.Screens.Switch2Settings.Blue), ["card"] = Hex(SquareDeck.Screens.Switch2Settings.Card),
+            };
+        }
         var running = AllGames.FirstOrDefault(g => g.IsRunning);
         string? key = running?.Key;
 
@@ -66,7 +78,7 @@ public partial class MainWindow
         }
         if (live != null) state["live"] = live;
 
-        if (Labs.On("wfpscap") || Labs.On("wautotdp"))
+        if (Labs.On("wfpscap") || Labs.On("wautotdp") || Labs.On("wfpsslider"))
         {
             state["fpscap"] = _widgetCap > 0 ? _widgetCap : (_capBefore != null && key != null ? Eight.FpsCap(key) : 0);
             state["capok"] = AmdAdlx.CapMethod() != null;
@@ -160,6 +172,12 @@ public partial class MainWindow
                 return true;
             case "fpscap" when Int("value") is int fps:
                 _ = SetWidgetCapAsync(fps);
+                // The slider has no Save button: the cap is kept for the game as you set it.
+                if (Labs.On("wfpsslider") && running != null)
+                {
+                    Eight.SetFpsChoice(running.Key, fps > 0 ? fps.ToString() : "off");
+                    if (!Labs.On("fpscap")) Labs.Set("fpscap", true);
+                }
                 return true;
             case "fpscapsave":
                 if (running == null) { WidgetNote("Start a game first"); return true; }
@@ -397,7 +415,7 @@ public partial class MainWindow
         SetMode(HomeView.Games);
         switch (page)
         {
-            case "library": Push(new LibraryScreen()); break;
+            case "library": Push(SquareDeck.Screens.Switch2LibraryScreen.Create()); break;
             case "retro": Push(new RetroLoungeScreen()); break;
             case "captures": Push(new CapturesScreen()); break;
             case "settings": Push(new SettingsScreen()); break;

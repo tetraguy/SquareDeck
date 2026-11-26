@@ -215,6 +215,7 @@ namespace SquareDeck.Widget
             right.Children.Add(chip);
             Grid.SetColumn(right, 2);
             header.Children.Add(right);
+            _headerGrid = header; // for the Switch 2 style (WidgetPage.Switch2.cs)
             return header;
         }
 

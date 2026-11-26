@@ -339,11 +339,6 @@ public abstract class Screen : UserControl
     private Grid? _bodyHost;
     private Grid? _footer;
 
-    /// <summary>
-    /// The page drawn like the Switch 2's System Settings (Experimental > New Settings UI): a plain light or dark
-    /// page, the gear and title on the left with a line under them, and a line over the button hints with the
-    /// controller at the left.
-    /// </summary>
     /// <summary>Takes the colors of the UI style in use again (it may have just been changed, from Themes).</summary>
     protected void RefreshSwitch2Colors()
     {
@@ -352,23 +347,25 @@ public abstract class Screen : UserControl
         _pageRoot.Background = new System.Windows.Media.SolidColorBrush(Switch2Settings.Background);
     }
 
-    protected void UseSwitch2Chrome(string title)
+    /// <summary>
+    /// The page drawn like the Switch 2's System Settings (Settings, and the Switch 2 style Library): the UI style's
+    /// colors over its background, the gear (or another icon) and title on the left with a line under them, and a line
+    /// over the button hints with the controller at the left.
+    /// </summary>
+    protected void UseSwitch2Chrome(string title, string glyph = "\uE713")
     {
         if (_pageRoot == null) return;
         Switch2Settings.ApplyColors(this);
         _pageRoot.Background = new System.Windows.Media.SolidColorBrush(Switch2Settings.Background);
-        if (_wallpaperLayer != null) _wallpaperLayer.Visibility = Visibility.Collapsed;
-        if (_wallpaperScrim != null) _wallpaperScrim.Visibility = Visibility.Collapsed;
-        // Backdrop pictures, wallpaper, tints and scrims (layers behind the page that don't take input).
-        foreach (var layer in _pageRoot.Children.OfType<UIElement>().Where(e => Grid.GetRowSpan(e) >= 2 && !e.IsHitTestVisible).ToList())
-            layer.Visibility = Visibility.Collapsed;
-        if (_backdrop != null) _backdrop.Visibility = Visibility.Collapsed;
+        // The UI style's background shows through, as on other pages: its wallpaper (or the game artwork some styles
+        // put behind pages) under a wash of the page color. The wash takes this page's own background color, since it
+        // reads BgBrush from the page, so the Switch 2 colors stay and only the picture shows softly through them.
 
         if (_header != null && _titleText != null)
         {
             _header.Children.Remove(_titleText);
             var name = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            var gear = Ui.Glyph("\uE713", 34, "FgBrush");
+            var gear = Ui.Glyph(glyph, 34, "FgBrush");
             gear.VerticalAlignment = VerticalAlignment.Center;
             gear.Margin = new Thickness(0, 2, 16, 0);
             name.Children.Add(gear);
@@ -391,7 +388,7 @@ public abstract class Screen : UserControl
             var over = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Top };
             over.SetResourceReference(Shape.FillProperty, "S2Line");
             _footer.Children.Insert(0, over);
-            var pad = Ui.Glyph(Ui.HandheldGlyph, 30, "FgBrush");
+            FrameworkElement pad = Ui.DeviceArt(30) ?? Ui.Glyph(Ui.HandheldGlyph, 30, "FgBrush"); // your own handheld, with that experiment on
             pad.HorizontalAlignment = HorizontalAlignment.Left;
             pad.VerticalAlignment = VerticalAlignment.Center;
             pad.Margin = new Thickness(16, 2, 0, 0);

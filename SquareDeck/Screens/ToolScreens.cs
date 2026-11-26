@@ -871,9 +871,19 @@ public sealed class ControllerTestScreen : Screen
 public sealed class StoresScreen : GridScreen
 {
     /// <summary>ubiquity: the page is laid out like its home screen (see <see cref="BuildShowcase"/>).</summary>
-    private readonly bool _cine = Looks.Current.Id is "ubiquity" or "aniki" or "solaris" or "orbit";
+    private readonly bool _cine = !Switch2Pages.On && Looks.Current.Id is "ubiquity" or "aniki" or "solaris" or "orbit";
     /// <summary>SquareDeck: labeled rows ("Stores", "More") with no big space at the top, like a handheld's library.</summary>
-    private readonly bool _rows = Looks.Current.Id == "deck";
+    private readonly bool _rows = !Switch2Pages.On && Looks.Current.Id == "deck";
+
+    /// <summary>Experimental: Switch 2 style pages. Sections on the left, the stores as settings rows on the right.</summary>
+    private readonly bool _s2 = Switch2Pages.On;
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+    private readonly StackPanel _s2Rows = new() { Margin = new Thickness(0, 0, 18, 30) };
+    private readonly ScrollViewer _s2Scroll = new()
+    {
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        PanningMode = PanningMode.VerticalOnly, Focusable = false
+    };
     private double TileSize => _cine ? 150 : 170;
     private List<StoreApp> _all = new();
     private readonly WrapPanel _more = new();
@@ -885,11 +895,21 @@ public sealed class StoresScreen : GridScreen
     private readonly TextBlock _heroName = Ui.Text("", 44, "FgBrush");
     private readonly TextBlock _heroAbout = Ui.Text("", 17, "SubtleBrush");
 
-    public StoresScreen() : base("Stores", "{Select}  Open      {Options}  Hide or uninstall      {Back}  Back") { }
+    public StoresScreen() : base("Stores", "{Select}  Open      {Options}  Hide or uninstall      {Back}  Back")
+    {
+        if (!_s2) return;
+        _s2Scroll.Content = _s2Rows;
+        ReplaceBody(Switch2Pages.Shell(_s2Nav, _s2Scroll));
+        UseSwitch2Chrome("Stores", "\uE719");
+    }
 
     public override void OnShown() => _ = LoadAsync();
 
-    public override void OnResumed() => _ = LoadAsync(); // a store may just have been installed or removed
+    public override void OnResumed()
+    {
+        if (_s2) RefreshSwitch2Colors();
+        _ = LoadAsync(); // a store may just have been installed or removed
+    }
 
     private async Task LoadAsync()
     {
@@ -941,10 +961,7 @@ public sealed class StoresScreen : GridScreen
             var box = ImageBox(TileSize, TileSize, out var icon);
             icon.Stretch = Stretch.Uniform;
             icon.Margin = new Thickness(34);
-            AddTile(box, _cine ? null : s.Name, TileSize, () =>
-            {
-                if (!Stores.Open(s)) _ = Host.AskAsync("Couldn't open " + s.Name, "Its app didn't start.", "OK");
-            }, s);
+            AddTile(box, _cine ? null : s.Name, TileSize, () => OpenStore(s), s);
             // The store's own logo where SquareDeck has one; otherwise its app icon on a gradient of its colors.
             if (StoreLogos.For(s.Name) is { } logo) { icon.Source = logo; icon.Margin = new Thickness(28); }
             else _ = LoadIconAsync(icon, box, s);
@@ -962,7 +979,7 @@ public sealed class StoresScreen : GridScreen
         Panel? extras = _cine || _rows ? _more : null;
         double small = _cine ? 110 : TileSize;
         if (Labs.On("freegames"))
-            AddTile(GlyphBox(small, small, "\uE719"), _cine ? null : "Free games", small, () => Host.Push(new FreeGamesScreen()), "Free games", _deals);
+            AddTile(GlyphBox(small, small, "\uE719"), _cine ? null : "Free games", small, () => Host.Push(PlayPages.FreeGames()), "Free games", _deals);
         string wish = onSale > 0 ? $"Wishlist · {onSale} on sale" : "Wishlist and sales";
         AddTile(GlyphBox(small, small, "\uE8EC"), _cine ? null : wish, small, () => Host.Push(new WishlistScreen()), wish, _deals);
         AddTile(GlyphBox(small, small, "\uE787"), _cine ? null : "Release calendar", small, () => Host.Push(new ReleaseCalendarScreen()), "Release calendar", _deals);
@@ -971,8 +988,128 @@ public sealed class StoresScreen : GridScreen
         if (hiddenInstalled > 0)
             AddTile(GlyphBox(small, small, "\uE7B3"), _cine ? null : $"Hidden stores ({hiddenInstalled})", small, () => _ = ShowHiddenAsync(), $"Hidden stores ({hiddenInstalled})", extras);
         if (_cine) HookShowcase();
+        if (_s2) BuildSwitch2();
         FocusDefaultLater();
     }
+
+    /// <summary>
+    /// The Switch 2 layout. The tiles built above become settings rows, the same buttons (so choosing one and Y work as
+    /// before): a small picture, the name, a line about it in gray and, for a store, "Installed" in blue. They're
+    /// grouped under bar-and-name headings (Your stores, Cloud gaming, Deals and releases, More), listed on the left
+    /// too: moving onto one there scrolls to it, choosing it goes to its first row.
+    /// </summary>
+    private void BuildSwitch2()
+    {
+        var cloudNames = new HashSet<string>(CloudService.All.Select(c => c.Name));
+        var stores = Tiles.Children.OfType<Button>().Where(b => !(b.Tag is string n && cloudNames.Contains(n))).ToList();
+        var cloud = Tiles.Children.OfType<Button>().Except(stores).ToList();
+        var deals = _deals.Children.OfType<Button>().ToList();
+        var more = _more.Children.OfType<Button>().ToList();
+        // In the plain grid, Add more stores and Hidden stores sit with the stores: they belong under More here.
+        foreach (var b in stores.Where(b => b.Tag is string n && (n == "Add more stores" || n.StartsWith("Hidden stores"))).ToList()) { stores.Remove(b); more.Add(b); }
+        foreach (var b in deals.Where(b => b.Tag is string n && (n == "Add more stores" || n.StartsWith("Hidden stores"))).ToList()) { deals.Remove(b); more.Add(b); }
+        Tiles.Children.Clear();
+        _deals.Children.Clear();
+        _more.Children.Clear();
+
+        var focused = System.Windows.Input.Keyboard.FocusedElement as Button;
+        _s2Rows.Children.Clear();
+        _s2Nav.Children.Clear();
+        _s2Rows.Children.Add(Switch2Pages.PageTitle("Stores", stores.Count(b => b.Tag is StoreApp) is int n && n > 0 ? (n == 1 ? "1 store installed" : $"{n} stores installed") : null));
+        int group = 0;
+        void Section(string name, List<Button> items)
+        {
+            if (items.Count == 0) return;
+            var heading = Switch2Settings.Header(name);
+            _s2Rows.Children.Add(heading);
+            foreach (var b in items) _s2Rows.Children.Add(AsRow(b));
+            if (group++ > 0 && name == "More") _s2Nav.Children.Add(Switch2Pages.NavLine());
+            var first = items[0];
+            var nav = Switch2Pages.NavItem(name, items.Count.ToString(), false, () => first.Focus());
+            nav.GotKeyboardFocus += (_, _) =>
+            {
+                foreach (var other in _s2Nav.Children.OfType<Button>()) other.Tag = ReferenceEquals(other, nav) ? "selected" : null;
+                _s2Scroll.ScrollToVerticalOffset(Math.Max(0, heading.TranslatePoint(new Point(0, 0), _s2Rows).Y - 20));
+            };
+            // Moving through the rows marks their section on the left.
+            foreach (var b in items)
+                b.GotKeyboardFocus += (_, _) => { foreach (var other in _s2Nav.Children.OfType<Button>()) other.Tag = ReferenceEquals(other, nav) ? "selected" : null; };
+            _s2Nav.Children.Add(nav);
+        }
+        Section("Your stores", stores);
+        Section("Cloud gaming", cloud);
+        Section("Deals and releases", deals);
+        Section("More", more);
+        if (_s2Nav.Children.OfType<Button>().FirstOrDefault() is { } top) top.Tag = "selected";
+        if (focused != null && _s2Rows.Children.Contains(focused)) FocusLater(focused);
+    }
+
+    public override void FocusDefault()
+    {
+        if (_s2 && _s2Rows.Children.OfType<Button>().FirstOrDefault() is { } first) first.Focus();
+        else base.FocusDefault();
+    }
+
+    /// <summary>A tile as a Switch 2 settings row: its picture small on the left, the name, a line about it, a value.</summary>
+    private Button AsRow(Button tile)
+    {
+        if (tile.Content is not StackPanel stack || stack.Children.Count == 0) return tile;
+        var picture = stack.Children[0];
+        stack.Children.Clear();
+        // The tile's picture made small: symbols drawn bigger first, so they don't shrink to nothing.
+        if (picture is Border { Child: TextBlock glyph }) glyph.FontSize = 90;
+        var small = new Viewbox { Width = 56, Height = 56, Stretch = Stretch.Uniform, Child = picture, VerticalAlignment = VerticalAlignment.Center };
+
+        string name = tile.Tag switch { StoreApp s => s.Name, string s => s, _ => "" };
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(76) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        small.HorizontalAlignment = HorizontalAlignment.Left;
+        grid.Children.Add(small);
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
+        words.Children.Add(new TextBlock { Text = name.Split(" · ")[0], FontSize = 20, TextTrimming = TextTrimming.CharacterEllipsis });
+        var about = Ui.Text(About(tile.Tag), 15, "SubtleBrush");
+        about.TextTrimming = TextTrimming.CharacterEllipsis;
+        about.Margin = new Thickness(0, 3, 0, 0);
+        words.Children.Add(about);
+        Grid.SetColumn(words, 1);
+        grid.Children.Add(words);
+        string value = tile.Tag switch
+        {
+            StoreApp => "Installed",
+            string s when s.Contains(" · ") => s.Split(" · ")[1],
+            _ => ""
+        };
+        if (value.Length > 0)
+        {
+            var v = Ui.Text(value, 19, "AccentBrush");
+            v.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(v, 2);
+            grid.Children.Add(v);
+        }
+        tile.Content = grid;
+        tile.Style = Switch2Settings.RowStyle;
+        tile.MinHeight = 82;
+        tile.Margin = new Thickness(0);
+        tile.Width = double.NaN;
+        return tile;
+    }
+
+    /// <summary>A line about a tile: what opening it does.</summary>
+    private static string About(object? tag) => tag switch
+    {
+        StoreApp s => "Opens " + s.Name + "  ·  Y to hide or uninstall",
+        string s when s.StartsWith("Wishlist") => "Prices and release days of the games you want",
+        "Release calendar" => "What's coming out, day by day",
+        "Free games" => "Games you can keep for free right now",
+        "Add more stores" => "Install another game store or launcher",
+        "Recomp Zone" => "Native PC versions of classic console games, rebuilt by fans",
+        "Retro Lounge" => "Emulators and your own classic games in one place",
+        string s when s.StartsWith("Hidden") => "Stores you've hidden from this page",
+        string s => "Play " + s + " in the cloud",
+        _ => ""
+    };
 
     /// <summary>
     /// ubiquity's Stores page, laid out like its home screen: the store you're on large at the top left (its logo, its
@@ -1098,6 +1235,16 @@ public sealed class StoresScreen : GridScreen
         return false;
     }
 
+    /// <summary>
+    /// Opens a store; with Experimental "Store opening animations" on, its opening animation plays until it's up
+    /// (not for RecompLauncher, which is SquareDeck's own neighbour rather than a shop).
+    /// </summary>
+    private void OpenStore(StoreApp s)
+    {
+        if (StoreOpeningScreen.On && s.Name != RecompLauncher.Name) { Host.Push(new StoreOpeningScreen(s)); return; }
+        if (!Stores.Open(s)) _ = Host.AskAsync("Couldn't open " + s.Name, "Its app didn't start.", "OK");
+    }
+
     private async Task OptionsAsync(StoreApp store)
     {
         int choice = await Host.AskWithIconsAsync(store.Name, null,
@@ -1105,7 +1252,7 @@ public sealed class StoresScreen : GridScreen
         switch (choice)
         {
             case 0:
-                Stores.Open(store);
+                OpenStore(store);
                 break;
             case 1:
                 if (!Host.Settings.HiddenStores.Contains(store.Name)) Host.Settings.HiddenStores.Add(store.Name);

@@ -31,7 +31,7 @@ public sealed class RecompZoneScreen : GridScreen
 
     private static readonly (string Key, string Name)[] Sorts = { ("console", "By console"), ("stars", "Most stars"), ("new", "Recently updated"), ("added", "Newest in the list"), ("name", "A to Z") };
 
-    public RecompZoneScreen() : base("Recomp Zone", "{Select}  Open        {LB}{RB}  Sections        {Options}  Search        {Details}  Filter and sort        {Back}  Back")
+    public RecompZoneScreen() : base("Recomp Zone", "{Select}  Open        {LB}{RB}  Sections        LT / RT  Banner        {Options}  Search        {Details}  Filter and sort        {Back}  Back")
     {
         _realizeSoon.Tick += (_, _) => Realize();
         if (Body.Parent is ScrollViewer scroll)
@@ -56,6 +56,11 @@ public sealed class RecompZoneScreen : GridScreen
         _heroTimer.Tick += (_, _) => { if (_heroPanel?.IsKeyboardFocusWithin != true && Host?.IsTop(this) == true) ShowHero(_heroIndex + 1); };
         RecompDownloads.Changed += OnDownloadsChanged;
         RecompDownloads.Progressed += OnDownloadProgress;
+        if (_s2)
+        {
+            UseSwitch2Chrome("Recomp Zone", "\uE7FC");
+            Switch2Pages.AutoRestyle(Body);
+        }
     }
 
     private RecompIntro? _intro;
@@ -170,6 +175,7 @@ public sealed class RecompZoneScreen : GridScreen
     /// </summary>
     public override void OnResumed()
     {
+        if (_s2) RefreshSwitch2Colors();
         if (_intro != null) return;
         Host.RefreshBackgroundPlayback(); // the music comes back after a trailer or a page that paused it
         // Home's "Jump back in" follows what was just played; Library and Downloads what was installed or removed.
@@ -212,8 +218,21 @@ public sealed class RecompZoneScreen : GridScreen
         _asking = true;
         try
         {
+            // The zone's music fades down while you decide, and back up if you stay.
+            Host.DuckMusic(true);
             if (await Host.AskAsync("Leave " + zone + "?", "You'll go back to the home screen. You can come back any time.", "Leave", "Stay") == 0)
+            {
+                Host.ResetMusicDuck(); // the zone's music fades out from here; the launcher's comes in at its usual level
+                if (ZoneExit.On)
+                {
+                    // Experimental: a goodbye in the zone's own spirit before Home comes back.
+                    var (layer, done) = ZoneExit.Recomp(this);
+                    ShowOver(layer);
+                    await done;
+                }
                 Host.Pop(this);
+            }
+            else Host.DuckMusic(false);
         }
         finally { _asking = false; }
     }
@@ -236,6 +255,13 @@ public sealed class RecompZoneScreen : GridScreen
                 ShowSection(Sections[i].Id, focusContent: true);
                 return true;
             }
+            case NavAction.LT or NavAction.RT when _section == "home" && _heroes.Count > 1:
+                // The big banner on Home (Most popular, new, updated...): the previous or the next one.
+                ShowHero(_heroIndex + (action == NavAction.RT ? 1 : -1));
+                _heroTimer.Stop();
+                _heroTimer.Start(); // a full turn on this one before it moves on by itself
+                UiSound.Page();
+                return true;
             case NavAction.Y:
                 if (_section != "catalog") ShowSection("catalog", focusContent: true);
                 _ = SearchAsync();
@@ -528,10 +554,19 @@ public sealed class RecompZoneScreen : GridScreen
     private bool _compact;          // a small screen (the handheld): the sidebar is icons until you move into it
     private bool? _navCollapsedBuilt;
 
-    private bool NavCollapsed => _compact && !_nav.IsKeyboardFocusWithin;
+    private bool NavCollapsed => !_s2 && _compact && !_nav.IsKeyboardFocusWithin;
+
+    /// <summary>Experimental: Switch 2 style Recomp Zone, Retro Lounge, Explorer and Task Manager.</summary>
+    private readonly bool _s2 = Switch2Pages.ToolsOn;
 
     private FrameworkElement BuildNavPanel()
     {
+        if (_s2)
+        {
+            // The Switch 2's list of sections: plain names, no card behind them, a thin line beside.
+            BuildNav();
+            return Switch2Pages.SidebarHolder(_nav);
+        }
         _navBox = new Border { Child = _nav, Padding = new Thickness(8), CornerRadius = new CornerRadius(18), VerticalAlignment = VerticalAlignment.Top };
         var tint = new Border { CornerRadius = new CornerRadius(18), Opacity = 0.55 };
         tint.SetResourceReference(Border.BackgroundProperty, "TileBrush");
@@ -564,10 +599,24 @@ public sealed class RecompZoneScreen : GridScreen
         {
             int count = id == "downloads" ? badge : 0;
             Button b;
-            if (collapsed)
+            if (_s2)
             {
-                b = Ui.BladeButton(glyph, name, selected: id == _section);
-                b.Margin = new Thickness(0, 2, 0, 2);
+                if (id == "downloads" && _nav.Children.Count > 0) _nav.Children.Add(Switch2Pages.NavLine()); // browsing above, managing below
+                b = Switch2Pages.NavItem(name, count > 0 ? count.ToString() : null, id == _section, () => { });
+            }
+            else if (collapsed)
+            {
+                // The same row as the open sidebar, with only its icon: plain in the text color, the section showing in
+                // the highlight color, and the row's own highlight when moved onto. (The home row's blade tiles drew
+                // every icon in the highlight color on a tinted card, which didn't match the open sidebar.)
+                var mark = Ui.Glyph(glyph, 22);
+                mark.ClearValue(TextBlock.ForegroundProperty); // takes the row's color
+                mark.HorizontalAlignment = HorizontalAlignment.Center;
+                mark.VerticalAlignment = VerticalAlignment.Center;
+                var blade = new Grid { Width = 40, Height = 40 };
+                blade.Children.Add(mark);
+                b = new Button { Style = Ui.StyleOf("RowButton"), Content = blade, ToolTip = name, Width = 64, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 2) };
+                if (id == _section) b.Tag = "selected";
                 if (count > 0 && b.Content is Grid face)
                 {
                     var dot = new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(9), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -5, -5, 0),

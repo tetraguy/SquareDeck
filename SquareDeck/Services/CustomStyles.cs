@@ -162,20 +162,19 @@ public static class MyStyles
     /// <summary>Where a style's own files (your picture, video or lock screen picture) are kept.</summary>
     public static string FolderFor(string id) => Path.Combine(Settings.DataDir, "Styles", id);
 
-    /// <summary>A ready-made style to start from: Basic, Advanced, Legendary or Mythical (My own style can start from any).</summary>
+    /// <summary>A ready-made style to start from: Legendary or Mythical (My own style can start from any).</summary>
     public static UiStyle BuiltIn(string id) =>
         UiStyles.All.FirstOrDefault(x => x.Id == UiStyles.Upgrade(id)) ?? UiStyles.Advanced.FirstOrDefault(x => x.Id == id) ?? UiStyles.All[0];
 
     /// <summary>Which tab a ready-made style is on.</summary>
     public static string TierOf(UiStyle s) =>
-        s.Mythical ? "Mythical" : s.Unlock != null ? "Unlockable" : s.Legendary ? "Legendary" : UiStyles.IsAdvanced(s.Id) ? "Advanced" : "Basic";
+        s.Mythical ? "Mythical" : s.Unlock != null ? "Unlockable" : "Legendary";
 
     /// <summary>Every ready-made style there is to remix from, in tab order (locked Unlockable ones aren't offered yet).</summary>
     public static List<UiStyle> Everything()
     {
         var list = new List<UiStyle>(UiStyles.All);
-        list.AddRange(UiStyles.Advanced.Where(x => !x.Legendary && !x.Mythical && x.Unlock == null));
-        list.AddRange(UiStyles.Advanced.Where(x => x.Legendary && !x.Mythical && x.Unlock == null));
+        list.AddRange(UiStyles.Advanced.Where(x => !x.Mythical && x.Unlock == null));
         list.AddRange(UiStyles.Advanced.Where(x => x.Mythical));
         list.AddRange(UiStyles.Advanced.Where(x => x.Unlock != null && !StyleUnlocks.IsLocked(x)));
         return list;

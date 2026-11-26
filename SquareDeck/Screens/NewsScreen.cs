@@ -31,6 +31,11 @@ public sealed class GameNewsScreen : Screen
     private string? _focusId;
     private bool _loading = true;
 
+    /// <summary>Experimental: Switch 2 style News and Friends. The sections down the left, the stories on the right.</summary>
+    private readonly bool _s2 = Switch2Pages.SocialOn;
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+    private readonly Border _s2Title = new();
+
     // IGN's feeds (PC articles, all games): read only while this page is open, and let go when it closes
     // (never kept between visits).
     private static readonly Dictionary<string, (string Url, string About)> Feeds = new()
@@ -51,14 +56,23 @@ public sealed class GameNewsScreen : Screen
         // The sections sit together on one rounded bar; the one showing is filled with the highlight color.
         var bar = new Border { CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner * 2, 6)), Padding = new Thickness(5), Margin = new Thickness(0, 0, 0, 6), HorizontalAlignment = HorizontalAlignment.Left, Child = _tabs };
         bar.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-        body.Children.Add(bar);
+        if (_s2)
+        {
+            body.Margin = new Thickness(0, 0, 18, 24);
+            body.Children.Add(_s2Title);
+            _note.Margin = new Thickness(14, 6, 14, 10);
+        }
+        else body.Children.Add(bar);
         body.Children.Add(_note);
         body.Children.Add(_list);
-        SetPage("News", new ScrollViewer
+        var scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             PanningMode = PanningMode.VerticalOnly, Focusable = false, Content = body
-        }, "LB RB  Section      {Select}  Open      {Details}  Refresh      {Back}  Back", wide: true);
+        };
+        // Switch 2 style: the sections down the left like System Settings', the stories on the right.
+        SetPage("News", _s2 ? Switch2Pages.Shell(_s2Nav, scroll) : scroll, "LB RB  Section      {Select}  Open      {Details}  Refresh      {Back}  Back", wide: true);
+        if (_s2) UseSwitch2Chrome("News", "\uE789");
     }
 
     public override void OnShown()
@@ -87,7 +101,11 @@ public sealed class GameNewsScreen : Screen
         _focusId = focus;
     }
 
-    public override void OnResumed() => Build();
+    public override void OnResumed()
+    {
+        if (_s2) RefreshSwitch2Colors();
+        Build();
+    }
 
     public override void OnClosed()
     {
@@ -175,12 +193,25 @@ public sealed class GameNewsScreen : Screen
     private void Build()
     {
         _tabs.Children.Clear();
+        _s2Nav.Children.Clear();
         foreach (var (id, name) in Sections)
         {
             string section = id;
             int count = Items(section).Count();
             bool showing = _section == id;
             bool counted = !((IsFeed(section) ? _feedsLoading.Contains(section) : _loading) || count == 0 || section == "sales" && _cachedSales == null);
+            if (_s2)
+            {
+                // A section on the left: its name and count; the one showing blue with a bar. A thin line before IGN's
+                // feeds and before Sales.
+                if (id is "ign" or "sales") _s2Nav.Children.Add(Switch2Pages.NavLine());
+                var item = Switch2Pages.NavItem(name, counted ? (count > 99 ? "99+" : count.ToString()) : null, showing, () => { _section = section; Build(); });
+                item.DataContext = "tab:" + id;
+                item.GotKeyboardFocus += (_, _) => _focusId = "tab:" + section;
+                _s2Nav.Children.Add(item);
+                if (showing) _s2Title.Child = Switch2Pages.PageTitle(name, counted ? (count == 1 ? "1 story" : $"{count:N0} {(section == "sales" ? "deals" : "stories")}") : null);
+                continue;
+            }
             var label = new StackPanel { Orientation = Orientation.Horizontal };
             label.Children.Add(Ui.Text(name, 16, showing ? "BgBrush" : "FgBrush", bold: true));
             if (counted)
@@ -206,8 +237,8 @@ public sealed class GameNewsScreen : Screen
         if (_section == "sales") BuildSales();
         else BuildNews();
 
-        var target = FindButton(_tabs, _focusId) ?? FindButton(_list, _focusId) ?? _list.FindDescendants<Button>().FirstOrDefault()
-                     ?? _tabs.Children.OfType<Button>().FirstOrDefault();
+        var target = FindButton(_s2 ? _s2Nav : (Panel)_tabs, _focusId) ?? FindButton(_list, _focusId) ?? _list.FindDescendants<Button>().FirstOrDefault()
+                     ?? (_s2 ? _s2Nav : (Panel)_tabs).Children.OfType<Button>().FirstOrDefault();
         FocusLater(target);
     }
 
@@ -343,6 +374,7 @@ public sealed class GameNewsScreen : Screen
     private Button Wrap(Border card, NewsItem post, Thickness margin)
     {
         var button = Ui.Tile(card);
+        if (_s2) Switch2Pages.RestyleTile(button); // the rimmed highlight card round the story
         button.Margin = margin;
         button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         button.DataContext = "post:" + post.Url;
@@ -434,6 +466,7 @@ public sealed class GameNewsScreen : Screen
         stack.Children.Add(prices);
 
         var button = Ui.Tile(stack);
+        if (_s2) Switch2Pages.RestyleTile(button);
         button.DataContext = "sale:" + appId;
         button.GotKeyboardFocus += (_, _) => _focusId = "sale:" + appId;
         button.Click += (_, _) => ProcessUtil.Open("steam://store/" + appId);

@@ -42,6 +42,10 @@ public sealed class OnboardingScreen : Screen
     private bool _startOtherStores;
     private Button? _carousel;
 
+    /// <summary>Experimental "Switch 2 style first-time setup": the steps down the left, the page on the right, thin lines.</summary>
+    private readonly bool _s2 = Labs.On("s2setup");
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+
     public OnboardingScreen(TaskCompletionSource done)
     {
         _done = done;
@@ -105,6 +109,7 @@ public sealed class OnboardingScreen : Screen
         _helloTimer.Tick += (_, _) => NextHello();
         _root = root;
         root.Loaded += (_, _) => StartAurora(root);
+        if (_s2) BuildSwitch2Frame();
     }
 
     public override void OnShown()
@@ -160,6 +165,7 @@ public sealed class OnboardingScreen : Screen
     /// <summary>Three big soft color blobs drifting behind everything, in the highlight color and two neighbors of it.</summary>
     private void StartAurora(Grid root)
     {
+        if (_s2) return;
         _sky.Children.Clear();
         double w = Math.Max(root.ActualWidth, 1280), h = Math.Max(root.ActualHeight, 720);
         var accent = (TryFindResource("AccentBrush") as SolidColorBrush)?.Color ?? Color.FromRgb(0x2E, 0x9B, 0xFF);
@@ -216,6 +222,7 @@ public sealed class OnboardingScreen : Screen
             dot.MouseLeftButtonUp += (_, _) => Go(index);
             _dots.Children.Add(dot);
         }
+        if (_s2) BuildSwitch2Nav();
     }
 
     /// <param name="keep">Redrawing the same step after a choice: no slide, and the highlight stays on what was picked.</param>
@@ -264,10 +271,155 @@ public sealed class OnboardingScreen : Screen
         }
         else _stage.Children.Clear();
         _stage.Children.Add(page);
+        if (_s2) Switch2Polish(page);
 
         var buttons = page.FindDescendants<Button>().Where(b => b.Focusable).ToList();
         FocusLater(_step == Steps.Length - 1 ? _next : _carousel ?? buttons.FirstOrDefault(b => b.Tag as string == "current") ?? buttons.FirstOrDefault() ?? _next);
         if (!keep) UiSound.Move();
+    }
+
+    // ================================================================ Switch 2 style
+
+    /// <summary>
+    /// The setup drawn like the Switch 2's System Settings, in the UI style's colors: "System Setup" with the gear and a
+    /// line under it, every step listed down the left (a blue bar on the one you're on, a tick on the ones done), the
+    /// page on the right, and a line over Back, the hints, Skip and Next.
+    /// </summary>
+    private void BuildSwitch2Frame()
+    {
+        Switch2Settings.Refresh();
+        Switch2Settings.ApplyColors(this);
+        // The cards and toggles on the pages take the Switch 2 colors too.
+        SolidColorBrush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+        Resources["TileBrush"] = B(Switch2Settings.Card);
+        Resources["DialogBrush"] = B(Switch2Settings.Card);
+        Resources["CircleBrush"] = B(Switch2Settings.Off);
+        Resources["PanelStroke"] = B(Switch2Settings.Line);
+
+        foreach (var e in new FrameworkElement[] { _stage, _back, _next, _skip, _dots })
+            (e.Parent as Panel)?.Children.Remove(e);
+
+        var root = new Grid { ClipToBounds = true, Background = B(Switch2Settings.Background) };
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(104) });
+        root.RowDefinitions.Add(new RowDefinition());
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(72) });
+
+        var head = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(78, 26, 62, 0) };
+        var gear = Ui.Glyph("\uE713", 34, "FgBrush");
+        gear.VerticalAlignment = VerticalAlignment.Center;
+        gear.Margin = new Thickness(0, 2, 16, 0);
+        head.Children.Add(gear);
+        var title = Ui.Text("System Setup", 34, "FgBrush");
+        title.VerticalAlignment = VerticalAlignment.Center;
+        head.Children.Add(title);
+        root.Children.Add(head);
+        var under = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(40, 0, 40, 0) };
+        under.SetResourceReference(Shape.FillProperty, "S2Line");
+        root.Children.Add(under);
+
+        var brand = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 26, 62, 0) };
+        brand.Children.Add(Logo(28));
+        var name = Ui.Text("SquareDeck", 17, "SubtleBrush");
+        name.VerticalAlignment = VerticalAlignment.Center;
+        name.Margin = new Thickness(10, 0, 0, 0);
+        brand.Children.Add(name);
+        root.Children.Add(brand);
+
+        _stage.Margin = new Thickness(0, 6, 18, 0);
+        var body = Switch2Pages.Shell(_s2Nav, _stage);
+        body.Margin = new Thickness(26, 4, 26, 6);
+        Grid.SetRow(body, 1);
+        root.Children.Add(body);
+
+        var foot = new Grid { Margin = new Thickness(40, 0, 40, 0) };
+        var over = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Top };
+        over.SetResourceReference(Shape.FillProperty, "S2Line");
+        foot.Children.Add(over);
+        FrameworkElement pad = Ui.DeviceArt(30) ?? Ui.Glyph(Ui.HandheldGlyph, 30, "FgBrush");
+        pad.HorizontalAlignment = HorizontalAlignment.Left;
+        pad.VerticalAlignment = VerticalAlignment.Center;
+        pad.Margin = new Thickness(16, 2, 0, 0);
+        foot.Children.Add(pad);
+        _back.HorizontalAlignment = HorizontalAlignment.Left;
+        _back.VerticalAlignment = VerticalAlignment.Center;
+        _back.Margin = new Thickness(64, 0, 0, 0);
+        foot.Children.Add(_back);
+        var hints = new HintBar("{Select}  Choose      {LB}  Back      {RB}  Next") { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 };
+        foot.Children.Add(hints);
+        var right = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        _skip.HorizontalAlignment = HorizontalAlignment.Left;
+        _skip.Margin = new Thickness(0, 0, 12, 0);
+        right.Children.Add(_skip);
+        _next.HorizontalAlignment = HorizontalAlignment.Left;
+        right.Children.Add(_next);
+        foot.Children.Add(right);
+        Grid.SetRow(foot, 2);
+        root.Children.Add(foot);
+
+        _root = root;
+        Content = root;
+    }
+
+    /// <summary>The steps down the left: done ones ticked, the current one in blue with its bar.</summary>
+    private void BuildSwitch2Nav()
+    {
+        _s2Nav.Children.Clear();
+        var count = Ui.Text($"Step {_step + 1} of {Steps.Length}", 15, "SubtleBrush");
+        count.Margin = new Thickness(40, 4, 0, 10);
+        _s2Nav.Children.Add(count);
+        for (int i = 0; i < Steps.Length; i++)
+        {
+            int index = i;
+            // Not in the controller's path (Back / Next move through the steps), but a tap or click goes straight there.
+            var item = Switch2Pages.NavItem(Steps[i].Name, i < _step ? "\u2713" : null, i == _step, () => Go(index), focusable: false);
+            item.Opacity = i > _step ? 0.6 : 1;
+            _s2Nav.Children.Add(item);
+        }
+        var bar = new Grid { Height = 6, Margin = new Thickness(40, 18, 18, 0) };
+        bar.Children.Add(new Border { CornerRadius = new CornerRadius(3), Background = new SolidColorBrush(Switch2Settings.Off) });
+        var fill = new Border { CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left };
+        fill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+        double part = Steps.Length <= 1 ? 1 : _step / (double)(Steps.Length - 1);
+        bar.SizeChanged += (_, e) => fill.BeginAnimation(WidthProperty, new DoubleAnimation(Math.Max(6, e.NewSize.Width * part), TimeSpan.FromMilliseconds(300)));
+        bar.Children.Add(fill);
+        _s2Nav.Children.Add(bar);
+    }
+
+    /// <summary>A page redrawn the Switch 2 way: lighter titles, bar-and-name section headings, tiles with the rimmed highlight.</summary>
+    private static void Switch2Polish(FrameworkElement page)
+    {
+        foreach (var t in page.FindDescendants<TextBlock>().ToList())
+        {
+            if (t.FontSize >= 40) { t.FontSize = 34; t.FontWeight = FontWeights.Normal; t.HorizontalAlignment = HorizontalAlignment.Left; t.TextAlignment = TextAlignment.Left; continue; }
+            // The small capitals section titles become "▌ Name".
+            if (t.FontSize == 13 && t.FontWeight == FontWeights.Bold && t.Text.Length > 1 && t.Text == t.Text.ToUpperInvariant() && t.Parent is Panel panel && t.Text.Any(char.IsLetter))
+            {
+                int at = panel.Children.IndexOf(t);
+                panel.Children.RemoveAt(at);
+                var header = Switch2Settings.Header(t.Text[0] + t.Text[1..].ToLowerInvariant());
+                header.Margin = new Thickness(4, 22, 0, 10);
+                panel.Children.Insert(at, header);
+            }
+        }
+        // The lead line under the title: left aligned with it.
+        foreach (var t in page.FindDescendants<TextBlock>().Where(x => x.FontSize == 18 && x.TextAlignment == TextAlignment.Center).ToList())
+        {
+            t.TextAlignment = TextAlignment.Left;
+            t.HorizontalAlignment = HorizontalAlignment.Left;
+        }
+        foreach (var column in page.FindDescendants<StackPanel>().Where(p => p.MaxWidth == 1120).ToList())
+        {
+            column.HorizontalAlignment = HorizontalAlignment.Stretch;
+            column.Margin = new Thickness(14, 18, 14, 12);
+            column.VerticalAlignment = VerticalAlignment.Top;
+        }
+        var tile = Ui.StyleOf("TileButton");
+        foreach (var b in page.FindDescendants<Button>().Where(b => b.Style == tile).ToList())
+        {
+            var margin = b.Margin;
+            b.Style = Switch2Pages.TileStyle;
+            b.Margin = margin;
+        }
     }
 
     // ================================================================ building blocks

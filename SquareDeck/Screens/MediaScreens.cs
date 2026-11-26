@@ -58,7 +58,15 @@ public sealed class CapturesScreen : GridScreen
     private const int MaxItems = 300;
     // Three across at 280 wide is the original size; more per row share the same width (each tile also takes ~16 of margin).
     private int PerRow => Math.Clamp(Host.Settings.CapturesPerRow, 3, 6);
-    private double TileWidth => Math.Floor(3 * (280 + 16) / (double)PerRow - 16);
+    private double TileWidth => _s2
+        ? Math.Floor(((_scroll?.ActualWidth ?? 0) > 300 ? _scroll!.ActualWidth - 42 : 860) / PerRow - 24) // the right pane shared out
+        : Math.Floor(3 * (280 + 16) / (double)PerRow - 16);
+
+    /// <summary>Experimental: Switch 2 style pages. The kinds on the left, the captures on the right.</summary>
+    private readonly bool _s2 = Switch2Pages.On;
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+    private readonly Border _s2Title = new();
+    private ScrollViewer? _scroll;
     private double TileHeight => Math.Round(TileWidth * 158 / 280);
 
     private readonly TextBlock _note;
@@ -79,7 +87,9 @@ public sealed class CapturesScreen : GridScreen
     public static bool IsImage(string path) =>
         ImageTypes.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
-    public CapturesScreen() : base("Captures", "{Select}  Open        {Details}  Delete / album options        {Back}  Back")
+    public CapturesScreen() : base("Captures", Switch2Pages.On
+        ? "{Select}  Open      {Details}  Delete / album options      LB / RB  Kind      {Back}  Back"
+        : "{Select}  Open        {Details}  Delete / album options        {Back}  Back")
     {
         _note = Ui.Text("", 16, "SubtleBrush");
         _note.TextWrapping = TextWrapping.Wrap;
@@ -89,7 +99,35 @@ public sealed class CapturesScreen : GridScreen
         Body.Children.Add(_filters);
         Body.Children.Add(_note);
         Body.Children.Add(_days);
+        if (_s2) UseSwitch2Layout();
     }
+
+    /// <summary>
+    /// The Switch 2 layout: All, Screenshots, Videos and Albums listed on the left; on the right the page's title, the
+    /// size and folder on one line, and the captures by day under bar-and-name headings, in tiles with the rimmed highlight.
+    /// </summary>
+    private void UseSwitch2Layout()
+    {
+        _scroll = Body.Parent as ScrollViewer;
+        if (_scroll == null) return;
+        (_scroll.Parent as Panel)?.Children.Remove(_scroll);
+        Body.Margin = new Thickness(0, 0, 18, 30);
+        _filters.Orientation = Orientation.Vertical;
+        _filters.Margin = new Thickness(0);
+        Body.Children.Insert(0, _s2Title);
+        _note.Margin = new Thickness(26, 14, 26, 0);
+        ReplaceBody(Switch2Pages.Shell(_s2Nav, _scroll));
+        UseSwitch2Chrome("Captures", "\uE722");
+        // The tiles are sized to the pane: a new width lays them out again.
+        double laidOut = 0;
+        _scroll.SizeChanged += (_, e) =>
+        {
+            if (!e.WidthChanged || Math.Abs(e.NewSize.Width - laidOut) < 40 || Host?.IsTop(this) != true || !_started) return;
+            laidOut = e.NewSize.Width;
+            Dispatcher.BeginInvoke(new Action(Reload));
+        };
+    }
+
 
     public override void OnShown()
     {
@@ -168,7 +206,16 @@ public sealed class CapturesScreen : GridScreen
             count.VerticalAlignment = VerticalAlignment.Center;
             DockPanel.SetDock(count, Dock.Right);
             header.Children.Add(count);
-            header.Children.Add(Ui.Text(title, 20, "FgBrush", bold: true));
+            if (_s2)
+            {
+                // The Switch 2's bar-and-name heading, the count in gray at the right.
+                header.Margin = new Thickness(0, 0, 14, 4);
+                count.FontSize = 16;
+                count.VerticalAlignment = VerticalAlignment.Bottom;
+                count.Margin = new Thickness(0, 0, 0, 10);
+                header.Children.Add(Switch2Settings.Header(title));
+            }
+            else header.Children.Add(Ui.Text(title, 20, "FgBrush", bold: true));
             _days.Children.Add(header);
 
             var row = new WrapPanel();
@@ -194,6 +241,7 @@ public sealed class CapturesScreen : GridScreen
 
                 var caption = GameOf(path) + "  \u00B7  " + file.LastWriteTime.ToString("h:mm tt");
                 var tile = AddTile(box, caption, TileWidth, () => Open(path), path, row);
+                if (_s2) Switch2Pages.RestyleTile(tile);
                 tile.GotKeyboardFocus += (_, _) => _focusPath = path;
                 if (path == _focusPath) focus = tile;
                 pending.Add((view, path));
@@ -265,6 +313,7 @@ public sealed class CapturesScreen : GridScreen
                 _focusPath = null;
                 Reload();
             }, "album:" + name, panel);
+            if (_s2) Switch2Pages.RestyleTile(tile);
             tile.GotKeyboardFocus += (_, _) => _focusPath = "album:" + name;
             if (_focusPath == "album:" + name) focus = tile;
             if (Host.Settings.CaptureAlbumIcons) AddAlbumIcon(tile, name);
@@ -309,9 +358,52 @@ public sealed class CapturesScreen : GridScreen
         stack.Children.Add(row);
     }
 
+    private static readonly string[] Kinds = { "all", "images", "videos", "albums" };
+
+    private void PickKind(string id)
+    {
+        _filter = id;
+        _album = null;
+        _focusPath = null;
+        Reload();
+    }
+
+    /// <summary>Switch 2 layout: the kinds as sections on the left; the size, the folder and an album's tools as rows.</summary>
+    private void BuildSwitch2Filters(int all, int images, int videos, int albums)
+    {
+        _s2Nav.Children.Clear();
+        foreach (var (id, name, count) in new[] { ("all", "All captures", all), ("images", "Screenshots", images), ("videos", "Videos", videos), ("albums", "Albums", albums) })
+        {
+            if (id == "albums") _s2Nav.Children.Add(Switch2Pages.NavLine());
+            var kind = id;
+            _s2Nav.Children.Add(Switch2Pages.NavItem(name, count > 0 ? count.ToString("N0") : null, _filter == id, () => PickKind(kind)));
+        }
+        string heading = _album ?? (_filter switch { "images" => "Screenshots", "videos" => "Videos", "albums" => "Albums", _ => "All captures" });
+        int shown = _filter switch { "images" => images, "videos" => videos, "albums" => albums, _ => all };
+        _s2Title.Child = Switch2Pages.PageTitle(heading, _album != null ? null
+            : _filter == "albums" ? (shown == 1 ? "1 album" : $"{shown:N0} albums") : shown == 1 ? "1 capture" : $"{shown:N0} captures");
+
+        Button? sizeRow = null;
+        sizeRow = Switch2Pages.SettingRow("Size", $"{PerRow} per row", () =>
+        {
+            Host.Settings.CapturesPerRow = PerRow >= 6 ? 3 : PerRow + 1;
+            Host.Settings.Save();
+            Reload();
+            FocusLater(_filters.FindDescendants<Button>().FirstOrDefault()); // stays on this row
+        });
+        var folder = Switch2Pages.SettingRow("Open folder", null,
+            () => ProcessUtil.Open(Directory.Exists(Folder) ? Folder : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)));
+        _filters.Children.Add(Switch2Pages.OptionLine(sizeRow, folder));
+        if (_album is string album)
+            _filters.Children.Add(Switch2Pages.OptionLine(
+                Switch2Pages.SettingRow("Export as ZIP", null, () => _ = ExportAlbumAsync(album)),
+                Switch2Pages.SettingRow("Delete album", null, () => _ = DeleteAlbumAsync(album))));
+    }
+
     private void BuildFilters(int all, int images, int videos, int albums)
     {
         _filters.Children.Clear();
+        if (_s2) { BuildSwitch2Filters(all, images, videos, albums); return; }
         void Filter(string id, string label, int count)
         {
             var b = new Button { Style = Ui.StyleOf("PillButton"), Content = $"{label}  {count}", Margin = new Thickness(0, 0, 10, 0) };
@@ -463,6 +555,7 @@ public sealed class CapturesScreen : GridScreen
 
     public override void OnResumed()
     {
+        if (_s2) RefreshSwitch2Colors();
         // Back from the viewer: the page is rebuilt if something was deleted there.
         if (_viewer is { Changed: true }) Reload();
         _viewer = null;
@@ -470,6 +563,13 @@ public sealed class CapturesScreen : GridScreen
 
     public override bool OnAction(NavAction action)
     {
+        if (_s2 && action is NavAction.LB or NavAction.RB)
+        {
+            int at = Math.Max(0, Array.IndexOf(Kinds, _filter));
+            UiSound.Page();
+            PickKind(Kinds[(at + (action == NavAction.RB ? 1 : -1) + Kinds.Length) % Kinds.Length]);
+            return true;
+        }
         if (action == NavAction.Back && _album != null)
         {
             // Out of an album, back to the list of albums.
@@ -826,10 +926,24 @@ public sealed class MediaScreen : Screen
 
         // The tabs: whatever is playing on the PC, your own music folder, Spotify, VacuumTube (Experimental) and the streaming services.
         var root = new DockPanel();
-        DockPanel.SetDock(_tabBar, Dock.Top);
-        root.Children.Add(_tabBar);
-        root.Children.Add(_tabHost);
-        SetPage("Multimedia", root, "LB / RB  Tabs      {Select}  Choose      {Details}  Play / Search      {Options}  More      LT / RT  Previous / next      {Back}  Back");
+        if (_s2)
+        {
+            // Switch 2 style pages (Experimental): the tabs listed down the left like the sections of System
+            // Settings (LB / RB or a tap change them), the tab itself on the right.
+            _tabBar.Orientation = Orientation.Vertical;
+            _tabBar.Margin = new Thickness(0, 6, 0, 10);
+            _tabHost.Margin = new Thickness(0, 10, 10, 0);
+            root.Children.Add(Switch2Pages.Shell(_tabBar, _tabHost));
+            SetPage("Multimedia", root, "LB / RB  Section      {Select}  Choose      {Details}  Play / Search      {Options}  More      LT / RT  Previous / next      {Back}  Back", wide: true);
+            UseSwitch2Chrome("Multimedia", "\uE8D6");
+        }
+        else
+        {
+            DockPanel.SetDock(_tabBar, Dock.Top);
+            root.Children.Add(_tabBar);
+            root.Children.Add(_tabHost);
+            SetPage("Multimedia", root, "LB / RB  Tabs      {Select}  Choose      {Details}  Play / Search      {Options}  More      LT / RT  Previous / next      {Back}  Back");
+        }
         _timer.Tick += async (_, _) => await RefreshAsync();
         _visualTimer.Tick += (_, _) => DrawBars();
     }
@@ -859,6 +973,7 @@ public sealed class MediaScreen : Screen
     }
 
     private readonly StackPanel _tabBar = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 18) };
+    private readonly bool _s2 = Switch2Pages.On;
     private readonly Grid _tabHost = new();
     private readonly UIElement _nowPage;
     private LocalMusicView? _local;
@@ -875,6 +990,13 @@ public sealed class MediaScreen : Screen
         foreach (var (tid, name, glyph) in Tabs)
         {
             string t = tid;
+            if (_s2)
+            {
+                // A section on the left. Not a stop for the d-pad: each tab moves around itself, and LB / RB change tab.
+                if (tid == "streaming" && _tabBar.Children.Count > 0) _tabBar.Children.Add(Switch2Pages.NavLine());
+                _tabBar.Children.Add(Switch2Pages.NavItem(name, null, tid == id, () => ShowTab(t, focus: true), focusable: false));
+                continue;
+            }
             var row = new StackPanel { Orientation = Orientation.Horizontal };
             var g = Ui.Glyph(glyph, 16, tid == id ? "BgBrush" : "FgBrush");
             g.Margin = new Thickness(0, 0, 10, 0);
@@ -1028,6 +1150,7 @@ public sealed class MediaScreen : Screen
     /// <summary>Back from a streaming service (kept open, or closed): the Streaming tab shows which.</summary>
     public override void OnResumed()
     {
+        if (_s2) RefreshSwitch2Colors();
         if (_tab != "streaming" || _streaming == null) return;
         _streaming.Build();
         Host.FocusSoon(_streaming.FirstFocus);

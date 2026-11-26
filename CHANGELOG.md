@@ -3,6 +3,169 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.58
+- Out of Experimental and on by default (turned on once when you update; each keeps a switch in its new place):
+  - **Every Looks and sound experiment:** the Switch 2 style Library; Captures, Multimedia and Stores; Recomp Zone, Retro Lounge, Explorer and Task Manager; News, Friends and Your profile; menus, Search, Browser, Notifications and game pages; Passport, Backlog Boss, Mood picker, Leaderboard and Free games; Installed apps; first-time setup; the notifications in the corner; your handheld in the corner; and the Continue where you left off parallax. Their switches are in Settings, on the page with Night light and Screen shape, under "Switch 2 style pages" and "Home touches".
+  - **The Switch-style game boot, with the logo and loading line**, is now the default launch animation (it plays even with the splash screen off). Also on by default: the Switch 2 style launch, stop and return; the Recomp Zone and Retro Lounge goodbyes; the store opening animations; and Surprise me in Retro Lounge. Their switches are in Settings, under Launching games (by the splash screen options).
+  - **The widget's Switch 2 style and frame cap slider.** Their switches are in Settings > Controller and Game Bar widget.
+
+## 8.1.57
+- New experimental feature, "Widget: frame cap slider" (Game Bar widget): the frame cap in the widget's Power card becomes an Off button and a slider from 30 to 120 FPS (steps of 5, applied once the slider settles), and the Save button is gone: the cap you set is kept for the running game straight away. Widget 1.6.11.0.
+
+## 8.1.56
+- New experimental feature, "Switch boot: logo and loading line" (Play): with the Switch-style game boot, the Hide hint is gone, the game's logo (or its name when there's no logo) sits in the top-left corner, and in the bottom-right corner, beside the turning ring of dots, a loading line keeps changing ("Warming up the pixels…", "Spawning the player…", "Checking for dragons…" and more), fading from one to the next.
+
+## 8.1.55
+- New experimental feature, "Switch 2 style Installed apps" (Looks): Settings > Apps > Installed apps with All apps, Desktop programs and Microsoft Store apps (with counts) and A to Z / Biggest first / Newest first down the left, the space your apps use with the five biggest as a stacked bar under them, and Switch 2 style rows with blue sizes. Each app's page (uninstall, modify, repair, reset) is restyled too and headed by the app's icon, name, publisher and size. LT / RT also change which apps are shown.
+
+## 8.1.54
+- New experimental feature, "Switch 2 style first-time setup" (Looks): the welcome pages laid out like the Switch 2's System Settings in your UI style's colors. "System Setup" with the gear and a line under it, every step listed down the left (ticks on the ones done, the current one in blue with its bar, a progress bar under them), the page on the right with lighter titles, bar-and-name headings and rimmed cards, and a line over Back, the hints, Skip and Next. Its pop-ups take the Switch 2 look too.
+
+## 8.1.53
+- The Companion got a lot more to do and say:
+  - **It notices the game you highlight** on Home (after a moment, and not every time) and acts out its kind: a race car tears past for racing games, a sword swing for RPGs and action, pew-pew for shooters, POW! BAM! for fighting games, a ghost rises behind it for horror (or it sweeps a flashlight), puzzle pieces snap together, a sprout grows into a flower for farming games, a d20 roll (with natural 20s and critical fails), a potion, a chess knight's move, a rocket launch, an airplane, a coin block for platformers, a campfire for survival games, a tea break for cozy ones, music notes for rhythm games, a pickaxe building a little house, an 8-bit jump with 1UP for retro games, and fishing.
+  - **It talks about that game:** how long you've played it, when you last did, how long it takes to beat (and how much is left), whether you've finished or dropped it, whether it's a favorite or not installed, or a line about its kind of game.
+  - The same happens when you open a game's page.
+  - It gets **dizzy** if you whiz along the home row, and **giggles when you tap it** (and gets dizzy if you keep going).
+  - **Goodbyes in the game's spirit** ("Green light! Go go go!", "Good luck… I'll wait here. With the lights on."), and when you're back it asks **how it went**, with how long you played.
+  - **It knows the calendar and the clock:** good morning / evening, Friday game night, weekends, and holidays (Thanksgiving with a feast, Halloween with a pumpkin, Christmas snow, New Year fireworks, Valentine's Day, May the 4th…).
+  - **New pages:** the Passport, Backlog Boss, Mood picker, Leaderboard and Free games (Switch 2 style and classic), Retro Lounge, Recomp Zone, News, Your profile, Notifications and the Switch 2 style Library each have their own moves and lines, and Home has many more of both.
+  - Settings > Companion has a new "Game acts" list to try them all.
+
+## 8.1.52
+- New experimental feature, "Continue where you left off parallax" (Looks): on Home, while the Continue where you left off game is there, moving the handheld moves its artwork in depth using the gyro. The art slides and leans one way, the logo and name drift the other, and in the big-artwork Home layout the artwork behind the page moves as the deepest layer. It uses the inclinometer (gyro and accelerometer together) when Windows has one, else the gyro, else the accelerometer. The angle you hold it at becomes the middle after a moment, so it reacts to movement rather than grip. Select it in Experimental to choose the depth (Subtle, Normal, Deep, Dramatic). Covers that tilt leaves the Continue tile to it. Off with reduced motion.
+
+## 8.1.51
+- New experimental feature, "Switch 2 style Passport, Backlog Boss, Mood picker, Leaderboard and Free games" (Looks). All five pages get Switch 2 style sections on the left (LT / RT to change), thin lines, bar-and-name headings and rimmed rows and tiles in your UI style's colors, and each has been expanded:
+  - **My Gamer Passport:** a passport photo page (name, rank, issue date, home genre and store, most played) with a machine-readable line; over 60 stamps, with new levels for hours, finished games, achievements, streaks, variety, library size and the moments you play (early bird, lunch break, weekend warrior, holidays); Next stamps with progress; new stamps since your last visit stamp themselves in; traveler ranks from Tourist to World citizen.
+  - **Backlog Boss:** a health bar that drains from your last visit, with the boss shaking when hit; your hours a week and when you'd beat it at that pace; Tonight's target; Weak points, Quick wins (5 h or less), Long hauls (30 h+), the whole army, Trophies; a Battle log of its health by day and damage by week; mark games finished or dropped right from the page.
+  - **Mood picker:** eleven moods (new: Spooky, Unfinished business, Rediscover, Nostalgia, Something new, Surprise me), "Time I have" and "Installed only" options, three big top picks and more that fit, with reasons; Y picks again and recent picks aren't repeated.
+  - **Friends leaderboard (reworked):** a podium, sort by hours, games or games in common; what friends play (with "You play it" / "In your library"); games played together with who leads; awards (Most hours, Most devoted, Explorer, Your gaming twin, Lone adventurer, Game of the fortnight); your place and hours over time; a page for each friend compared with you.
+  - **Free games:** free games from Epic (with next week's from Epic's own list), Steam, Amazon Prime Gaming, GOG, Ubisoft, EA, Battle.net, itch.io and DRM-free stores; Ending soon; free loot and DLC; new-since-last-time badges, "In your library", total worth; mark games claimed; deals from CheapShark across many stores (Best deals, Under $5, Biggest discounts, Big games on sale, Your Steam wishlist on sale, Deals by store).
+- Their pop-ups take the Switch 2 look too.
+
+## 8.1.50
+- New experimental feature, "Switch 2 style notifications" (Looks): the bottom-right pop-ups become a Switch 2 style card in your UI style's colors (rounded card with a thin outline, icon in a rounded square, accent bar + heading, a slim countdown bar along the bottom) and slide in from the right. Tapping still opens what it's about, and the accessibility "keep notifications up" time still applies.
+
+## 8.1.49
+- New experimental feature, "Recomp Zone and Retro Lounge goodbyes" (Playing): choosing Leave in Recomp Zone now plays an "unlinking" animation (the page breaks into tiles that become machine code and stream into a glowing core on the blueprint grid, then collapses as `exit(0)` types out), and Retro Lounge switches off like an old CRT (picture squashes to a bright line, then a dot that fades). Skipped when reduced motion is on.
+
+## 8.1.48
+- Themes has two tiers now: **Legendary** and **Mythical**.
+  - **Mythical**: every style that was Legendary joins the Mythical ones (with the Mythical frame on their cards).
+  - **Legendary**: the styles that were Basic and Advanced, together on one tab (the ones dressed in UI kits after the others, with the color choice for the one in use where its kit has several). Surprise me picks from all of them.
+  - My own style and Unlockable stay as they were; style remixing and the style builder speak of Legendary and Mythical.
+- Themes: LT / RT step through its tabs (Legendary, Mythical, My own style, Unlockable).
+
+## 8.1.47
+- New in Experimental (Looks and sound): **Your handheld in the corner**. The controller symbol at the bottom left of Home becomes a drawing of the handheld SquareDeck detected (your ROG Xbox Ally, a Legion Go, a Steam Deck...), the same drawing the controller tester shows, in your UI style's text color. The Switch 2 style pages and the Browser use it in their corner too. On a PC without a drawing, the usual symbol stays.
+
+## 8.1.46
+- The Switch 2 style launch and return experiment is now named **Switch 2 style launch, stop and return**, to make clear it also styles the **Stop game** confirmation (and "is still running"): with it on, that card takes your UI style's colors instead of the game's, with a plain card, quiet text and flat buttons with the rimmed highlight. The "Stopping…" card's track follows the style too.
+
+## 8.1.45
+- New in Experimental (Game Bar widget): **Switch 2 style widget**. The widget dressed like SquareDeck's Switch 2 style pages, in the colors of the UI style you use (it follows when you change style): a plain panel in the page color with no glow in the corner, a thin line under the header and your name in regular type, each card titled with a short bar and its name (Power, Media...) instead of spaced capitals, quiet cards with the Switch 2's corners and no outline, tiles and the rail in the card color, and the highlight in the style's color. Turning it off puts the widget back exactly as it was. (Widget 1.6.10.0.)
+- Axiom moves from Legendary to Advanced in Themes.
+
+## 8.1.44
+- New in Experimental (While you play): **Switch 2 style launch and return**.
+  - The launch countdown, "Stop this game?" and the update-before-playing card take your UI style's colors and the Switch 2 manner: a plain card in the page color, quiet text, the countdown ring in the highlight color over a thin track, and flat buttons that take the soft rimmed highlight.
+  - When a game closes: the screen shows the page color with the game's cover large in the middle, then the cover flies back down into its tile on Home, shrinking as it goes, while the screen fades back to Home and the tile settles with a small bounce.
+
+## 8.1.43
+- The Switch 2 style News and Friends experiment (now **Switch 2 style News, Friends and Your profile**) also covers **Your profile**: the Switch 2 title and icon with a line under it, bar-and-name section headings, plain cards in the UI style's colors, and the tiles and rows with the rimmed highlight.
+
+## 8.1.42
+- New Legendary UI style: **Axiom**, inspired by Axiom Verge. Pixel art in the dark: black-violet glass rows with a purple rim and a pink tick, the game's item boxes for buttons and home buttons (purple double rims with a pink notch), pop-ups under a crimson header bar, pink pixel switches and check boxes, pixel icons in lilac, pink and teal, a pixel pointer, the Pixel Operator font, scanlines and the occasional glitch over the alien stonework wallpaper, with The Axiom as its music. A second wallpaper from the game's art ("Axiom Rebirth") is in the wallpaper list too.
+
+## 8.1.41
+- The Switch 2 style menus experiment now also covers the **Wi-Fi and Bluetooth blades** from the home screen: the blade in your UI style's page color with no outline, Wi-Fi | Bluetooth as plain names (the one showing in blue) that take the rimmed highlight, the radio's switch as a pill, and the networks and devices as flat rows under bar-and-name headings, with All settings as a plain row.
+
+## 8.1.40
+- New in Experimental (Play): **Switch-style game boot**. Starting a game plays the Switch's own boot: the cover rushes toward you as the screen fades to black (with a soft white bloom as it passes), then the game's icon waits small in the middle of the black screen with the ring of dots stepping round in the bottom-right corner until the game is up. It plays even with the launch splash off. "Switch boot" is also a new choice for the launch splash animation in Settings.
+- Recomp Zone: LT / RT change the big banner on Home (Most popular and the rest) to the previous or next one; it then waits a full turn before moving on by itself.
+
+## 8.1.39
+- Power menu: it now slides in from the right edge of the screen as a drawer (in every look), with the options listed down it, instead of popping up in the middle. Your name and the battery level are no longer shown on it.
+
+## 8.1.38
+- New in Experimental (Stores and friends): **Store opening animations**. Opening a store from the Stores page (Steam, Xbox, Epic Games, Ubisoft Connect, GOG Galaxy, Battle.net, EA app...; not Recomp Zone or Retro Lounge) plays an animation in that store's colors while it starts:
+  - **Shopping cart**: a cart rolls in along a dashed floor and game boxes drop into it.
+  - **Shopping bag**: a bag drops in and bounces, and a controller, a game disc and sparkles burst out of it.
+  - **Insert coin**: a coin spins into an arcade slot, CREDIT 01 lights up and price tags (SALE, -50%, FREE...) fly out.
+  - **Store shelf**: game boxes slide onto three shelves and a spotlight sweeps across them.
+  - Then the store's logo pops in and floats, with game pieces, carts, stars and price tags circling it and a running line ("Opening Steam…", "Stocking the shelves…", "Checking the bargain bin…", "Warming up the checkout…") over a shimmering bar, until the store comes to the front. B goes back to the Stores page (the store keeps opening). Choose one or Surprise me (the default) from its row in Experimental.
+
+## 8.1.37
+- Recomp Zone and Retro Lounge: when B asks whether to leave, the zone's music fades down low while you decide. Stay, and it fades back up to where it was; Leave, and it fades out from there as the launcher's own music comes back at its usual level.
+
+## 8.1.36
+- Taking a game out of favorites now plays a heartbreak: the heart pops up as it does when you add a favorite, a jagged crack runs down it, and its two halves fall apart, tipping away from each other as they fade.
+- The Switch 2 style menus experiment (renamed **Switch 2 style menus, Search, Browser, Notifications and game pages**) now also covers:
+  - **Browser**: the UI style's colors, the address bar and zoom as plain cards (the address takes the rimmed highlight while you type), thin lines under the bar and over the button hints, the handheld at the left of the hints.
+  - **Notifications blade**: the page color with a thin line down its edge, the title with the bell and a line under it, the days as bar-and-name headings, and the notifications as flat rows.
+
+## 8.1.35
+- New in Experimental (Looks and sound): **Switch 2 style Quick menu, Power menu, Search, game page and game options**, in the manner of the new Settings and Library with your UI style's colors:
+  - **Quick menu**: the sheet in the page color, the Wi-Fi, Bluetooth and other tiles as plain cards (the symbol and state in blue when on, the rimmed highlight when you're on one), the sliders on thin lines, and Power as a plain row.
+  - **Power menu**: Lock, Sleep, Hibernate, Restart, Shut down and Exit as a list of flat rows with the rimmed highlight (Restart and Shut down still ask for a second press, in red).
+  - **Search**: the Switch 2 title, the search box as a plain card that takes the rimmed highlight, and results under bar-and-name headings with their counts, as flat rows and rimmed tiles.
+  - **A game's page**: the UI style's colors, bar-and-name section titles (About, How long to beat, News and updates...), flat rows and rimmed tiles; the artwork banner stays.
+  - **A game's options menu** (Y): flat rows on thin lines without icons, under bar-and-name group headings, on a plain card.
+
+## 8.1.34
+- New in Experimental (Looks and sound): **Switch 2 style News and Friends**, laid out like the Switch 2's System Settings with your UI style's colors and its background showing through:
+  - **News**: Latest, Patches, Announcements, IGN PC, IGN Games and Sales down the left with their counts (LB / RB still step through them), the section's title and count over the stories, and the stories and deals with the rimmed highlight.
+  - **Friends**: Everyone, In a game, Online and Pinned down the left with their counts, the title with who's playing and online, Alerts, Add friend, Steam chat (and Leaderboard, Discord) as settings rows two to a line, bar-and-name headings for Playing now, Online and Offline, and your friends' tiles with the rimmed highlight.
+  - Their pop-ups take the Switch 2 look.
+- Switch 2 style Library (Experimental): LT / RT now change section (All software, Favorites, each store...) instead of LB / RB.
+
+## 8.1.33
+- Recomp Zone and Retro Lounge: with the sidebar folded to icons (on a handheld), its icons now take the same colors as the open sidebar: plain in the text color, the section you're in in the highlight color, and the usual row highlight when you move onto one. Before, every icon was in the highlight color on a tinted card.
+
+## 8.1.32
+- New in Experimental (Looks and sound): **Switch 2 style Recomp Zone, Retro Lounge, Explorer and Task Manager**. The four laid out like the Switch 2's System Settings, to match the new Settings, Library and pages, with your UI style's colors and its background showing through:
+  - **Recomp Zone** and **Retro Lounge**: the title and icon with a line under it, the sections down the left in plain type (blue with a bar for the one you're in, the download count in gray, a thin line before Downloads), no card behind them and always shown with their names, and the games, consoles and emulators in tiles and rows with the rimmed highlight. The opening animations, music and everything else work as before.
+  - **Explorer**: the title shown (instead of the compact header), the sidebar with no card behind it and a thin line beside it, places as plain names with the one you're in blue with a bar, headings in regular type, and the files as flat rows (or rimmed tiles in grid view).
+  - **Task Manager**: Apps, Processes and Performance listed down the left like sections (LB / RB or a tap change them), the apps and processes as flat rows with the highlight.
+  - Their pop-ups take the Switch 2 look.
+
+## 8.1.31
+- New in Experimental (Looks and sound): **Switch 2 style Captures, Multimedia and Stores**. The three pages laid out like the Switch 2's System Settings, to match the new Settings and Library, with the same colors from your UI style and its background showing through:
+  - **Captures**: All captures, Screenshots, Videos and Albums listed on the left with their counts (LB / RB change them). On the right, the page's title, then Size and Open folder side by side on one line (Export as ZIP and Delete album too, inside an album), and the captures by day under bar-and-name headings in tiles with the rimmed highlight, sized to fill the pane at the number per row you choose.
+  - **Multimedia**: Now playing, My music, Spotify, DeckTube and Streaming listed down the left like sections, the one you're in blue with a bar; LB / RB or a tap change them, and each keeps its own controls on the right.
+  - **Stores**: your stores, cloud gaming, deals and releases, and More (add stores, hidden stores) as settings rows with a small logo, the name, a line about it and "Installed" or the sales count in blue, under bar-and-name headings. The sections are listed on the left too: moving onto one scrolls to it, and the one you're in is marked as you move through the rows. Y still hides or uninstalls a store.
+  - Their pop-ups take the Switch 2 look.
+
+## 8.1.30
+- Switch 2 style Library (Experimental): the sections on the left are a little narrower, giving the games more room, and Square icons and Tall covers are sized to fit five to a row (six in Spotlight), growing on wider screens.
+
+## 8.1.29
+- The Switch 2 style Settings and the Switch 2 style Library now let your UI style's background show through, as other pages do: the wallpaper (or the game artwork some styles put behind pages) under a soft wash of the page color, keeping the Switch 2 colors and layout on top.
+
+## 8.1.28
+- Switch 2 style Library (Experimental): Show as and Sort by now share one line at the top of the games, Show as from the left edge and Sort by from the middle, instead of a row each. Left and right move between them.
+
+## 8.1.27
+- Switch 2 style Library (Experimental): choose how the games are shown, from the new **Show as** row or with the View button (which steps through them, staying on the same game):
+  - **Rows**: a row per game with its small cover, facts and play time (as before).
+  - **Compact list**: just the names and play time, like plain settings rows, to see many games at once.
+  - **Square icons**: the square covers in a grid, as on Home.
+  - **Tall covers**: tall poster art in a grid, with the name and play time under each.
+  - **Banners**: wide store banners, two to a row on a handheld and three on a wider screen.
+  - **Spotlight**: the highlighted game large across the top (its banner fading into the page, with its facts and play time), square icons below.
+- The grids keep the Switch 2 look: the rimmed highlight card around the tile, Running / Update labels and a favorite star on the art, and the Today / This week (or A, B, C) headings. The d-pad moves through them by where things are, and left from the first tile goes back to the sections.
+- Tall and wide art comes from SteamGridDB (Steam's own banner for Steam games), a few at a time as you scroll, showing the square cover meanwhile. Your choice is remembered.
+
+## 8.1.26
+- New in Experimental (Looks and sound): **Switch 2 style Library**. The game library laid out like the Switch 2's System Settings, to match the new Settings:
+  - Sections on the left in plain type (All software, Recently played, Favorites, Updates, each store, your collections, Not installed, Wishlist) with how many games each holds; the one you're in is blue with a bar beside it. Moving through them shows each straight away.
+  - A storage gauge under the sections, like the Switch's System Memory bar: the room your games take in the highlight color, the rest of those drives in gray, and the free space.
+  - Games as flat rows on thin lines with a small cover, the store, category, size and when you last played in gray, the play time in blue, and Running, Update and favorite markers.
+  - Grouped under bar-and-name headings: Today, Yesterday, This week... when sorted by recent, or A, B, C... by name. A Sort by row (or View) switches between recently played, name, play time and size.
+  - The soft highlight card with the rim, pop-ups in the Switch 2 look, and every color following your UI style, as Settings does.
+  - A plays, X opens the game's page, Y its options, LB / RB change section, right goes into the games, left or B back to the sections.
+
 ## 8.1.25
 - Twitch on the Multimedia page's Streaming tab now shows the Twitch logo on its tile and in the menu, instead of its name on purple.
 

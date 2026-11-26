@@ -33,7 +33,17 @@ public sealed class ProfileScreen : Screen
             Content = _content
         };
         SetPage("Your profile", scroll, "{Select}  Open      {Options}  Refresh from Steam      {Back}  Back", wide: true);
+        if (_s2)
+        {
+            // Switch 2 style (Experimental): the title with a line under it, bar-and-name section headings, plain cards,
+            // and the tiles and rows with the rimmed highlight, in the UI style's colors.
+            UseSwitch2Chrome("Your profile", "\uE77B");
+            Switch2Pages.AutoRestyle(_content);
+        }
     }
+
+    /// <summary>Experimental: Switch 2 style News, Friends and Your profile.</summary>
+    private readonly bool _s2 = Switch2Pages.SocialOn;
 
     public override void OnShown()
     {
@@ -44,7 +54,11 @@ public sealed class ProfileScreen : Screen
         _ = Host.LoadWishlistAsync(); // uses the saved copy when there is one
     }
 
-    public override void OnResumed() => Build();
+    public override void OnResumed()
+    {
+        if (_s2) RefreshSwitch2Colors();
+        Build();
+    }
 
     public override void OnClosed()
     {
@@ -112,7 +126,7 @@ public sealed class ProfileScreen : Screen
     private static Border Card(UIElement child, Thickness? padding = null)
     {
         var card = new Border { CornerRadius = new CornerRadius(CardRadius), Padding = padding ?? new Thickness(20), Child = child };
-        card.SetResourceReference(Border.BackgroundProperty, "TileBrush");
+        card.SetResourceReference(Border.BackgroundProperty, Switch2Pages.SocialOn ? "S2Card" : "TileBrush");
         return card;
     }
 
@@ -130,7 +144,14 @@ public sealed class ProfileScreen : Screen
             DockPanel.SetDock(link, Dock.Right);
             row.Children.Add(link);
         }
-        row.Children.Add(Ui.Text(title, 22, "FgBrush", bold: true));
+        if (_s2)
+        {
+            var header = Switch2Settings.Header(title);
+            header.Margin = new Thickness(12, 0, 0, 0);
+            row.Children.Add(header);
+            row.Margin = new Thickness(2, 22, 0, 8);
+        }
+        else row.Children.Add(Ui.Text(title, 22, "FgBrush", bold: true));
         _content.Children.Add(row);
     }
 
@@ -400,7 +421,7 @@ public sealed class ProfileScreen : Screen
             grid.Children.Add(button);
         }
         Stat("stat:time", "", totalSeconds >= 3600 ? $"{totalSeconds / 3600:N0} h" : PlaytimeStore.Format(totalSeconds), "Time played", () => Host.Push(new PlaytimeScreen()));
-        Stat("stat:games", "", owned.ToString("N0"), $"Games  ·  {games.Count(g => g.IsGame && g.IsInstalled):N0} installed", () => Host.Push(new LibraryScreen()));
+        Stat("stat:games", "", owned.ToString("N0"), $"Games  ·  {games.Count(g => g.IsGame && g.IsInstalled):N0} installed", () => Host.Push(Switch2LibraryScreen.Create()));
         Stat("stat:achievements", "", total > 0 ? $"{100.0 * unlocked / total:0}%" : "–",
             total > 0 ? $"Achievements  ·  {unlocked:N0} of {total:N0}" : "Achievements", () => Host.Push(new UnlocksScreen()));
         Stat("stat:wishlist", "", Host.WishlistState == "ready" ? Host.WishlistGames.Count.ToString("N0") : "–",

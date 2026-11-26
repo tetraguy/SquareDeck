@@ -35,6 +35,9 @@ public sealed class ConnectionBladeScreen : Screen
 
     public override bool IsDialog => true;
 
+    /// <summary>Experimental: Switch 2 style (with the menus and Search). The UI style's colors, flat rows, a pill switch.</summary>
+    private readonly bool _s2 = Switch2Pages.SystemOn;
+
     public ConnectionBladeScreen(bool bluetooth)
     {
         _bluetooth = bluetooth;
@@ -115,12 +118,45 @@ public sealed class ConnectionBladeScreen : Screen
         LookChrome.StyleSheet(_sheet);
         QuickSettingsScreen.SkinSheet(_sheet);
 
+        if (_s2)
+        {
+            // Switch 2 style: the blade in the page color with no outline, Wi-Fi | Bluetooth as plain names that take the
+            // rimmed highlight, the radio's switch as a pill, and the networks and devices as flat rows under
+            // bar-and-name headings.
+            Switch2Settings.ApplyColors(this);
+            _sheet.Background = new SolidColorBrush(Switch2Settings.Background);
+            _sheet.BorderThickness = new Thickness(0);
+            foreach (var tab in new[] { _wifiTab, _bluetoothTab })
+            {
+                tab.Style = Switch2Pages.TileStyle;
+                tab.Margin = new Thickness(0, 0, 4, 0);
+            }
+            _title.FontWeight = FontWeights.Normal;
+            Switch2Pages.RestyleTree(switches, 64);
+            Switch2Pages.RestyleTree(foot, 64);
+            Switch2Pages.AutoRestyle(_list, 62);
+        }
         var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(0x70, 0, 0, 0)) };
         // A press outside the blade closes it.
         backdrop.MouseLeftButtonDown += (_, e) => { if (e.OriginalSource == backdrop) Close(); };
         backdrop.TouchDown += (_, e) => { if (e.OriginalSource == backdrop) Close(); };
         backdrop.Children.Add(_sheet);
         Content = backdrop;
+    }
+
+    /// <summary>Switch 2 style: the radio's switch as a pill (blue and knob right when on), in place of the On / Off text.</summary>
+    private void ShowPill()
+    {
+        if (_switch.Content is not Grid grid) return;
+        foreach (var old in grid.Children.OfType<FrameworkElement>().Where(e => e.Tag as string == "s2pill").ToList()) grid.Children.Remove(old);
+        if (_on == null) { _switchState.Visibility = Visibility.Visible; return; } // still finding out: "…"
+        _switchState.Visibility = Visibility.Collapsed;
+        var pill = Switch2Settings.Toggle(_on == true);
+        pill.Tag = "s2pill";
+        pill.Margin = new Thickness(16, 0, 0, 0);
+        Grid.SetColumn(pill, Grid.GetColumn(_switchState));
+        Grid.SetRow(pill, Grid.GetRow(_switchState));
+        grid.Children.Add(pill);
     }
 
     private static Button Tab(string glyph, string label, Action click)
@@ -200,6 +236,16 @@ public sealed class ConnectionBladeScreen : Screen
         _bluetoothSwitch.Visibility = bluetooth ? Visibility.Visible : Visibility.Collapsed;
         _wifiTab.Opacity = bluetooth ? 0.55 : 1;
         _bluetoothTab.Opacity = bluetooth ? 1 : 0.55;
+        if (_s2)
+        {
+            // The one showing in blue, the other in gray, as the Switch 2 marks the section you're in.
+            _wifiTab.Opacity = _bluetoothTab.Opacity = 1;
+            _wifiTab.SetResourceReference(ForegroundProperty, bluetooth ? "SubtleBrush" : "AccentBrush");
+            _bluetoothTab.SetResourceReference(ForegroundProperty, bluetooth ? "AccentBrush" : "SubtleBrush");
+            foreach (var (tab, on) in new[] { (_wifiTab, !bluetooth), (_bluetoothTab, bluetooth) })
+                if (tab.Content is Panel row)
+                    foreach (var t in row.Children.OfType<TextBlock>()) t.SetResourceReference(TextBlock.ForegroundProperty, on ? "AccentBrush" : "SubtleBrush");
+        }
         _ = RefreshAsync();
         FocusLater(_switch);
     }
@@ -247,6 +293,7 @@ public sealed class ConnectionBladeScreen : Screen
         _list.Children.Clear();
         _switchState.Text = _on == true ? "On" : _on == false ? "Off" : "…";
         _switch.IsEnabled = _on != null || _busy;
+        if (_s2) ShowPill();
 
         void Note(string text)
         {
@@ -255,7 +302,12 @@ public sealed class ConnectionBladeScreen : Screen
             t.Margin = new Thickness(6, 8, 6, 8);
             _list.Children.Add(t);
         }
-        void Header(string text) => _list.Children.Add(Ui.Header(text));
+        void Header(string text)
+        {
+            var h = Ui.Header(text);
+            if (_s2) h.Tag = "s2title"; // a bar-and-name heading
+            _list.Children.Add(h);
+        }
         Button Row(string label, string? value, string glyph, Action click, string? subtitle = null)
         {
             var r = Ui.Row(label, value, glyph, subtitle: subtitle);

@@ -30,10 +30,39 @@ public sealed class FriendsScreen : GridScreen
     private string? _focusKey;
     private DateTime _loadedAt;
 
+    /// <summary>Experimental: Switch 2 style News and Friends. Who to show down the left, your friends on the right.</summary>
+    private readonly bool _s2 = Switch2Pages.SocialOn;
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+
     public FriendsScreen() : base("Friends",
         "{Select}  Open      {Options}  Pin      {Details}  Filter      {Back}  Back")
     {
         _refresh.Tick += (_, _) => _ = LoadAsync();
+        if (_s2 && Body.Parent is ScrollViewer scroll)
+        {
+            (scroll.Parent as Panel)?.Children.Remove(scroll);
+            Body.Margin = new Thickness(0, 0, 18, 24);
+            ReplaceBody(Switch2Pages.Shell(_s2Nav, scroll));
+            UseSwitch2Chrome("Friends", "\uE716");
+            Switch2Pages.AutoRestyle(Body); // friends' tiles take the rimmed highlight
+        }
+    }
+
+    /// <summary>Switch 2 style: Everyone, In a game, Online and Pinned as sections on the left, with their counts.</summary>
+    private void BuildSwitch2Nav()
+    {
+        _s2Nav.Children.Clear();
+        var list = _friends ?? new List<Friend>();
+        foreach (var (f, name, count) in new[]
+                 {
+                     (Filter.All, "Everyone", list.Count), (Filter.Playing, "In a game", list.Count(x => x.InGame)),
+                     (Filter.Online, "Online", list.Count(x => x.IsOnline)), (Filter.Pinned, "Pinned", list.Count(IsPinned)),
+                 })
+        {
+            if (f == Filter.Pinned) _s2Nav.Children.Add(Switch2Pages.NavLine());
+            var which = f;
+            _s2Nav.Children.Add(Switch2Pages.NavItem(name, _friends != null && count > 0 ? count.ToString("N0") : null, _filter == f, () => { _filter = which; Build(); }));
+        }
     }
 
     public override void OnShown()
@@ -49,7 +78,11 @@ public sealed class FriendsScreen : GridScreen
         _cts.Cancel();
     }
 
-    public override void OnResumed() => Build(); // a refresh may have landed while a dialog was open
+    public override void OnResumed()
+    {
+        if (_s2) RefreshSwitch2Colors();
+        Build(); // a refresh may have landed while a dialog was open
+    }
 
     private bool HasKey => Host.Settings.SteamWebApiKey.Length > 0;
     private bool IsPinned(Friend f) => Host.Settings.PinnedFriends.Contains(f.Id);
@@ -78,6 +111,12 @@ public sealed class FriendsScreen : GridScreen
         Body.Children.Clear();
         Tiles.Children.Clear();
         Button? focus = null;
+        if (_s2)
+        {
+            BuildSwitch2Nav();
+            Body.Children.Add(Switch2Pages.PageTitle(_friends == null || !HasKey || _error != null ? "Friends" : FilterName,
+                _friends == null || !HasKey ? null : $"{_friends.Count(f => f.InGame)} playing  ·  {_friends.Count(f => f.IsOnline)} online"));
+        }
 
         if (!HasKey)
         {
@@ -139,7 +178,7 @@ public sealed class FriendsScreen : GridScreen
             var board = Ui.PanelButton("\uE9F9", "Leaderboard");
             board.Margin = new Thickness(8, 0, 0, 0);
             board.ToolTip = "Hours played recently by you and your Steam friends";
-            board.Click += (_, _) => Host.Push(new LeaderboardScreen());
+            board.Click += (_, _) => Host.Push(PlayPages.Leaderboard());
             actions.Children.Add(board);
         }
         if (Labs.On("discord"))
@@ -149,12 +188,27 @@ public sealed class FriendsScreen : GridScreen
             discord.Click += (_, _) => Host.Push(new DiscordScreen());
             actions.Children.Add(discord);
         }
+        if (_s2)
+        {
+            // The actions as settings rows, two to a line; the summary is in the title above.
+            var rows = new List<Button>
+            {
+                Switch2Pages.SettingRow("Alerts", AlertsName, CycleAlerts),
+                Switch2Pages.SettingRow("Add friend", null, () => ProcessUtil.Open("steam://friends/add")),
+                Switch2Pages.SettingRow("Steam chat", null, () => ProcessUtil.Open("steam://open/friends")),
+            };
+            if (Labs.On("leaderboard")) rows.Add(Switch2Pages.SettingRow("Leaderboard", null, () => Host.Push(PlayPages.Leaderboard())));
+            if (Labs.On("discord")) rows.Add(Switch2Pages.SettingRow("Discord", null, () => Host.Push(new DiscordScreen())));
+            for (int i = 0; i < rows.Count; i += 2)
+                Body.Children.Add(i + 1 < rows.Count ? Switch2Pages.OptionLine(rows[i], rows[i + 1]) : Switch2Pages.OptionLine(rows[i]));
+            filterButton = rows[0];
+        }
         var summary = new StackPanel();
         summary.Children.Add(Ui.Text($"{_friends.Count(f => f.InGame)} playing  ·  {_friends.Count(f => f.IsOnline)} online  ·  {_friends.Count} friends", 18, "FgBrush", bold: true));
         summary.Children.Add(Ui.Text("Updated " + (_loading ? "now…" : _loadedAt.ToString("t")) + "  ·  refreshes every minute", 13, "SubtleBrush"));
         top.Children.Add(summary);
         top.Children.Add(actions);
-        Body.Children.Add(top);
+        if (!_s2) Body.Children.Add(top);
 
         void Track(Button tile, Friend f)
         {
@@ -224,6 +278,21 @@ public sealed class FriendsScreen : GridScreen
 
     private void Heading(string text, int? count)
     {
+        if (_s2)
+        {
+            // The Switch 2's bar-and-name heading, the count in gray beside it.
+            var row = (StackPanel)Switch2Settings.Header(text);
+            if (count is int c)
+            {
+                var shown = Ui.Text(c.ToString(), 17, "SubtleBrush");
+                shown.VerticalAlignment = VerticalAlignment.Center;
+                shown.Margin = new Thickness(12, 0, 0, 0);
+                row.Children.Add(shown);
+            }
+            row.Margin = new Thickness(14, 22, 0, 10);
+            Body.Children.Add(row);
+            return;
+        }
         var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 10, 0, 10) };
         line.Children.Add(Ui.Text(text, 18, "FgBrush", bold: true));
         if (count is int n)

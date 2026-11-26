@@ -37,6 +37,28 @@ public static class Ui
         "M3.6,6.4 H4.8 V7.4 H5.8 V8.6 H4.8 V9.6 H3.6 V8.6 H2.6 V7.4 H3.6 Z " +
         "M18.4,7.2 A0.8,0.8 0 1 0 20,7.2 A0.8,0.8 0 1 0 18.4,7.2 Z M19.8,8.8 A0.8,0.8 0 1 0 21.4,8.8 A0.8,0.8 0 1 0 19.8,8.8 Z");
 
+    private static ImageSource? _deviceArt;
+    private static bool _deviceArtTried;
+
+    /// <summary>
+    /// Experimental "Your handheld in the corner": the drawing of the detected handheld (the one the controller tester
+    /// shows), as a silhouette in the given color and height. Null when the experiment is off or the device has no drawing.
+    /// </summary>
+    public static FrameworkElement? DeviceArt(double height, string brushKey = "FgBrush")
+    {
+        if (!Services.Labs.On("oemfooter")) return null;
+        if (!_deviceArtTried) { _deviceArtTried = true; _deviceArt = Services.OemGlyphs.Load(Services.OemGlyphs.Controller); }
+        if (_deviceArt is not System.Windows.Media.Imaging.BitmapSource art || art.PixelHeight == 0) return null;
+        var shape = new System.Windows.Shapes.Rectangle
+        {
+            Height = height, Width = Math.Round(height * art.PixelWidth / art.PixelHeight),
+            OpacityMask = new ImageBrush(art) { Stretch = Stretch.Uniform }, VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = Services.Handheld.DisplayName, Tag = "devart"
+        };
+        shape.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, brushKey);
+        return shape;
+    }
+
     public static TextBlock Glyph(string glyph, double size, string brushKey = "FgBrush")
     {
         if (glyph == HandheldGlyph)

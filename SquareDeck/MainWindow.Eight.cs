@@ -168,7 +168,7 @@ public partial class MainWindow
     /// <summary>When a game closes: Home fades back in with the game you launched highlighted.</summary>
     private void ReturnAnimationEight()
     {
-        if (!Labs.On("returnanim") || _lastLaunched == null) return;
+        if ((!Labs.On("returnanim") && !GameCard.S2) || _lastLaunched == null) return;
         var key = _lastLaunched.Key;
         var item = GameList.Items.OfType<Game>().FirstOrDefault(g => g.Actual.Key == key);
         if (item != null)
@@ -177,6 +177,7 @@ public partial class MainWindow
             GameList.ScrollIntoView(item);
         }
         if (Theme.ReduceMotion) return;
+        if (GameCard.S2) { SwitchReturn(item); return; }
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
         RootGrid.BeginAnimation(OpacityProperty, new DoubleAnimation(0.0, 1.0, TimeSpan.FromMilliseconds(520)) { EasingFunction = ease });
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
@@ -189,6 +190,78 @@ public partial class MainWindow
             grow.Completed += (_, _) => tile.RenderTransform = Transform.Identity;
             scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
             scale.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+        }));
+    }
+
+    /// <summary>
+    /// Experimental "Switch 2 style launch and return": the game closing the Switch way. The screen is the UI style's
+    /// page color with the game's cover large in the middle; a moment later the cover flies back down into its tile on
+    /// Home, shrinking as it goes, while the page color fades away to Home and the tile settles with a small bounce.
+    /// </summary>
+    private void SwitchReturn(Game? item)
+    {
+        var game = item?.Actual ?? _lastLaunched;
+        if (game == null) return;
+        Switch2Settings.Refresh();
+        const double size = 260;
+        var veil = new Grid { Background = new SolidColorBrush(Switch2Settings.Background), IsHitTestVisible = false };
+        var cover = GameCard.Cover(game, size);
+        cover.HorizontalAlignment = HorizontalAlignment.Left;
+        cover.VerticalAlignment = VerticalAlignment.Top;
+        var move = new TranslateTransform();
+        var scale = new ScaleTransform(1, 1);
+        var group = new TransformGroup();
+        group.Children.Add(scale);
+        group.Children.Add(move);
+        cover.RenderTransformOrigin = new Point(0.5, 0.5);
+        cover.RenderTransform = group;
+        var layer = new Grid { IsHitTestVisible = false };
+        layer.Children.Add(veil);
+        layer.Children.Add(cover);
+        IntroLayer.Children.Add(layer);
+        double w = IntroLayer.ActualWidth > 0 ? IntroLayer.ActualWidth : ActualWidth, h = IntroLayer.ActualHeight > 0 ? IntroLayer.ActualHeight : ActualHeight;
+        move.X = w / 2 - size / 2;
+        move.Y = h / 2 - size / 2;
+        cover.Opacity = 0;
+        cover.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            // Where the game's tile is on Home (or the middle of the row if it can't be seen).
+            var tile = item != null ? GameList.ItemContainerGenerator.ContainerFromItem(item) as FrameworkElement : null;
+            Point target = new(w / 2, h / 2);
+            double toScale = 0.5;
+            try
+            {
+                if (tile != null && tile.IsVisible)
+                {
+                    target = tile.TranslatePoint(new Point(tile.ActualWidth / 2, tile.ActualHeight / 2), IntroLayer);
+                    toScale = Math.Max(0.2, Math.Min(tile.ActualWidth, tile.ActualHeight) / size * 0.85);
+                }
+            }
+            catch (Exception) { }
+            var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
+            var begin = TimeSpan.FromMilliseconds(420);
+            move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(target.X - size / 2, TimeSpan.FromMilliseconds(480)) { BeginTime = begin, EasingFunction = ease });
+            move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(target.Y - size / 2, TimeSpan.FromMilliseconds(480)) { BeginTime = begin, EasingFunction = ease });
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(toScale, TimeSpan.FromMilliseconds(480)) { BeginTime = begin, EasingFunction = ease });
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(toScale, TimeSpan.FromMilliseconds(480)) { BeginTime = begin, EasingFunction = ease });
+            veil.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(420)) { BeginTime = TimeSpan.FromMilliseconds(500) });
+            var done = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(140)) { BeginTime = TimeSpan.FromMilliseconds(880) };
+            done.Completed += (_, _) =>
+            {
+                IntroLayer.Children.Remove(layer);
+                if (tile == null) return;
+                // The tile takes the cover's place with a small settle.
+                var pop = new ScaleTransform(1.08, 1.08);
+                tile.RenderTransformOrigin = new Point(0.5, 0.5);
+                tile.RenderTransform = pop;
+                var settle = new DoubleAnimation(1.08, 1.0, TimeSpan.FromMilliseconds(320)) { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.4 } };
+                settle.Completed += (_, _) => tile.RenderTransform = Transform.Identity;
+                pop.BeginAnimation(ScaleTransform.ScaleXProperty, settle);
+                pop.BeginAnimation(ScaleTransform.ScaleYProperty, settle);
+            };
+            cover.BeginAnimation(OpacityProperty, done);
         }));
     }
 

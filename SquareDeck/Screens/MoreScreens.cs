@@ -360,6 +360,30 @@ public sealed class BrowserScreen : Screen
         Grid.SetRow(_footer, 2);
         root.Children.Add(_footer);
         Content = root;
+        if (Switch2Pages.SystemOn)
+        {
+            // Switch 2 style (Experimental): the UI style's colors, the address bar and zoom as plain cards (the address
+            // takes the rimmed highlight while typing), thin lines under the bar and over the button hints.
+            Switch2Settings.ApplyColors(this);
+            root.Background = new SolidColorBrush(Switch2Settings.Background);
+            pill.SetResourceReference(Border.BackgroundProperty, "S2Card");
+            pill.CornerRadius = new CornerRadius(10);
+            pill.BorderBrush = Brushes.Transparent;
+            _address.GotKeyboardFocus += (_, _) => pill.SetResourceReference(Border.BorderBrushProperty, "S2Rim");
+            _address.LostKeyboardFocus += (_, _) => pill.BorderBrush = Brushes.Transparent;
+            zoom.SetResourceReference(Border.BackgroundProperty, "S2Card");
+            zoom.CornerRadius = new CornerRadius(10);
+            line.Opacity = 1;
+            line.SetResourceReference(Shape.FillProperty, "S2Line");
+            var under = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(18, 0, 18, 0) };
+            under.SetResourceReference(Shape.FillProperty, "S2Line");
+            _chrome.Children.Add(under);
+            FrameworkElement pad = Ui.DeviceArt(28) ?? Ui.Glyph(Ui.HandheldGlyph, 28, "FgBrush");
+            pad.HorizontalAlignment = HorizontalAlignment.Left;
+            pad.VerticalAlignment = VerticalAlignment.Center;
+            pad.Margin = new Thickness(14, 2, 0, 0);
+            _footer.Children.Add(pad);
+        }
     }
 
     public override void FocusDefault() { }
@@ -404,7 +428,11 @@ public sealed class BrowserScreen : Screen
     // The web view is a window of its own and would cover any pop-up drawn over it, so it steps aside for them.
     public override void OnCovered() => _pages.Visibility = Visibility.Hidden;
 
-    public override void OnResumed() => _pages.Visibility = Visibility.Visible;
+    public override void OnResumed()
+    {
+        _pages.Visibility = Visibility.Visible;
+        if (Switch2Pages.SystemOn && Content is Panel root) { Switch2Settings.ApplyColors(this); root.Background = new SolidColorBrush(Switch2Settings.Background); }
+    }
 
     public override void OnClosed()
     {
@@ -1289,6 +1317,34 @@ public sealed class NotificationsScreen : Screen
         blade.SetResourceReference(Border.BackgroundProperty, "BgBrush");
         blade.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
         KeyboardNavigation.SetDirectionalNavigation(blade, KeyboardNavigationMode.Contained);
+        if (Switch2Pages.SystemOn)
+        {
+            // Switch 2 style (Experimental): the blade in the page color with a thin line down its edge, the title with
+            // the bell and a line under it, the days as bar-and-name headings, the notifications as flat rows.
+            Switch2Settings.ApplyColors(this);
+            blade.Background = new SolidColorBrush(Switch2Settings.Background);
+            blade.SetResourceReference(Border.BorderBrushProperty, "S2Line");
+            blade.BorderThickness = new Thickness(1, 0, 0, 0);
+            header.Children.Remove(title);
+            var name = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var bell = Ui.Glyph("\uEA8F", 26, "FgBrush");
+            bell.VerticalAlignment = VerticalAlignment.Center;
+            bell.Margin = new Thickness(0, 2, 14, 0);
+            name.Children.Add(bell);
+            title.VerticalAlignment = VerticalAlignment.Center;
+            name.Children.Add(title);
+            header.Children.Add(name);
+            header.Margin = new Thickness(0, 0, 0, 0);
+            var titled = new StackPanel();
+            panel.Children.Remove(header);
+            titled.Children.Add(header);
+            var under = new Rectangle { Height = 1, Margin = new Thickness(0, 14, 0, 6) };
+            under.SetResourceReference(Shape.FillProperty, "S2Line");
+            titled.Children.Add(under);
+            DockPanel.SetDock(titled, Dock.Top);
+            panel.Children.Insert(0, titled);
+            Switch2Pages.AutoRestyle(_rows, 60);
+        }
 
         // The rest of the screen stays visible, slightly dimmed; clicking it closes the panel.
         _backdrop.Background = new SolidColorBrush(Color.FromArgb(0x66, 0, 0, 0));
@@ -1376,8 +1432,10 @@ public sealed class NotificationsScreen : Screen
 
         foreach (var day in items.Take(150).GroupBy(n => n.When.Date))
         {
-            _rows.Children.Add(Ui.Header(day.Key == DateTime.Today ? "Today"
-                : day.Key == DateTime.Today.AddDays(-1) ? "Yesterday" : day.Key.ToString("MMMM d")));
+            var dayHeader = Ui.Header(day.Key == DateTime.Today ? "Today"
+                : day.Key == DateTime.Today.AddDays(-1) ? "Yesterday" : day.Key.ToString("MMMM d"));
+            if (Switch2Pages.SystemOn) dayHeader.Tag = "s2title"; // a bar-and-name heading
+            _rows.Children.Add(dayHeader);
             foreach (var n in day)
             {
                 var entry = n;
@@ -1487,7 +1545,11 @@ public sealed class LaunchSplashScreen : Screen
         ("cinema", "Cinematic", "Letterbox bars close in as the cover glides into place"),
         ("cartridge", "Cartridge", "Retro: the cover slots in like a game cartridge, the power light blinks on, and the name types itself out"),
         ("crt", "CRT power-on", "Retro: an old TV switches on, from a bright line to a flickering picture with scanlines"),
+        ("switch", "Switch boot", "Like a Switch starting a game: the cover zooms toward you as the screen fades to black, then the game's icon waits in the middle with a spinner in the corner"),
     };
+
+    /// <summary>Experimental "Switch-style game boot": every game starts with the Switch boot animation.</summary>
+    public static bool SwitchBoot => Labs.On("switchboot");
 
     /// <summary>A few seconds of the animation with a stand-in game, from Settings.</summary>
     public static LaunchSplashScreen Preview(string style) =>
@@ -1509,7 +1571,7 @@ public sealed class LaunchSplashScreen : Screen
     {
         _game = game;
         _preview = preview;
-        style ??= (Application.Current.MainWindow as MainWindow)?.Settings.LaunchAnimation ?? "classic";
+        style ??= SwitchBoot ? "switch" : (Application.Current.MainWindow as MainWindow)?.Settings.LaunchAnimation ?? "classic";
         _style = style == "random" || Styles.All(x => x.Id != style) ? Styles[Random.Shared.Next(Styles.Length)].Id : style;
         var root = new Grid { ClipToBounds = true };
         root.SetResourceReference(Panel.BackgroundProperty, "BgBrush");
@@ -1575,8 +1637,85 @@ public sealed class LaunchSplashScreen : Screen
 
         if (!Theme.ReduceMotion) Animate(root, fx, cover, breathe, name);
         if (Labs.On("companion") && !Theme.ReduceMotion) AddCompanion(root, cover);
+        if (_style == "switch" && Labs.On("switchbootplus"))
+        {
+            hint.Visibility = Visibility.Collapsed;
+            AddSwitchBootExtras(root);
+        }
 
         _timer.Tick += (_, _) => Tick();
+    }
+
+    // ---------------------------------------------------------------- Switch boot, extras
+
+    private static readonly string[] BootLines =
+    {
+        "Loading {0}", "Starting up", "Warming up the pixels", "Waking up your save file", "Spawning the player", "Rendering the world",
+        "Tuning the soundtrack", "Polishing the controller", "Charging the power-ups", "Asking the NPCs to get in position", "Checking for dragons",
+        "Calibrating the fun", "Inserting the cartridge", "Loading the loading screen", "Feeding the hamsters", "Unpacking adventures",
+        "Rolling for initiative", "Lining up the level", "Shuffling the tips", "Almost there",
+    };
+
+    /// <summary>
+    /// Experimental "Switch boot: logo and loading line": with the Switch-style boot, no Hide hint; the game's logo
+    /// (or its name) in the top-left corner, and in the bottom-right, beside the turning ring, a line that changes as
+    /// it loads ("Warming up the pixels…", "Spawning the player…").
+    /// </summary>
+    private void AddSwitchBootExtras(Grid root)
+    {
+        // The logo, top left: SteamGridDB's logo when there is one, else the name.
+        FrameworkElement mark;
+        if (_game.ContinueLogo is { } logo)
+            mark = new Image { Source = logo, MaxHeight = 90, MaxWidth = 340, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left,
+                               Effect = new DropShadowEffect { BlurRadius = 16, ShadowDepth = 0, Opacity = 0.7 } };
+        else
+            mark = new TextBlock { Text = _game.Name, FontSize = 30, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, MaxWidth = 560, TextTrimming = TextTrimming.CharacterEllipsis };
+        mark.HorizontalAlignment = HorizontalAlignment.Left;
+        mark.VerticalAlignment = VerticalAlignment.Top;
+        mark.Margin = new Thickness(56, 46, 0, 0);
+        mark.Opacity = 0;
+        mark.IsHitTestVisible = false;
+        root.Children.Add(mark);
+        Panel.SetZIndex(mark, 11);
+        mark.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(500)) { BeginTime = TimeSpan.FromMilliseconds(900) });
+
+        // The loading line, bottom right, just left of the ring (the ring is 44 wide, 56 in from the edge and 70 up).
+        var line = new TextBlock { FontSize = 20, Foreground = new SolidColorBrush(Color.FromArgb(0xDD, 0xFF, 0xFF, 0xFF)), HorizontalAlignment = HorizontalAlignment.Right,
+                                   VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 56 + 44 + 18, 70 + 9), Opacity = 0, IsHitTestVisible = false };
+        root.Children.Add(line);
+        Panel.SetZIndex(line, 11);
+        var order = BootLines.Skip(2).OrderBy(_ => Random.Shared.Next()).ToList();
+        order.Insert(0, BootLines[Random.Shared.Next(2)]);
+        int index = 0, dots = 0;
+        void Show() => line.Text = string.Format(order[index % order.Count], _game.Name) + new string('.', dots);
+        Show();
+        line.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(400)) { BeginTime = TimeSpan.FromMilliseconds(900) });
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
+        int ticks = 0;
+        timer.Tick += (_, _) =>
+        {
+            ticks++;
+            dots = (dots + 1) % 4;
+            if (ticks % 6 == 0 && !Theme.ReduceMotion)
+            {
+                // A new saying: the old one fades out, the new one slides in.
+                var outFade = new DoubleAnimation(1, 0, Ms(180));
+                outFade.Completed += (_, _) =>
+                {
+                    index++;
+                    dots = 0;
+                    Show();
+                    var slide = new TranslateTransform(0, 10);
+                    line.RenderTransform = slide;
+                    slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, Ms(240)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                    line.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(240)));
+                };
+                line.BeginAnimation(OpacityProperty, outFade);
+            }
+            else Show();
+        };
+        timer.Start();
+        Unloaded += (_, _) => timer.Stop();
     }
 
     // ---------------------------------------------------------------- the companion's act
@@ -1901,6 +2040,62 @@ public sealed class LaunchSplashScreen : Screen
         var accent = Accent;
         switch (_style)
         {
+            case "switch":
+            {
+                // The Switch way: the cover rushes toward you as everything fades to black (a soft white bloom as it
+                // passes), the name and status slip away, then the game's icon waits small in the middle of the black
+                // screen with the ring of dots turning in the bottom-right corner, as the console does while a game loads.
+                var black = new Border { Background = Brushes.Black, Opacity = 0, IsHitTestVisible = false };
+                var bloom = new Border { Background = Brushes.White, Opacity = 0, IsHitTestVisible = false };
+                int at = Math.Max(0, root.Children.Count - 2); // under the cover and the hint
+                root.Children.Insert(at, black);
+                root.Children.Add(bloom);
+                Panel.SetZIndex(bloom, 10);
+                black.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(420)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+                name.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, Ms(180)));
+                _status.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, Ms(180)));
+                Both(scale, new DoubleAnimation(0.6, 1.25, Ms(460)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+                var gone = new DoubleAnimation(1, 0, Ms(140)) { BeginTime = TimeSpan.FromMilliseconds(400) };
+                gone.Completed += (_, _) =>
+                {
+                    // Back as the small icon in the middle of the black screen.
+                    scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                    scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                    scale.ScaleX = scale.ScaleY = 0.5;
+                    cover.Effect = new DropShadowEffect { Color = Colors.White, BlurRadius = 30, ShadowDepth = 0, Opacity = 0.18 };
+                    cover.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(450)) { BeginTime = TimeSpan.FromMilliseconds(250) });
+                };
+                cover.BeginAnimation(OpacityProperty, gone);
+                var flash = new DoubleAnimationUsingKeyFrames();
+                flash.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(300))));
+                flash.KeyFrames.Add(new LinearDoubleKeyFrame(0.3, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(400))));
+                flash.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(620))));
+                bloom.BeginAnimation(OpacityProperty, flash);
+
+                // The loading ring: eight dots, the brightest one chasing round.
+                var spinner = new Grid { Width = 44, Height = 44, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 56, 70), Opacity = 0, IsHitTestVisible = false };
+                for (int i = 0; i < 8; i++)
+                {
+                    double a = i * Math.PI / 4;
+                    spinner.Children.Add(new Ellipse
+                    {
+                        Width = 8, Height = 8, Fill = Brushes.White, Opacity = 0.2 + 0.8 * i / 7,
+                        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                        RenderTransform = new TranslateTransform(Math.Cos(a) * 16, Math.Sin(a) * 16)
+                    });
+                }
+                var turn = new RotateTransform();
+                spinner.RenderTransformOrigin = new Point(0.5, 0.5);
+                spinner.RenderTransform = turn;
+                root.Children.Add(spinner);
+                Panel.SetZIndex(spinner, 9);
+                spinner.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(300)) { BeginTime = TimeSpan.FromMilliseconds(800) });
+                // Steps of 45 degrees, like the console's ring, rather than a smooth spin.
+                var steps = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever };
+                for (int i = 0; i <= 8; i++) steps.KeyFrames.Add(new DiscreteDoubleKeyFrame(i * 45, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(i * 110))));
+                turn.BeginAnimation(RotateTransform.AngleProperty, steps);
+                break;
+            }
             case "spotlight":
             {
                 // Twelve soft rays of the highlight color turning slowly behind the cover, which zooms in from far away.

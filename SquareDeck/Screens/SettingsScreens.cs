@@ -313,6 +313,17 @@ public sealed partial class SettingsScreen : ListScreen
 
     public override bool OnAction(NavAction action)
     {
+        // Themes: LT / RT step through its tabs (Legendary, Mythical, My own style, Unlockable).
+        if (action is NavAction.LT or NavAction.RT && _category == "looks" && _group == null)
+        {
+            string[] tabs = { "legendary", "mythical", "mine", "unlockable" };
+            int at = Math.Max(0, Array.IndexOf(tabs, _stylesTab));
+            _stylesTab = tabs[(at + (action == NavAction.RT ? 1 : -1) + tabs.Length) % tabs.Length];
+            UiSound.Page();
+            Rebuild();
+            FocusLater(Rows.Children.OfType<StackPanel>().SelectMany(p => p.Children.OfType<Button>()).FirstOrDefault(b => b.Tag as string == "active"));
+            return true;
+        }
         if (action != NavAction.Back) return false;
         // B steps back: a group to its section, a section to Settings home, then out of Settings.
         if (_group != null) { LeaveGroup(); return true; }
@@ -1021,7 +1032,7 @@ public sealed partial class SettingsScreen : ListScreen
         // Basic: the styles drawn by SquareDeck (and yours). Advanced: styles made from UI kits, with their own
         // panels, buttons, switches, pointer and icons.
         var tabs = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 2) };
-        foreach (var (id, label, glyph) in new[] { ("basic", "Basic", "\uE771"), ("advanced", "Advanced", "\uE7F4"), ("legendary", "Legendary", "\uE734"), ("mythical", "Mythical", "\uE945"), ("mine", "My own style", "\uE70F"), ("unlockable", "Unlockable", "\uE72E") })
+        foreach (var (id, label, glyph) in new[] { ("legendary", "Legendary", "\uE734"), ("mythical", "Mythical", "\uE945"), ("mine", "My own style", "\uE70F"), ("unlockable", "Unlockable", "\uE72E") })
         {
             var chip = new Button
             {
@@ -1050,20 +1061,36 @@ public sealed partial class SettingsScreen : ListScreen
         }
         Rows.Children.Add(tabs);
         const double W = 296;
-        if (_stylesTab == "advanced") { BuildAdvancedStyles(s, W, legendary: false); return; }
-        if (_stylesTab == "legendary") { BuildAdvancedStyles(s, W, legendary: true); return; }
+        if (_stylesTab is not ("mythical" or "unlockable" or "mine")) _stylesTab = "legendary"; // the old Basic and Advanced tabs
         if (_stylesTab == "mythical") { BuildAdvancedStyles(s, W, legendary: false, mythical: true); return; }
         if (_stylesTab == "unlockable") { BuildAdvancedStyles(s, W, legendary: false, unlockable: true); return; }
         if (_stylesTab == "mine") { BuildMyStyles(s, W); return; }
 
         AddRow("Surprise me", null, "\uE8B1", subtitle: "Switch to a random style you're not using now", click: () =>
         {
-            var others = UiStyles.All.Where(x => x.Id != s.UiStyle).ToList();
+            var others = UiStyles.All.Concat(LegendaryKits).Where(x => x.Id != s.UiStyle).ToList();
             if (others.Count > 0) UseSwitchStyle(others[Random.Shared.Next(others.Count)]);
         });
 
+        // Legendary (8.1.48): the styles once called Basic, then the ones once called Advanced (dressed in UI kits).
+        var kits = LegendaryKits.ToList();
+        var currentStyle = UiStyles.Current;
+        if (kits.Any(x => x.Id == currentStyle.Id) && currentStyle.Skin is { Variants.Length: > 1 } currentSkin)
+        {
+            AddHeader(currentStyle.Name);
+            string chosen = currentSkin.Variants.FirstOrDefault(v => v.Id == currentStyle.SkinVariant).Name ?? currentSkin.Variants[0].Name;
+            AddRow("Color", chosen, "\uE790", subtitle: "The kit's own color versions of its panels and buttons", click: async () =>
+            {
+                int pick = await Host.AskAsync("Color", null, currentSkin.Variants.Select(v => v.Name).ToArray());
+                if (pick < 0) return;
+                s.SkinVariants[currentStyle.Id] = currentSkin.Variants[pick].Id;
+                s.Save();
+                Host.ApplyLook();
+                Rebuild();
+            });
+        }
 
-        AddHeader("Ready-made styles  ·  " + UiStyles.All.Length);
+        AddHeader("Legendary styles  ·  " + (UiStyles.All.Length + kits.Count));
         // Three to a row: the column is 1040 wide, and each card adds the tile's padding and ring plus a 10 gap.
         var shelf = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         foreach (var style in UiStyles.All)
@@ -1089,9 +1116,24 @@ public sealed partial class SettingsScreen : ListScreen
             };
             shelf.Children.Add(tile);
         }
+        foreach (var style in kits)
+        {
+            var st = style;
+            bool inUse = st.Id == currentStyle.Id;
+            s.SkinVariants.TryGetValue(st.Id, out var variant);
+            var tile = AdvancedCard(st, variant, inUse, W, null);
+            tile.Click += (_, _) =>
+            {
+                if (inUse) { Host.ShowToast("Themes", st.Name + " is in use", "It's the style SquareDeck has now.", "", "info", remember: false); return; }
+                UseSwitchStyle(st);
+            };
+            shelf.Children.Add(tile);
+        }
         Rows.Children.Add(shelf);
-        AddNote("Each style keeps the Switch layout and changes its colors, font, corners, buttons and artwork. With matching " +
-                "on, it also brings its own theme (light, dark or OLED), wallpaper or moving background, interface sounds and music.");
+        AddNote("Each style keeps the Switch layout and changes its colors, font, corners, buttons and artwork; many dress it in a " +
+                "UI kit's own panels, buttons, pop-ups, switches, pointer and icons. With matching on, each also brings its own theme " +
+                "(light, dark or OLED), wallpaper or moving background, interface sounds and music.");
+        AddRow("Credits", null, "\uE946", subtitle: "The artists behind these kits, sounds and fonts", click: () => Host.Push(new CreditsScreen()));
 
         AddHeader("More");
         AddFeature("styleschedule");
@@ -1103,7 +1145,7 @@ public sealed partial class SettingsScreen : ListScreen
 
     /// <summary>
     /// My own style: make a style, import one, and the ones you've made. A style of your own can start from any
-    /// ready-made style and take pieces from any other (Basic, Advanced, Legendary or Mythical): its wallpaper or moving
+    /// ready-made style and take pieces from any other (Legendary or Mythical): its wallpaper or moving
     /// background, music, sounds, font and icons, plus the startup, closing and update animations.
     /// </summary>
     private void BuildMyStyles(Settings s, double W)
@@ -1111,7 +1153,7 @@ public sealed partial class SettingsScreen : ListScreen
         // Your own styles: make one, import one, and the ones you've made.
         AddHeader("My own style  \u00B7  " + s.CustomStyles.Count);
         var mine = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
-        mine.Children.Add(ActionCard("\uE710", "Create a style", "Start from any style, then remix: wallpapers, moving backgrounds, music, sounds, fonts and icons from Basic to Mythical, plus animations", W, () => _ = CreateStyleAsync()));
+        mine.Children.Add(ActionCard("\uE710", "Create a style", "Start from any style, then remix: wallpapers, moving backgrounds, music, sounds, fonts and icons from Legendary and Mythical, plus animations", W, () => _ = CreateStyleAsync()));
         mine.Children.Add(ActionCard("\uE8B5", "Import a style", "Add a style someone shared with you (a " + MyStyles.Extension + " file)", W, () => _ = ImportStyleAsync()));
         foreach (var custom in s.CustomStyles.ToList())
         {
@@ -1123,18 +1165,21 @@ public sealed partial class SettingsScreen : ListScreen
             mine.Children.Add(tile);
         }
         Rows.Children.Add(mine);
-        AddNote("Remix freely: a style of your own can start from any ready-made style and borrow pieces from any other, Basic, Advanced, " +
-                "Legendary or Mythical, its wallpaper or moving background, music, interface sounds, font and home button icons, " +
+        AddNote("Remix freely: a style of your own can start from any ready-made style and borrow pieces from any other, " +
+                "Legendary or Mythical: its wallpaper or moving background, music, interface sounds, font and home button icons, " +
                 "along with the startup, closing and update animations. Export one to share it, or import one someone shared with you.");
     }
 
     /// <summary>Which tab of Themes is showing: the Basic styles, the Advanced ones or the Legendary ones.</summary>
-    private static string _stylesTab = MyStyles.IsCustom(UiStyles.Current.Id) ? "mine" : UiStyles.Current.Unlock != null ? "unlockable" : UiStyles.IsMythical(UiStyles.Current.Id) ? "mythical" : UiStyles.IsLegendary(UiStyles.Current.Id) ? "legendary" : UiStyles.IsAdvanced(UiStyles.Current.Id) ? "advanced" : "basic";
+    private static string _stylesTab = MyStyles.IsCustom(UiStyles.Current.Id) ? "mine" : UiStyles.Current.Unlock != null ? "unlockable" : UiStyles.IsMythical(UiStyles.Current.Id) ? "mythical" : "legendary";
 
     /// <summary>
     /// The Advanced tab (styles made from UI kits, each with a color choice where the kit has several) or the Legendary
     /// tab (Advanced styles whose artwork was drawn from scratch by Claude). Both are UiStyles.Advanced, split by Legendary.
     /// </summary>
+    /// <summary>The Legendary styles dressed in UI kits (once the Advanced tab).</summary>
+    private static IEnumerable<UiStyle> LegendaryKits => UiStyles.Advanced.Where(x => !x.Mythical && x.Unlock == null);
+
     private void BuildAdvancedStyles(Settings s, double W, bool legendary, bool unlockable = false, bool mythical = false)
     {
         var current = UiStyles.Current;
@@ -1186,7 +1231,7 @@ public sealed partial class SettingsScreen : ListScreen
             AddNote("Unlockable styles are earned by playing: each one opens up when you reach its goal, and SquareDeck lets you know. " +
                     "They're Advanced styles with their own artwork, font, sounds and music.");
         else if (mythical)
-            AddNote("Mythical styles are the top tier: each one is a world of its own, drawn from scratch down to the last detail. Their " +
+            AddNote("Mythical styles are the top tier, drawn from scratch: each one a world of its own, down to the last detail. Their " +
                     "cards, buttons, pop-ups, switches, check boxes, pointer, icons and wallpaper share one idea, with a font, a highlight in its own " +
                     "colors, interface sounds, music and a moving touch on the home screen to match.");
         else if (legendary)
@@ -1402,7 +1447,7 @@ public sealed partial class SettingsScreen : ListScreen
             case 2:
                 var styles = MyStyles.Everything().Select(x => (x.Id, x.Name + "  \u00B7  " + MyStyles.TierOf(x), x.Description)).ToArray();
                 PreviewPickerScreen? picker = null;
-                picker = new PreviewPickerScreen("Start from", "Choose the style to build yours on: any Basic, Advanced, Legendary or Mythical style.", styles, () => "",
+                picker = new PreviewPickerScreen("Start from", "Choose the style to build yours on: any Legendary or Mythical style.", styles, () => "",
                     id => new Viewbox { Width = PreviewPickerScreen.W, Height = PreviewPickerScreen.H, Stretch = Stretch.UniformToFill, Child = UiStyleScreen.Preview(UiStyles.Find(id)) },
                     id =>
                     {
@@ -1564,6 +1609,20 @@ public sealed partial class SettingsScreen : ListScreen
         AddFeature("newsettings");
         if (!Labs.On("newsettings")) AddFeature("settingsview"); // the Switch 2 look has its own layout
         AddFeaturePage("unlockables", "Unlockables", "Highlight colors and companion outfits you earn by playing, and the ones still locked");
+
+        AddHeader("Switch 2 style pages");
+        AddFeature("newlibrary", "Library");
+        AddFeature("s2pages", "Captures, Multimedia and Stores");
+        AddFeature("s2tools", "Recomp Zone, Retro Lounge, Explorer and Task Manager");
+        AddFeature("s2social", "News, Friends and Your profile");
+        AddFeature("s2system", "Menus, Search, Browser, Notifications and game pages");
+        AddFeature("s2play", "Passport, Backlog Boss, Mood picker, Leaderboard and Free games");
+        AddFeature("s2apps", "Installed apps");
+        AddFeature("s2setup", "First-time setup");
+        AddFeature("s2toast", "Notifications in the corner");
+        AddHeader("Home touches");
+        AddFeature("oemfooter");
+        AddFeature("plxcontinue");
     }
 
     internal static readonly (string Id, string Name)[] ButtonStyles =
@@ -1826,6 +1885,8 @@ public sealed partial class SettingsScreen : ListScreen
         }
         AddFeature("wtheme", "Widget: match my style");
         AddFeature("wcompanion", "Widget: companion");
+        AddFeature("ws2", "Widget: Switch 2 style");
+        AddFeature("wfpsslider", "Widget: frame cap slider");
         AddFeaturePage("wpowerlook", "Widget: wattage look", "How the TDP shows in the Power card: full dial, slim bar, mini dial, number only or preset chips");
         AddNote("The widget's cards are all built in now: media controls, frame cap buttons, Auto TDP and the thermal warning in the Power and Live cards, " +
                 "game notes, launch apps and SquareDeck shortcuts, and the card editor (order, hiding, a layout and preset per game).");
@@ -2895,6 +2956,12 @@ public sealed partial class SettingsScreen : ListScreen
             AddRow("Splash animation", launchName, "\uE768", click: ChooseLaunchAnimation,
                 subtitle: "Six to choose from: classic, spotlight, flip, ripples, loading ring and cinematic");
         }
+        AddFeature("switchboot");
+        if (Labs.On("switchboot")) AddFeature("switchbootplus", "Logo and loading line on the Switch boot");
+        AddFeature("s2game");
+        AddFeature("zoneexit");
+        AddFeature("storeintro");
+        AddFeature("rasurprise", "Surprise me in Retro Lounge");
         AddRow("Start Steam games directly", OnOff(s.SteamDirectLaunch), "\uE756", click: () => Toggle(() => s.SteamDirectLaunch = !s.SteamDirectLaunch),
             subtitle: "From the game's own program instead of a Steam link, so Steam's launch pop-up stays away");
         AddNote("With this on, SquareDeck starts the game's .exe itself and tells it which Steam game it is. Steam must already be " +
@@ -3279,6 +3346,12 @@ public sealed partial class SettingsScreen : ListScreen
 
     private Action? LabPage(string id) => id switch
     {
+        "plxcontinue" => () => Pick("Parallax depth", new[]
+        {
+            ("0.6", "Subtle", "A gentle drift"), ("1", "Normal", "Clear depth without overdoing it"),
+            ("1.6", "Deep", "The art moves well past the words"), ("2.3", "Dramatic", "As far as it'll go"),
+        }, choice => Labs.Put("plx.depth", choice)),
+        "storeintro" => () => Pick("Store opening animation", StoreOpeningScreen.Styles, choice => Labs.Put("storeintro.style", choice)),
         "storage" => () => Host.Push(new StorageAdvisorScreen()),
         "cleanup" => () => Host.Push(new CleanupScreen()),
         "overnight" => () => Host.Push(new OvernightScreen()),
@@ -3289,14 +3362,14 @@ public sealed partial class SettingsScreen : ListScreen
         "recomp" => () => Host.Push(new RecompZoneScreen()),
         "discord" => () => Host.Push(new DiscordScreen()),
         "musicstreams" => () => { Host.Settings.MusicTab = "streaming"; Host.Push(new MediaScreen()); },
-        "freegames" => () => Host.Push(new FreeGamesScreen()),
-        "leaderboard" => () => Host.Push(new LeaderboardScreen()),
+        "freegames" => () => Host.Push(PlayPages.FreeGames()),
+        "leaderboard" => () => Host.Push(PlayPages.Leaderboard()),
         "styleschedule" => () => Host.Push(new StyleScheduleScreen()),
         "wallpaperengine" => () => Host.Push(new WallpaperEngineScreen()),
-        "boss" => () => Host.Push(new BossScreen()),
+        "boss" => () => Host.Push(PlayPages.Boss()),
         "unlockables" => () => Host.Push(new UnlockablesScreen()),
-        "passport" => () => Host.Push(new PassportScreen()),
-        "mood" => () => Host.Push(new MoodScreen()),
+        "passport" => () => Host.Push(PlayPages.Passport()),
+        "mood" => () => Host.Push(PlayPages.Mood()),
         "companion" => () => Host.Push(new CompanionScreen()),
         "settingsview" => ChooseLayout,
         "coverdim" => () => Host.Push(new CoverLabsScreen(effect: false)),
@@ -4578,6 +4651,25 @@ public sealed class QuickSettingsScreen : Screen
         }
         LookChrome.StyleSheet(_sheet);
         SkinSheet(_sheet);
+        if (Switch2Pages.SystemOn)
+        {
+            // Switch 2 style (Experimental): the sheet in the page color of the UI style, no outline; the sliders on
+            // thin lines; Power as a plain row.
+            Switch2Settings.ApplyColors(this);
+            _sheet.Background = new System.Windows.Media.SolidColorBrush(Switch2Settings.Background);
+            _sheet.BorderThickness = new Thickness(0);
+            foreach (var row in sliders.Children.OfType<Border>())
+            {
+                row.Background = System.Windows.Media.Brushes.Transparent;
+                row.CornerRadius = new CornerRadius(0);
+                row.SetResourceReference(Border.BorderBrushProperty, "S2Line");
+                row.BorderThickness = new Thickness(0, 0, 0, 1);
+                row.Padding = new Thickness(6, 12, 6, 12);
+            }
+            power.Style = Switch2Settings.RowStyle;
+            power.MinHeight = 56;
+            power.HorizontalContentAlignment = HorizontalAlignment.Center;
+        }
         var backdrop = new Grid { Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x70, 0, 0, 0)) };
         backdrop.Children.Add(_sheet);
         Content = backdrop;
@@ -4778,6 +4870,20 @@ public sealed class QuickTile : Button
 
     private void Paint()
     {
+        if (Switch2Pages.SystemOn)
+        {
+            // Switch 2 style (Experimental): a plain card; on, the symbol and state in blue; highlighted, the rimmed card.
+            _face.SetResourceReference(Border.BackgroundProperty, "S2Card");
+            _face.CornerRadius = new CornerRadius(14);
+            if (IsKeyboardFocused) { _face.SetResourceReference(Border.BorderBrushProperty, "S2Rim"); _face.SetResourceReference(EffectProperty, "S2Glow"); }
+            else { _face.BorderBrush = System.Windows.Media.Brushes.Transparent; _face.Effect = null; }
+            _glyph.SetResourceReference(TextBlock.ForegroundProperty, _on ? "AccentBrush" : "SubtleBrush");
+            _label.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+            _label.FontWeight = FontWeights.Normal;
+            _state.SetResourceReference(TextBlock.ForegroundProperty, _on ? "AccentBrush" : "SubtleBrush");
+            _state.Opacity = 1;
+            return;
+        }
         if (LookChrome.PaintFace(_face, new[] { _glyph, _label, _state }, _on, IsKeyboardFocused))
         {
             _state.Opacity = 0.8;
@@ -4794,7 +4900,8 @@ public sealed class QuickTile : Button
 
     private void Highlight(bool on)
     {
-        if (LookChrome.Design.Rows != "card") Paint();
+        if (Switch2Pages.SystemOn) Paint();
+        else if (LookChrome.Design.Rows != "card") Paint();
         else if (on) _face.SetResourceReference(Border.BorderBrushProperty, _on ? "FgBrush" : "AccentBrush");
         else _face.BorderBrush = System.Windows.Media.Brushes.Transparent;
         double to = on && !Theme.ReduceMotion ? 1.04 : 1;
@@ -5035,8 +5142,12 @@ public sealed class PowerMenuScreen : Screen
     private readonly List<TextBlock> _glyphs = new();
     private readonly List<System.Windows.Media.Brush?> _arts = new();
     /// <summary>How the look lays the options out: in a row (the usual) or as a list (drawers and console menus).</summary>
-    private readonly bool _list = Looks.Current.Id is "ubiquity" or "deck" or "xdash";
-    private readonly string _side = LookChrome.SheetSide(power: true);
+    /// <summary>A list of options: the menu is a drawer that slides in from the right edge (in every look).</summary>
+    private readonly bool _list = true;
+
+    /// <summary>Experimental: Switch 2 style. The options as flat rows with the rimmed highlight, in the UI style's colors.</summary>
+    private readonly bool _s2 = Switch2Pages.SystemOn;
+    private readonly string _side = "right";
     private readonly TextBlock _hint = Ui.Text("", 15, "SubtleBrush");
     private int _armed = -1;
     private int _choice = -1;
@@ -5069,7 +5180,7 @@ public sealed class PowerMenuScreen : Screen
             pill.Child = row;
             who.Children.Add(pill);
         }
-        panel.Children.Add(who);
+        // (No name or battery here: just the options.)
 
         // A heading in the look's way for the drawers and console menus.
         if (_list)
@@ -5123,6 +5234,13 @@ public sealed class PowerMenuScreen : Screen
         card.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
         LookChrome.StyleSheet(card);
         QuickSettingsScreen.SkinSheet(card);
+        if (_s2)
+        {
+            Switch2Settings.ApplyColors(this);
+            card.Background = new System.Windows.Media.SolidColorBrush(Switch2Settings.Background);
+            card.BorderThickness = new Thickness(0);
+            card.CornerRadius = new CornerRadius(_side == "center" ? 18 : 0);
+        }
         switch (_side)
         {
             case "left":
@@ -5132,6 +5250,8 @@ public sealed class PowerMenuScreen : Screen
                 card.VerticalAlignment = VerticalAlignment.Stretch;
                 card.Width = 520;
                 card.Padding = new Thickness(40, 70, 36, 40);
+                card.CornerRadius = _side == "left" ? new CornerRadius(0, QuickSettingsScreen.Round(26), QuickSettingsScreen.Round(26), 0)
+                                                    : new CornerRadius(QuickSettingsScreen.Round(26), 0, 0, QuickSettingsScreen.Round(26));
                 if (!Theme.ReduceMotion) SlideIn(card, _side == "left" ? -540 : 540, vertical: false);
                 break;
             case "bottom":
@@ -5271,6 +5391,21 @@ public sealed class PowerMenuScreen : Screen
             return;
         }
         label.Text = shown;
+        if (_s2)
+        {
+            // A flat row: plain, or the rimmed card when highlighted.
+            circle.CornerRadius = new CornerRadius(10);
+            if (focused)
+            {
+                circle.SetResourceReference(Border.BackgroundProperty, "S2Card");
+                circle.SetResourceReference(Border.BorderBrushProperty, "S2Rim");
+                circle.SetResourceReference(EffectProperty, "S2Glow");
+            }
+            else { circle.Background = System.Windows.Media.Brushes.Transparent; circle.BorderBrush = System.Windows.Media.Brushes.Transparent; circle.Effect = null; }
+            glyph.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+            label.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
+            return;
+        }
         bool round = !_list && Looks.Current.Id is not ("aniki" or "solaris");
         // The look's own way: in a list the highlight paints the whole row; in a row of buttons it lights the button.
         var texts = _list ? new[] { glyph, label } : new[] { glyph };

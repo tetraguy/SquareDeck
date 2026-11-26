@@ -132,6 +132,99 @@ namespace SquareDeck.Widget
         private bool _autoSyncing;
         private int _autoTarget = 40;
 
+        // ---- Experimental "Widget: frame cap slider": Off, and a slider from 30 to 120, no Save button
+
+        private StackPanel _capSlideRow;
+        private Slider _capSlider;
+        private Button _capOff;
+        private TextBlock _capValue;
+        private DispatcherTimer _capTimer;
+        private int _capPending;
+        private bool _capSyncing;
+        private DateTime _capTouched;
+
+        private void BuildCapSlider(StackPanel stack)
+        {
+            _capSlideRow = new StackPanel { Visibility = Visibility.Collapsed };
+            var head = new Grid();
+            head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            head.Children.Add(Label("Frame cap"));
+            _capValue = Line("Off", 14, Colors.White, true);
+            _capValue.VerticalAlignment = VerticalAlignment.Center;
+            _capValue.Margin = new Thickness(0, 4, 2, 0);
+            Grid.SetColumn(_capValue, 1);
+            head.Children.Add(_capValue);
+            _capSlideRow.Children.Add(head);
+
+            var line = new Grid();
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            _capOff = Segment("Off", null);
+            _capOff.MinWidth = 64;
+            _capOff.Margin = new Thickness(0, 0, 12, 0);
+            _capOff.Click += (s, e) =>
+            {
+                _capTimer.Stop();
+                _capTouched = DateTime.Now;
+                ShowCap(0);
+                _link.Send("fpscap", "value", 0);
+            };
+            line.Children.Add(_capOff);
+            _capSlider = new Slider
+            {
+                Minimum = 30, Maximum = 120, StepFrequency = 5, SmallChange = 5, LargeChange = 15, TickFrequency = 15,
+                TickPlacement = TickPlacement.Outside, Foreground = _accentBrush, IsThumbToolTipEnabled = true, VerticalAlignment = VerticalAlignment.Center, Value = 60
+            };
+            _capSlider.ValueChanged += (s, e) =>
+            {
+                if (_capSyncing) return;
+                _capTouched = DateTime.Now;
+                _capPending = (int)Math.Round(e.NewValue);
+                ShowCap(_capPending);
+                // Applied once the slider settles, not at every step on the way.
+                _capTimer.Stop();
+                _capTimer.Start();
+            };
+            Grid.SetColumn(_capSlider, 1);
+            line.Children.Add(_capSlider);
+            _capSlideRow.Children.Add(line);
+            var ends = new Grid { Margin = new Thickness(76, -2, 0, 0) };
+            ends.Children.Add(Line("30", 11, Subtle));
+            var top = Line("120", 11, Subtle);
+            top.HorizontalAlignment = HorizontalAlignment.Right;
+            ends.Children.Add(top);
+            _capSlideRow.Children.Add(ends);
+            stack.Children.Add(_capSlideRow);
+
+            _capTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
+            _capTimer.Tick += (s, e) =>
+            {
+                _capTimer.Stop();
+                _capTouched = DateTime.Now;
+                _link.Send("fpscap", "value", _capPending);
+            };
+        }
+
+        private void ShowCap(int fps)
+        {
+            if (_capValue == null) return;
+            _capValue.Text = fps > 0 ? fps + " FPS" : "Off";
+            Mark(_capOff, fps <= 0);
+            _capSlider.Opacity = fps > 0 ? 1 : 0.55;
+        }
+
+        private void SyncCapSlider(int cap)
+        {
+            if (_capSlideRow == null) return;
+            // Not while you're moving it (the state lags a moment behind).
+            if ((DateTime.Now - _capTouched).TotalMilliseconds < 1500 || _capTimer.IsEnabled) return;
+            _capSyncing = true;
+            if (cap > 0) _capSlider.Value = Math.Max(30, Math.Min(120, cap));
+            _capSyncing = false;
+            ShowCap(cap);
+        }
+
         private void BuildPowerExtras()
         {
             var stack = _powerCard.Child as StackPanel;
@@ -157,6 +250,7 @@ namespace SquareDeck.Widget
             caps.Children.Add(save);
             _capRow.Children.Add(caps);
             stack.Children.Add(_capRow);
+            BuildCapSlider(stack);
 
             _autoRow = new StackPanel { Visibility = Visibility.Collapsed };
             var head = new Grid();
@@ -813,9 +907,12 @@ namespace SquareDeck.Widget
             Guard("frame cap and Auto TDP", () =>
             {
                 if (_capRow == null) return;
-                _capRow.Visibility = _labs.Contains("wfpscap") ? Visibility.Visible : Visibility.Collapsed;
+                bool slider = _labs.Contains("wfpsslider");
+                _capRow.Visibility = _labs.Contains("wfpscap") && !slider ? Visibility.Visible : Visibility.Collapsed;
+                if (_capSlideRow != null) _capSlideRow.Visibility = slider ? Visibility.Visible : Visibility.Collapsed;
                 int cap = (int)(Num(s, "fpscap") ?? 0);
                 foreach (var kv in _capButtons) Mark(kv.Value, kv.Key == cap);
+                if (slider) SyncCapSlider(cap);
                 var auto = Obj(s, "autotdp");
                 _autoRow.Visibility = _labs.Contains("wautotdp") ? Visibility.Visible : Visibility.Collapsed;
                 if (auto != null)
@@ -895,6 +992,9 @@ namespace SquareDeck.Widget
                     if (key != _companionAsked) { _companionAsked = key; _link.Send("companion", "mood", Str(companion, "mood") ?? "happy"); }
                 }
             });
+
+            // Experimental: the Switch 2 style, in the UI style's colors (WidgetPage.Switch2.cs).
+            Guard("switch 2 style", () => ApplySwitch2(s));
 
             // Which experimental cards show.
             Guard("showing the cards", () =>

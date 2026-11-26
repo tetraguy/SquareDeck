@@ -841,7 +841,7 @@ public partial class MainWindow : Window
 
         if (item.IsLibraryTile)
         {
-            Push(new LibraryScreen());
+            Push(SquareDeck.Screens.Switch2LibraryScreen.Create());
             return;
         }
 
@@ -927,7 +927,7 @@ public partial class MainWindow : Window
         LaunchSplashScreen? splash = null;
         if (Settings.PerformanceBoost && !item.IsRunning)
         {
-            var boost = new BoostScreen(item, Settings.BoostAnimation, Settings.BoostRumble) { KeepOpenOnFinish = Settings.LaunchSplash };
+            var boost = new BoostScreen(item, Settings.BoostAnimation, Settings.BoostRumble) { KeepOpenOnFinish = Settings.LaunchSplash || LaunchSplashScreen.SwitchBoot };
             Push(boost);
             await boost.Result;
             if (boost.KeepOpenOnFinish && IsTop(boost))
@@ -990,9 +990,9 @@ public partial class MainWindow : Window
         if (started)
         {
             UiSound.Launch();
-            CompanionReact("bye");
+            CompanionLaunch(item);
             // A splash screen with the cover until the game is running.
-            if (Settings.LaunchSplash && !item.IsRunning && splash == null) Push(new LaunchSplashScreen(item));
+            if ((Settings.LaunchSplash || LaunchSplashScreen.SwitchBoot) && !item.IsRunning && splash == null) Push(new LaunchSplashScreen(item));
             _ = CheckWindowsUpdateAsync(atLaunch: true); // a pending restart could cut the session short
             // Move it to the front of the home row straight away.
             item.RecentAt = DateTime.Now;
@@ -1275,6 +1275,7 @@ public partial class MainWindow : Window
             {
                 var (heading, title, detail, iconUrl, picture, kind, game) = _toasts.Dequeue();
                 if (Settings.RumbleOnNotifications) Rumble(110); // feel it as it pops up
+                if (Labs.On("s2toast")) { await RunSwitch2ToastAsync(heading, title, detail, iconUrl, picture, kind, game); continue; }
 
                 var icon = new Image { Width = 56, Height = 56, Margin = new Thickness(0, 0, 14, 0), Stretch = Stretch.UniformToFill };
                 if (picture != null) icon.Source = picture;
@@ -1334,6 +1335,91 @@ public partial class MainWindow : Window
         {
             _toastShowing = false;
         }
+    }
+
+    /// <summary>
+    /// Experimental "Switch 2 style notifications": the pop-up as a Switch 2 style card in the UI style's colors. A soft
+    /// rounded panel in the card color with a thin line around it, the icon in a rounded square, the heading as a short
+    /// accent bar and its name, and a slim bar along the bottom that runs down while it's up. Slides in from the right.
+    /// </summary>
+    private async Task RunSwitch2ToastAsync(string heading, string title, string detail, string iconUrl, ImageSource? picture, string kind, Game? game)
+    {
+        Switch2Settings.Refresh();
+        Brush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+        var accent = Switch2Settings.Blue;
+
+        var icon = new Image { Width = 60, Height = 60, Stretch = Stretch.UniformToFill };
+        if (picture != null) icon.Source = picture;
+        else if (iconUrl.Length > 0) _ = LoadToastIconAsync(icon, iconUrl);
+        var iconBox = new Border
+        {
+            Width = 60, Height = 60, CornerRadius = new CornerRadius(14), Margin = new Thickness(0, 0, 16, 0), ClipToBounds = true,
+            Background = B(Switch2Settings.Off), Child = icon, VerticalAlignment = VerticalAlignment.Center,
+            Visibility = picture != null || iconUrl.Length > 0 ? Visibility.Visible : Visibility.Collapsed
+        };
+        iconBox.Clip = new RectangleGeometry(new Rect(0, 0, 60, 60), 14, 14);
+
+        // The heading as the Switch 2 pages title a section: a short bar in the accent color, then the name.
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+        head.Children.Add(new Border { Width = 4, Height = 14, CornerRadius = new CornerRadius(2), Background = B(accent), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
+        head.Children.Add(new TextBlock { Text = heading.Length > 0 ? char.ToUpper(heading[0]) + heading[1..].ToLowerInvariant() : "", FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = B(accent) });
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, MaxWidth = 360 };
+        text.Children.Add(head);
+        text.Children.Add(new TextBlock { Text = title, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = B(Switch2Settings.Text), TextTrimming = TextTrimming.CharacterEllipsis });
+        if (detail.Length > 0) text.Children.Add(new TextBlock { Text = detail, FontSize = 14, Foreground = B(Switch2Settings.Subtle), TextWrapping = TextWrapping.Wrap, MaxHeight = 40, TextTrimming = TextTrimming.CharacterEllipsis });
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(16, 14, 22, 16) };
+        row.Children.Add(iconBox);
+        row.Children.Add(text);
+
+        // The time left, as a slim bar along the bottom.
+        var timer = new ScaleTransform(1, 1);
+        var bar = new Border { Height = 3, CornerRadius = new CornerRadius(1.5), Background = B(accent), Margin = new Thickness(18, 0, 18, 7), VerticalAlignment = VerticalAlignment.Bottom, RenderTransform = timer, Opacity = 0.85 };
+        var body = new Grid();
+        body.Children.Add(row);
+        body.Children.Add(bar);
+
+        var slide = new TranslateTransform(80, 0);
+        var toast = new Border
+        {
+            Child = body,
+            MinWidth = 340,
+            CornerRadius = new CornerRadius(20),
+            BorderThickness = new Thickness(1),
+            Background = B(Switch2Settings.Card),
+            BorderBrush = B(Switch2Settings.Line),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 36, 92),
+            RenderTransform = slide,
+            Opacity = 0,
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 28, ShadowDepth = 6, Direction = 270, Opacity = 0.35, Color = Colors.Black },
+            Cursor = System.Windows.Input.Cursors.Hand
+        };
+        var tapped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        toast.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            if (!tapped.TrySetResult()) return;
+            OpenNotification(kind, title, detail, game);
+        };
+        ToastLayer.Children.Add(toast);
+
+        int stay = Settings.ToastSeconds > 0 ? Settings.ToastSeconds * 1000 : 4500;
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        toast.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)));
+        slide.BeginAnimation(TranslateTransform.XProperty, new System.Windows.Media.Animation.DoubleAnimation(80, 0, TimeSpan.FromMilliseconds(380)) { EasingFunction = ease });
+        bar.Loaded += (_, _) => timer.CenterX = 0;
+        timer.BeginAnimation(ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(stay)) { BeginTime = TimeSpan.FromMilliseconds(300) });
+        UiSound.Toast();
+
+        await Task.WhenAny(Task.Delay(stay), tapped.Task);
+        toast.IsHitTestVisible = false;
+        var away = TimeSpan.FromMilliseconds(260);
+        toast.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0, away));
+        slide.BeginAnimation(TranslateTransform.XProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 60, away) { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } });
+        await Task.Delay(300);
+        ToastLayer.Children.Remove(toast);
     }
 
     /// <summary>
@@ -1505,6 +1591,7 @@ public partial class MainWindow : Window
     {
         item.IsFavorite = !item.IsFavorite;
         if (item.IsFavorite) { ShowHeartBurst(item, from); CompanionReact("hearts"); } // a heart pops up once, instead of a badge that stays
+        else ShowHeartBreak(item, from); // taken out of favorites: the heart breaks in two
         Library.For(item.Key).Favorite = item.IsFavorite;
         Library.Save();
         NotifyLibraryChanged();
@@ -1807,7 +1894,7 @@ public partial class MainWindow : Window
     public async Task<int> AskAsync(string title, string? message, params string[] options)
     {
         var dialog = new MenuScreen(title, message, options);
-        if (SquareDeck.Screens.Switch2Settings.On && _screens.Count > 0 && _screens[^1] is SquareDeck.Screens.SettingsScreen) dialog.UseSwitch2Look();
+        if (_screens.Count > 0 && SquareDeck.Screens.Switch2Pages.Applies(_screens[^1])) dialog.UseSwitch2Look();
         Push(dialog);
         return await dialog.Result;
     }
@@ -2112,7 +2199,7 @@ public partial class MainWindow : Window
 
         switch (page)
         {
-            case 3: Push(new LibraryScreen()); break;
+            case 3: Push(SquareDeck.Screens.Switch2LibraryScreen.Create()); break;
             case 4: Push(new CapturesScreen()); break;
             case 5: Push(new MediaScreen()); break;
             case 6: Push(new FriendsScreen()); break;

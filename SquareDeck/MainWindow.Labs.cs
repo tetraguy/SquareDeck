@@ -66,11 +66,28 @@ public partial class MainWindow
     /// <summary>Minutes of the current session of a running game (0 when it isn't running).</summary>
     public double RunningMinutes(Game game) => _sessionStart.TryGetValue(game.Key, out var started) ? (DateTime.Now - started).TotalMinutes : 0;
 
+    /// <summary>
+    /// Experimental "Your handheld in the corner": the controller symbol at the bottom left of Home becomes a drawing
+    /// of the handheld SquareDeck detected (the same one the controller tester shows), in the text color.
+    /// </summary>
+    private void UpdateFooterPad()
+    {
+        foreach (var old in FooterLeft.Children.OfType<FrameworkElement>().Where(e => e.Tag as string == "devart").ToList()) FooterLeft.Children.Remove(old);
+        if (Ui.DeviceArt(32) is { } art)
+        {
+            FooterLeft.Children.Insert(FooterLeft.Children.IndexOf(FooterPad), art);
+            FooterPad.Visibility = Visibility.Collapsed;
+        }
+        else FooterPad.Visibility = Visibility.Visible;
+    }
+
     private void OnLabChanged(string id)
     {
         switch (id)
         {
+            case "oemfooter": UpdateFooterPad(); break;
             case "tilt": SetTilt(Labs.On("tilt")); break;
+            case "plxcontinue": SetContinueParallax(Labs.On("plxcontinue")); break;
             case "coverdim": case "covereffect": ApplyCoverLabs(); break;
             case "dust": RefreshDust(); break;
             case "companion": SetCompanion(Labs.On("companion")); break;
@@ -378,6 +395,7 @@ public partial class MainWindow
     {
         int index = GameList.SelectedIndex;
         if (_labsLastIndex >= 0 && index >= 0) CompanionLook(Math.Sign(index - _labsLastIndex));
+        if (index != _labsLastIndex) CompanionNoticeSelection();
         _labsLastIndex = index;
         if (!Labs.On("genresound")) return;
         _genreTimer.Stop();
@@ -394,7 +412,7 @@ public partial class MainWindow
         // Fade out, change, fade back in.
         var player = _menuMusic;
         if (player == null || !_menuMusicPlaying) { _genreTrack = track; UpdateMenuMusic(); return; }
-        double target = Math.Clamp(Settings.MenuMusicVolume, 0, 100) / 100.0;
+        double target = MusicLevel;
         int step = 0;
         var fade = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
         fade.Tick += (_, _) =>
@@ -464,6 +482,7 @@ public partial class MainWindow
         var container = GameList.SelectedItem == null ? null : GameList.ItemContainerGenerator.ContainerFromItem(GameList.SelectedItem) as FrameworkElement;
         var cover = container == null ? null : Named(container, "CoverImage");
         var face = container == null ? null : Named(container, "ContinueFace");
+        if (ParallaxOwns(GameList.SelectedItem as Game)) { ResetTilt(); return; } // the parallax moves the "Continue" tile
         if (!ReferenceEquals(cover, _tiltedCover)) { ResetTilt(); _tiltedCover = cover; _tiltedFace = face; }
         if (cover == null) return;
         // How far, how, zoomed or not, and which way (Settings > Home screen > Covers that tilt).
@@ -589,6 +608,7 @@ public partial class MainWindow
             _companionTimer.Start();
             CompanionTick();
             CompanionReact("wave");
+            HookCompanionPet();
         }
         else if (!on && _companion != null)
         {
@@ -599,6 +619,7 @@ public partial class MainWindow
             _companion = null;
             _companionBubble = null;
             _companionBubbleText = null;
+            _companionPetHooked = false;
         }
     }
 
@@ -617,7 +638,7 @@ public partial class MainWindow
     {
         if (_companion == null || _companionSprite == null) return;
         _companionAction = action;
-        double seconds = action switch
+        double seconds = CompanionExtraSeconds(action) ?? action switch
         {
             "spin" => 1.6, "dance" => 3.2, "sleep" => 4, "wave" or "bye" => 2.2, "walk" => 4.2, "juggle" => 3, "lookaround" => 2.6, "flip" => 1.4,
             "trip" => 2.4, "peekaboo" => 2.6, "balloon" => 3.2, "read" or "tinker" or "search" or "think" or "game" => 3, "zoom" => 1.6,
@@ -858,7 +879,8 @@ public partial class MainWindow
                     Sparkles("≡", 4, "#AAB4C8");
                     break;
             }
-        string? say = action switch
+        if (!reduce) CompanionExtraAnimate(action);
+        string? say = CompanionTakeLine(action) ?? CompanionExtraSay(action) ?? action switch
         {
             "wave" => new[] { "Hi!", "Welcome back!", "Hello!" }[Random.Shared.Next(3)],
             "bye" => "Have fun!",
@@ -1031,7 +1053,16 @@ public partial class MainWindow
     /// Where the companion is, by page, and what it does there: its first move when it arrives, the things it does
     /// now and then, and what it says. Null: pages it stays off (full-screen video, web pages, the game's start, pop-ups).
     /// </summary>
-    private static (string Arrive, string[] Idle, string[] Lines)? CompanionPlace(Screen? screen) => screen switch
+    private static (string Arrive, string[] Idle, string[] Lines)? CompanionPlace(Screen? screen)
+    {
+        if (screen is { IsDialog: true }) return null;
+        if (CompanionPlaceExtra(screen) is { } extra) return extra;
+        var core = CompanionPlaceCore(screen);
+        if (core is { } c && screen == null) return (c.Arrive, c.Idle.Concat(HomeMoreActs).ToArray(), c.Lines.Concat(HomeMore).ToArray());
+        return core;
+    }
+
+    private static (string Arrive, string[] Idle, string[] Lines)? CompanionPlaceCore(Screen? screen) => screen switch
     {
         null => ("wave", new[] { "walk", "juggle", "lookaround", "stretch", "flip", "trip", "peekaboo", "balloon", "confetti", "dance", "game", "think",
                                  "ball", "bubbles", "magic", "meditate", "wobble", "sneeze", "roam", "hop" },
@@ -1080,7 +1111,11 @@ public partial class MainWindow
     {
         if (playing == _companionWasPlaying) return;
         _companionWasPlaying = playing;
-        if (!playing) CompanionReact("wave");
+        if (!playing)
+        {
+            if (CompanionWelcomeBack() is { } line) _companionLines["wave"] = line;
+            CompanionReact("wave");
+        }
     }
 
     private void CompanionFrame(object? sender, EventArgs e)
@@ -1127,6 +1162,11 @@ public partial class MainWindow
             {
                 Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
                 {
+                    if (CompanionArriveFor(top) is { } special)
+                    {
+                        if (special.Line != null) CompanionQueue(special.Act, special.Line); else CompanionQueue(special.Act);
+                        return;
+                    }
                     CompanionQueue(place.Value.Arrive);
                     if (Random.Shared.Next(3) == 0) CompanionSay(place.Value.Lines[Random.Shared.Next(place.Value.Lines.Length)]);
                 });
@@ -1134,7 +1174,7 @@ public partial class MainWindow
         }
         _companionTicks++;
         string mood = Labs.CompanionMood(Playtime, Achievements, _celebratedAt);
-        mood = _companionAction switch
+        mood = CompanionExtraMood(_companionAction) ?? _companionAction switch
         {
             "jump" or "spin" => "cheer",
             "hearts" => "love",

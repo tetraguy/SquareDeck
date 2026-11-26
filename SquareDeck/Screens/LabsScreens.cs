@@ -1320,6 +1320,20 @@ public sealed class CompanionScreen : ListScreen
             var action = id;
             AddRow(label, null, "", click: () => Host.CompanionReact(action));
         }
+        AddHeader("Game acts");
+        AddNote("Highlight a game on Home for a moment and it acts out what kind of game it is, and says something about it: how long you've played, " +
+                "when you last did, how long it takes to beat. It also gets dizzy if you whiz along the row, giggles when you tap it, says goodbye " +
+                "in the game's own spirit, asks how it went when you're back, and knows the holidays.");
+        foreach (var (id, label) in new[] { ("vroom", "Race car"), ("slash", "Sword swing"), ("pewpew", "Pew pew"), ("punch", "Combo"), ("spooked", "Spooked"),
+                                            ("flashlight", "Flashlight"), ("puzzle", "Puzzle"), ("farm", "Grow a flower"), ("dribble", "Dribble"), ("dice", "Roll a d20"),
+                                            ("potion", "Potion"), ("chess", "Chess move"), ("rocket", "Rocket launch"), ("plane", "Airplane"), ("coin", "Coin block"),
+                                            ("camp", "Campfire"), ("tea", "Tea break"), ("notes", "Rhythm"), ("build", "Build a house"), ("pixel", "8-bit jump"),
+                                            ("fish", "Go fishing"), ("dizzy", "Dizzy"), ("pet", "Pet"), ("snow", "Snow"), ("fireworks", "Fireworks"),
+                                            ("feast", "Feast"), ("pumpkin", "Pumpkin") })
+        {
+            var game = id;
+            AddRow(label, null, "\uE7FC", click: () => Host.CompanionReact(game));
+        }
     }
 
     private void Change(string key, string value)

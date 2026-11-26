@@ -55,6 +55,10 @@ public sealed class TaskManagerScreen : Screen
 
     // Layout.
     private readonly StackPanel _tabs = new() { Orientation = Orientation.Horizontal };
+
+    /// <summary>Experimental: Switch 2 style Recomp Zone, Retro Lounge, Explorer and Task Manager.</summary>
+    private readonly bool _s2 = Switch2Pages.ToolsOn;
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
     private readonly TextBlock _chipCpu = Ui.Text("--", 15, "FgBrush", bold: true), _chipRam = Ui.Text("--", 15, "FgBrush", bold: true), _chipBattery = Ui.Text("", 15, "FgBrush", bold: true);
     private readonly StackPanel _chipBatteryPanel = new() { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed, Margin = new Thickness(16, 0, 0, 0) };
     private readonly Grid _listPanel = new();
@@ -89,9 +93,13 @@ public sealed class TaskManagerScreen : Screen
             var b = new Button { Style = Ui.StyleOf("PillButton"), Content = label, Margin = new Thickness(0, 0, 8, 0), Focusable = false, Tag = t, FontSize = 17 };
             b.Click += (_, _) => SetTab(t);
             _tabs.Children.Add(b);
+            // Switch 2 style: the tabs as sections down the left (LB / RB or a tap change them).
+            var item = Switch2Pages.NavItem(label, null, false, () => SetTab(t), focusable: false);
+            item.DataContext = t;
+            _s2Nav.Children.Add(item);
         }
         DockPanel.SetDock(_tabs, Dock.Left);
-        top.Children.Add(_tabs);
+        if (!_s2) top.Children.Add(_tabs);
         var menu = IconButton("", "Menu", () => _ = MainMenuAsync());
         DockPanel.SetDock(menu, Dock.Right);
         top.Children.Add(menu);
@@ -158,7 +166,15 @@ public sealed class TaskManagerScreen : Screen
 
         SetPage("Task Manager", body,
             "{Select}  Actions      {Details}  End task      {Options}  Sort      LB RB  Tabs      {Back}  Back", wide: true);
-        CompactHeader();
+        if (_s2)
+        {
+            (body.Parent as Panel)?.Children.Remove(body);
+            ReplaceBody(Switch2Pages.Shell(_s2Nav, body));
+            UseSwitch2Chrome("Task Manager", "\uE9D9");
+            _headers.Margin = new Thickness(28, 0, 44, 6); // over the flat rows' wider padding
+            Switch2Pages.AutoRestyle(_list, 56);
+        }
+        else CompactHeader();
 
         _timer.Tick += (_, _) => _ = SampleAsync();
     }
@@ -180,6 +196,12 @@ public sealed class TaskManagerScreen : Screen
         b.Click += (_, _) => { _sort = sort; SaveState(); Arrange(force: true); UpdateHeaders(); };
         Grid.SetColumn(b, column);
         _headers.Children.Add(b);
+    }
+
+    public override void OnResumed()
+    {
+        if (_s2) RefreshSwitch2Colors();
+        base.OnResumed();
     }
 
     public override void OnShown()
@@ -263,6 +285,8 @@ public sealed class TaskManagerScreen : Screen
     private void SetTab(Tab tab)
     {
         _tab = tab;
+        foreach (var item in _s2Nav.Children.OfType<Button>())
+            item.Tag = item.DataContext is Tab it && it == tab ? "selected" : null;
         foreach (var b in _tabs.Children.OfType<Button>())
         {
             if (b.Tag is Tab t && t == tab) b.SetResourceReference(ForegroundProperty, "AccentBrush");

@@ -28,8 +28,24 @@ public static class GameCard
     /// </summary>
     public static double Round(double usual) => Theme.TileCorner <= 4 ? Math.Min(usual, Theme.TileCorner + 2) : usual;
 
+    /// <summary>
+    /// Experimental "Switch 2 style launch and return": the game's cards (the countdown, "Stop this game?", an update
+    /// before playing) in the UI style's own colors and the Switch 2 manner: a plain card, quiet text, flat buttons that
+    /// take the rimmed highlight, instead of the game's colors and glow.
+    /// </summary>
+    public static bool S2 => Labs.On("s2game");
+
+    private static Brush Fore => S2 ? new SolidColorBrush(Switch2Settings.Text) : Brushes.White;
+
     public static Palette ColorsOf(Game? game)
     {
+        if (S2)
+        {
+            Switch2Settings.Refresh();
+            var blue = Switch2Settings.Blue;
+            double lum = (0.299 * blue.R + 0.587 * blue.G + 0.114 * blue.B) / 255;
+            return new Palette(blue, Switch2Settings.Background, lum > 0.6 ? Color.FromRgb(0x10, 0x12, 0x16) : Colors.White);
+        }
         Color? main = null;
         try { if (game?.Cover is BitmapSource cover) main = ImageLoader.DominantColor(cover); } catch (Exception) { }
         var c = main ?? (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Color.FromRgb(0x3B, 0x82, 0xF6);
@@ -71,7 +87,16 @@ public static class GameCard
             Effect = Perf.Active ? null : new DropShadowEffect { Color = p.Accent, BlurRadius = 70, ShadowDepth = 0, Opacity = 0.45 },
             RenderTransformOrigin = new Point(0.5, 0.5)
         };
+        if (S2)
+        {
+            // A plain card in the page color, no outline or colored glow, a soft shadow.
+            card.Background = new SolidColorBrush(Switch2Settings.Background);
+            card.BorderThickness = new Thickness(0);
+            card.CornerRadius = new CornerRadius(Round(18));
+            card.Effect = Perf.Active ? null : new DropShadowEffect { BlurRadius = 40, ShadowDepth = 6, Opacity = 0.35 };
+        }
         var glow = new RadialGradientBrush { RadiusX = 0.6, RadiusY = 0.7 };
+        if (S2) glow.Opacity = 0;
         glow.GradientStops.Add(new GradientStop(Color.FromArgb(0x50, p.Accent.R, p.Accent.G, p.Accent.B), 0));
         glow.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, p.Accent.R, p.Accent.G, p.Accent.B), 1));
         var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(0xB8, 0, 0, 0)) };
@@ -116,7 +141,7 @@ public static class GameCard
 
     public static TextBlock Text(string text, double size, bool bold = false, double opacity = 1) => new()
     {
-        Text = text, FontSize = size, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, Foreground = Brushes.White, Opacity = opacity,
+        Text = text, FontSize = size, FontWeight = bold && !S2 ? FontWeights.SemiBold : FontWeights.Normal, Foreground = Fore, Opacity = opacity,
         TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, TextWrapping = TextWrapping.Wrap
     };
 
@@ -133,7 +158,7 @@ public static class GameCard
     /// </summary>
     public static Button Pill(string label, string glyph, bool primary, Palette p, Action click)
     {
-        var fore = new SolidColorBrush(primary ? p.OnAccent : Colors.White);
+        var fore = new SolidColorBrush(primary ? p.OnAccent : S2 ? Switch2Settings.Text : Colors.White);
         var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         row.Children.Add(new TextBlock { Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 15, Foreground = fore,
                                          VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 9, 0),
@@ -145,7 +170,7 @@ public static class GameCard
             // Sized so three fit side by side on the card, with room to grow when highlighted.
             CornerRadius = new CornerRadius(Round(24)), Padding = new Thickness(20, 10, 22, 11), MinWidth = 140, Child = row,
             BorderThickness = new Thickness(3), BorderBrush = Brushes.Transparent,
-            Background = primary ? new SolidColorBrush(p.Accent) : new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF)),
+            Background = primary ? new SolidColorBrush(p.Accent) : S2 ? new SolidColorBrush(Switch2Settings.Card) : new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF)),
             RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = scale
         };
         var button = new Button
@@ -153,9 +178,11 @@ public static class GameCard
             Content = face, Margin = new Thickness(8, 0, 8, 0), FocusVisualStyle = null, Cursor = Cursors.Hand,
             Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) }
         };
+        if (S2) face.CornerRadius = new CornerRadius(Round(12));
         void Highlight(bool on)
         {
-            face.BorderBrush = on ? Brushes.White : Brushes.Transparent;
+            face.BorderBrush = on ? (S2 ? Switch2Settings.RimBrush : Brushes.White) : Brushes.Transparent;
+            if (S2) face.Effect = on && !Perf.Active ? new DropShadowEffect { Color = Switch2Settings.Blue, BlurRadius = 16, ShadowDepth = 0, Opacity = 0.5 } : null;
             double to = on && !Theme.ReduceMotion ? 1.03 : 1;
             scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(120)));
             scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(120)));
@@ -235,7 +262,7 @@ public sealed class GameBusyScreen : Screen
         double radius = corner + gap + thick / 2;
         double side = outer - thick;
         double perimeter = (4 * (side - 2 * radius) + 2 * Math.PI * radius) / thick; // in stroke widths
-        art.Children.Add(new Rectangle { Width = outer, Height = outer, RadiusX = radius, RadiusY = radius, StrokeThickness = thick, Stroke = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF)) });
+        art.Children.Add(new Rectangle { Width = outer, Height = outer, RadiusX = radius, RadiusY = radius, StrokeThickness = thick, Stroke = new SolidColorBrush(GameCard.S2 ? Switch2Settings.Line : Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF)) });
         var runner = new Rectangle
         {
             Width = outer, Height = outer, RadiusX = radius, RadiusY = radius, StrokeThickness = thick, Stroke = new SolidColorBrush(p.Accent),
@@ -315,11 +342,11 @@ public sealed class CountdownScreen : Screen
         panel.Children.Add(label);
 
         var dial = new Grid { Width = 132, Height = 132, HorizontalAlignment = HorizontalAlignment.Center };
-        dial.Children.Add(GameCard.Ring(132, 8, Color.FromArgb(0x2C, 0xFF, 0xFF, 0xFF)));
+        dial.Children.Add(GameCard.Ring(132, 8, GameCard.S2 ? Switch2Settings.Line : Color.FromArgb(0x2C, 0xFF, 0xFF, 0xFF)));
         _ring = GameCard.Ring(132, 8, p.Accent);
         if (!Perf.Active) _ring.Effect = new DropShadowEffect { Color = p.Accent, BlurRadius = 16, ShadowDepth = 0, Opacity = 0.8 };
         dial.Children.Add(_ring);
-        _number = new TextBlock { FontSize = 64, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center,
+        _number = new TextBlock { FontSize = 64, FontWeight = GameCard.S2 ? FontWeights.Normal : FontWeights.Bold, Foreground = GameCard.S2 ? new SolidColorBrush(Switch2Settings.Text) : Brushes.White, HorizontalAlignment = HorizontalAlignment.Center,
                                   VerticalAlignment = VerticalAlignment.Center, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = _pop };
         dial.Children.Add(_number);
         panel.Children.Add(dial);

@@ -37,6 +37,7 @@ public sealed class SearchScreen : Screen
     private StackPanel? _storeSection;
 
     private readonly bool _settingsOnly;
+    private readonly bool _s2 = Switch2Pages.SystemOn;
 
     /// <param name="settingsOnly">Settings' "Find a setting": only settings are searched.</param>
     public SearchScreen(bool settingsOnly = false)
@@ -91,6 +92,18 @@ public sealed class SearchScreen : Screen
         Grid.SetRow(_scroll, 1);
         body.Children.Add(_scroll);
         SetPage(settingsOnly ? "Find a setting" : "Search", body, "{Select}  Open      {Details}  More      {Back}  Back", wide: true);
+        if (_s2)
+        {
+            // Switch 2 style (Experimental): the box as a plain card that takes the rimmed highlight, results as flat
+            // rows and tiles under bar-and-name headings.
+            UseSwitch2Chrome(settingsOnly ? "Find a setting" : "Search", "\uE721");
+            _bar.SetResourceReference(Border.BackgroundProperty, "S2Card");
+            _bar.CornerRadius = new CornerRadius(10);
+            _bar.Margin = new Thickness(0, 6, 14, 10);
+            _input.GotKeyboardFocus += (_, _) => _bar.SetResourceReference(Border.BorderBrushProperty, "S2Rim");
+            _input.LostKeyboardFocus += (_, _) => _bar.BorderBrush = Brushes.Transparent;
+            Switch2Pages.AutoRestyle(_results);
+        }
     }
 
     public override void OnShown()
@@ -435,6 +448,21 @@ public sealed class SearchScreen : Screen
     private StackPanel Section(string title, int? count)
     {
         var section = new StackPanel();
+        if (_s2)
+        {
+            var bar = (StackPanel)Switch2Settings.Header(title);
+            if (count is int c)
+            {
+                var shown = Ui.Text(c.ToString(), 17, "SubtleBrush");
+                shown.VerticalAlignment = VerticalAlignment.Center;
+                shown.Margin = new Thickness(12, 0, 0, 0);
+                bar.Children.Add(shown);
+            }
+            bar.Margin = new Thickness(14, _results.Children.Count == 0 ? 8 : 26, 0, 8);
+            section.Children.Add(bar);
+            _results.Children.Add(section);
+            return section;
+        }
         var header = Ui.Header(count is int n ? $"{title}  ({n})" : title);
         header.Margin = new Thickness(6, _results.Children.Count == 0 ? 4 : 22, 0, 8);
         section.Children.Add(header);

@@ -224,7 +224,82 @@ public sealed class InstalledAppsScreen : ListScreen
     private CancellationTokenSource _cts = new();
     private readonly Dictionary<string, ImageSource?> _icons = new();
 
-    public InstalledAppsScreen() : base("Installed apps", "{Select}  Options      {Details}  Search      {Options}  Sort      LB RB  Show      {Back}  Back") { }
+    /// <summary>Experimental "Switch 2 style Installed apps": which apps down the left, the list on the right.</summary>
+    private readonly bool _s2 = Labs.On("s2apps");
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+    private readonly StackPanel _s2Under = new() { Margin = new Thickness(40, 0, 18, 14) };
+
+    public InstalledAppsScreen() : base("Installed apps", "{Select}  Options      {Details}  Search      {Options}  Sort      LB RB  Show      {Back}  Back")
+    {
+        if (!_s2) return;
+        Rows.Width = double.NaN;
+        Rows.HorizontalAlignment = HorizontalAlignment.Stretch;
+        Rows.Margin = new Thickness(0, 0, 18, 24);
+        ReplaceBody(Switch2Pages.Shell(_s2Nav, RowsScroll, _s2Under));
+        UseSwitch2Chrome("Installed apps", "\uE71D");
+    }
+
+    public override void OnResumed()
+    {
+        if (_s2) RefreshSwitch2Colors();
+        base.OnResumed();
+    }
+
+    protected override void AfterBuild()
+    {
+        if (!_s2) return;
+        Switch2Settings.Restyle(Rows);
+        BuildSwitch2Nav();
+    }
+
+    /// <summary>All, desktop and Store apps with their counts, then the biggest and the newest, down the left.</summary>
+    private void BuildSwitch2Nav()
+    {
+        _s2Nav.Children.Clear();
+        _s2Under.Children.Clear();
+        var all = _apps ?? new List<ManagedApp>();
+        string? N(int n) => _apps == null ? null : n.ToString("N0");
+        foreach (var (id, name, count) in new[] { ("all", "All apps", all.Count), ("desktop", "Desktop programs", all.Count(a => !a.IsStore)), ("store", "Microsoft Store apps", all.Count(a => a.IsStore)) })
+        {
+            var which = id;
+            _s2Nav.Children.Add(Switch2Pages.NavItem(name, N(count), _show == id, () => { _show = which; UiSound.Move(); RebuildFromTop(); }));
+        }
+        _s2Nav.Children.Add(Switch2Pages.NavLine());
+        foreach (var (id, name) in new[] { ("name", "A to Z"), ("size", "Biggest first"), ("date", "Newest first") })
+        {
+            var which = id;
+            _s2Nav.Children.Add(Switch2Pages.NavItem(name, null, _sort == id, () => { _sort = which; RebuildFromTop(); }));
+        }
+        if (_apps == null) return;
+        long total = all.Sum(a => a.Bytes);
+        if (total <= 0) return;
+        _s2Under.Children.Add(Ui.Text(Size(total), 22, "FgBrush"));
+        _s2Under.Children.Add(Ui.Text("used by your apps", 13, "SubtleBrush"));
+        // The five biggest as a stacked bar, the rest in gray.
+        var bar = new Grid { Height = 10, Margin = new Thickness(0, 10, 0, 6) };
+        bar.Children.Add(new Border { CornerRadius = new CornerRadius(5), Background = new SolidColorBrush(Switch2Settings.Off) });
+        var parts = new StackPanel { Orientation = Orientation.Horizontal };
+        var top = all.OrderByDescending(a => a.Bytes).Take(5).ToList();
+        double[] shades = { 1, 0.8, 0.62, 0.46, 0.32 };
+        bar.SizeChanged += (_, e) =>
+        {
+            parts.Children.Clear();
+            for (int i = 0; i < top.Count; i++)
+            {
+                var piece = new Border { Width = Math.Max(2, e.NewSize.Width * top[i].Bytes / total), Opacity = shades[i], ToolTip = top[i].Name + "  " + Size(top[i].Bytes) };
+                piece.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
+                parts.Children.Add(piece);
+            }
+        };
+        bar.Children.Add(new Border { CornerRadius = new CornerRadius(5), ClipToBounds = true, Child = parts });
+        _s2Under.Children.Add(bar);
+        foreach (var a in top.Take(3))
+        {
+            var t = Ui.Text(a.Name + "  " + Size(a.Bytes), 13, "SubtleBrush");
+            t.TextTrimming = TextTrimming.CharacterEllipsis;
+            _s2Under.Children.Add(t);
+        }
+    }
 
     public override void OnShown()
     {
@@ -263,7 +338,7 @@ public sealed class InstalledAppsScreen : ListScreen
         string showName = _show switch { "desktop" => "Desktop programs", "store" => "Microsoft Store apps", _ => "All apps" };
         string sortName = _sort switch { "size" => "Size", "date" => "Install date", _ => "Name" };
         AddRow("Search", _search.Length > 0 ? _search : "Find an app", "\uE721", click: () => _ = SearchAsync());
-        AddRow("Showing", showName, "\uE71C", click: () => Cycle(+1));
+        if (!_s2) AddRow("Showing", showName, "\uE71C", click: () => Cycle(+1));
         AddRow("Sort by", sortName, "\uE8CB", click: CycleSort);
         long total = list.Sum(a => a.Bytes);
         AddHeader($"{list.Count} apps" + (total > 0 ? $"  ·  {Size(total)}" : ""));
@@ -317,7 +392,7 @@ public sealed class InstalledAppsScreen : ListScreen
         var order = new[] { "all", "desktop", "store" };
         _show = order[(Array.IndexOf(order, _show) + step + order.Length) % order.Length];
         UiSound.Move();
-        Rebuild();
+        if (_s2) RebuildFromTop(); else Rebuild();
     }
 
     private void CycleSort()
@@ -332,8 +407,8 @@ public sealed class InstalledAppsScreen : ListScreen
         {
             case NavAction.X: _ = SearchAsync(); return true;
             case NavAction.Y: CycleSort(); return true;
-            case NavAction.RB: Cycle(+1); return true;
-            case NavAction.LB: Cycle(-1); return true;
+            case NavAction.RB or NavAction.RT: Cycle(+1); return true;
+            case NavAction.LB or NavAction.LT: Cycle(-1); return true;
         }
         return false;
     }
@@ -346,10 +421,53 @@ public sealed class AppOptionsScreen : ListScreen
     private readonly Action _changed;
     private string? _busy;
 
+    private readonly bool _s2 = Labs.On("s2apps");
+
     public AppOptionsScreen(ManagedApp app, Action changed) : base(app.Name, "{Select}  Select      {Back}  Back")
     {
         _app = app;
         _changed = changed;
+        if (!_s2) return;
+        UseSwitch2Chrome(app.Name.Length > 40 ? app.Name[..40] + "\u2026" : app.Name, app.IsStore ? "\uE719" : "\uE71D");
+        Rows.Width = double.NaN;
+        Rows.MaxWidth = 1100;
+        Rows.Margin = new Thickness(18, 0, 40, 24);
+    }
+
+    public override void OnResumed()
+    {
+        if (_s2) RefreshSwitch2Colors();
+        base.OnResumed();
+    }
+
+    protected override void AfterBuild()
+    {
+        if (!_s2) return;
+        Switch2Settings.Restyle(Rows);
+        // The app's own card at the top: its icon, name, publisher and size.
+        var card = new Grid { Margin = new Thickness(14, 18, 14, 4) };
+        card.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        card.ColumnDefinitions.Add(new ColumnDefinition());
+        var icon = new Border { Width = 84, Height = 84, CornerRadius = new CornerRadius(18), Margin = new Thickness(0, 0, 22, 0), Background = new SolidColorBrush(Switch2Settings.Off) };
+        var img = new Image { Width = 56, Height = 56, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        icon.Child = img;
+        if (!_app.IsStore)
+            _ = Task.Run(() => { try { var f = AppsManager.IconFile(_app); var src = f != null ? ShellThumb.Get(f, 96) : null; src?.Freeze(); return src; } catch (Exception) { return null; } })
+                .ContinueWith(t => Dispatcher.BeginInvoke(() => img.Source = t.Result));
+        else icon.Child = new TextBlock { Text = "\uE719", FontFamily = Ui.IconFont, FontSize = 36, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(Switch2Settings.Text) };
+        card.Children.Add(icon);
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var n = Ui.Text(_app.Name, 26, "FgBrush");
+        n.TextTrimming = TextTrimming.CharacterEllipsis;
+        words.Children.Add(n);
+        var bits = new List<string>();
+        if (_app.Publisher.Length > 0) bits.Add(_app.Publisher);
+        if (_app.Bytes > 0) bits.Add(_app.Bytes >= 1L << 30 ? $"{_app.Bytes / 1073741824.0:0.0} GB" : $"{_app.Bytes / 1048576.0:0} MB");
+        bits.Add(_app.IsStore ? "Microsoft Store app" : "Desktop program");
+        words.Children.Add(Ui.Text(string.Join("  \u00B7  ", bits), 16, "SubtleBrush"));
+        Grid.SetColumn(words, 1);
+        card.Children.Add(words);
+        Rows.Children.Insert(0, card);
     }
 
     protected override void Build()

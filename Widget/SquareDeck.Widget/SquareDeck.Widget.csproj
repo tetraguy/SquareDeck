@@ -118,6 +118,9 @@
     <Compile Include="WidgetPage.PowerLooks.cs">
       <DependentUpon>WidgetPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="WidgetPage.Switch2.cs">
+      <DependentUpon>WidgetPage.xaml</DependentUpon>
+    </Compile>
     <Compile Include="WidgetPage.Radios.cs">
       <DependentUpon>WidgetPage.xaml</DependentUpon>
     </Compile>

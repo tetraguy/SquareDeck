@@ -100,7 +100,7 @@ public sealed class CreditsScreen : ListScreen
 
     protected override void Build()
     {
-        AddNote("The Advanced, Legendary and Mythical styles are made from these UI kits, sound packs and fonts. Thank you to everyone who made them.");
+        AddNote("The Legendary and Mythical styles are made from these UI kits, sound packs and fonts. Thank you to everyone who made them.");
         Section("UI kits", "", Kits);
         Section("Sounds", "", Sounds);
         Section("Fonts", "", Fonts);
