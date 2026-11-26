@@ -27,7 +27,7 @@ public partial class MainWindow
     private double _plxBaseX, _plxBaseY, _plxX, _plxY;
     private bool _plxHasBase;
     private DateTimeOffset _plxGyroAt;
-    private FrameworkElement? _plxArt, _plxFace;
+    private FrameworkElement? _plxArt, _plxFace, _plxClipped;
     private bool _plxHeroMoved;
 
     public static bool ContinueParallaxOn => Labs.On("plxcontinue");
@@ -161,6 +161,11 @@ public partial class MainWindow
             ResetParallaxElements();
             _plxArt = art;
             _plxFace = face;
+            // The tile's rounded mask is sized from what's drawn inside it: with the art moved and enlarged, the mask
+            // grew with it and the art spilled past the tile. Clipping the tile's inside to its own box keeps the mask
+            // (and so the art) exactly the tile's size.
+            _plxClipped = art != null ? VisualTreeHelper.GetParent(art) as FrameworkElement : null;
+            if (_plxClipped != null) _plxClipped.ClipToBounds = true;
         }
 
         double x = _plxX, y = _plxY;
@@ -169,7 +174,9 @@ public partial class MainWindow
         {
             // The art: a little bigger than its frame so it can slide, leaning slightly as it goes.
             var group = new TransformGroup();
-            group.Children.Add(new ScaleTransform(1.14, 1.14));
+            // Enough extra size that its edges never show inside the tile, however deep the setting.
+            double zoom = 1 + 0.14 * Math.Max(1, depth);
+            group.Children.Add(new ScaleTransform(zoom, zoom));
             group.Children.Add(new SkewTransform(x * 1.6 * depth, -y * 1.2 * depth));
             group.Children.Add(new TranslateTransform(-x * 22 * depth, -y * 16 * depth));
             art.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -203,6 +210,8 @@ public partial class MainWindow
     private void ResetParallaxElements()
     {
         if (_plxArt != null) _plxArt.RenderTransform = Transform.Identity;
+        if (_plxClipped != null) _plxClipped.ClipToBounds = false;
+        _plxClipped = null;
         if (_plxFace != null) _plxFace.RenderTransform = Transform.Identity;
         _plxArt = _plxFace = null;
     }

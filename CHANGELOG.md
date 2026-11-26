@@ -3,6 +3,12 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.60
+- The Continue where you left off parallax is now off by default (8.1.58 had turned it on). It's switched off once when you update; turn it on in Settings under Home touches, on the page with Night light and Screen shape.
+
+## 8.1.59
+- Fixed: with the Continue where you left off parallax, the tile's artwork spilled past the rounded tile (over the next cover). The art now stays inside the tile, and is enlarged a little more at the Deep and Dramatic settings so its edges never show.
+
 ## 8.1.58
 - Out of Experimental and on by default (turned on once when you update; each keeps a switch in its new place):
   - **Every Looks and sound experiment:** the Switch 2 style Library; Captures, Multimedia and Stores; Recomp Zone, Retro Lounge, Explorer and Task Manager; News, Friends and Your profile; menus, Search, Browser, Notifications and game pages; Passport, Backlog Boss, Mood picker, Leaderboard and Free games; Installed apps; first-time setup; the notifications in the corner; your handheld in the corner; and the Continue where you left off parallax. Their switches are in Settings, on the page with Night light and Screen shape, under "Switch 2 style pages" and "Home touches".

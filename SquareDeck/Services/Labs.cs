@@ -164,7 +164,7 @@ public static partial class Labs
     public static readonly HashSet<string> DefaultOn8124 = new() { "newsettings" };
 
     /// <summary>On for everyone once (when updating to 8.1.58): every look and sound experiment, the Switch boot and the other launch, store and zone animations, and the widget's Switch 2 style and frame cap slider. Each keeps a switch in its new place in Settings.</summary>
-    public static readonly HashSet<string> DefaultOn8158 = new() { "newlibrary", "s2pages", "s2tools", "s2social", "s2system", "s2play", "s2apps", "s2setup", "s2toast", "oemfooter", "plxcontinue", "switchboot", "switchbootplus", "s2game", "zoneexit", "storeintro", "rasurprise", "ws2", "wfpsslider" };
+    public static readonly HashSet<string> DefaultOn8158 = new() { "newlibrary", "s2pages", "s2tools", "s2social", "s2system", "s2play", "s2apps", "s2setup", "s2toast", "oemfooter", "switchboot", "switchbootplus", "s2game", "zoneexit", "storeintro", "rasurprise", "ws2", "wfpsslider" };
 
     /// <summary>On for everyone once (when updating to 8.1.18), with a switch in their new place in Settings.</summary>
     public static readonly HashSet<string> DefaultOn818 = new() { "crashrecovery", "drivenotice", "microsd", "achtoasts" };
@@ -222,6 +222,13 @@ public static partial class Labs
         {
             foreach (var id in DefaultOn8158) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
             settings.LabsGraduated8158 = true;
+            settings.Save();
+        }
+        // 8.1.60: the Continue where you left off parallax is off by default (8.1.58 turned it on): off once, then it's yours to turn on.
+        if (!settings.ParallaxOff8160)
+        {
+            settings.Labs.Remove("plxcontinue");
+            settings.ParallaxOff8160 = true;
             settings.Save();
         }
     }

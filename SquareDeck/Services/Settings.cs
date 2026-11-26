@@ -110,6 +110,7 @@ public sealed class Settings
     public bool LabsGraduated819 { get; set; }
     public bool LabsGraduated8124 { get; set; }
     public bool LabsGraduated8158 { get; set; }
+    public bool ParallaxOff8160 { get; set; }
     /// <summary>Explorer's sidebar is open (L1 or F1 folds it away).</summary>
     public bool ExplorerSidebarOpen { get; set; } = true;
 
