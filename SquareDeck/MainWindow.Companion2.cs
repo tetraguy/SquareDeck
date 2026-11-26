@@ -325,7 +325,20 @@ public partial class MainWindow
         "Heads or tails? Heads. Play something!", "I practiced my moonwalk.", "Do you think I'd be a good sidekick?", "Ready, player one?",
     };
 
-    private static readonly string[] HomeMoreActs = { "tea", "dice", "pixel", "coin", "notes", "puzzle", "chess", "fish", "camp", "rocket", "build", "plane", "potion" };
+    private static readonly string[] HomeMoreActs = { "tea", "dice", "pixel", "coin", "notes", "puzzle", "chess", "fish", "camp", "rocket", "build", "plane", "potion",
+        // 8.5.17
+        "yoyo", "kite", "paint", "jumprope", "gum", "headphones", "stargaze", "sandwich" };
+
+    /// <summary>What each character says when petted.</summary>
+    private static string[] PetLines(string species) => species switch
+    {
+        "cat" => new[] { "Mrrow!", "Purrrr…", "Mew!", "*headbutts your finger*", "More scritches, please." },
+        "bunny" => new[] { "Eep!", "*nose twitch*", "*happy hop*", "*binky!*", "Ears are ticklish!" },
+        "ghost" => new[] { "Ooooo~", "Hehe, boo!", "*floats happily*", "You can touch me?!", "Spooky… and happy." },
+        "robot" => new[] { "Beep boop!", "Affection detected.", "*whirr*", "Happiness at 100%.", "01101000 01101001!" },
+        "dino" => new[] { "Rawr! (That means thanks.)", "*tail wag*", "Stomp stomp!", "Tiny roar!", "*happy chomp*" },
+        _ => new[] { "Bloop!", "*jiggles*", "Squish!", "Hehe, wobbly!", "Boing!" },
+    };
 
     /// <summary>Tapped: it giggles (and gets a bit much if you keep going).</summary>
     private void CompanionPet()
@@ -336,13 +349,21 @@ public partial class MainWindow
         if (_companionPets >= 5)
         {
             _companionPets = 0;
+            CompanionSounds.Pet(CompanionArt.SpeciesId, excited: true);
             _companionLines["dizzy"] = "Okay, okay! I'm dizzy!";
             CompanionReact("dizzy");
             return;
         }
-        _companionLines["pet"] = new[] { "Hehe!", "That tickles!", "Again!", "Boop!", "Hi to you too!", "*happy noises*", "Purr…" }[Random.Shared.Next(7)];
+        // Its own noise for each character, a bigger one when you keep going.
+        var species = CompanionArt.SpeciesId;
+        CompanionSounds.Pet(species, excited: _companionPets >= 4);
+        var lines = PetLines(species).Concat(new[] { "Hehe!", "That tickles!", "Again!" }).ToArray();
+        _companionLines["pet"] = lines[Random.Shared.Next(lines.Length)];
         CompanionReact("pet");
     }
+
+    /// <summary>Pets it from its page (as tapping it does on Home).</summary>
+    public void PetCompanion() => CompanionPet();
 
     private void HookCompanionPet()
     {
@@ -362,6 +383,7 @@ public partial class MainWindow
         "dice" => 2.4, "potion" => 2.2, "chess" => 2.4, "rocket" => 2.4, "plane" => 2.6, "coin" => 1.6, "camp" => 3.2, "tea" => 3, "notes" => 3,
         "build" => 3, "pixel" => 2, "fish" => 3.4, "flashlight" => 2.8, "dizzy" => 2.6, "pet" => 1.4, "snow" => 3.5, "fireworks" => 3,
         "feast" => 3, "pumpkin" => 2.4,
+        "yoyo" => 2.6, "kite" => 3.4, "paint" => 3, "jumprope" => 2.6, "gum" => 2.8, "headphones" => 3.2, "stargaze" => 3.4, "sandwich" => 2.8,
         _ => null,
     };
 
@@ -372,6 +394,9 @@ public partial class MainWindow
         "vroom" or "notes" or "dribble" or "pewpew" or "punch" or "slash" => "dance",
         "tea" or "camp" or "farm" or "puzzle" or "chess" or "build" or "fish" or "potion" or "plane" or "snow" => "happy",
         "pumpkin" => "love",
+        "yoyo" or "kite" or "paint" or "stargaze" or "sandwich" => "happy",
+        "jumprope" or "headphones" => "dance",
+        "gum" => "cheer",
         _ => null,
     };
 
@@ -403,8 +428,124 @@ public partial class MainWindow
         "fireworks" => "Ooooh! Aaaah!",
         "feast" => "Gobble gobble!",
         "pumpkin" => "Boo!",
+        "yoyo" => "Walk the dog!",
+        "kite" => "Up, up and away!",
+        "paint" => "A masterpiece!",
+        "jumprope" => "One, two, three…",
+        "gum" => "*pop!*",
+        "headphones" => "This song slaps.",
+        "stargaze" => "Make a wish…",
+        "sandwich" => "Snack time!",
         _ => null,
     };
+
+    /// <summary>
+    /// One of the reactions to a pet that every character has, each with a sound: a hop (boing), a spin (whoosh), a
+    /// backflip (slide whistle), a ticklish wiggle (giggle), a blush with a kiss, star eyes (chime), a bow (ba-dum-tss),
+    /// zoomies (zip back and forth), a heart burst (pop) and a static spark (zap).
+    /// </summary>
+    private void PetReaction()
+    {
+        if (_companionSprite == null || Theme.ReduceMotion) return;
+        switch (Random.Shared.Next(10))
+        {
+            case 0:
+                CompanionSounds.Effect("boing", 380);
+                _companionMove.BeginAnimation(TranslateTransform.YProperty, Keys((0, 0), (0.18, -30), (0.36, 0), (0.48, -10), (0.6, 0)));
+                _companionScale.BeginAnimation(ScaleTransform.ScaleYProperty, Keys((0, 0.8), (0.18, 1.1), (0.36, 0.85), (0.5, 1)));
+                break;
+            case 1:
+                CompanionSounds.Effect("whoosh", 380);
+                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromSeconds(0.5)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } });
+                Sparkles("✦", 4, "#FFFFFF");
+                break;
+            case 2:
+                CompanionSounds.Effect("slide", 380);
+                _companionMove.BeginAnimation(TranslateTransform.YProperty, Keys((0, 0), (0.3, -40), (0.6, 0)));
+                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, -360, TimeSpan.FromSeconds(0.6)));
+                break;
+            case 3:
+                CompanionSounds.Effect("giggle", 380);
+                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(-8, 8, TimeSpan.FromSeconds(0.08)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(5) });
+                Prop("hehe", "#FFD84D", 13, 58, 6, 1.0);
+                break;
+            case 4:
+                CompanionSounds.Effect("kiss", 380);
+                Prop("◕‿◕", "#FF8FB1", 12, 18, 30, 1.2);
+                Sparkles("♥", 5, "#FF8FB1", rise: true);
+                _companionScale.BeginAnimation(ScaleTransform.ScaleXProperty, Keys((0, 1), (0.2, 1.1), (0.5, 1)));
+                _companionScale.BeginAnimation(ScaleTransform.ScaleYProperty, Keys((0, 1), (0.2, 1.1), (0.5, 1)));
+                break;
+            case 5:
+                CompanionSounds.Effect("chime", 380);
+                Prop("★", "#FFE27A", 14, 22, 26, 1.1);
+                Prop("★", "#FFE27A", 14, 42, 26, 1.1);
+                Sparkles("✦", 6, "#FFE27A");
+                break;
+            case 6:
+                CompanionSounds.Effect("drum", 380);
+                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, Keys((0, 0), (0.25, 18), (0.6, 18), (0.8, 0)));
+                Prop("ta-da!", "#C3A6FF", 13, 50, 4, 1.0);
+                break;
+            case 7:
+                CompanionSounds.Effect("whoosh", 380);
+                _companionMove.BeginAnimation(TranslateTransform.XProperty, Keys((0, 0), (0.15, -40), (0.35, 40), (0.55, -24), (0.75, 0)));
+                Sparkles("~", 3, "#AAB4C8");
+                break;
+            case 8:
+                CompanionSounds.Effect("pop", 380);
+                for (int i = 0; i < 8; i++)
+                {
+                    var heart = Prop("♥", i % 2 == 0 ? "#FF5A7A" : "#FF8FB1", 12, 30, 24, 0.9);
+                    double a = i / 8.0 * Math.PI * 2;
+                    heart?.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(30, 30 + Math.Cos(a) * 44, TimeSpan.FromSeconds(0.6)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                    heart?.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(24, 24 + Math.Sin(a) * 36, TimeSpan.FromSeconds(0.6)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                }
+                break;
+            default:
+                CompanionSounds.Effect("zap", 380);
+                Sparkles("⚡", 3, "#FFE27A");
+                _companionMove.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-2, 2, TimeSpan.FromMilliseconds(40)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(6) });
+                break;
+        }
+    }
+
+    /// <summary>A little something extra when it's petted, in each character's own way.</summary>
+    private void PetFlourish(string species)
+    {
+        if (_companionSprite == null || Theme.ReduceMotion) return;
+        switch (species)
+        {
+            case "cat":
+                // Purrs: soft waves beside it and a slow, happy lean.
+                for (int i = 0; i < 3; i++) { var w = Prop("≈", "#FFD8A8", 14, 74, 30 + i * 10, 1.3); w?.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(74, 92, TimeSpan.FromSeconds(1.2)) { BeginTime = TimeSpan.FromSeconds(i * 0.15) }); }
+                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, Keys((0, 0), (0.4, 8), (1.1, 8), (1.4, 0)));
+                break;
+            case "bunny":
+                // Two happy hops.
+                _companionMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, -18, TimeSpan.FromSeconds(0.17)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(2), EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
+                break;
+            case "ghost":
+                // Fades a little, floats up and comes back.
+                _companionSprite.BeginAnimation(OpacityProperty, Keys((0, 1), (0.4, 0.45), (1.0, 1)));
+                _companionMove.BeginAnimation(TranslateTransform.YProperty, Keys((0, 0), (0.5, -14), (1.2, 0)));
+                break;
+            case "robot":
+                // Sparks and a quick happy spin of the head (a little tick back and forth).
+                Sparkles("⚡", 3, "#6FE6FF");
+                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, Keys((0, 0), (0.1, -6), (0.2, 6), (0.3, -6), (0.4, 6), (0.5, 0)));
+                break;
+            case "dino":
+                // A stomp: a little shake and dust.
+                _companionMove.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-3, 3, TimeSpan.FromMilliseconds(70)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(4) });
+                Sparkles("∴", 3, "#C8B89A");
+                break;
+            default:
+                // The blob: an extra-big jiggle.
+                _companionScale.BeginAnimation(ScaleTransform.ScaleXProperty, Keys((0, 1), (0.1, 1.2), (0.3, 0.9), (0.5, 1.08), (0.7, 1)));
+                break;
+        }
+    }
 
     /// <summary>A prop: a symbol in the effects layer, which fades out when it's done.</summary>
     private TextBlock? Prop(string symbol, string hex, double size, double x, double y, double seconds, bool emoji = false)
@@ -765,10 +906,145 @@ public partial class MainWindow
                 }
                 _companionTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(-12, 12, TimeSpan.FromSeconds(0.3)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(4), EasingFunction = new SineEase() });
                 break;
+            case "yoyo":
+            {
+                // A yo-yo drops, spins at the bottom and climbs back, three times.
+                var yo = Prop("◉", "#FF5A7A", 16, 62, 30, 2.5);
+                var cord = new Line { X1 = 70, Y1 = 30, X2 = 70, Y2 = 30, Stroke = Brushes.White, StrokeThickness = 1.5, Opacity = 0.8 };
+                _companionFx?.Children.Add(cord);
+                var drop = Keys((0, 30), (0.4, 92), (0.8, 30));
+                drop.RepeatBehavior = new RepeatBehavior(3);
+                yo?.BeginAnimation(Canvas.TopProperty, drop);
+                var reach = Keys((0, 38), (0.4, 100), (0.8, 38));
+                reach.RepeatBehavior = new RepeatBehavior(3);
+                cord.BeginAnimation(Line.Y2Property, reach);
+                Later(2.5, () => _companionFx?.Children.Remove(cord));
+                _companionMove.BeginAnimation(TranslateTransform.YProperty, Keys((0, 0), (0.4, 3), (0.8, 0)));
+                break;
+            }
+            case "kite":
+            {
+                // A kite climbs on its string and dances in the wind while it holds on and leans back.
+                var kite = Prop("◆", "#7FB8FF", 26, 60, 40, 3.3);
+                var tail = Prop("〰", "#FFD84D", 16, 66, 66, 3.3);
+                var x = Keys((0, 60), (0.8, 110), (1.6, 90), (2.4, 120), (3.2, 100));
+                var y = Keys((0, 40), (0.8, -50), (1.6, -36), (2.4, -60), (3.2, -44));
+                kite?.BeginAnimation(Canvas.LeftProperty, x);
+                kite?.BeginAnimation(Canvas.TopProperty, y);
+                tail?.BeginAnimation(Canvas.LeftProperty, Keys((0, 66), (0.8, 116), (1.6, 96), (2.4, 126), (3.2, 106)));
+                tail?.BeginAnimation(Canvas.TopProperty, Keys((0, 66), (0.8, -24), (1.6, -10), (2.4, -34), (3.2, -18)));
+                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, Keys((0, 0), (0.6, -8), (2.8, -8), (3.3, 0)));
+                _companionLook = 1; _companionLookUntil = DateTime.Now.AddSeconds(3.2);
+                break;
+            }
+            case "paint":
+            {
+                // An easel; dabs of color land on it one by one, then it steps back to admire it.
+                Prop("▭", "#E8ECF2", 40, 84, 20, 2.9);
+                string[] colors = { "#FF5A7A", "#FFD84D", "#7FD8BE", "#7FB8FF", "#C3A6FF" };
+                for (int i = 0; i < colors.Length; i++)
+                {
+                    int n = i;
+                    Later(0.3 + n * 0.4, () => Prop("●", colors[n], 9, 92 + Random.Shared.Next(0, 18), 36 + Random.Shared.Next(0, 16), 2.6 - n * 0.4));
+                }
+                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, Keys((0, 0), (0.3, 6), (0.5, -2), (0.7, 6), (0.9, -2), (1.1, 6), (2.3, 0)));
+                _companionMove.BeginAnimation(TranslateTransform.XProperty, Keys((0, 0), (2.2, 0), (2.6, -10), (3, 0)));
+                _companionLook = 1; _companionLookUntil = DateTime.Now.AddSeconds(2.9);
+                break;
+            }
+            case "jumprope":
+            {
+                // Skipping rope: the rope swings over its head and under its feet as it hops, faster each time.
+                var rope = new System.Windows.Shapes.Ellipse { Width = 84, Height = 92, Stroke = new SolidColorBrush(Color.FromRgb(0xFF, 0x8F, 0xB1)), StrokeThickness = 2.5, Opacity = 0.85,
+                    RenderTransformOrigin = new Point(0.5, 0.5) };
+                var squash = new ScaleTransform(1, 1);
+                rope.RenderTransform = squash;
+                Canvas.SetLeft(rope, -6); Canvas.SetTop(rope, -12);
+                _companionFx?.Children.Add(rope);
+                var swing = new DoubleAnimation(1, -1, TimeSpan.FromSeconds(0.4)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(3) };
+                squash.BeginAnimation(ScaleTransform.ScaleYProperty, swing);
+                _companionMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, -16, TimeSpan.FromSeconds(0.2)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(6), EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
+                Later(2.5, () => _companionFx?.Children.Remove(rope));
+                break;
+            }
+            case "gum":
+            {
+                // A bubble of gum grows, wobbles… and pops.
+                var bubble = new System.Windows.Shapes.Ellipse { Width = 6, Height = 6, Fill = new SolidColorBrush(Color.FromArgb(0xDD, 0xFF, 0x8F, 0xB1)), RenderTransformOrigin = new Point(0.5, 0.5) };
+                Canvas.SetLeft(bubble, 33); Canvas.SetTop(bubble, 44);
+                _companionFx?.Children.Add(bubble);
+                var grow = new ScaleTransform(1, 1);
+                bubble.RenderTransform = grow;
+                var size = Keys((0, 1), (1.6, 6), (1.8, 5.6), (2.0, 6.4), (2.1, 0.01));
+                grow.BeginAnimation(ScaleTransform.ScaleXProperty, size);
+                grow.BeginAnimation(ScaleTransform.ScaleYProperty, Keys((0, 1), (1.6, 6), (1.8, 6.3), (2.0, 5.8), (2.1, 0.01)));
+                Later(2.1, () =>
+                {
+                    _companionFx?.Children.Remove(bubble);
+                    Sparkles("✱", 5, "#FF8FB1");
+                    _companionScale.BeginAnimation(ScaleTransform.ScaleYProperty, Keys((0, 1), (0.1, 0.85), (0.3, 1)));
+                });
+                break;
+            }
+            case "headphones":
+            {
+                // Headphones on, nodding to the beat, notes drifting out.
+                var cans = Prop("🎧", "#FFFFFF", 30, 21, -12, 3.1, emoji: true);
+                for (int i = 0; i < 6; i++)
+                {
+                    int n = i;
+                    Later(0.3 + n * 0.45, () =>
+                    {
+                        var note = Prop(n % 2 == 0 ? "♪" : "♫", n % 3 == 0 ? "#C3A6FF" : "#7FD8BE", 16, n % 2 == 0 ? -6 : 72, 20, 1.2);
+                        note?.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(20, -30, TimeSpan.FromSeconds(1.2)));
+                    });
+                }
+                var nod = new DoubleAnimation(0, 5, TimeSpan.FromSeconds(0.25)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(6) };
+                _companionMove.BeginAnimation(TranslateTransform.YProperty, nod);
+                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(-5, 5, TimeSpan.FromSeconds(0.5)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(3) });
+                break;
+            }
+            case "stargaze":
+            {
+                // Lies back (tilts) and watches stars twinkle, then a shooting star streaks across.
+                for (int i = 0; i < 6; i++)
+                {
+                    var star = Prop("✦", "#FFE27A", 8 + Random.Shared.Next(6), Random.Shared.Next(-60, 120), Random.Shared.Next(-60, -10), 3.3);
+                    star?.BeginAnimation(OpacityProperty, new DoubleAnimation(0.2, 1, TimeSpan.FromSeconds(0.4 + Random.Shared.NextDouble() * 0.4)) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(3) });
+                }
+                Later(1.8, () =>
+                {
+                    var shooting = Prop("☄", "#FFFFFF", 18, 130, -60, 1.0);
+                    shooting?.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(130, -80, TimeSpan.FromSeconds(0.8)));
+                    shooting?.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(-60, -10, TimeSpan.FromSeconds(0.8)));
+                });
+                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, Keys((0, 0), (0.5, -18), (3.0, -18), (3.4, 0)));
+                break;
+            }
+            case "sandwich":
+            {
+                // A sandwich, three big bites (crumbs fly), a satisfied pat of the belly.
+                var food = Prop("🥪", "#FFFFFF", 24, 52, 34, 2.0, emoji: true);
+                for (int i = 0; i < 3; i++)
+                {
+                    int n = i;
+                    Later(0.4 + n * 0.5, () =>
+                    {
+                        Sparkles("·", 3, "#E0B070");
+                        _companionScale.BeginAnimation(ScaleTransform.ScaleYProperty, Keys((0, 1), (0.1, 0.9), (0.25, 1)));
+                        if (food != null) food.FontSize = 24 - (n + 1) * 5;
+                    });
+                }
+                Later(2.1, () => Sparkles("♥", 2, "#FF5A7A", rise: true));
+                break;
+            }
             case "pet":
                 _companionScale.BeginAnimation(ScaleTransform.ScaleYProperty, Keys((0, 1), (0.1, 0.82), (0.35, 1.08), (0.6, 1)));
                 _companionScale.BeginAnimation(ScaleTransform.ScaleXProperty, Keys((0, 1), (0.1, 1.15), (0.35, 0.95), (0.6, 1)));
                 Sparkles("♥", 3, "#FF5A7A", rise: true);
+                // Its own way of liking it, or one of the shared reactions (with a sound of its own), turn about.
+                if (Random.Shared.Next(2) == 0) PetFlourish(CompanionArt.SpeciesId);
+                else PetReaction();
                 break;
             case "snow":
                 for (int i = 0; i < 12; i++)

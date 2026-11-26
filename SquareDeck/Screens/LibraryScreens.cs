@@ -1205,7 +1205,7 @@ public sealed class DetailsScreen : Screen
         var shots = GameCaptures.For(_game, 24);
         if (shots.Count == 0) return;
         _page.Children.Add(SectionTitle("Your screenshots"));
-        var strip = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(-6, 0, 0, 6) };
+        var strip = new StackPanel { Orientation = Orientation.Horizontal };
         for (int i = 0; i < shots.Count; i++)
         {
             int index = i;
@@ -1223,11 +1223,7 @@ public sealed class DetailsScreen : Screen
                 if (t.Result != null) image.Source = t.Result;
             }, TaskScheduler.FromCurrentSynchronizationContext());
         }
-        _page.Children.Add(new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            PanningMode = PanningMode.HorizontalOnly, Focusable = false, Content = strip
-        });
+        _page.Children.Add(Strip(strip));
     }
 
     // ---------------------------------------------------------------- building blocks
@@ -1292,14 +1288,25 @@ public sealed class DetailsScreen : Screen
         return button;
     }
 
-    private static ScrollViewer Strip(UIElement content) => new()
+    /// <summary>
+    /// A row that scrolls sideways. The row clips what it holds, so the cards sit inside a margin wide enough for the
+    /// highlight (its rim, glow and the card growing a little): without it the rim was cut off at the top and bottom.
+    /// The row is pulled out by the same amount, so the cards stay lined up with the rest of the page.
+    /// </summary>
+    private static ScrollViewer Strip(UIElement content)
     {
-        HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
-        VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-        PanningMode = PanningMode.HorizontalOnly,
-        Focusable = false,
-        Content = content
-    };
+        const double Room = 16;
+        if (content is FrameworkElement inner) inner.Margin = new Thickness(Room, Room, Room, Room);
+        return new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            PanningMode = PanningMode.HorizontalOnly,
+            Focusable = false,
+            Content = content,
+            Margin = new Thickness(-Room, -Room, -Room, -Room + 6)
+        };
+    }
 
     /// <summary>The artwork layer: the picture, faded into the page at the bottom and darkened on the left.</summary>
     private void BuildHero()
@@ -1442,7 +1449,7 @@ public sealed class DetailsScreen : Screen
             inCollections == 0 ? "Add to a collection" : $"In {inCollections} {(inCollections == 1 ? "collection" : "collections")}", () => _ = CollectionsAsync());
         // Experimental: Game Genie, questions and answers about the game by Google Gemini.
         if (Labs.On("gamegenie") && _game.IsGame)
-            Pill("", "Ask Genie", "Questions and answers about this game, by Game Genie", () => Host.Push(new GameGenieScreen(_game, _details, _wiki)), wand: true);
+            Pill("", Ask.Button, Ask.UseCompanion ? "Questions and answers about this game, found by " + CompanionArt.Name : "Questions and answers about this game, by Game Genie", () => Host.Push(new GameGenieScreen(_game, _details, _wiki)), wand: true);
         if (_details is { Trailers.Count: > 0 }) Pill("", "Trailer", "Watch the trailer", WatchTrailer);
         Pill("", "Notebook", "Notebook, rating and status", () => Host.Push(new GameNotesScreen(_game)));
         if (_storeId > 0) Pill("\uE719", "Store", _game.IsSteam ? "Open the Steam store page" : "Open its page on the Steam store", () => ProcessUtil.Open("steam://store/" + _storeId));

@@ -269,6 +269,9 @@ public partial class MainWindow
         {
             RestoreDynamicBackground();
             UpdateMenuMusic();
+            // The game closed: once SquareDeck has settled, any tile left without its art gets it (lean mode does this
+            // itself when it ends; this catches a game closed before lean mode began, or while SquareDeck stayed behind).
+            _ = Dispatcher.InvokeAsync(async () => { await Task.Delay(2500); RestoreMissingArt(); });
             _heroKey = null;
             if (Settings.HeroBackgrounds) _ = ShowHeroAsync((GameList.SelectedItem as Game)?.Actual);
         }

@@ -177,7 +177,7 @@ public partial class MainWindow
 
         string effect = Labs.On("covereffect") ? Labs.Get("covereffect.kind", "retro") : "";
         CoverEffects.Kind = effect;
-        CoverEffects.Detail = int.TryParse(Labs.Get("covereffect.pixels", "48"), out var px) ? Math.Clamp(px, 24, 128) : 48;
+        CoverEffects.Detail = int.TryParse(Labs.Get("covereffect.pixels", "48"), out var px) ? Math.Clamp(px, 24, 256) : 48;
         CoverEffects.Duotone = Labs.Get("covereffect.duotone", "accent");
         CoverEffects.Reset();
         Game.CoverEffect = effect.Length > 0 ? CoverEffects.Apply : null;
@@ -1162,7 +1162,8 @@ public partial class MainWindow
         if (_companion == null || _companionSprite == null) return;
         // Everywhere in the launcher (doing what suits each page), except full-screen pages, pop-ups and the intro.
         var top = _screens.Count == 0 ? null : _screens[^1];
-        var place = IntroLayer.Children.Count == 0 ? CompanionPlace(top) : null;
+        // Not while a big copy of it is on the page already (searching on the Game Genie page).
+        var place = IntroLayer.Children.Count == 0 && CompanionSearch.Showing == 0 ? CompanionPlace(top) : null;
         var shown = place != null ? Visibility.Visible : Visibility.Collapsed;
         if (_companion.Visibility != shown) _companion.Visibility = _companionBubble!.Visibility = shown;
         if (place == null) { _companionQueue.Clear(); return; }

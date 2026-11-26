@@ -85,7 +85,7 @@ public static class Booster
 }
 
 /// <summary>
-/// The Performance Boost animation, shown while the boost runs, just before a game starts. Fifteen looks (see
+/// The Performance Boost animation, shown while the boost runs, just before a game starts. Sixteen looks (see
 /// <see cref="BoostScreen.Styles"/>), each with its own vibration pattern timed to it. The first five:
 ///  - rings: rings pulse out from the game's cover; a tap on the controller with each ring;
 ///  - warp: stars streak past faster and faster; the vibration speeds up with them, ending in a thump;
@@ -97,6 +97,7 @@ public sealed class BoostScreen : Screen
 {
     public static readonly (string Id, string Name, string About)[] Styles =
     {
+        ("switch2", "Switch 2 power-up", "Two controllers snap onto the cover with a click, the Switch 2 rim spins up and the power bars fill, then a flash"),
         ("rings", "Pulse rings", "Rings pulse out from the cover, a tap with each ring"),
         ("warp", "Warp speed", "Stars streak past faster and faster, then a thump"),
         ("gauge", "Turbo gauge", "A gauge sweeps to 100%, ticking as it climbs"),
@@ -152,6 +153,9 @@ public sealed class BoostScreen : Screen
     private Path? _sweep;
     private RotateTransform? _sweepTurn;
     private readonly List<double> _blipAt = new();
+    private Border? _leftPad, _rightPad;
+    private RotateTransform? _rimTurn;
+    private readonly List<Border> _bars = new();
 
     public override bool IsDialog => false;
     public Task<bool> Result => _done.Task;
@@ -165,12 +169,23 @@ public sealed class BoostScreen : Screen
         _rumble = rumble;
         _preview = preview;
 
+        if (_style == "switch2")
+        {
+            // The Switch 2 look: the UI style's page colors, and quiet regular-weight words.
+            Switch2Settings.ApplyColors(this);
+            _title.Text = "Performance Boost";
+            _title.FontWeight = FontWeights.Normal;
+            _title.FontSize = 18;
+            _title.SetResourceReference(TextBlock.ForegroundProperty, "SubtleBrush");
+            _status.FontWeight = FontWeights.Normal;
+            _status.FontSize = 30;
+        }
         _root.SetResourceReference(Panel.BackgroundProperty, "BgBrush");
         _root.Children.Add(_canvas);
         _root.Children.Add(_flash);
 
         // The game's cover in the middle (or SquareDeck's mark for a preview).
-        double size = _style is "gauge" or "battery" ? 150 : 190;
+        double size = _style is "gauge" or "battery" ? 150 : _style == "switch2" ? 210 : 190;
         _cover = new Border
         {
             Width = size, Height = size, CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner + 4, 6)), RenderTransformOrigin = new Point(0.5, 0.5),
@@ -208,7 +223,7 @@ public sealed class BoostScreen : Screen
     public override async void OnShown()
     {
         if (_start != default) return;
-        _accent = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.DeepSkyBlue;
+        _accent = _style == "switch2" ? Switch2Settings.Blue : (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.DeepSkyBlue;
         Build();
         _start = DateTime.UtcNow;
         CompositionTarget.Rendering += OnFrame;
@@ -401,6 +416,47 @@ public sealed class BoostScreen : Screen
                 _pattern.Add((2420, 220, 1.0));
                 break;
             }
+            case "switch2":
+            {
+                // The cover's rim in the Switch 2 colors, turning; two controllers waiting off the sides; eight bars.
+                _glow.Fill = new RadialGradientBrush(A(0x38), A(0x00));
+                var rim = Switch2Settings.RimBrush.Clone();
+                _rimTurn = new RotateTransform(0, 0.5, 0.5);
+                rim.RelativeTransform = _rimTurn;
+                _cover.BorderBrush = rim;
+                _cover.BorderThickness = new Thickness(5);
+                _cover.CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner + 8, 10));
+                bool nintendo = UiStyles.Current.Id == "switch";
+                var left = nintendo ? Color.FromRgb(0x2E, 0xA8, 0xE6) : _accent;
+                var right = nintendo ? Color.FromRgb(0xF2, 0x5C, 0x6E) : Color.FromRgb((byte)((_accent.R + 255) / 2), (byte)((_accent.G + 160) / 2), (byte)((_accent.B + 210) / 2));
+                Border Pad(Color color, bool isLeft) => Add(new Border
+                {
+                    Width = 62, Height = _cover.Height, Background = new SolidColorBrush(color),
+                    CornerRadius = isLeft ? new CornerRadius(31, 8, 8, 31) : new CornerRadius(8, 31, 31, 8),
+                    Child = new Ellipse { Width = 26, Height = 26, Fill = new SolidColorBrush(Color.FromArgb(0x55, 0, 0, 0)), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 30, 0, 0) },
+                    Effect = Perf.Active ? null : new DropShadowEffect { BlurRadius = 18, ShadowDepth = 4, Opacity = 0.45 }
+                });
+                _leftPad = Pad(left, true);
+                _rightPad = Pad(right, false);
+                var stops = new[] { Color.FromRgb(0x4C, 0x7C, 0xF4), Color.FromRgb(0x7D, 0xB6, 0xFF), Color.FromRgb(0xB4, 0x8C, 0xF6), Color.FromRgb(0xF4, 0xA6, 0xD4) };
+                for (int i = 0; i < 8; i++)
+                {
+                    double f = i / 7.0 * (stops.Length - 1);
+                    int k = Math.Min((int)f, stops.Length - 2);
+                    double m = f - k;
+                    var a = stops[k]; var b = stops[k + 1];
+                    var color = nintendo ? Color.FromRgb((byte)(a.R + (b.R - a.R) * m), (byte)(a.G + (b.G - a.G) * m), (byte)(a.B + (b.B - a.B) * m)) : _accent;
+                    var bar = Add(new Border { Width = 34, Height = 12, CornerRadius = new CornerRadius(6), Background = new SolidColorBrush(Switch2Settings.Line), Tag = color,
+                                               RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(1, 1) });
+                    _bars.Add(bar);
+                }
+                _rings.Add(Add(new Ellipse { StrokeThickness = 6, Stroke = rim, Opacity = 0 }));
+                _pattern.Add((0, 30, 0.2));
+                _pattern.Add((820, 90, 0.95)); // the click as they snap on
+                for (int i = 0; i < 8; i++) _pattern.Add((1000 + i * 160, 35, 0.3 + 0.06 * i));
+                _pattern.Add((2400, 240, 1.0));
+                break;
+            }
             case "battery":
                 // The case (outline and the little cap), ten bars and the percentage.
                 _pieces.Add(Add(new Rectangle { StrokeThickness = 6, Stroke = new SolidColorBrush(Color.FromArgb(0xDD, 0xFF, 0xFF, 0xFF)), RadiusX = 18, RadiusY = 18 }));
@@ -457,6 +513,7 @@ public sealed class BoostScreen : Screen
             case "helix": Helix(t, c); break;
             case "rain": DataRain(t, c); break;
             case "battery": Battery(t, c); break;
+            case "switch2": Switch2(t, c); break;
             default: Shockwave(t, c); break;
         }
 
@@ -491,6 +548,72 @@ public sealed class BoostScreen : Screen
     }
 
     // ---------------------------------------------------------------- the looks
+
+    /// <summary>
+    /// Switch 2 power-up: the controllers slide in from the sides and snap onto the cover (0.8 s), the rim spins up
+    /// faster and faster while the eight bars under it fill one by one, then a rim-colored ring flashes out.
+    /// </summary>
+    private void Switch2(double t, Point c)
+    {
+        double half = _cover.Width / 2;
+        if (_rimTurn != null) _rimTurn.Angle = (t * 90 + t * t * 120) % 360;
+        // The controllers: in from off-screen, overshooting a touch, then clicked into place.
+        double snap = 0.82;
+        double p = Math.Clamp(t / snap, 0, 1);
+        double eased = 1 + 2.2 * Math.Pow(p - 1, 3) + 1.2 * Math.Pow(p - 1, 2); // ease out with a small overshoot
+        double gap = 6;
+        double leftHome = c.X - half - gap - 62, rightHome = c.X + half + gap;
+        double leftStart = -120, rightStart = W + 60;
+        if (_leftPad != null && _rightPad != null)
+        {
+            Canvas.SetLeft(_leftPad, leftStart + (leftHome - leftStart) * eased);
+            Canvas.SetLeft(_rightPad, rightStart + (rightHome - rightStart) * eased);
+            Canvas.SetTop(_leftPad, c.Y - _cover.Height / 2);
+            Canvas.SetTop(_rightPad, c.Y - _cover.Height / 2);
+            _leftPad.Opacity = _rightPad.Opacity = Math.Min(1, t / 0.25);
+        }
+        // The cover jolts at the click, then breathes.
+        double since = t - snap;
+        double pop = since >= 0 && since < 0.35 ? 1 + 0.06 * Math.Sin(since / 0.35 * Math.PI) : 1 + 0.012 * Math.Sin(t * 5);
+        if (t > 2.4) pop = 1 + 0.1 * Math.Max(0, 1 - (t - 2.4) * 4);
+        _coverScale.ScaleX = _coverScale.ScaleY = pop;
+        if (_leftPad != null && _rightPad != null && since >= 0 && since < 0.35)
+        {
+            double nudge = 4 * Math.Sin(since / 0.35 * Math.PI);
+            Canvas.SetLeft(_leftPad, leftHome - nudge);
+            Canvas.SetLeft(_rightPad, rightHome + nudge);
+        }
+        // The bars, lighting up in order.
+        double row = _bars.Count * 34 + (_bars.Count - 1) * 10;
+        for (int i = 0; i < _bars.Count; i++)
+        {
+            var bar = _bars[i];
+            Canvas.SetLeft(bar, c.X - row / 2 + i * 44);
+            Canvas.SetTop(bar, c.Y + _cover.Height / 2 + 40);
+            double lit = t - (1.0 + i * 0.16);
+            if (lit >= 0 && bar.Tag is Color on && !(bar.Background is SolidColorBrush now && now.Color == on))
+                bar.Background = new SolidColorBrush(on);
+            if (bar.RenderTransform is ScaleTransform s)
+                s.ScaleX = s.ScaleY = lit >= 0 && lit < 0.25 ? 1 + 0.35 * Math.Sin(lit / 0.25 * Math.PI) : 1;
+        }
+        // The flash: a ring in the rim's colors racing out, and a soft white flash.
+        if (_rings.Count > 0)
+        {
+            var ring = _rings[0];
+            double age = t - 2.38;
+            if (age < 0 || age > 0.8) ring.Opacity = 0;
+            else
+            {
+                double r = half + 20 + 560 * Ease(age / 0.8);
+                ring.Width = ring.Height = r * 2;
+                ring.Opacity = 1 - age / 0.8;
+                ring.StrokeThickness = 8 * (1 - age / 0.8) + 1;
+                Canvas.SetLeft(ring, c.X - r);
+                Canvas.SetTop(ring, c.Y - r);
+            }
+        }
+        _flash.Opacity = t > 2.38 ? Math.Max(0, 0.35 - (t - 2.38) * 1.2) : 0;
+    }
 
     private void Rings(double t, Point c)
     {

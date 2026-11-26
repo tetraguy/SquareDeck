@@ -383,6 +383,17 @@ public partial class MainWindow
         PreviewTouchDown += (_, _) => NoteActivity();
         PreviewKeyDown += (_, _) => NoteActivity();
 
+        // Hover looks only while the mouse is really in use (see PointerMode).
+        Point? pointerAt = null;
+        PreviewMouseMove += (_, e) =>
+        {
+            if (e.StylusDevice != null) return; // touch
+            var at = e.GetPosition(this);
+            if (pointerAt is { } was && Math.Abs(at.X - was.X) + Math.Abs(at.Y - was.Y) >= 4 && !PointerMode.GetActive(this)) PointerMode.SetActive(this, true);
+            pointerAt = at;
+        };
+        PreviewMouseDown += (_, e) => { if (e.StylusDevice == null && !PointerMode.GetActive(this)) PointerMode.SetActive(this, true); };
+
         _idleTimer.Tick += (_, _) =>
         {
             CheckScreensaver();
@@ -936,6 +947,30 @@ public partial class MainWindow
     /// Looks at the project's GitHub releases. Run automatically at startup (quiet unless there is something new)
     /// and from Settings (always says what it found).
     /// </summary>
+    private DispatcherTimer? _updateCheckTimer;
+
+    /// <summary>The time between automatic checks for a new version.</summary>
+    public static readonly TimeSpan UpdateCheckEvery = TimeSpan.FromHours(12);
+
+    /// <summary>
+    /// Check for updates automatically: when SquareDeck starts, and then every 12 hours while it runs (counted from the
+    /// last check, so it carries on across restarts). A check that comes due during a game waits until it's over.
+    /// </summary>
+    private void StartUpdateChecks()
+    {
+        _updateCheckTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMinutes(15) };
+        _updateCheckTimer.Tick -= UpdateTimerTick;
+        _updateCheckTimer.Tick += UpdateTimerTick;
+        _updateCheckTimer.Start();
+    }
+
+    private void UpdateTimerTick(object? sender, EventArgs e)
+    {
+        if (!Settings.AutoUpdateCheck || _checkingUpdates || AllGames.Any(g => g.IsRunning)) return;
+        if (DateTime.UtcNow - Settings.LastUpdateCheck < UpdateCheckEvery) return;
+        _ = CheckForUpdatesAsync(manual: false);
+    }
+
     public async Task CheckForUpdatesAsync(bool manual)
     {
         if (_checkingUpdates) return;
@@ -953,6 +988,8 @@ public partial class MainWindow
                 return;
             }
 
+            Settings.LastUpdateCheck = DateTime.UtcNow;
+            Settings.Save();
             if (release == null || !Updater.IsNewer(release))
             {
                 if (manual)

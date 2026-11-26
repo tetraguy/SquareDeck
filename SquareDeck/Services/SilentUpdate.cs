@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using SquareDeck.Screens;
 
 namespace SquareDeck.Services;
 
@@ -55,6 +56,14 @@ public static class SilentUpdate
         try { File.Delete(ready); } catch (Exception) { }
         if (!preview) { try { File.Delete(ResultFile); } catch (Exception) { } }
 
+        // Experimental: the companion on this screen, its faces drawn as pictures for the script to show.
+        string pal = "";
+        if (UpdatePal.Enabled)
+        {
+            string palFolder = Path.Combine(folder, "companion");
+            if (UpdatePal.RenderFrames(palFolder)) pal = palFolder;
+        }
+
         static string Q(string s) => s.Replace("'", "''"); // inside PowerShell single quotes
         string text = Script
             .Replace("__MSI__", Q(msi)).Replace("__EXE__", Q(exe)).Replace("__PID__", Environment.ProcessId.ToString())
@@ -65,6 +74,7 @@ public static class SilentUpdate
             .Replace("__RUMBLE__", Math.Clamp(rumble, 0, 1).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))
             .Replace("__STYLE__", Resolve(Looks, look)).Replace("__HAPTIC__", Resolve(Haptics, haptic))
             .Replace("__PREVIEW__", preview ? "True" : "False")
+            .Replace("__PAL__", Q(pal)).Replace("__PALNAME__", Q(CompanionArt.Name))
             .Replace("__BG__", background).Replace("__FG__", foreground).Replace("__ACCENT__", accent);
         string path = Path.Combine(folder, "update.ps1");
         File.WriteAllText(path, text, new System.Text.UTF8Encoding(true)); // a BOM, so Windows PowerShell reads it as UTF-8
@@ -108,6 +118,8 @@ $style = '__STYLE__'
 $haptic = '__HAPTIC__'
 $preview = [bool]::Parse('__PREVIEW__')
 $widgetStatus = '__WIDGETSTATUS__'
+$palDir = '__PAL__'
+$palName = '__PALNAME__'
 $script:widgetProc = $null; $script:widgetAt = $null; $script:widgetResult = ''; $script:widgetCode = 0
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
 
@@ -239,7 +251,7 @@ function IdleHaptic([datetime]$now, [double]$t) {
       </Grid>
       <TextBlock x:Name="Title" Text="Updating SquareDeck" Foreground="__FG__" FontSize="36" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,30,0,0"/>
       <TextBlock x:Name="Version" Foreground="__FG__" Opacity="0.7" FontSize="17" HorizontalAlignment="Center" Margin="0,6,0,0"/>
-      <Grid Width="480" Height="10" Margin="0,32,0,0">
+      <Grid x:Name="Bar" Width="480" Height="10" Margin="0,32,0,0">
         <Border CornerRadius="5" Background="__FG__" Opacity="0.15"/>
         <!-- The fill, with the shine sweeping inside it only: it used to run along the whole track, past the end of the
              fill, so the bar looked out of step with the percentage. -->
@@ -260,6 +272,14 @@ function IdleHaptic([datetime]$now, [double]$t) {
         <Ellipse x:Name="Head" Width="18" Height="18" Fill="__ACCENT__" HorizontalAlignment="Left" Margin="0,-4,0,-4" Opacity="0.9" Visibility="Hidden">
           <Ellipse.Effect><DropShadowEffect Color="__ACCENT__" BlurRadius="10" ShadowDepth="0" Opacity="0.8"/></Ellipse.Effect>
         </Ellipse>
+        <!-- Experimental: the companion walks along the top of the bar, with a speech bubble and what it's carrying. -->
+        <Canvas x:Name="PalStage" ClipToBounds="False" Visibility="Collapsed">
+          <Border x:Name="PalBubble" CornerRadius="12" Background="__FG__" Padding="12,6,12,7" Opacity="0">
+            <TextBlock x:Name="PalSay" Foreground="__BG__" FontSize="15"/>
+          </Border>
+          <TextBlock x:Name="PalProp" FontFamily="Segoe MDL2 Assets" FontSize="26" Foreground="__ACCENT__" Visibility="Collapsed"/>
+          <Image x:Name="Pal" Width="72" Height="72" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+        </Canvas>
       </Grid>
       <Grid Width="480" Margin="0,12,0,0">
         <TextBlock x:Name="Stage" Foreground="__FG__" Opacity="0.8" FontSize="15" Text="Waiting for SquareDeck to close..."/>
@@ -278,6 +298,83 @@ $find = { param($n) $win.FindName($n) }
 $sky = & $find 'Sky'; $fx = & $find 'Fx'; $ring = & $find 'Ring'; $ring2 = & $find 'Ring2'; $logo = & $find 'Logo'; $fill = & $find 'Fill'
 $shine = & $find 'Shine'; $stage = & $find 'Stage'; $percent = & $find 'Percent'; $title = & $find 'Title'; $head = & $find 'Head'
 $check = & $find 'Check'; $logoImage = & $find 'LogoImage'; $note = & $find 'Note'; $content = & $find 'Content'
+
+# ---------------------------------------------------------------- the companion (experimental)
+$palStage = & $find 'PalStage'; $pal = & $find 'Pal'; $palBubble = & $find 'PalBubble'; $palSay = & $find 'PalSay'; $palProp = & $find 'PalProp'
+$script:palOn = $false; $script:palFrames = @{}
+if ($palDir -ne '' -and (Test-Path (Join-Path $palDir 'happy.png'))) {
+  foreach ($n in @('happy', 'blink', 'look', 'lookblink', 'cheer', 'cheerwave', 'wave', 'worried', 'sleepy', 'bored')) {
+    $p = Join-Path $palDir "$n.png"
+    if (Test-Path $p) {
+      $b = New-Object System.Windows.Media.Imaging.BitmapImage
+      $b.BeginInit(); $b.CacheOption = 'OnLoad'; $b.UriSource = New-Object Uri $p; $b.EndInit(); $b.Freeze()
+      $script:palFrames[$n] = $b
+    }
+  }
+  $script:palOn = $script:palFrames.ContainsKey('happy')
+}
+if ($script:palOn) {
+  $palStage.Visibility = 'Visible'
+  (& $find 'Bar').Margin = New-Object System.Windows.Thickness -ArgumentList 0, 104, 0, 0
+}
+$script:palMood = 'sleepy'; $script:palSayUntil = $null; $script:palHopAt = $null; $script:palLast = ''; $script:palX = 0.0
+$palLines = @{
+  'InstallValidate' = @('Checking everything is in place...', 'Measuring twice, installing once.');
+  'InstallInitialize' = @('Rolling up my sleeves!', 'Okay, here we go!');
+  'RemoveExistingProducts' = @('Out with the old!', 'Bye-bye, old version.');
+  'RemoveFiles' = @('Sweep, sweep, sweep...', 'Tidying up the old files.');
+  'InstallFiles' = @('Heave-ho! New files coming through.', 'Unpacking the box!');
+  'CreateShortcuts' = @('Putting up the signs.', 'Shortcuts, check!');
+  'WriteRegistryValues' = @('Writing down your settings.', 'Taking notes...');
+  'RegisterProduct' = @('Making it official.', 'Signing my name here...');
+  'PublishProduct' = @('Almost there!', 'So close now!');
+  'InstallFinalize' = @('Final touches...', 'Polishing it up!')
+}
+function PalPick($lines) { return $lines[$rand.Next($lines.Count)] }
+function PalSay([string]$text, [double]$seconds = 2.8) {
+  if (-not $script:palOn) { return }
+  $palSay.Text = $text
+  FadeTo $palBubble 1 0.18
+  $script:palSayUntil = (Get-Date).AddSeconds($seconds)
+}
+function PalHop { if ($script:palOn) { $script:palHopAt = Get-Date } }
+function PalMood([string]$mood) { $script:palMood = $mood }
+function PalProp([int]$code) {
+  if ($code -eq 0) { $palProp.Visibility = 'Collapsed'; return }
+  $palProp.Text = [string][char]$code; $palProp.Visibility = 'Visible'
+}
+function PalFrame([string]$name) {
+  if ($name -eq $script:palLast -or -not $script:palFrames.ContainsKey($name)) { return }
+  $pal.Source = $script:palFrames[$name]; $script:palLast = $name
+}
+function MovePal([double]$t, [double]$width) {
+  if (-not $script:palOn) { return }
+  $now = Get-Date
+  $target = [Math]::Max([double]-8, [Math]::Min([double]416, [double]($width - 40)))
+  $script:palX += ($target - $script:palX) * 0.15
+  $x = $script:palX; $y = 0.0
+  $blink = ([int]($t * 10) % 34) -eq 0
+  switch ($script:palMood) {
+    'sleepy' { $f = 'sleepy'; $y = [Math]::Sin($t * 1.6) * 1.5 }
+    'walk' { $f = $(if ($blink) { 'lookblink' } else { 'look' }); $y = -[Math]::Abs([Math]::Sin($t * 7)) * 5 }
+    'tinker' { $f = $(if (([int]($t * 3) % 2) -eq 0) { 'happy' } else { 'blink' }); $y = -[Math]::Abs([Math]::Sin($t * 14)) * 3 }
+    'cheer' { $f = $(if (([int]($t * 4) % 2) -eq 0) { 'cheer' } else { 'cheerwave' }); $y = -[Math]::Abs([Math]::Sin($t * 5)) * 28 }
+    'bored' { $f = 'bored' }
+    'worried' { $f = 'worried'; $x += [Math]::Sin($t * 30) * 2 }
+    default { $f = $(if ($blink) { 'blink' } else { 'happy' }) }
+  }
+  if ($script:palHopAt) {
+    $h = ($now - $script:palHopAt).TotalSeconds
+    if ($h -lt 0.45) { $y -= [Math]::Sin($h / 0.45 * [Math]::PI) * 22 } else { $script:palHopAt = $null }
+  }
+  PalFrame $f
+  [System.Windows.Controls.Canvas]::SetLeft($pal, $x); [System.Windows.Controls.Canvas]::SetTop($pal, -76 + $y)
+  [System.Windows.Controls.Canvas]::SetLeft($palProp, $x + 60); [System.Windows.Controls.Canvas]::SetTop($palProp, -48 + $y)
+  $bw = $palBubble.ActualWidth
+  $bx = $(if ($x + 36 -lt 240) { $x + 96 } else { [Math]::Max([double]-200, [double]($x - $bw - 14)) })
+  [System.Windows.Controls.Canvas]::SetLeft($palBubble, $bx); [System.Windows.Controls.Canvas]::SetTop($palBubble, -66)
+  if ($script:palSayUntil -and $now -gt $script:palSayUntil) { $script:palSayUntil = $null; FadeTo $palBubble 0 0.3 }
+}
 $badge = & $find 'Badge'; $flash = & $find 'Flash'; $glow = & $find 'Glow'
 $badgeScale = $badge.RenderTransform.Children[0]; $badgeShift = $badge.RenderTransform.Children[1]
 (& $find 'Version').Text = "Version $version"
@@ -513,6 +610,7 @@ $win.Add_ContentRendered({
   $ease = New-Object System.Windows.Media.Animation.CubicEase; $ease.EasingMode = 'EaseOut'
   Animate $content ([System.Windows.UIElement]::OpacityProperty) 0 1 0.6 $false $false $ease
   Animate $content.RenderTransform ([System.Windows.Media.TranslateTransform]::YProperty) 40 0 0.7 $false $false $ease
+  PalSay "$palName is waiting for SquareDeck to close... zzz" 3.5
 })
 
 # ---------------------------------------------------------------- the install
@@ -528,10 +626,18 @@ $order = @('InstallValidate', 'InstallInitialize', 'RemoveExistingProducts', 'Re
 $script:state = 'wait'; $script:target = 0.04; $script:shown = 0.0; $script:proc = $null; $script:pos = 0; $script:doneAt = $null; $script:code = -1
 $script:started = Get-Date; $script:simIndex = 0; $script:simAt = Get-Date; $script:nextMilestone = 0.25
 
+function PalStart {
+  PalMood 'walk'; PalProp 0xE7B8; PalHop
+  PalSay (PalPick @('Wakey wakey! Carrying the new version in.', 'Here we go! Hold the door!', 'Special delivery!'))
+}
+
 function ReachStep([string]$name) {
   if (-not $steps.ContainsKey($name)) { return }
   $s = $steps[$name]
-  if ($s[0] -gt $script:target) { $script:target = $s[0]; SetStage $s[1]; StepTap }
+  if ($s[0] -gt $script:target) {
+    $script:target = $s[0]; SetStage $s[1]; StepTap
+    if ($palLines.ContainsKey($name)) { PalHop; PalSay (PalPick $palLines[$name]) }
+  }
 }
 
 function Read-Log {
@@ -561,13 +667,17 @@ function Finish([int]$code) {
     FadeTo $check 1 0.3
     FadeTo $head 0 0.4
     Celebrate
+    PalMood 'cheer'; PalProp 0xE734; PalHop
+    PalSay (PalPick @('All done! See you in the new version!', 'Ta-da! Good as new.', 'We did it!')) 6
   } elseif ($code -eq 1602 -or $code -eq 1223) {
     $title.Text = 'Update cancelled'; SetStage 'Opening SquareDeck again...'
+    PalMood 'bored'; PalProp 0; PalSay 'Okay, maybe next time.' 5
   } else {
     Pattern @(0.6, 0.2, 500, 0)
     Shake
     $title.Text = "The update didn't finish"; SetStage "Windows Installer error $code. Opening SquareDeck again..."
     $fill.Background = (New-Object System.Windows.Media.BrushConverter).ConvertFromString('#E04A3C')
+    PalMood 'worried'; PalProp 0xE783; PalSay 'Uh-oh... that didn''t work. Let''s try again later.' 6
   }
   $note.Text = ''
   $script:state = 'done'; $script:doneAt = Get-Date
@@ -577,6 +687,7 @@ function Finish([int]$code) {
 function StartWidget([int]$code) {
   if (-not ($code -eq 0 -or $code -eq 3010)) { Finish $code; return }
   $script:widgetCode = $code; $script:widgetAt = Get-Date; $script:widgetStage = ''
+  PalMood 'tinker'; PalProp 0xE90F; PalSay 'Tuning up your Game Bar widget too.'
   if ($preview) { SetStage 'Updating the Game Bar widget...'; $script:target = [Math]::Max($script:target, 0.93); $script:state = 'widget'; return }
   try { Remove-Item -Path $widgetStatus -Force -ErrorAction SilentlyContinue } catch { }
   try {
@@ -619,7 +730,7 @@ $timer.Add_Tick({
   switch ($script:state) {
     'wait' {
       if ($preview) {
-        if ($t -gt 1.2) { SetStage 'Starting the installer...'; $script:target = 0.08; $script:state = 'install'; $script:simAt = $now }
+        if ($t -gt 1.2) { SetStage 'Starting the installer...'; $script:target = 0.08; $script:state = 'install'; $script:simAt = $now; PalStart }
       }
       elseif (-not (Get-Process -Id $waitPid -ErrorAction SilentlyContinue) -or $t -gt 30) {
         SetStage 'Starting the installer...'; $script:target = 0.08
@@ -629,6 +740,7 @@ $timer.Add_Tick({
           $psi.UseShellExecute = $true; $psi.Verb = 'runas'
           $script:proc = [System.Diagnostics.Process]::Start($psi)
           $script:state = 'install'
+          PalStart
         } catch { Finish 1223 }
       }
     }
@@ -684,7 +796,11 @@ $timer.Add_Tick({
   if ([Math]::Abs($script:target - $script:shown) -lt 0.002) { $script:shown = $script:target } # arrives, instead of creeping forever
   if ($script:shown -ge $script:nextMilestone -and $script:nextMilestone -lt 1) {
     $script:nextMilestone += 0.25
-    if ($script:state -eq 'install') { Pop; MilestoneTap }
+    if ($script:state -eq 'install') {
+      Pop; MilestoneTap
+      $palQuarter = [int](($script:nextMilestone - 0.25) * 4)
+      if ($palQuarter -eq 2) { PalHop; PalSay 'Halfway there!' 2 }
+    }
   }
   # Every number here is a [double] on purpose: with a whole number first, PowerShell picked [Math]::Min(int, int),
   # which rounded the progress to 0 or 1, so the bar stayed empty (then jumped full) while the percentage counted up.
@@ -696,6 +812,7 @@ $timer.Add_Tick({
   $head.Visibility = if ($width -ge 18) { 'Visible' } else { 'Hidden' }
   # Rounded down, like the bar: 100% only once it's full.
   $percent.Text = '{0}%' -f [int][Math]::Floor([Math]::Min([double]100, [double]($script:shown * 100 + 0.0001)))
+  MovePal $t $width
 })
 $timer.Start()
 $null = $win.ShowDialog()

@@ -268,6 +268,9 @@ public partial class MainWindow
             case "open":
                 RunAllyAction("home");
                 break;
+            case "profile":
+                _ = OpenProfileFromWidgetAsync(Bool("bar") == true);
+                break;
             case var radio when WidgetRadioOps.Contains(radio):
                 WidgetRadioRequest(op, request);
                 break;
@@ -455,19 +458,45 @@ public partial class MainWindow
             }
             else if (OpenCloudGame() is { } cloud)
             {
-                // Leaves the cloud service, as its own Leave buttons do.
+                // Leaves the cloud service, as its own Leave buttons do. The service is a page inside SquareDeck, so
+                // SquareDeck is already the window in front: it's only activated, not forced on top (forcing it, with
+                // Game Bar's input attached, while the page still had the keyboard, is what froze SquareDeck).
                 if (barOpen)
                 {
                     ToggleGameBar();
-                    await Task.Delay(450);
+                    await Task.Delay(600); // its overlay fades out and gives the keyboard back
                 }
-                WindowActivator.ShowOnTop(this);
+                if (WindowState == WindowState.Minimized) WindowState = WindowState.Maximized;
+                Activate();
                 await Task.Delay(120);
                 cloud.Exit();
             }
             else if (WindowActivator.FrontApp() is { } front) await WindowActivator.CloseAppAsync(front);
         }
         catch (Exception ex) { CrashLog.Write("Widget close game", ex); }
+    }
+
+    /// <summary>
+    /// Your picture tapped in the widget: Game Bar closes (when it's open), SquareDeck comes forward and opens your profile
+    /// page (Settings' profile). A game that's running keeps running behind it.
+    /// </summary>
+    private async Task OpenProfileFromWidgetAsync(bool barOpen)
+    {
+        try
+        {
+            if (barOpen)
+            {
+                ToggleGameBar();
+                await Task.Delay(450); // its overlay fades out
+            }
+            WindowActivator.BringToFront(this);
+            if (_screens.LastOrDefault() is not SquareDeck.Screens.ProfileScreen)
+            {
+                while (_screens.Count > 0) Pop(_screens[0]);
+                Push(new SquareDeck.Screens.ProfileScreen());
+            }
+        }
+        catch (Exception ex) { CrashLog.Write("Widget open profile", ex); }
     }
 
     /// <summary>The cloud gaming service open in SquareDeck right now, if any.</summary>
@@ -497,10 +526,15 @@ public partial class MainWindow
         if (AllGames.FirstOrDefault(g => g.Key == key) is not { } game) return;
         BitmapSource? cover = game.Cover as BitmapSource;
         if (cover is { IsFrozen: false } && cover.CanFreeze) cover = (BitmapSource)cover.GetAsFrozen();
+        // Behind a game, lean mode puts the covers away to save memory, so the cover can be missing just when the widget
+        // asks: read it from its file instead (the one it was put away from, a cover of your own, or the saved one).
+        string? coverFile = cover == null ? game.ParkedCoverFile ?? CustomCoverPath(game) ?? (game.IsSteam ? SteamGridDbClient.FindCachedCover(game.AppId) : null) : null;
+        if (coverFile != null && SteamGridDbClient.IsIconFile(coverFile)) coverFile = null;
         string apiKey = Settings.SteamGridDbApiKey;
         var art = await Task.Run(async () =>
         {
             BitmapSource? icon = null, hero = null;
+            if (cover == null && coverFile != null) cover = ImageLoader.FromFile(coverFile, 640) as BitmapSource;
             try
             {
                 using var client = new SteamGridDbClient(apiKey);
@@ -516,8 +550,12 @@ public partial class MainWindow
                 ["hero"] = Encode(hero ?? cover, 640, jpeg: true),
             };
         });
-        if (_widgetArt.Count > 20) _widgetArt.Clear();
-        _widgetArt[key] = art;
+        // Kept for next time only when it has a picture: an empty answer (offline, nothing found yet) is asked for again.
+        if (art["icon"] != null || art["hero"] != null)
+        {
+            if (_widgetArt.Count > 20) _widgetArt.Clear();
+            _widgetArt[key] = art;
+        }
         WidgetBridge.Send(art);
     }
 

@@ -59,6 +59,7 @@ public static partial class Labs
         new("tilt", "Covers that tilt", "Tilting the handheld shifts the highlighted cover in 3D", "\uE8B4", Looks),
         new("dust", "Dusty tiles", "Games you haven't played in months gather dust on the home row", "\uE91C", Looks),
         new("companion", "Companion", "A small pixel friend in the corner of Home: six characters, any color, your choice of name, and reactions to what you do", "\uE899", Looks),
+        new("updatecompanion", "Companion on the update screens", "Your companion rides the progress bar while SquareDeck downloads and installs an update: it carries the new version along, hops at each step, cheers and throws confetti when it's done, and looks worried if something goes wrong", "\uE895", Looks),
         new("achshot", "Screenshot on achievements", "A screenshot when an achievement unlocks, named after it", "\uE722", Play),
         new("milestones", "Milestone celebrations", "Confetti for 100 hours in a game, your 100th achievement, a finished game and more", "\uE7C1", Play),
         new("boss", "Backlog boss fight", "Your unfinished games as a monster to defeat, an hour at a time", "\uE7EF", Play),
@@ -261,6 +262,13 @@ public static partial class Labs
             settings.ParallaxOff8160 = true;
             settings.Save();
         }
+        // 8.5.21: Covers that tilt and the parallax can't both be on; if they were, the parallax (turned on more recently,
+        // since it's off by default) stays.
+        if (settings.Labs.Contains("tilt") && settings.Labs.Contains("plxcontinue"))
+        {
+            settings.Labs.Remove("tilt");
+            settings.Save();
+        }
     }
 
     public static bool On(string id) => AlwaysOn.Contains(id) || _settings?.Labs.Contains(id) == true;
@@ -270,9 +278,19 @@ public static partial class Labs
         if (_settings == null) return;
         _settings.Labs.Remove(id);
         if (on) _settings.Labs.Add(id);
+        // Covers that tilt and the Continue parallax both follow the motion sensor: only one at a time.
+        string? rival = on ? MotionRival(id) : null;
+        bool rivalOff = rival != null && _settings.Labs.Remove(rival);
         _settings.Save();
         Changed?.Invoke(id);
+        if (rivalOff) Changed?.Invoke(rival!);
     }
+
+    /// <summary>
+    /// The other motion-sensor effect, for the two that can't be on together (Covers that tilt and the Continue where you
+    /// left off parallax), or null.
+    /// </summary>
+    public static string? MotionRival(string id) => id switch { "tilt" => "plxcontinue", "plxcontinue" => "tilt", _ => null };
 
     /// <summary>A feature was turned on or off.</summary>
     public static event Action<string>? Changed;

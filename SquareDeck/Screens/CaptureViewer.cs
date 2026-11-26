@@ -61,6 +61,7 @@ public sealed class CaptureViewerScreen : Screen
     private MediaElement? _video;
     private bool _playing, _chromeShown = true;
     private bool _padInput; // the controller (or keyboard) was used last: the controls stay up instead of fading
+    private Border? _toolbar;
     private int _index, _zoomLevel, _direction;
 
     /// <summary>Set when something was deleted, so the page behind reloads.</summary>
@@ -85,7 +86,7 @@ public sealed class CaptureViewerScreen : Screen
         _stage.RenderTransform = _slide;
         root.Children.Add(_stage);
         root.MouseWheel += (_, e) => { Zoom(e.Delta > 0 ? +1 : -1); e.Handled = true; };
-        root.MouseMove += (_, _) => { _padInput = false; Wake(); };
+        root.MouseMove += (_, _) => { _padInput = false; ShowToolbar(true); Wake(); };
 
         // Header: game and date on the left, zoom and "3 / 12" on the right, over a soft shade.
         var head = new Grid { VerticalAlignment = VerticalAlignment.Top, Height = 110 };
@@ -139,6 +140,8 @@ public sealed class CaptureViewerScreen : Screen
         toolbarStack.Children.Add(_progressRow);
         var toolbar = Glass(toolbarStack, new Thickness(0), 34);
         toolbar.HorizontalAlignment = HorizontalAlignment.Center;
+        _toolbar = toolbar;
+        if (!Hints.Keyboard) { toolbar.Visibility = Visibility.Collapsed; _caption.Visibility = Visibility.Collapsed; } // the controller: no toolbar
         bottom.Children.Add(toolbar);
         bottom.Children.Add(_caption);
         _strip.Margin = new Thickness(0, 14, 0, 0);
@@ -189,7 +192,11 @@ public sealed class CaptureViewerScreen : Screen
         return b;
     }
 
-    public override void FocusDefault() => (_paths.Count > 0 && CapturesScreen.IsVideo(Current) ? _play : _share).Focus();
+    public override void FocusDefault()
+    {
+        if (_toolbar is { Visibility: not Visibility.Visible }) return; // the controller: no toolbar to highlight
+        (_paths.Count > 0 && CapturesScreen.IsVideo(Current) ? _play : _share).Focus();
+    }
 
     public override void OnShown() { if (!_fullScreen) Wake(); }
 
@@ -206,10 +213,39 @@ public sealed class CaptureViewerScreen : Screen
         CloseVideo();
     }
 
+    /// <summary>
+    /// The floating toolbar (and the name of its highlighted button) is for the mouse and keyboard only. With the
+    /// controller its buttons are all on the controller already (LB / RB, LT / RT, Y, X, Start, B), so it's hidden.
+    /// </summary>
+    private void ShowToolbar(bool show)
+    {
+        if (_toolbar == null) return;
+        var v = show ? Visibility.Visible : Visibility.Collapsed;
+        if (_toolbar.Visibility == v) return;
+        bool hadFocus = _toolbar.IsKeyboardFocusWithin;
+        _toolbar.Visibility = v;
+        _caption.Visibility = v;
+        if (show && Hints.Keyboard && !_toolbar.IsKeyboardFocusWithin) FocusDefault();
+        else if (!show && hadFocus) Keyboard.ClearFocus();
+    }
+
     public override bool OnAction(NavAction action)
     {
         // With the controller the controls stay up (Menu switches to full screen for a clean look).
         _padInput = true;
+        bool controller = !Hints.Keyboard;
+        ShowToolbar(!controller);
+        if (controller && !_fullScreen)
+        {
+            // Without the toolbar, the D-pad and A do what its buttons did.
+            switch (action)
+            {
+                case NavAction.Right when _zoomLevel == 0: Wake(); Step(+1); return true;
+                case NavAction.Left when _zoomLevel == 0: Wake(); Step(-1); return true;
+                case NavAction.Accept: Wake(); if (_video != null) TogglePlay(); return true;
+                case NavAction.Up or NavAction.Down or NavAction.Left or NavAction.Right: Wake(); return true;
+            }
+        }
         if (_fullScreen)
         {
             // Full screen with the controller: the buttons do their job and the toolbar doesn't pop up.
@@ -365,7 +401,7 @@ public sealed class CaptureViewerScreen : Screen
         if (Keyboard.FocusedElement == _fullButton) _caption.Text = (string)_fullButton.Tag;
         ApplyFrame();
         if (_fullScreen) HideChrome(force: true);
-        else Wake();
+        else { ShowToolbar(Hints.Keyboard); Wake(); }
         UiSound.Move();
     }
 

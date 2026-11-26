@@ -51,6 +51,7 @@ public partial class MainWindow
         if (_lean || !_backgroundMode) return;
         bool game = AllGames.Any(g => g.IsRunning);
         _lean = true;
+        CancelCoverFetches(); // nothing downloads covers behind the game; whatever's still missing is asked for again after
         try
         {
             // Open pages close, unless one is doing something that must finish (a download, a question, the
@@ -126,6 +127,10 @@ public partial class MainWindow
         }
         catch (Exception ex) { CrashLog.Write("Leaving lean mode", ex); }
         RestoreMissingArt();
+        // Once more a little later: a cover whose file was busy, or tiles Home rebuilt while the game's playtime and
+        // the Steam library were being refreshed, get their art then.
+        await Task.Delay(3000);
+        RestoreMissingArt();
     }
 
     /// <summary>
@@ -138,12 +143,15 @@ public partial class MainWindow
         if (_lean) return;
         try
         {
+            // Anything still marked as put away (a read-back cut short by going back into the game) is read back now.
+            foreach (var g in _view.Concat(AllGames).Concat(NotInstalledGames).Distinct().Where(g => g.Parked).ToList())
+                _ = g.UnparkAsync();
             if (_continueTile is { Cover: null, Target: { } target })
             {
                 if (target.Cover != null) _continueTile.Cover = target.Cover;
                 else _ = LoadContinueArtAsync(_continueTile);
             }
-            var missing = _view.Where(g => g.Cover == null && g.Kind is ItemKind.SteamGame or ItemKind.External or ItemKind.Custom).ToList();
+            var missing = _view.Where(g => g.Cover == null && !g.Parked && g.Kind is ItemKind.SteamGame or ItemKind.External or ItemKind.Custom).ToList();
             if (missing.Count == 0) return;
             EnsureCovers(missing.Where(g => g.IsSteam).ToList());
             foreach (var g in missing.Where(g => !g.IsSteam)) _ = ReloadOwnCoverAsync(g);

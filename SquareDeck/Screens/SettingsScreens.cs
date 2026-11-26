@@ -1668,7 +1668,7 @@ public sealed partial class SettingsScreen : ListScreen
             subtitle: "Your last game as a large tile with its artwork, first on the home row");
 
         AddHeader("Buttons under the games");
-        AddRow("Music button", OnOff(s.ShowMusicButton), "\uE8D6", click: () => Toggle(() => s.ShowMusicButton = !s.ShowMusicButton));
+        AddRow("Multimedia button", OnOff(s.ShowMusicButton), "\uE8D6", click: () => Toggle(() => s.ShowMusicButton = !s.ShowMusicButton));
         AddRow("Friends button", OnOff(s.ShowFriendsButton), "\uE716", click: () => Toggle(() => s.ShowFriendsButton = !s.ShowFriendsButton));
         AddRow("Web browser button", OnOff(s.ShowBrowserButton), "\uE774", click: () => Toggle(() => s.ShowBrowserButton = !s.ShowBrowserButton));
         AddRow("Explorer (files) button", OnOff(s.ShowExplorerButton), "\uEC50", click: () => Toggle(() => s.ShowExplorerButton = !s.ShowExplorerButton));
@@ -1682,28 +1682,27 @@ public sealed partial class SettingsScreen : ListScreen
                 Host.RefreshHomeButtonsPublic();
                 Rebuild();
             }, subtitle: "Your " + Handheld.DisplayName + "'s temperatures, fans, battery and more");
-        AddNote("Home, Favorites, Apps, Captures, Stores, Settings and Power are always shown. Hidden pages can still be opened from Settings.");
+        AddNote("Home, Favorites, Apps, Captures, Stores, Settings and Power are always shown. Multimedia, Web browser and Explorer are on to start with; " +
+                "Friends, News and My Device can be added here. Hidden pages can still be opened from Settings.");
 
         AddHeader("Animations");
+        // Each opens a picker with a live preview of every choice: it plays while the choice is highlighted or hovered.
         AddRow("Home buttons", s.ButtonAnimations ? ButtonStyles.FirstOrDefault(b => b.Id == s.ButtonAnimationStyle).Name ?? "Grow and glow" : "Off",
-            "\uE916", click: async () =>
-            {
-                var options = ButtonStyles.Append(("off", "Off")).ToArray();
-                int choice = await Host.AskAsync("Home button animation", "How the round buttons and top-bar icons react when highlighted. " +
-                                                 "All of them spring when pressed.", options.Select(o => o.Item2).ToArray());
-                if (choice < 0) return;
-                Toggle(() =>
-                {
-                    s.ButtonAnimations = options[choice].Item1 != "off";
-                    if (s.ButtonAnimations) s.ButtonAnimationStyle = options[choice].Item1;
-                });
-            }, subtitle: "Grow, lift, bounce, pulse or wiggle when highlighted");
+            "\uE916", click: () => AnimationPicker(AnimationPreviews.Buttons, "Home button animation",
+                "How the round buttons and top-bar icons react when highlighted (all of them spring when pressed). Highlight one to see it.",
+                ButtonStyles.Append(("off", "Off")).ToArray(), () => s.ButtonAnimations ? s.ButtonAnimationStyle : "off",
+                id => { s.ButtonAnimations = id != "off"; if (s.ButtonAnimations) s.ButtonAnimationStyle = id; }),
+            subtitle: "Grow, lift, bounce, pulse or wiggle when highlighted");
         AddRow("Opening pages", PageStyles.FirstOrDefault(p => p.Id == s.PageTransition).Name ?? "Slide up", "\uE8A7",
-            click: () => _ = ChooseAsync(PageStyles, "Opening pages", "How pages and pop-ups appear.", v => s.PageTransition = v));
+            click: () => AnimationPicker(AnimationPreviews.Pages, "Opening pages", "How pages and pop-ups appear. Highlight one to see it.",
+                PageStyles, () => s.PageTransition, v => s.PageTransition = v));
         AddRow("Selected game", TileStyles.FirstOrDefault(t => t.Id == s.TileHighlight).Name ?? "Pulsing ring", "\uE7FC",
-            click: () => _ = ChooseAsync(TileStyles, "Selected game", "How the highlighted game or app on the home row stands out. Move along the row to see it.", v => s.TileHighlight = v),
-            subtitle: "Ten highlight animations: pulse, grow, bounce, lift, wobble, breathe, tilt, glow, shake…");
-        AddRow("Punch-in when opening", OnOff(s.PunchIn), "\uE8E1", click: () => Toggle(() => s.PunchIn = !s.PunchIn),
+            click: () => AnimationPicker(AnimationPreviews.Tiles, "Selected game", "How the highlighted game or app on the home row stands out. Highlight one to see it.",
+                TileStyles, () => s.TileHighlight, v => s.TileHighlight = v),
+            subtitle: "Fifteen highlight animations: pulse, grow, bounce, lift, wobble, breathe, tilt, glow, shake…");
+        AddRow("Punch-in when opening", OnOff(s.PunchIn), "\uE8E1",
+            click: () => AnimationPicker(AnimationPreviews.Punch, "Punch-in when opening", "A game or app is pressed in and punches forward as you open it. Highlight one to see it.",
+                new[] { ("on", "On"), ("off", "Off") }, () => s.PunchIn ? "on" : "off", v => s.PunchIn = v == "on"),
             subtitle: "A game or app is pressed in and punches forward as you open it");
         AddNote("Startup and closing animations are further down. Reduce motion (Accessibility) turns all of these off.");
 
@@ -2967,6 +2966,18 @@ public sealed partial class SettingsScreen : ListScreen
                 else s.LaunchCountdown = false;
             });
         }, subtitle: "A moment to change your mind, with Start now and Cancel");
+        if (s.LaunchCountdown)
+        {
+            AddRow("Countdown look", s.LaunchCountdownLook == "card" ? "Card" : "Switch 2 full screen", "\uE768",
+                click: () => Toggle(() => s.LaunchCountdownLook = s.LaunchCountdownLook == "card" ? "s2" : "card"),
+                subtitle: "Full screen: the cover large, the Switch 2 rim draining around it and the seconds rising. Card: a small pop-up");
+            AddRow("Try the countdown", glyph: "\uE768", click: () =>
+            {
+                var game = (Host.GameList.SelectedItem as Game)?.Actual;
+                if (s.LaunchCountdownLook == "card") { if (game != null) Host.Push(new CountdownScreen(game, s.LaunchCountdownSeconds)); else Host.Push(new Switch2CountdownScreen(null, s.LaunchCountdownSeconds, preview: true)); }
+                else Host.Push(new Switch2CountdownScreen(game, s.LaunchCountdownSeconds, preview: true));
+            }, subtitle: "Plays it with the highlighted game on Home; nothing starts");
+        }
         AddRow("Ask about updates before playing", OnOff(s.AskAboutUpdates), "\uE896", click: () => Toggle(() => s.AskAboutUpdates = !s.AskAboutUpdates),
             subtitle: "When a Steam game has an update waiting: update it first, or play anyway");
         AddRow("Recompiling animation for Recomp Zone games", OnOff(s.RecompLaunchAnimation), "\uE943", click: () => Toggle(() => s.RecompLaunchAnimation = !s.RecompLaunchAnimation),
@@ -3368,6 +3379,19 @@ public sealed partial class SettingsScreen : ListScreen
         }
     }
 
+    /// <summary>Experimental > Companion on the update screens: plays either screen with nothing downloaded or installed.</summary>
+    private async void TryUpdateCompanion()
+    {
+        int choice = await Host.AskAsync("Try the update screens", "Nothing is downloaded or installed.", "The download card", "The install screen", "Cancel");
+        if (choice == 0)
+        {
+            var next = Updater.Current;
+            var fake = new ReleaseInfo($"v{next.Major}.{next.Minor}.{Math.Max(0, next.Build) + 1}", null, "", "", "", null, null, 48L * 1024 * 1024, null);
+            Host.Push(new UpdateDownloadScreen(fake, preview: true));
+        }
+        else if (choice == 1) Host.PreviewUpdateScreen();
+    }
+
     private Action? LabPage(string id) => id switch
     {
         "plxcontinue" => () => Pick("Parallax depth", new[]
@@ -3376,6 +3400,7 @@ public sealed partial class SettingsScreen : ListScreen
             ("1.6", "Deep", "The art moves well past the words"), ("2.3", "Dramatic", "As far as it'll go"),
         }, choice => Labs.Put("plx.depth", choice)),
         "storeintro" => () => Pick("Store opening animation", StoreOpeningScreen.Styles, choice => Labs.Put("storeintro.style", choice)),
+        "updatecompanion" => TryUpdateCompanion,
         "storage" => () => Host.Push(new StorageAdvisorScreen()),
         "cleanup" => () => Host.Push(new CleanupScreen()),
         "overnight" => () => Host.Push(new OvernightScreen()),
@@ -3416,9 +3441,15 @@ public sealed partial class SettingsScreen : ListScreen
         bool on = Labs.On(id);
         string label = name ?? f.Name;
         string? blocked = id == "tilt" && Host?.HasMotionSensor == false ? "No motion sensor" : null;
-        AddRow(label, blocked ?? OnOff(on), f.Glyph, click: () =>
+        // Covers that tilt and the Continue parallax both follow the motion sensor, so only one can be on: while the other is
+        // on, this one is greyed out, and selecting it asks which to keep.
+        string? rival = Labs.MotionRival(id);
+        bool taken = blocked == null && !on && rival != null && Labs.On(rival);
+        string rivalName = rival != null && Labs.Feature(rival) is { } rf ? rf.Name : "";
+        var row = AddRow(label, blocked ?? (taken ? "Off  ·  " + rivalName + " is on" : OnOff(on)), f.Glyph, click: () =>
         {
             if (blocked != null && !on) { _ = Host.AskAsync(label, "This PC doesn't report a motion sensor, so the covers can't follow its tilt.", "OK"); return; }
+            if (taken) { _ = ChooseMotionEffectAsync(id, label, rival!, rivalName); return; }
             Labs.Set(id, !on);
             if (id is "newsettings" or "settingsview")
             {
@@ -3428,8 +3459,21 @@ public sealed partial class SettingsScreen : ListScreen
                 return;
             }
             Rebuild();
-        }, subtitle: f.About);
+        }, subtitle: taken ? $"Can't be on with {rivalName}: both use the motion sensor. Select to choose which one you want" : f.About);
+        if (taken && row != null) row.Opacity = 0.5;
         if (on && LabPage(id) is { } open) AddRow("Open " + label.ToLowerInvariant(), null, "\uE768", click: open);
+    }
+
+    /// <summary>Covers that tilt or the Continue parallax: one or the other, chosen here.</summary>
+    private async Task ChooseMotionEffectAsync(string id, string label, string rival, string rivalName)
+    {
+        int c = await Host.AskAsync("Choose one tilt effect",
+            $"{label} and {rivalName} both move with the handheld's motion sensor, so only one can be on at a time. Which do you want?",
+            label, rivalName, "Cancel");
+        if (c == 0) Labs.Set(id, true);        // turns the other off
+        else if (c == 1) Labs.Set(rival, true); // keeps the other (on already)
+        else return;
+        Rebuild();
     }
 
     /// <summary>A feature that's always there now: a row that opens its page.</summary>
@@ -3462,7 +3506,8 @@ public sealed partial class SettingsScreen : ListScreen
         // Press it five times for a surprise.
         AddRow("This version", "SquareDeck " + Updater.Current, "\uE946", click: () => EasterEgg.Tap(Host));
         AddRow("Check for updates automatically", OnOff(s.AutoUpdateCheck), "\uE777", click: () =>
-            Toggle(() => s.AutoUpdateCheck = !s.AutoUpdateCheck));
+            Toggle(() => s.AutoUpdateCheck = !s.AutoUpdateCheck),
+            subtitle: "When SquareDeck starts and every 12 hours" + (s.LastUpdateCheck > DateTime.MinValue ? "  ·  Last checked " + Ui.Ago(s.LastUpdateCheck.ToLocalTime()) : ""));
         AddRow("Check for updates now", glyph: "\uE895", click: () => _ = Host.CheckForUpdatesAsync(manual: true));
         AddRow("What's new after an update", OnOff(s.WhatsNewAfterUpdate), "\uE789", click: () =>
             Toggle(() => s.WhatsNewAfterUpdate = !s.WhatsNewAfterUpdate), subtitle: "The new version's changes, once, the first time SquareDeck starts after an update");
@@ -3811,6 +3856,18 @@ public sealed partial class SettingsScreen : ListScreen
     }
 
     /// <summary>A page of pictures of each choice; choosing one stores it and applies the look straight away.</summary>
+    /// <summary>An animation choice with a live preview of each option (see <see cref="AnimationPreviews"/>).</summary>
+    private void AnimationPicker(string kind, string title, string note, (string Id, string Name)[] options, Func<string> current, Action<string> store)
+    {
+        var choices = options.Select(o => (o.Id, o.Name, o.Name)).ToArray();
+        Host.Push(new PreviewPickerScreen(title, note, choices, current, id => AnimationPreviews.Draw(kind, id), id =>
+        {
+            store(id);
+            Host.Settings.Save();
+            Host.ApplySettings();
+        }, (id, drawing, on) => AnimationPreviews.Play(kind, id, drawing, on)));
+    }
+
     private void Preview(string title, string note, (string Id, string Name, string About)[] options, Func<string> current,
         Func<string, FrameworkElement> draw, Action<string> store)
     {

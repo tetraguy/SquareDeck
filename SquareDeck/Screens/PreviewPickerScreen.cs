@@ -17,11 +17,17 @@ public sealed class PreviewPickerScreen : GridScreen
     private readonly Func<string, FrameworkElement> _draw;
     private readonly Action<string> _apply;
     private readonly string _note;
+    private readonly Action<string, FrameworkElement, bool>? _play;
+    private readonly List<(string Id, FrameworkElement Drawing)> _shown = new();
     public const double W = 300, H = 170;
 
+    /// <param name="play">For animations: starts (true) or stops (false) a choice's animation on its drawing, played
+    /// while that choice is highlighted or under the mouse.</param>
     public PreviewPickerScreen(string title, string note, (string Id, string Name, string About)[] options, Func<string> current,
-        Func<string, FrameworkElement> draw, Action<string> apply) : base(title, "{Select}  Use this      {Back}  Back")
+        Func<string, FrameworkElement> draw, Action<string> apply, Action<string, FrameworkElement, bool>? play = null)
+        : base(title, "{Select}  Use this      {Back}  Back")
     {
+        _play = play;
         _options = options;
         _current = current;
         _draw = draw;
@@ -31,8 +37,17 @@ public sealed class PreviewPickerScreen : GridScreen
 
     public override void OnShown() => Build();
 
+    private void StopAll()
+    {
+        if (_play != null) foreach (var (id, drawing) in _shown) _play(id, drawing, false);
+        _shown.Clear();
+    }
+
+    public override void OnClosed() => StopAll();
+
     private void Build()
     {
+        StopAll();
         Body.Children.Clear();
         Tiles.Children.Clear();
         var note = Ui.Text(_note, 16, "SubtleBrush");
@@ -70,6 +85,15 @@ public sealed class PreviewPickerScreen : GridScreen
                 Build();
             }, into: grid);
             tile.ToolTip = o.About;
+            if (_play != null)
+            {
+                // The animation plays while this choice is highlighted, or the mouse is over it.
+                _shown.Add((o.Id, drawing));
+                tile.GotKeyboardFocus += (_, _) => _play(o.Id, drawing, true);
+                tile.LostKeyboardFocus += (_, _) => { if (!tile.IsMouseOver) _play(o.Id, drawing, false); };
+                tile.MouseEnter += (_, _) => { if (!tile.IsKeyboardFocused) _play(o.Id, drawing, true); };
+                tile.MouseLeave += (_, _) => { if (!tile.IsKeyboardFocused) _play(o.Id, drawing, false); };
+            }
             if (chosen || focus == null && o.Id == _options[0].Id) focus = tile;
             if (chosen) focus = tile;
         }

@@ -80,6 +80,61 @@ public static class WidgetInstaller
         catch (Exception ex) { CrashLog.Write("Widget package", ex); return null; }
     }
 
+    /// <summary>
+    /// After an update: removes widget versions older than the newest one installed. That's an older copy still
+    /// installed for this user (one signed with another certificate installs side by side and shows up in Game Bar as
+    /// a second SquareDeck widget), and older package files left in the Widget folder (when SquareDeck may write there).
+    /// Returns how many installed copies were removed.
+    /// </summary>
+    public static int RemoveOlderVersions()
+    {
+        int removed = 0;
+        if (Busy) return 0;
+        try
+        {
+            static Version Ver(Windows.ApplicationModel.Package p) { var v = p.Id.Version; return new Version(v.Major, v.Minor, v.Build, v.Revision); }
+            var all = Installed().ToList();
+            if (all.Count > 1)
+            {
+                var newest = all.Max(Ver);
+                var manager = new PackageManager();
+                foreach (var old in all.Where(p => Ver(p) < newest))
+                {
+                    try
+                    {
+                        if (manager.RemovePackageAsync(old.Id.FullName).AsTask().Wait(TimeSpan.FromSeconds(90))) removed++;
+                        Log($"Removed the older widget {Ver(old)} ({old.Id.FullName}); {newest} stays.");
+                    }
+                    catch (Exception ex) { Log("Couldn't remove the older widget " + old.Id.FullName + ": " + ex.Message); }
+                }
+            }
+
+            // Older package files in the Widget folder (each version's own folder, or the file alone).
+            var keep = InstalledVersion() ?? Find()?.Version;
+            if (keep != null && Directory.Exists(Folder))
+            {
+                foreach (var file in Directory.EnumerateFiles(Folder, "*.*", SearchOption.AllDirectories).ToList())
+                {
+                    string ext = Path.GetExtension(file).ToLowerInvariant();
+                    if (ext is not (".msix" or ".msixbundle" or ".appx" or ".appxbundle") || InDependencies(file)) continue;
+                    if (ReadIdentity(file) is not { } id || id.Name != PackageName || id.Version >= keep) continue;
+                    try
+                    {
+                        string dir = Path.GetDirectoryName(file)!;
+                        bool ownFolder = Path.GetFileName(dir).Contains("_" + id.Version + "_", StringComparison.OrdinalIgnoreCase)
+                                         && !string.Equals(Path.GetFullPath(dir).TrimEnd('\\'), Path.GetFullPath(Folder).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
+                        if (ownFolder) Directory.Delete(dir, recursive: true);
+                        else File.Delete(file);
+                        Log("Deleted the older widget package " + (ownFolder ? dir : file));
+                    }
+                    catch (Exception) { } // Program Files may not be writable without administrator rights: left as it is
+                }
+            }
+        }
+        catch (Exception ex) { CrashLog.Write("Removing older widget versions", ex); }
+        return removed;
+    }
+
     /// <summary>The bundled package when the widget isn't installed at all (start-up asks first), else null.</summary>
     public static Package? Missing() => InstalledVersion() == null ? Find() : null;
 

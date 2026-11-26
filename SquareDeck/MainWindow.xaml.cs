@@ -182,6 +182,14 @@ public partial class MainWindow : Window
                     ShowToast("Updated", "SquareDeck " + Updater.Current, "The update installed. See what's new in Settings > About.", "", "success");
                 else if (update.Code is not (1602 or 1223))
                     ShowToast("Update", "The update didn't install", $"Windows Installer stopped with error {update.Code}. Try again from Settings > About.", "", "warning");
+                // Then any older widget versions go: an older copy still installed (it shows as a second widget in Game
+                // Bar) and older package files left in the Widget folder.
+                if (update.Code is 0 or 3010)
+                    _ = Task.Run(WidgetInstaller.RemoveOlderVersions).ContinueWith(t =>
+                    {
+                        if (t.Result > 0) Dispatcher.BeginInvoke(() => ShowToast("Widget", "Older widget removed",
+                            t.Result == 1 ? "An older copy of the Game Bar widget was removed, so only the current one is left." : $"{t.Result} older copies of the Game Bar widget were removed.", "", "info"));
+                    });
             }
             StartPriceWatch();
             StartStreamPill();
@@ -194,6 +202,7 @@ public partial class MainWindow : Window
             }
             await loading;
             if (Settings.AutoUpdateCheck) _ = CheckForUpdatesAsync(manual: false);
+            StartUpdateChecks(); // and every 12 hours after that
         };
         Closed += (_, _) =>
         {
@@ -909,9 +918,19 @@ public partial class MainWindow : Window
 
         if (Settings.LaunchCountdown && !item.IsRunning)
         {
-            var countdown = new CountdownScreen(item, Settings.LaunchCountdownSeconds);
-            Push(countdown);
-            if (!await countdown.Result) return;
+            if (Settings.LaunchCountdownLook == "card")
+            {
+                var countdown = new CountdownScreen(item, Settings.LaunchCountdownSeconds);
+                Push(countdown);
+                if (!await countdown.Result) return;
+            }
+            else
+            {
+                // Full screen, the Switch 2 way: the cover with the rim draining around it and the seconds rising.
+                var countdown = new Switch2CountdownScreen(item, Settings.LaunchCountdownSeconds);
+                Push(countdown);
+                if (!await countdown.Result) return;
+            }
         }
 
         // Recomp Zone games: a short "recompiling" animation (console machine code in, native PC code out).
@@ -1761,6 +1780,9 @@ public partial class MainWindow : Window
 
     public bool IsTop(Screen screen) => _screens.Count > 0 && ReferenceEquals(_screens[^1], screen);
 
+    /// <summary>Whether a screen is still open (anywhere in the stack).</summary>
+    public bool IsOpen(Screen screen) => _screens.Contains(screen);
+
     public void Push(Screen screen)
     {
         // A page that is already open (the browser kept running in the background): go back to it instead.
@@ -2078,6 +2100,7 @@ public partial class MainWindow : Window
             return;
         }
         if (WakeFromScreensaver()) return; // the press that wakes the screen does nothing else
+        if (PointerMode.GetActive(this)) PointerMode.SetActive(this, false); // the controller or keys: no hover looks
 
         switch (action)
         {

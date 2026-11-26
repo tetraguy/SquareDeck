@@ -10,8 +10,8 @@ using SquareDeck.Services;
 namespace SquareDeck.Screens;
 
 /// <summary>
-/// A game's trailers, played inside SquareDeck in a pop-up drawn in the current UI style (its dialog background,
-/// corners and buttons, or an Advanced style's pop-up artwork): the trailer's name over the video, a progress bar
+/// A game's trailers, played inside SquareDeck in a Switch 2 style pop-up (a floating card, round buttons with the
+/// rimmed highlight, the UI style's colors): the trailer's name over the video, a progress bar
 /// with the time, and real buttons under it (previous, back 10 seconds, play / pause, forward 10 seconds, next,
 /// sound, expand) that the controller moves between like any other row. Expand fills the screen and back.
 /// LB / RB change trailer, LT / RT skip 10 seconds, Y expands, X mutes, B closes (or leaves expanded first).
@@ -29,6 +29,7 @@ public sealed class TrailerScreen : Screen
     private readonly Button _play, _mute, _expand, _prev, _next;
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private bool _expanded, _paused, _muted, _ready;
+    private readonly TrailerPal? _pal = TrailerPal.Enabled ? new TrailerPal() : null; // the companion, with popcorn
     private static Task<Microsoft.Web.WebView2.Core.CoreWebView2Environment>? _environment;
 
     public override bool IsDialog => true;
@@ -37,35 +38,38 @@ public sealed class TrailerScreen : Screen
     {
         _game = game;
         _trailers = trailers;
+        // The Switch 2 look, like the game's page it opens from: a floating card in the card color, the title in
+        // regular type, round buttons that take the rimmed, glowing highlight, and the bar's track in the line color.
+        Switch2Settings.ApplyColors(this);
 
         // ---- the name of the game and the trailer, and which one of how many
         _head = new StackPanel { Margin = new Thickness(2, 0, 2, 14) };
         var top = new DockPanel();
-        _count = Ui.Text("", 14, "SubtleBrush", bold: true);
+        _count = Ui.Text("", 15, "SubtleBrush");
         _count.VerticalAlignment = VerticalAlignment.Bottom;
         DockPanel.SetDock(_count, Dock.Right);
         top.Children.Add(_count);
-        _eyebrow = Ui.Text(game.ToUpperInvariant(), 13, "AccentBrush", bold: true);
+        _eyebrow = Ui.Text(game, 15, "SubtleBrush");
         top.Children.Add(_eyebrow);
         _head.Children.Add(top);
-        _title = Ui.Text("", 24, "FgBrush", bold: true);
+        _title = Ui.Text("", 26, "FgBrush");
         _title.TextTrimming = TextTrimming.CharacterEllipsis;
         _title.Margin = new Thickness(0, 2, 0, 0);
         _head.Children.Add(_title);
 
         // ---- the video
-        _frame = new Border { CornerRadius = new CornerRadius(Corner(14)), ClipToBounds = true, Background = Brushes.Black, Child = _web, Width = 960, Height = 540 };
+        _frame = new Border { CornerRadius = new CornerRadius(12), ClipToBounds = true, Background = Brushes.Black, Child = _web, Width = 960, Height = 540 };
         _status = Ui.Text("Loading the trailer…", 16, "SubtleBrush");
 
         // ---- progress and time
         var progress = new DockPanel { Margin = new Thickness(0, 14, 0, 4) };
-        _time = Ui.Text("0:00 / 0:00", 14, "SubtleBrush", bold: true);
+        _time = Ui.Text("0:00 / 0:00", 15, "SubtleBrush");
         _time.Margin = new Thickness(14, 0, 0, 0);
         _time.VerticalAlignment = VerticalAlignment.Center;
         DockPanel.SetDock(_time, Dock.Right);
         progress.Children.Add(_time);
-        var track = new Border { CornerRadius = new CornerRadius(3), Opacity = 0.25 };
-        track.SetResourceReference(Border.BackgroundProperty, "FgBrush");
+        var track = new Border { CornerRadius = new CornerRadius(3) };
+        track.SetResourceReference(Border.BackgroundProperty, "S2Line");
         _barFill = new Border { CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left, Width = 0 };
         _barFill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
         _barTrack.Children.Add(track);
@@ -81,13 +85,13 @@ public sealed class TrailerScreen : Screen
         progress.Children.Add(_barTrack);
 
         // ---- the buttons
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0) };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) };
         Button Icon(string glyph, string tip, Action click, string? label = null)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal };
             row.Children.Add(new TextBlock { Text = glyph, FontFamily = Ui.IconFont, FontSize = 18, VerticalAlignment = VerticalAlignment.Center });
             if (label != null) row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) });
-            var b = new Button { Style = Ui.StyleOf("PanelButton"), Content = row, ToolTip = tip, Margin = new Thickness(4, 0, 4, 0), MinWidth = 64, HorizontalContentAlignment = HorizontalAlignment.Center };
+            var b = new Button { Style = RoundButton, Content = row, ToolTip = tip, Margin = new Thickness(7, 0, 7, 0) };
             b.Click += (_, _) => click();
             buttons.Children.Add(b);
             return b;
@@ -96,6 +100,7 @@ public sealed class TrailerScreen : Screen
         Icon("", "Back 10 seconds (LT)", () => Seek(-10));
         _play = Icon("", "Play or pause", TogglePlay, "Pause");
         _play.MinWidth = 150;
+        _play.Tag = "primary"; // filled in the highlight color, as the Switch 2 marks the main button
         Icon("", "Forward 10 seconds (RT)", () => Seek(10));
         _next = Icon("", "Next trailer (RB)", () => Step(1));
         _mute = Icon("", "Sound on or off (X)", ToggleMute);
@@ -137,22 +142,32 @@ public sealed class TrailerScreen : Screen
         videoHost.Children.Add(_frame);
         stack.Children.Add(videoHost);
         stack.Children.Add(progress);
-        stack.Children.Add(buttons);
-        stack.Children.Add(_hints);
+        // The buttons and hints, with the companion in its cinema seat at the left when it's on. (Nothing can be drawn
+        // over the video itself: it's a web view.)
+        var controls = new StackPanel();
+        controls.Children.Add(buttons);
+        controls.Children.Add(_hints);
+        if (_pal != null)
+        {
+            var row = new Grid();
+            row.Children.Add(controls);
+            _pal.View.HorizontalAlignment = HorizontalAlignment.Left;
+            _pal.View.VerticalAlignment = VerticalAlignment.Bottom;
+            _pal.View.Margin = new Thickness(-14, 0, 0, -10);
+            row.Children.Add(_pal.View);
+            stack.Children.Add(row);
+        }
+        else stack.Children.Add(controls);
 
         // ---- the pop-up itself, drawn like the style's other pop-ups
         _sheet = new Border
         {
-            Padding = new Thickness(26, 22, 26, 20), CornerRadius = new CornerRadius(Corner(24)), Child = stack,
+            Padding = new Thickness(26, 22, 26, 20), CornerRadius = new CornerRadius(20), Child = stack,
+            Background = new SolidColorBrush(Switch2Settings.Card),
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
             Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 40, ShadowDepth = 0, Opacity = 0.5 },
             RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(1, 1)
         };
-        _sheet.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
-        _sheet.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
-        _sheet.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
-        LookChrome.StyleSheet(_sheet);
-        QuickSettingsScreen.SkinSheet(_sheet);
 
         var dim = new Grid { Background = new SolidColorBrush(Color.FromArgb(0xC8, 0, 0, 0)) };
         dim.MouseLeftButtonDown += (_, e) => { if (e.OriginalSource == dim) Host.Pop(this); };
@@ -162,13 +177,52 @@ public sealed class TrailerScreen : Screen
         _poll.Tick += async (_, _) => await PollAsync();
     }
 
-    private static double Corner(double usual) => Theme.TileCorner <= 4 ? Math.Min(usual, Theme.TileCorner + 2) : usual;
+    private static Style? _round;
+
+    /// <summary>A round button (a pill when it has a label), on the line color; highlighted, the rim and its glow.</summary>
+    private static Style RoundButton => _round ??= (Style)System.Windows.Markup.XamlReader.Parse(
+        """
+        <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="Button">
+          <Setter Property="Foreground" Value="{DynamicResource FgBrush}"/>
+          <Setter Property="FontSize" Value="17"/>
+          <Setter Property="Height" Value="54"/>
+          <Setter Property="MinWidth" Value="54"/>
+          <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+          <Setter Property="Cursor" Value="Hand"/>
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate TargetType="Button">
+                <Grid>
+                  <Border x:Name="Card" CornerRadius="30" BorderThickness="3" BorderBrush="Transparent" Background="{DynamicResource S2Line}" Margin="-3"/>
+                  <Border Padding="18,0,18,0">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                  </Border>
+                </Grid>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="Tag" Value="primary">
+                    <Setter TargetName="Card" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                    <Setter Property="Foreground" Value="White"/>
+                  </Trigger>
+                  <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Card" Property="Opacity" Value="0.85"/>
+                  </Trigger>
+                  <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource S2Rim}"/>
+                    <Setter TargetName="Card" Property="Effect" Value="{DynamicResource S2Glow}"/>
+                    <Setter TargetName="Card" Property="Opacity" Value="1"/>
+                  </Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+        """);
 
     /// <summary>The video as large as fits: about four fifths of the screen in the pop-up, all of it when expanded.</summary>
     private void Fit()
     {
         if (Content is not FrameworkElement root || root.ActualWidth <= 0) return;
-        double chrome = _expanded ? 120 : 270; // the title, progress, buttons and hints around it
+        double chrome = _expanded ? 130 : 285; // the title, progress, buttons and hints around it
         double maxW = root.ActualWidth * (_expanded ? 0.98 : 0.8) - (_expanded ? 0 : 52);
         double maxH = root.ActualHeight - chrome;
         double w = Math.Min(maxW, maxH * 16 / 9);
@@ -282,10 +336,14 @@ public sealed class TrailerScreen : Screen
         _index = (_index + delta + _trailers.Count) % _trailers.Count;
         UiSound.Move();
         Play();
+        _pal?.NewTrailer();
     }
 
-    private void Seek(int seconds) =>
+    private void Seek(int seconds)
+    {
+        _pal?.Skipped();
         Script($"var v=document.getElementById('v');if(v)v.currentTime=Math.max(0,Math.min((v.duration||1e9)-0.5,v.currentTime+({seconds})))");
+    }
 
     private void TogglePlay() => Script("var v=document.getElementById('v');if(v){v.paused?v.play():v.pause()}");
 
@@ -333,6 +391,7 @@ public sealed class TrailerScreen : Screen
             if (paused != _paused)
             {
                 _paused = paused;
+                _pal?.Paused(paused);
                 SetLabel(_play, paused ? "" : "", paused ? "Play" : "Pause");
             }
         }

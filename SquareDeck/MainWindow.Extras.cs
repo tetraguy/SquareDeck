@@ -1309,11 +1309,23 @@ public partial class MainWindow
     /// </summary>
     public void EnsureCovers(IReadOnlyList<Game> games)
     {
-        _coverCts?.Cancel();
-        var cts = _coverCts = new CancellationTokenSource();
-        var todo = games.Where(g => g.Cover == null && g.IsSteam).ToList();
+        // Each call adds to what's being fetched instead of replacing it. A new call used to cancel the one before,
+        // so when two pages asked at once (Home putting covers back after a game, the library or a refresh asking
+        // for its own few), the covers the first call was still fetching never arrived and those tiles stayed blank.
+        var cts = _coverCts ??= new CancellationTokenSource();
+        var todo = games.Where(g => g.Cover == null && g.IsSteam && !g.Parked && _coverFetching.Add(g)).ToList();
         if (todo.Count == 0) return;
         _ = FetchCoversAsync(todo, cts.Token);
+    }
+
+    /// <summary>Games whose cover is being fetched right now (so they aren't fetched twice at once).</summary>
+    private readonly HashSet<Game> _coverFetching = new();
+
+    /// <summary>Stops the cover fetches under way (going into lean mode behind a game); the next ask starts afresh.</summary>
+    private void CancelCoverFetches()
+    {
+        _coverCts?.Cancel();
+        _coverCts = null;
     }
 
     private async Task FetchCoversAsync(List<Game> todo, CancellationToken ct)
@@ -1325,7 +1337,7 @@ public partial class MainWindow
             await Task.WhenAll(todo.Select(async game =>
             {
                 try { await gate.WaitAsync(ct); }
-                catch (OperationCanceledException) { return; }
+                catch (OperationCanceledException) { _coverFetching.Remove(game); return; }
                 try
                 {
                     string? custom = CustomCoverPath(game);
@@ -1355,7 +1367,7 @@ public partial class MainWindow
                 {
                     // Offline, a rejected key, or the page changed: the tile keeps its title.
                 }
-                finally { gate.Release(); }
+                finally { gate.Release(); _coverFetching.Remove(game); }
             }));
         }
         catch (Exception) { }

@@ -82,7 +82,9 @@ namespace SquareDeck.Widget
         private ToggleSwitch _gameProfile;
         private Button _closeGame;
         private TextBlock _closeLabel;
-        private string _gameKey = "", _artAsked = "";
+        private string _gameKey = "", _artAsked = "", _artGot = "";
+        private DateTime _artAskedAt;
+        private int _artTries;
         private bool _syncingProfile;
         private DateTime _closeArmed = DateTime.MinValue;
         private HashSet<string> _sections = new HashSet<string> { "game", "live", "ally", "quick" };
@@ -94,6 +96,7 @@ namespace SquareDeck.Widget
         private readonly DispatcherTimer _noteTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.2) };
         private Storyboard _pulse;
         private bool _focusedOnce;
+        private ScrollViewer _scroll;
 
         public WidgetPage()
         {
@@ -109,6 +112,43 @@ namespace SquareDeck.Widget
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             _widget = e.Parameter as XboxGameBarWidget;
+            // Opened again (the Ally's button, Win + G, or pinned and shown again): back to the top each time.
+            if (_widget != null)
+            {
+                try
+                {
+                    _widget.GameBarDisplayModeChanged += (w, a) =>
+                    {
+                        bool shown = false;
+                        try { shown = _widget.GameBarDisplayMode == XboxGameBarDisplayMode.Foreground; } catch (Exception) { }
+                        if (shown) Ui(StartAtTop);
+                    };
+                    _widget.VisibleChanged += (w, a) =>
+                    {
+                        bool visible = false;
+                        try { visible = _widget.Visible; } catch (Exception) { }
+                        if (visible) Ui(StartAtTop);
+                    };
+                }
+                catch (Exception) { }
+            }
+            Window.Current.VisibilityChanged += (w, a) => { if (a.Visible) Ui(StartAtTop); };
+        }
+
+        /// <summary>
+        /// Starts at the top: the cards scrolled all the way up and the highlight on the first thing there. It used to put
+        /// the highlight on the power presets, which scrolled the cards part of the way down when the widget opened.
+        /// </summary>
+        private void StartAtTop()
+        {
+            if (_scroll == null || _cardsPanel == null) return;
+            _scroll.ChangeView(null, 0, null, true);
+            Control first = null;
+            try { first = Windows.UI.Xaml.Input.FocusManager.FindFirstFocusableElement(_cardsPanel) as Control; } catch (Exception) { }
+            if (first == null) first = _presets[1];
+            first?.Focus(FocusState.Keyboard);
+            // Focusing can bring something into view: make sure it ends at the top.
+            var _ = Dispatcher.RunIdleAsync(a => _scroll.ChangeView(null, 0, null, true));
         }
 
         private void Ui(Action work)
@@ -160,6 +200,7 @@ namespace SquareDeck.Widget
             _cardsPanel = cards;
             BuildEightCards(cards); // the experimental cards (WidgetPage.Eight.cs)
             var scroll = new ScrollViewer { Content = cards, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            _scroll = scroll;
             Grid.SetColumn(scroll, 1);
             body.Children.Add(scroll);
             Root.Children.Add(body);
@@ -192,7 +233,22 @@ namespace SquareDeck.Widget
             logo.Children.Add(_headerLogo);
             _headerAvatar = new Ellipse { Width = 40, Height = 40, Visibility = Visibility.Collapsed };
             logo.Children.Add(_headerAvatar);
-            header.Children.Add(logo);
+            // Tap your picture (or the logo) for your profile page in SquareDeck.
+            var avatarButton = new Button
+            {
+                Content = logo, Padding = new Thickness(0), Margin = new Thickness(0, 0, 12, 0), Background = new SolidColorBrush(Colors.Transparent),
+                BorderThickness = new Thickness(0), MinWidth = 0, MinHeight = 0, FocusVisualPrimaryBrush = _accentBrush, CornerRadius = new CornerRadius(20)
+            };
+            logo.Margin = new Thickness(0);
+            ToolTipService.SetToolTip(avatarButton, "Your profile in SquareDeck");
+            avatarButton.Click += (s, e) =>
+            {
+                bool barOpen = true;
+                try { barOpen = _widget == null || _widget.GameBarDisplayMode == XboxGameBarDisplayMode.Foreground; } catch (Exception) { }
+                var o = new JsonObject { ["op"] = JsonValue.CreateStringValue("profile"), ["bar"] = JsonValue.CreateBooleanValue(barOpen) };
+                _link.Send(o);
+            };
+            header.Children.Add(avatarButton);
 
             var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             _headerName = new TextBlock { Text = "SquareDeck", FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis };
@@ -275,42 +331,80 @@ namespace SquareDeck.Widget
                 HorizontalAlignment = HorizontalAlignment.Center, Background = new SolidColorBrush(Colors.Transparent)
             };
             ToolTipService.SetToolTip(power, "Power");
-            var menu = new MenuFlyout { Placement = FlyoutPlacementMode.Right };
-            Action<string, string> send = (id, label) => _link.Send("power", "id", id);
-            Func<string, string, MenuFlyoutItem> item = (glyph, text) => new MenuFlyoutItem
-            {
-                Text = text, Icon = new FontIcon { Glyph = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets") }
-            };
-            var lockItem = item("\uE72E", "Lock");
-            lockItem.Click += (s, e) => send("lock", "Lock");
-            var sleepItem = item("\uE708", "Sleep");
-            sleepItem.Click += (s, e) => send("sleep", "Sleep");
-            var hibernateItem = item("\uE823", "Hibernate");
-            hibernateItem.Click += (s, e) => send("hibernate", "Hibernate");
-            var restartItem = item("\uE777", "Restart");
-            restartItem.Click += (s, e) => Confirm(power, "\uE777", "Restart now", () => send("restart", "Restart"));
-            var shutdownItem = item("\uE7E8", "Shut down");
-            shutdownItem.Click += (s, e) => Confirm(power, "\uE7E8", "Shut down now", () => send("shutdown", "Shut down"));
-            menu.Items.Add(lockItem);
-            menu.Items.Add(sleepItem);
-            menu.Items.Add(hibernateItem);
-            menu.Items.Add(new MenuFlyoutSeparator());
-            menu.Items.Add(restartItem);
-            menu.Items.Add(shutdownItem);
-            power.Click += (s, e) => menu.ShowAt(power);
+            power.Click += (s, e) => ShowPowerMenu(power);
             return power;
         }
 
-        /// <summary>A second, small menu to make sure: the action, or Cancel.</summary>
-        private static void Confirm(FrameworkElement at, string glyph, string text, Action yes)
+        /// <summary>
+        /// The power menu, in the Switch 2 manner and the UI style's colors (sent by SquareDeck): a plain floating card,
+        /// regular type, flat rows that take the highlight's ring. Restart and Shut down ask once more in the same card.
+        /// </summary>
+        private void ShowPowerMenu(FrameworkElement at)
         {
-            var sure = new MenuFlyout { Placement = FlyoutPlacementMode.Right };
-            var go = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets") } };
-            go.Click += (s, e) => yes();
-            var cancel = new MenuFlyoutItem { Text = "Cancel", Icon = new FontIcon { Glyph = "\uE711", FontFamily = new FontFamily("Segoe MDL2 Assets") } };
-            sure.Items.Add(go);
-            sure.Items.Add(cancel);
-            sure.ShowAt(at);
+            Color card = _s2Card ?? Color.FromArgb(0xFF, 0x22, 0x26, 0x2E), fg = _s2Fg ?? Colors.White,
+                  sub = _s2Sub ?? Color.FromArgb(0xB0, 0xFF, 0xFF, 0xFF), line = _s2Line ?? Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF), accent = _s2Accent ?? _accent;
+            var flyout = new Flyout { Placement = FlyoutPlacementMode.Right };
+            var presenter = new Style(typeof(FlyoutPresenter));
+            presenter.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(card)));
+            presenter.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(8)));
+            presenter.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(16)));
+            presenter.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
+            presenter.Setters.Add(new Setter(Control.BorderBrushProperty, new SolidColorBrush(line)));
+            presenter.Setters.Add(new Setter(FrameworkElement.MinWidthProperty, 0.0));
+            flyout.FlyoutPresenterStyle = presenter;
+            var list = new StackPanel { Width = 210 };
+            flyout.Content = list;
+            Action<string> send = id => _link.Send("power", "id", id);
+
+            Button Row(string glyph, string text, Action click, bool danger = false)
+            {
+                var content = new StackPanel { Orientation = Orientation.Horizontal };
+                var color = new SolidColorBrush(danger ? Color.FromArgb(0xFF, 0xFF, 0x6B, 0x5E) : fg);
+                content.Children.Add(new TextBlock { Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 16, Foreground = color, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 14, 0) });
+                content.Children.Add(new TextBlock { Text = text, FontSize = 16, Foreground = color, VerticalAlignment = VerticalAlignment.Center });
+                var b = new Button
+                {
+                    Style = DeckButton, Content = content, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left,
+                    Padding = new Thickness(16, 11, 16, 12), Margin = new Thickness(0, 2, 0, 2), CornerRadius = new CornerRadius(10),
+                    Background = new SolidColorBrush(Colors.Transparent), BorderThickness = new Thickness(2), BorderBrush = new SolidColorBrush(Colors.Transparent),
+                    FocusVisualPrimaryBrush = new SolidColorBrush(accent), FocusVisualSecondaryBrush = new SolidColorBrush(Colors.Transparent),
+                };
+                // The highlighted row: the card a shade lighter, with a ring in the highlight color.
+                b.GotFocus += (s, e) => { b.Background = new SolidColorBrush(line); b.BorderBrush = new SolidColorBrush(accent); };
+                b.LostFocus += (s, e) => { b.Background = new SolidColorBrush(Colors.Transparent); b.BorderBrush = new SolidColorBrush(Colors.Transparent); };
+                b.PointerEntered += (s, e) => b.Background = new SolidColorBrush(line);
+                b.PointerExited += (s, e) => { if (b.FocusState == FocusState.Unfocused) b.Background = new SolidColorBrush(Colors.Transparent); };
+                b.Click += (s, e) => click();
+                return b;
+            }
+            UIElement Divider() => new Border { Height = 1, Margin = new Thickness(14, 4, 14, 4), Background = new SolidColorBrush(line) };
+            TextBlock Title(string text) => new TextBlock { Text = text, FontSize = 14, Foreground = new SolidColorBrush(sub), Margin = new Thickness(16, 6, 16, 6) };
+
+            Action main = null;
+            Action<string, string, string> confirm = (glyph, text, id) =>
+            {
+                list.Children.Clear();
+                list.Children.Add(Title(text + "?"));
+                var go = Row(glyph, text, () => { flyout.Hide(); send(id); }, danger: true);
+                list.Children.Add(go);
+                list.Children.Add(Row("\uE711", "Cancel", () => main()));
+                var _ = Dispatcher.RunIdleAsync(a => go.Focus(FocusState.Keyboard));
+            };
+            main = () =>
+            {
+                list.Children.Clear();
+                list.Children.Add(Title("Power"));
+                var first = Row("\uE72E", "Lock", () => { flyout.Hide(); send("lock"); });
+                list.Children.Add(first);
+                list.Children.Add(Row("\uE708", "Sleep", () => { flyout.Hide(); send("sleep"); }));
+                list.Children.Add(Row("\uE823", "Hibernate", () => { flyout.Hide(); send("hibernate"); }));
+                list.Children.Add(Divider());
+                list.Children.Add(Row("\uE777", "Restart", () => confirm("\uE777", "Restart now", "restart")));
+                list.Children.Add(Row("\uE7E8", "Shut down", () => confirm("\uE7E8", "Shut down now", "shutdown"), danger: true));
+                var _ = Dispatcher.RunIdleAsync(a => first.Focus(FocusState.Keyboard));
+            };
+            main();
+            flyout.ShowAt(at);
         }
 
         private StackPanel _rail;
@@ -432,8 +526,10 @@ namespace SquareDeck.Widget
             var profile = new StackPanel { VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(10, 0, 0, 0) };
             profile.Children.Add(new TextBlock { Text = "Per-game profile", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Colors.White), HorizontalAlignment = HorizontalAlignment.Right });
             // Just the switch: its template keeps room for words on its right even when there are none, which pushed it
-            // left of the label. At the switch's own width its right edge lines up with the end of "profile".
-            _gameProfile = new ToggleSwitch { OnContent = "", OffContent = "", MinWidth = 0, Width = 40, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 2, 0, 0), FocusVisualPrimaryBrush = _accentBrush };
+            // left of the label. Sized to exactly the rail (40) it was cut off on the right, since the template draws the
+            // rail a little past that; a few pixels of spare room on the right (pulled back with the margin) keep the
+            // whole rail showing while its right end still lines up with the end of "profile".
+            _gameProfile = new ToggleSwitch { OnContent = "", OffContent = "", MinWidth = 0, Width = 48, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 2, -8, 0), FocusVisualPrimaryBrush = _accentBrush };
             _gameProfile.Toggled += (s, e) =>
             {
                 if (_syncingProfile) return;
@@ -513,6 +609,16 @@ namespace SquareDeck.Widget
             if (key.Length > 0 && _artAsked != key)
             {
                 _artAsked = key;
+                _artAskedAt = DateTime.Now;
+                _artTries = 1;
+                _link.Send("art", "key", key);
+            }
+            // No picture yet (the answer was lost, or SquareDeck had put its art away to save memory): ask again, a few
+            // times, a few seconds apart.
+            else if (key.Length > 0 && _artGot != key && _artTries < 6 && (DateTime.Now - _artAskedAt).TotalSeconds > 4 * _artTries)
+            {
+                _artAskedAt = DateTime.Now;
+                _artTries++;
                 _link.Send("art", "key", key);
             }
         }
@@ -617,7 +723,7 @@ namespace SquareDeck.Widget
             var icon = await Decode(Str(art, "icon"));
             var hero = await Decode(Str(art, "hero"));
             if (key != _gameKey) return;
-            if (icon != null) _gameIcon.Source = icon;
+            if (icon != null) { _gameIcon.Source = icon; _artGot = key; }
             if (hero != null) _gameHero.Source = hero;
             if (hero != null && _background == "game") _backArt.Source = hero;
         }
@@ -1231,7 +1337,7 @@ namespace SquareDeck.Widget
             if (rates != null) _rates = rates.Select(v => (int)v.GetNumber()).ToArray();
             MarkQuick("refresh", false, _hz > 0 ? _hz + " Hz" : null);
 
-            if (!_focusedOnce) { _focusedOnce = true; _presets[1].Focus(FocusState.Keyboard); }
+            if (!_focusedOnce) { _focusedOnce = true; StartAtTop(); }
         }
 
         private void ApplyPower(JsonObject tdp)
@@ -1269,10 +1375,9 @@ namespace SquareDeck.Widget
             }
             bool session = Bool(tdp, "session") == true, profile = Bool(tdp, "profile") == true;
             _reset.Visibility = session ? Visibility.Visible : Visibility.Collapsed;
-            string method = Str(tdp, "method"), chip = Str(tdp, "chip");
+            // The processor's name and how the power is set ("AMD Ryzen Z2 Extreme · via ASUS firmware") aren't shown any more:
+            // only whether the game's own profile is in charge.
             var parts = new List<string>();
-            if (!string.IsNullOrEmpty(chip)) parts.Add(chip);
-            if (!string.IsNullOrEmpty(method)) parts.Add("via " + method);
             if (!session && profile) parts.Add("game profile");
             _powerInfo.Text = string.Join("  ·  ", parts);
             UpdatePowerLooks();

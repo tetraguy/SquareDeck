@@ -233,6 +233,7 @@ namespace SquareDeck.Widget
                 o["on"] = JsonValue.CreateBooleanValue(_autoSwitch.IsOn);
                 o["target"] = JsonValue.CreateNumberValue(_autoTarget);
                 _link.Send(o);
+                ShowAutoTargets(_autoSwitch.IsOn);
             };
             Grid.SetColumn(_autoSwitch, 1);
             head.Children.Add(_autoSwitch);
@@ -256,10 +257,22 @@ namespace SquareDeck.Widget
                 _autoTargets[fps] = b;
             }
             _autoRow.Children.Add(targets);
+            _autoTargetRow = targets;
             _autoStatus = Line("", 12, Subtle);
             _autoStatus.Margin = new Thickness(2, 6, 0, 0);
             _autoRow.Children.Add(_autoStatus);
             stack.Children.Add(_autoRow);
+            ShowAutoTargets(false);
+        }
+
+        private FrameworkElement _autoTargetRow;
+
+        /// <summary>The 30 / 40 / 60 FPS targets (and the status under them) only while Auto TDP is on.</summary>
+        private void ShowAutoTargets(bool on)
+        {
+            var v = on ? Visibility.Visible : Visibility.Collapsed;
+            if (_autoTargetRow != null) _autoTargetRow.Visibility = v;
+            if (_autoStatus != null) _autoStatus.Visibility = v;
         }
 
         // ---- Live: thermal warning
@@ -568,6 +581,7 @@ namespace SquareDeck.Widget
                     _autoSyncing = true;
                     _autoSwitch.IsOn = Bool(auto, "on") == true;
                     _autoSyncing = false;
+                    ShowAutoTargets(_autoSwitch.IsOn);
                     _autoTarget = (int)(Num(auto, "target") ?? 40);
                     foreach (var kv in _autoTargets) Mark(kv.Value, kv.Key == _autoTarget);
                     _autoStatus.Text = Str(auto, "status") ?? "";

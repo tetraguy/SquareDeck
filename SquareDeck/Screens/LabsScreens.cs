@@ -1279,7 +1279,7 @@ public sealed class CompanionScreen : ListScreen
         var preview = new Canvas { Width = 120, Height = 120, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) };
         CompanionArt.Draw(preview, CompanionArt.SpeciesId, CompanionArt.ColorHex, "happy", false, Labs.Outfit, cell: 10);
         Rows.Children.Add(preview);
-        var name = Ui.Text(CompanionArt.Name, 22, "FgBrush", bold: true);
+        var name = Ui.Text(CompanionArt.Name, 24, "FgBrush"); // regular type, as the Switch 2 pages have it
         name.HorizontalAlignment = HorizontalAlignment.Center;
         name.Margin = new Thickness(0, 0, 0, 8);
         Rows.Children.Add(name);
@@ -1336,6 +1336,18 @@ public sealed class CompanionScreen : ListScreen
             var game = id;
             AddRow(label, null, "\uE7FC", click: () => Host.CompanionReact(game));
         }
+        AddHeader("Hobbies");
+        AddNote("Things it gets up to by itself on Home now and then.");
+        foreach (var (id, label) in new[] { ("yoyo", "Yo-yo"), ("kite", "Fly a kite"), ("paint", "Paint"), ("jumprope", "Jump rope"), ("gum", "Bubble gum"),
+                                            ("headphones", "Headphones"), ("stargaze", "Stargaze"), ("sandwich", "Snack") })
+        {
+            var hobby = id;
+            AddRow(label, null, "\uE7FC", click: () => Host.CompanionReact(hobby));
+        }
+        AddHeader("Petting");
+        AddRow("Pet " + CompanionArt.Name, null, "\uE76E", click: () => Host.PetCompanion(),
+            subtitle: $"Tap it on Home to pet it: it {CompanionSounds.Describe(CompanionArt.SpeciesId)} (each character has its own noises, with interface sounds on), " +
+                      "and does a little something of its own");
     }
 
     private void Change(string key, string value)
@@ -1429,8 +1441,9 @@ public sealed class CoverLabsScreen : ListScreen
             {
                 string px = Labs.Get("covereffect.pixels", "48");
                 AddRow(kind switch { "bricks" => "Brick size", "terminal" => "Text size", _ => "Pixel size" },
-                    px switch { "32" => "Chunky", "72" => "Fine", _ => "Classic" }, "\uE80A", click: () => Pick("covereffect.pixels",
-                    new[] { ("32", "Chunky"), ("48", "Classic"), ("72", "Fine") }), subtitle: "Bigger blocks, or more detail");
+                    CoverEffects.DetailLevels.FirstOrDefault(d => d.Value == px).Name ?? "Classic", "\uE80A",
+                    click: () => Pick("covereffect.pixels", CoverEffects.DetailLevels),
+                    subtitle: "From big chunky blocks to fine detail that's barely pixelated");
             }
             if (kind is "duotone" or "shuffle")
             {

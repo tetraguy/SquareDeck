@@ -26,14 +26,18 @@ public sealed class UpdateDownloadScreen : Screen
     private DateTime _started, _lastAt;
     private long _lastBytes;
     private double _rate; // bytes a second, smoothed
+    private readonly UpdatePal? _pal = UpdatePal.Enabled && !Theme.ReduceMotion ? new UpdatePal() : null;
+    private readonly bool _preview;
 
     public override bool IsDialog => true;
     public Task<string?> Result => _done.Task;
     public string? Problem { get; private set; }
 
-    public UpdateDownloadScreen(ReleaseInfo release)
+    /// <param name="preview">Plays a pretend download (Settings > Experimental, to see the companion), nothing fetched.</param>
+    public UpdateDownloadScreen(ReleaseInfo release, bool preview = false)
     {
         _release = release;
+        _preview = preview;
         // The Switch 2 look, as the other pop-ups have it: a floating card in the card color, a regular-weight title,
         // the bar's track in the line color and Cancel as a flat row with the rimmed highlight.
         Switch2Settings.ApplyColors(this);
@@ -68,6 +72,7 @@ public sealed class UpdateDownloadScreen : Screen
         bar.Children.Add(_track);
         bar.Children.Add(_fill);
         _barFill = new ProgressFill(bar, _fill);
+        if (_pal != null) panel.Children.Add(_pal.View);
         panel.Children.Add(bar);
         _amount.Margin = new Thickness(0, 10, 0, 0);
         panel.Children.Add(_amount);
@@ -101,24 +106,40 @@ public sealed class UpdateDownloadScreen : Screen
         var progress = new Progress<double>(fraction => Show(fraction, total));
         try
         {
-            var file = await Task.Run(() => Updater.DownloadAsync(_release, progress, _cts.Token));
+            var file = _preview ? await PretendAsync(progress, _cts.Token) : await Task.Run(() => Updater.DownloadAsync(_release, progress, _cts.Token));
             Show(1, total);
-            _amount.Text = "Download complete. Installing…";
-            await Task.Delay(400);
+            _amount.Text = _preview ? "Download complete. (This was a preview.)" : "Download complete. Installing…";
+            _pal?.Done();
+            await Task.Delay(_pal != null ? 1800 : 400);
             Host.Pop(this);
             _done.TrySetResult(file);
         }
         catch (OperationCanceledException)
         {
+            if (_pal != null && !_closed) { _pal.Cancelled(); await Task.Delay(1300); }
             Host.Pop(this);
             _done.TrySetResult(null);
         }
         catch (Exception ex)
         {
             Problem = ex.Message;
+            if (_pal != null && !_closed) { _pal.Failed(); _amount.Text = "The download stopped."; await Task.Delay(2000); }
             Host.Pop(this);
             _done.TrySetResult(null);
         }
+    }
+
+    /// <summary>The preview: about seven seconds of made-up progress, with a quick stretch in the middle.</summary>
+    private static async Task<string?> PretendAsync(IProgress<double> progress, CancellationToken token)
+    {
+        double f = 0;
+        while (f < 1)
+        {
+            await Task.Delay(100, token);
+            f = Math.Min(1, f + (f is > 0.4 and < 0.65 ? 0.035 : 0.011));
+            progress.Report(f);
+        }
+        return "";
     }
 
     private void Show(double fraction, long total)
@@ -128,6 +149,7 @@ public sealed class UpdateDownloadScreen : Screen
         // kept the bar trailing behind the percentage, so the bar is put straight at the same point instead.
         _percent.Text = $"{Math.Floor(fraction * 100):0}%";
         _barFill?.Snap(fraction);
+        _pal?.Progress(fraction, _preview ? (fraction is > 0.4 and < 0.65 ? 20e6 : 2e6) : _rate);
         if (total <= 0) { _amount.Text = "Downloading…"; return; }
         long bytes = (long)(total * fraction);
         var now = DateTime.UtcNow;
@@ -161,5 +183,11 @@ public sealed class UpdateDownloadScreen : Screen
         return action != NavAction.Accept; // only Cancel can be pressed
     }
 
-    public override void OnClosed() => _cts.Cancel();
+    private bool _closed;
+
+    public override void OnClosed()
+    {
+        _closed = true;
+        _cts.Cancel();
+    }
 }

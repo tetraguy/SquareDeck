@@ -39,7 +39,9 @@ public static class Switch2Pages
 
     /// <summary>List pages drawn the Switch 2 way by ListScreen: the PC tools and info pages, and a game's profile (with the game pages).</summary>
     public static bool ListPage(Screen screen) => PcPage(screen) || (Labs.On("s2details") && screen is GameProfileScreen or FixGameScreen)
-        || (On && screen is AddStoresScreen); // from Stores, with Captures, Multimedia and Stores
+        || (On && screen is AddStoresScreen) // from Stores, with Captures, Multimedia and Stores
+        || screen is StyleScheduleScreen     // Settings > Themes > Style schedule
+        || screen is CompanionScreen;        // the companion's character, color, name, outfit and reactions
 
     /// <summary>The icon beside a PC tool or info page's name in its title.</summary>
     public static string PcGlyph(Screen screen) => screen switch
@@ -57,6 +59,8 @@ public static class Switch2Pages
         GameProfileScreen => "\uE7FC",
         FixGameScreen => "\uE90F",
         AddStoresScreen => "\uE710",
+        StyleScheduleScreen => "\uE823",
+        CompanionScreen => "\uE899",
         AllyControlScreen => Ui.HandheldGlyph,
         DeviceHealthScreen => "\uE95E",
         BatteryInsightScreen or BatteryHealthScreen => "\uE945",
@@ -88,6 +92,7 @@ public static class Switch2Pages
         || (Labs.On("s2details") && screen is DetailsScreen or GameNotesScreen or ArtPickerScreen or CoverPickerScreen or GameProfileScreen or FixGameScreen)
         || (Labs.On("s2genie") && screen is GameGenieScreen)
         || (Labs.On("s2setup") && screen is OnboardingScreen)
+        || screen is StyleScheduleScreen or CompanionScreen
         || PcPage(screen);
 
     /// <summary>
@@ -283,7 +288,7 @@ public static class Switch2Pages
     /// <summary>A grid tile: a little padding round the picture, and the rimmed card behind it when highlighted.</summary>
     public static Style TileStyle => _tile ??= (Style)System.Windows.Markup.XamlReader.Parse(
         """
-        <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="Button">
+        <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sd="clr-namespace:SquareDeck;assembly=SquareDeck" TargetType="Button">
           <Setter Property="Foreground" Value="{DynamicResource FgBrush}"/>
           <Setter Property="Margin" Value="0,0,8,10"/>
           <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -303,9 +308,13 @@ public static class Switch2Pages
                     <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource S2Rim}"/>
                     <Setter TargetName="Card" Property="Effect" Value="{DynamicResource S2Glow}"/>
                   </Trigger>
-                  <Trigger Property="IsMouseOver" Value="True">
+                  <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                      <Condition Property="IsMouseOver" Value="True"/>
+                      <Condition Property="sd:PointerMode.Active" Value="True"/>
+                    </MultiTrigger.Conditions>
                     <Setter TargetName="Card" Property="Background" Value="{DynamicResource S2Card}"/>
-                  </Trigger>
+                  </MultiTrigger>
                 </ControlTemplate.Triggers>
               </ControlTemplate>
             </Setter.Value>

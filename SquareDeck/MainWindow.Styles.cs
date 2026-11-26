@@ -523,6 +523,10 @@ public partial class MainWindow
         var s = Settings;
         var leaving = UiStyles.Find(s.UiStyle);
         s.UiStyle = style.Id;
+        // The Switch style starts out without the hero background behind the home row: going back to it turns it off
+        // (it can be turned on again in Settings > Home screen).
+        if (style.Id == "switch" && leaving.Id != "switch") s.HeroBackgrounds = false;
+        else if (leaving.Id == "switch" && style.Id != "switch") s.HeroBackgrounds = true; // the other styles start out with it
         s.DarkTheme = Theme.ShouldBeDark(s); // each style other than Switch has its own light or dark
         // A style of your own always brings everything you chose for it.
         var mine = s.CustomStyles.FirstOrDefault(c => c.Id == style.Id);

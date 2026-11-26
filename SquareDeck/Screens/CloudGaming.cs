@@ -158,7 +158,8 @@ public sealed class CloudGameScreen : Screen
         _status.MaxWidth = 760;
         waiting.Children.Add(_status);
         var how = Ui.Text("", 16, "SubtleBrush");
-        Loaded += (_, _) => how.Text = "To leave: " + HowToLeave + ", or use the small button in the corner.";
+        Loaded += (_, _) => how.Text = "To leave: tap the screen or quickly press " + LeaveButtonsName(Host?.Settings.CloudLeaveButtons ?? "view+start") +
+                                       " for the leave menu, or " + HowToLeave + ".";
         how.Margin = new Thickness(0, 12, 0, 0);
         how.HorizontalAlignment = HorizontalAlignment.Center;
         waiting.Children.Add(how);
@@ -209,6 +210,7 @@ public sealed class CloudGameScreen : Screen
 
     public override void OnResumed()
     {
+        if (_closing) return; // on its way out: don't bring the page (or its corner button) back
         Active = this;
         if (_web.CoreWebView2 != null) _web.Visibility = Visibility.Visible;
         _corner?.Show();
@@ -220,8 +222,39 @@ public sealed class CloudGameScreen : Screen
         if (Active == this) Active = null;
         _corner?.Close();
         _corner = null;
-        try { _web.Dispose(); } catch (Exception) { }
+        ReleasePage();
         Dispatcher.BeginInvoke(() => Host.RefreshBackgroundPlayback(), DispatcherPriority.Background); // and pick up again
+    }
+
+    private bool _released;
+
+    /// <summary>
+    /// Lets go of the page without holding up SquareDeck. Disposing the web view straight away, while it still had the
+    /// keyboard and a stream playing, could hang SquareDeck's whole window (closing a cloud game from the Game Bar
+    /// widget froze it). So the stream is stopped and the page blanked first, the view leaves the screen, and it's
+    /// disposed a moment later once SquareDeck is idle.
+    /// </summary>
+    private void ReleasePage()
+    {
+        if (_released) return;
+        _released = true;
+        var web = _web;
+        try
+        {
+            if (web.IsKeyboardFocusWithin) Keyboard.ClearFocus();
+            web.Visibility = Visibility.Hidden;
+            if (web.CoreWebView2 is { } core)
+            {
+                core.Stop();
+                core.Navigate("about:blank");
+            }
+        }
+        catch (Exception) { }
+        Dispatcher.BeginInvoke(() =>
+        {
+            try { (web.Parent as Panel)?.Children.Remove(web); } catch (Exception) { }
+            Dispatcher.BeginInvoke(() => { try { web.Dispose(); } catch (Exception) { } }, DispatcherPriority.ApplicationIdle);
+        }, DispatcherPriority.Background);
     }
 
     /// <summary>Shows the page, once the launch animation has had its two and a half seconds.</summary>
@@ -283,8 +316,16 @@ public sealed class CloudGameScreen : Screen
     public void PollController(Gamepad pad)
     {
         var raw = pad.GetRaw();
+        _corner?.PanelInput(raw); // left / right, A and B while the leave panel is open
         bool combo = raw.Connected && LeaveHeld(raw, Host.Settings.CloudLeaveButtons);
-        if (!combo) { _comboSince = null; _corner?.Progress(0); return; }
+        if (!combo)
+        {
+            // A quick press of the leave buttons (let go before the hold finished) opens the leave panel.
+            if (_comboSince is { } began && (DateTime.UtcNow - began).TotalSeconds < HoldSeconds) _corner?.Open();
+            _comboSince = null;
+            _corner?.Progress(0);
+            return;
+        }
         _comboSince ??= DateTime.UtcNow;
         double held = (DateTime.UtcNow - _comboSince.Value).TotalSeconds;
         _corner?.Progress(Math.Min(1, held / HoldSeconds));
@@ -302,8 +343,13 @@ public sealed class CloudGameScreen : Screen
         _closing = true;
         _corner?.Close();
         _corner = null;
-        Host.Pop(this);
-        UiSound.Back();
+        // The stream stops and the page lets go of the keyboard before the screen closes (see ReleasePage).
+        ReleasePage();
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (Host != null && Host.IsOpen(this)) Host.Pop(this);
+            UiSound.Back();
+        }, DispatcherPriority.Input);
     }
 
     /// <summary>Back to SquareDeck's home without closing the game? Not offered: the stream would time out anyway.</summary>
@@ -319,18 +365,24 @@ public sealed class CloudGameScreen : Screen
 }
 
 /// <summary>
-/// The "stealthy" button for leaving a cloud game: a tiny, nearly see-through dot in a corner that never takes the
-/// focus from the game. Tap or click it (or move the mouse onto it) and it opens into Exit, Reload and Hide; it also
-/// fills up while the leave buttons are held. It's a window of its own, since nothing can be drawn over the page itself.
+/// Leaving a cloud game, made easy (8.5.23). A Switch 2 style panel drops in at the top of the screen with Leave,
+/// Reload and Keep playing whenever you tap the screen, move the mouse to the top edge, tap the little dot in the
+/// corner, or give the leave buttons a quick press (holding them still leaves right away, filling the panel's bar).
+/// With the controller, left / right moves between the panel's buttons, A presses one and B closes the panel. It
+/// never takes the focus from the game, lets taps through to it, and slides away by itself after a few seconds. These
+/// are windows of their own, since nothing can be drawn over the page itself.
 /// </summary>
 public sealed class CloudCorner : Window
 {
     private readonly CloudGameScreen _screen;
     private readonly string _corner;
-    private readonly Border _dot, _menu, _ring;
+    private readonly Border _dot, _ring;
     private readonly ScaleTransform _ringScale = new(0, 0);
-    private readonly DispatcherTimer _collapse = new() { Interval = TimeSpan.FromSeconds(4) };
     private readonly DispatcherTimer _onTop = new() { Interval = TimeSpan.FromMilliseconds(800) };
+    private readonly CloudLeavePanel _panel;
+    private IntPtr _hook;
+    private LowLevelMouseProc? _hookProc; // kept alive while the hook is in place
+    private DateTime _lastPop;
 
     public CloudCorner(CloudGameScreen screen, string corner)
     {
@@ -345,8 +397,7 @@ public sealed class CloudCorner : Window
         ResizeMode = ResizeMode.NoResize;
         SizeToContent = SizeToContent.WidthAndHeight;
 
-        // The dot: a faint ring that fills up while the exit combo is held.
-        _ringScale = new ScaleTransform(0, 0);
+        // The dot: a faint ring that fills up while the leave buttons are held; tapping it opens the panel.
         _ring = new Border { Width = 26, Height = 26, CornerRadius = new CornerRadius(13), Background = new SolidColorBrush(Color.FromArgb(0xE0, 0xFF, 0x4D, 0x4D)), RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = _ringScale };
         var dotInner = new Grid();
         dotInner.Children.Add(_ring);
@@ -360,68 +411,36 @@ public sealed class CloudCorner : Window
         _dot.MouseLeave += (_, _) => _dot.Opacity = 0.18;
         _dot.MouseLeftButtonUp += (_, _) => Open();
         _dot.TouchUp += (_, _) => Open();
+        Content = new Grid { Margin = new Thickness(10), Children = { _dot } };
 
-        // The menu it opens into.
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
-        row.Children.Add(Button("", "Exit", () => _screen.Exit(), danger: true));
-        row.Children.Add(Button("", "Reload", () => { _screen.Reload(); Collapse(); }));
-        row.Children.Add(Button("", "Hide", Collapse));
-        var stack = new StackPanel();
-        stack.Children.Add(row);
-        stack.Children.Add(new TextBlock { Text = screen.HowToLeave, FontSize = 11, Foreground = new SolidColorBrush(Color.FromArgb(0xB0, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(6, 6, 6, 0) });
-        _menu = new Border
-        {
-            Child = stack, Padding = new Thickness(8), CornerRadius = new CornerRadius(14), Visibility = Visibility.Collapsed,
-            Background = new SolidColorBrush(Color.FromArgb(0xE8, 0x16, 0x16, 0x1C)), BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)), BorderThickness = new Thickness(1)
-        };
-        var root = new Grid { Margin = new Thickness(10) };
-        root.Children.Add(_dot);
-        root.Children.Add(_menu);
-        Content = root;
-
-        _collapse.Tick += (_, _) => Collapse();
+        _panel = new CloudLeavePanel(screen);
         _onTop.Tick += (_, _) => WindowActivator.KeepOnTop(this);
-        SourceInitialized += (_, _) => NoActivate();
+        SourceInitialized += (_, _) => CloudLeavePanel.NoActivate(this);
         SizeChanged += (_, _) => Place();
-        Loaded += (_, _) => { Place(); _onTop.Start(); };
-        Closed += (_, _) => { _onTop.Stop(); _collapse.Stop(); };
+        Loaded += (_, _) => { Place(); _onTop.Start(); InstallHook(); };
+        IsVisibleChanged += (_, _) => { if (!IsVisible) _panel.HidePanel(); };
+        Closed += (_, _) => { _onTop.Stop(); RemoveHook(); _panel.Close(); };
     }
 
-    private Border Button(string glyph, string label, Action click, bool danger = false)
+    /// <summary>Opens the leave panel.</summary>
+    public void Open()
     {
-        var content = new StackPanel { Orientation = Orientation.Horizontal };
-        content.Children.Add(new TextBlock { Text = glyph, FontFamily = Ui.IconFont, FontSize = 14, Foreground = Brushes.White, Margin = new Thickness(0, 1, 8, 0), VerticalAlignment = VerticalAlignment.Center });
-        content.Children.Add(new TextBlock { Text = label, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
-        var b = new Border
-        {
-            Child = content, Padding = new Thickness(14, 8, 16, 9), Margin = new Thickness(3), CornerRadius = new CornerRadius(10), Cursor = Cursors.Hand,
-            Background = new SolidColorBrush(danger ? Color.FromRgb(0xC4, 0x2B, 0x1C) : Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF))
-        };
-        b.MouseLeftButtonUp += (_, e) => { e.Handled = true; click(); };
-        b.TouchUp += (_, e) => { e.Handled = true; click(); };
-        return b;
+        if (!IsVisible) return;
+        _panel.ShowPanel();
     }
 
-    private void Open()
-    {
-        _dot.Visibility = Visibility.Collapsed;
-        _menu.Visibility = Visibility.Visible;
-        _collapse.Stop();
-        _collapse.Start();
-    }
+    public bool PanelOpen => _panel.IsOpen;
 
-    private void Collapse()
-    {
-        _collapse.Stop();
-        _menu.Visibility = Visibility.Collapsed;
-        _dot.Visibility = Visibility.Visible;
-    }
+    /// <summary>The controller while the panel is open: left / right, A and B (others go to the game as usual).</summary>
+    public void PanelInput(Gamepad.RawState raw) => _panel.Input(raw);
 
-    /// <summary>0 to 1 while the leave buttons are held: the dot shows itself and fills up.</summary>
+    /// <summary>0 to 1 while the leave buttons are held: the dot and the panel's bar fill up.</summary>
     public void Progress(double part)
     {
         _ringScale.ScaleX = _ringScale.ScaleY = part;
         _dot.Opacity = part > 0 ? 0.95 : _dot.IsMouseOver ? 0.9 : 0.18;
+        if (part > 0.15) _panel.ShowPanel(holding: true);
+        _panel.Progress(part);
     }
 
     private void Place()
@@ -431,11 +450,264 @@ public sealed class CloudCorner : Window
         Top = _corner.StartsWith("top") ? 0 : h - ActualHeight;
     }
 
-    private void NoActivate()
+    // ---- taps on the screen (and the mouse at the top edge), seen without getting in the game's way
+
+    private delegate IntPtr LowLevelMouseProc(int code, IntPtr message, IntPtr data);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct MouseHookData { public int X, Y; public uint MouseData, Flags, Time; public UIntPtr ExtraInfo; }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)] private static extern IntPtr SetWindowsHookEx(int id, LowLevelMouseProc proc, IntPtr module, uint thread);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool UnhookWindowsHookEx(IntPtr hook);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr message, IntPtr data);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern IntPtr GetModuleHandle(string? name);
+
+    private void InstallHook()
+    {
+        if (_hook != IntPtr.Zero) return;
+        try
+        {
+            _hookProc = HookCallback;
+            _hook = SetWindowsHookEx(14 /* WH_MOUSE_LL */, _hookProc, GetModuleHandle(null), 0);
+        }
+        catch (Exception) { _hook = IntPtr.Zero; }
+    }
+
+    private void RemoveHook()
+    {
+        if (_hook == IntPtr.Zero) return;
+        try { UnhookWindowsHookEx(_hook); } catch (Exception) { }
+        _hook = IntPtr.Zero;
+    }
+
+    private IntPtr HookCallback(int code, IntPtr message, IntPtr data)
     {
         try
         {
-            var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            if (code >= 0)
+            {
+                var info = System.Runtime.InteropServices.Marshal.PtrToStructure<MouseHookData>(data);
+                int msg = message.ToInt32();
+                bool touch = ((ulong)info.ExtraInfo & 0xFFFFFF00) == 0xFF515700; // Windows marks mouse messages made from touch
+                const int ButtonUp = 0x0202, Move = 0x0200;
+                if ((msg == ButtonUp && touch) || (msg == Move && !touch && info.Y <= 1))
+                {
+                    var now = DateTime.UtcNow;
+                    if ((now - _lastPop).TotalMilliseconds > 400)
+                    {
+                        _lastPop = now;
+                        Dispatcher.BeginInvoke(() => { if (!_panel.Contains(info.X, info.Y)) Open(); });
+                    }
+                }
+            }
+        }
+        catch (Exception) { }
+        return CallNextHookEx(_hook, code, message, data);
+    }
+}
+
+/// <summary>The leave panel itself: a floating Switch 2 style card at the top of the screen.</summary>
+public sealed class CloudLeavePanel : Window
+{
+    private readonly CloudGameScreen _screen;
+    private readonly List<Border> _buttons = new();
+    private readonly List<Action> _actions = new();
+    private readonly Border _card, _fill;
+    private readonly TranslateTransform _slide = new(0, -40);
+    private readonly DispatcherTimer _hide = new() { Interval = TimeSpan.FromSeconds(5) };
+    private readonly DispatcherTimer _onTop = new() { Interval = TimeSpan.FromMilliseconds(800) };
+    private int _selected = 2; // Keep playing, so a stray A doesn't end the game
+    private ushort _lastButtons;
+    private bool _open;
+
+    public bool IsOpen => _open;
+
+    public CloudLeavePanel(CloudGameScreen screen)
+    {
+        _screen = screen;
+        WindowStyle = WindowStyle.None;
+        AllowsTransparency = true;
+        Background = Brushes.Transparent;
+        Topmost = true;
+        ShowInTaskbar = false;
+        ShowActivated = false;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        Switch2Settings.ApplyColors(this);
+
+        // The service and how long it's been on, then the three buttons, then the hold bar and how to leave.
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 0, 16) };
+        var face = screen.Service.Face(44, 44, 12);
+        face.Margin = new Thickness(0, 0, 14, 0);
+        head.Children.Add(face);
+        var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        titles.Children.Add(Ui.Text(screen.Service.Name, 20, "FgBrush"));
+        var since = Ui.Text("", 14, "SubtleBrush");
+        titles.Children.Add(since);
+        head.Children.Add(titles);
+        IsVisibleChanged += (_, _) =>
+        {
+            int minutes = (int)(DateTime.Now - screen.OpenedAt).TotalMinutes;
+            since.Text = minutes < 1 ? "Playing now" : minutes == 1 ? "Playing for 1 minute" : $"Playing for {minutes} minutes";
+        };
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        AddButton(row, "", "Leave", () => _screen.Exit(), danger: true);
+        AddButton(row, "", "Reload", () => { _screen.Reload(); HidePanel(); });
+        AddButton(row, "", "Keep playing", HidePanel);
+
+        var track = new Border { Height = 4, CornerRadius = new CornerRadius(2), Margin = new Thickness(6, 14, 6, 0) };
+        track.SetResourceReference(Border.BackgroundProperty, "S2Line");
+        _fill = new Border { Height = 4, CornerRadius = new CornerRadius(2), HorizontalAlignment = HorizontalAlignment.Left, Width = 0, Background = new SolidColorBrush(Color.FromRgb(0xE0, 0x4A, 0x3C)) };
+        var bar = new Grid();
+        bar.Children.Add(track);
+        bar.Children.Add(_fill);
+        _fill.Margin = track.Margin;
+
+        string combo = CloudGameScreen.LeaveButtonsName(screen.Host?.Settings.CloudLeaveButtons ?? "view+start");
+        var how = Ui.Text($"Tap the screen or quickly press {combo} to bring this back  ·  Hold {combo} to leave right away", 13, "SubtleBrush");
+        how.Margin = new Thickness(6, 10, 6, 0);
+        how.TextWrapping = TextWrapping.Wrap;
+        how.MaxWidth = 560;
+
+        var stack = new StackPanel();
+        stack.Children.Add(head);
+        stack.Children.Add(row);
+        stack.Children.Add(bar);
+        stack.Children.Add(how);
+        _card = new Border
+        {
+            Child = stack, Padding = new Thickness(22, 18, 22, 16), CornerRadius = new CornerRadius(18), Margin = new Thickness(20),
+            Background = new SolidColorBrush(Switch2Settings.Card), RenderTransform = _slide,
+            Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 30, ShadowDepth = 6, Opacity = 0.5 }
+        };
+        Content = _card;
+
+        _hide.Tick += (_, _) => HidePanel();
+        _onTop.Tick += (_, _) => WindowActivator.KeepOnTop(this);
+        SourceInitialized += (_, _) => NoActivate(this);
+        SizeChanged += (_, _) => Place();
+        Select(_selected);
+    }
+
+    private void AddButton(Panel row, string glyph, string label, Action click, bool danger = false)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        var g = new TextBlock { Text = glyph, FontFamily = Ui.IconFont, FontSize = 16, Margin = new Thickness(0, 1, 10, 0), VerticalAlignment = VerticalAlignment.Center };
+        var t = new TextBlock { Text = label, FontSize = 17, VerticalAlignment = VerticalAlignment.Center };
+        var fg = danger ? new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x5E)) : new SolidColorBrush(Switch2Settings.Text);
+        g.Foreground = t.Foreground = fg;
+        content.Children.Add(g);
+        content.Children.Add(t);
+        var b = new Border
+        {
+            Child = content, Padding = new Thickness(20, 12, 22, 13), Margin = new Thickness(5), CornerRadius = new CornerRadius(26), Cursor = Cursors.Hand,
+            BorderThickness = new Thickness(3), BorderBrush = Brushes.Transparent, Background = new SolidColorBrush(Switch2Settings.Line)
+        };
+        int index = _buttons.Count;
+        b.MouseEnter += (_, _) => { Select(index); KeepOpen(); };
+        b.MouseLeftButtonUp += (_, e) => { e.Handled = true; click(); };
+        b.TouchUp += (_, e) => { e.Handled = true; click(); };
+        _buttons.Add(b);
+        _actions.Add(click);
+        row.Children.Add(b);
+    }
+
+    /// <summary>The highlighted button: the Switch 2 rim and glow.</summary>
+    private void Select(int index)
+    {
+        _selected = Math.Clamp(index, 0, _buttons.Count - 1);
+        for (int i = 0; i < _buttons.Count; i++)
+        {
+            bool on = i == _selected;
+            _buttons[i].BorderBrush = on ? Switch2Settings.RimBrush : Brushes.Transparent;
+            _buttons[i].Background = new SolidColorBrush(on ? Switch2Settings.Card : Switch2Settings.Line);
+            _buttons[i].Effect = on && !Perf.Active ? new System.Windows.Media.Effects.DropShadowEffect { Color = Switch2Settings.Blue, BlurRadius = 16, ShadowDepth = 0, Opacity = 0.5 } : null;
+        }
+    }
+
+    private void KeepOpen()
+    {
+        _hide.Stop();
+        _hide.Start();
+    }
+
+    public void ShowPanel(bool holding = false)
+    {
+        KeepOpen();
+        if (_open) return;
+        _open = true;
+        Select(2);
+        Show();
+        _onTop.Start();
+        Place();
+        if (Theme.ReduceMotion) { _slide.Y = 0; _card.Opacity = 1; return; }
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        _slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-40, 0, TimeSpan.FromMilliseconds(220)) { EasingFunction = ease });
+        _card.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+        UiSound.Toast();
+    }
+
+    public void HidePanel()
+    {
+        _hide.Stop();
+        if (!_open) return;
+        _open = false;
+        _onTop.Stop();
+        Progress(0);
+        if (Theme.ReduceMotion || !IsVisible) { Hide(); return; }
+        var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(160));
+        fade.Completed += (_, _) => { if (!_open) Hide(); };
+        _card.BeginAnimation(OpacityProperty, fade);
+        _slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-30, TimeSpan.FromMilliseconds(160)));
+    }
+
+    public void Progress(double part)
+    {
+        if (_card.Child is not StackPanel || ActualWidth <= 0) { _fill.Width = 0; return; }
+        _fill.Width = Math.Max(0, (_card.ActualWidth - 44 - 12) * Math.Clamp(part, 0, 1));
+        if (part > 0) KeepOpen();
+    }
+
+    /// <summary>The controller while it's open: left / right moves, A presses, B closes.</summary>
+    public void Input(Gamepad.RawState raw)
+    {
+        const ushort Left = 0x0004, Right = 0x0008, A = 0x1000, B = 0x2000;
+        ushort pressed = (ushort)(raw.Buttons & ~_lastButtons);
+        _lastButtons = raw.Buttons;
+        if (!_open) return;
+        if ((pressed & Left) != 0) { Select(_selected - 1); KeepOpen(); UiSound.Move(); }
+        else if ((pressed & Right) != 0) { Select(_selected + 1); KeepOpen(); UiSound.Move(); }
+        else if ((pressed & A) != 0) { UiSound.Select(); _actions[_selected](); }
+        else if ((pressed & B) != 0) HidePanel();
+    }
+
+    /// <summary>Whether a screen point (in pixels) is on the panel, so a tap on it isn't taken as "open the panel".</summary>
+    public bool Contains(int x, int y)
+    {
+        if (!_open || !IsVisible) return false;
+        try
+        {
+            var topLeft = PointToScreen(new Point(0, 0));
+            var bottomRight = PointToScreen(new Point(ActualWidth, ActualHeight));
+            return x >= topLeft.X && x <= bottomRight.X && y >= topLeft.Y && y <= bottomRight.Y;
+        }
+        catch (Exception) { return false; }
+    }
+
+    private void Place()
+    {
+        double w = SystemParameters.PrimaryScreenWidth;
+        Left = (w - ActualWidth) / 2;
+        Top = 0;
+    }
+
+    /// <summary>Never takes the focus (or the controller) from the game, and stays off Alt + Tab.</summary>
+    public static void NoActivate(Window window)
+    {
+        try
+        {
+            var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
             const int ExStyle = -20, NoActivateFlag = 0x08000000, ToolWindow = 0x80;
             SetWindowLong(handle, ExStyle, GetWindowLong(handle, ExStyle) | NoActivateFlag | ToolWindow);
         }

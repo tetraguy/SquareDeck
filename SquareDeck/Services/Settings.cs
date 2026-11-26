@@ -33,8 +33,11 @@ public sealed class Settings
     /// <summary>"preset:N" for a built-in picture, or the path of a custom image.</summary>
     public string Avatar { get; set; } = "preset:0";
 
-    /// <summary>Blurred artwork of the highlighted game behind the home row.</summary>
-    public bool HeroBackgrounds { get; set; } = true;
+    /// <summary>Blurred artwork of the highlighted game behind the home row (off with the Switch style, which starts out without it).</summary>
+    public bool HeroBackgrounds { get; set; }
+
+    /// <summary>8.5.29: the hero background set once to off for the Switch style, its default.</summary>
+    public bool HeroOff8529 { get; set; }
 
     // Explorer: folders pinned to its sidebar, grid or list, sort order, and hidden files.
     public List<string> ExplorerPins { get; set; } = new();
@@ -256,6 +259,9 @@ public sealed class Settings
     /// <summary>Length of the launch countdown, in seconds.</summary>
     public int LaunchCountdownSeconds { get; set; } = 3;
 
+    /// <summary>How the countdown looks: "s2" (full screen, the Switch 2 manner) or "card" (the pop-up card).</summary>
+    public string LaunchCountdownLook { get; set; } = "s2";
+
     /// <summary>Before a Steam game with a waiting update starts, ask whether to update it first.</summary>
     public bool AskAboutUpdates { get; set; } = true;
 
@@ -342,6 +348,9 @@ public sealed class Settings
     /// <summary>Look for a newer release on GitHub when the launcher starts.</summary>
     public bool AutoUpdateCheck { get; set; } = true;
 
+    /// <summary>When SquareDeck last looked for a new version (it looks every 12 hours while Check for updates automatically is on).</summary>
+    public DateTime LastUpdateCheck { get; set; }
+
     /// <summary>A release the user chose to ignore; it isn't offered again.</summary>
     public string SkippedVersion { get; set; } = "";
 
@@ -365,12 +374,21 @@ public sealed class Settings
     public List<string> PageOrder { get; set; } = new();
 
     /// <summary>Pages LB / RB skip over (they can still be opened from their buttons).</summary>
-    public List<string> PagesOff { get; set; } = new();
-    public bool ShowFriendsButton { get; set; } = true;
+    public List<string> PagesOff { get; set; } = new() { "library", "captures", "music", "friends", "settings" };
+    public bool ShowFriendsButton { get; set; }
     public bool ShowExplorerButton { get; set; } = true;
 
     /// <summary>The News button on the home screen.</summary>
-    public bool ShowNewsButton { get; set; } = true;
+    public bool ShowNewsButton { get; set; }
+
+    /// <summary>
+    /// 8.5.15: the home buttons were set once to the new defaults (Home, Favorites, Apps, Captures, Multimedia, Web
+    /// browser, Explorer, Stores, Settings and Power; Friends, News and My Device off, each still a switch in Settings).
+    /// </summary>
+    public bool HomeButtons8515 { get; set; }
+
+    /// <summary>8.5.16: LB / RB set once to flip between Home, Favorites and Apps only (the rest can be added back in Settings).</summary>
+    public bool PageCycle8516 { get; set; }
 
     /// <summary>Built-in web browser: start page, search engine ("google", "bing", "duckduckgo") and zoom in percent.</summary>
     public string BrowserHome { get; set; } = "https://www.google.com";
@@ -514,7 +532,7 @@ public sealed class Settings
     public bool RumbleOnNotifications { get; set; } = true; // a short buzz when a notification pops up
     public bool RumbleInSettings { get; set; } = true;      // a light tick moving from row to row in Settings
     public bool PerformanceBoost { get; set; }              // free memory before a game starts, with an animation
-    public string BoostAnimation { get; set; } = "rings";   // rings, warp, gauge, orbit, shockwave or random
+    public string BoostAnimation { get; set; } = "switch2"; // switch2, rings, warp, gauge, orbit, shockwave… or random
     public bool BoostRumble { get; set; } = true;           // the animation's vibration pattern
 
     /// <summary>Store apps hidden from the Stores page (by name).</summary>
@@ -690,6 +708,23 @@ public sealed class Settings
                     s.PageTransition ??= "slide";
                     s.TileHighlight ??= "pulse";
                     if (s.LaunchCountdownSeconds is < 1 or > 30) s.LaunchCountdownSeconds = 3;
+                    s.LaunchCountdownLook ??= "s2";
+                    if (!s.HomeButtons8515)
+                    {
+                        s.ShowMusicButton = s.ShowBrowserButton = s.ShowExplorerButton = true;
+                        s.ShowFriendsButton = s.ShowNewsButton = s.ShowMyDeviceButton = false;
+                        s.HomeButtons8515 = true;
+                    }
+                    if (!s.HeroOff8529)
+                    {
+                        if (s.UiStyle == "switch") s.HeroBackgrounds = false;
+                        s.HeroOff8529 = true;
+                    }
+                    if (!s.PageCycle8516)
+                    {
+                        s.PagesOff = new List<string> { "library", "captures", "music", "friends", "settings" };
+                        s.PageCycle8516 = true;
+                    }
                     s.DisabledStores ??= new();
                     s.ExplorerPins ??= new();
                     s.FtpServers ??= new();

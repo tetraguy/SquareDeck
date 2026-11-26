@@ -1394,3 +1394,18 @@ public sealed class ProgressFill
     }
 }
 
+
+/// <summary>
+/// Whether the mouse is being used right now (it moved, or a mouse button was pressed), set on the main window and
+/// inherited by everything in it. Hover looks use it with IsMouseOver, so a pointer resting where it was left (Windows
+/// hides it on a handheld, but it keeps its place, often the middle of the screen) doesn't keep a row lit up while
+/// you move with the controller. The controller or the keyboard turns it off again.
+/// </summary>
+public static class PointerMode
+{
+    public static readonly DependencyProperty ActiveProperty = DependencyProperty.RegisterAttached(
+        "Active", typeof(bool), typeof(PointerMode), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.Inherits));
+
+    public static bool GetActive(DependencyObject o) => (bool)o.GetValue(ActiveProperty);
+    public static void SetActive(DependencyObject o, bool value) => o.SetValue(ActiveProperty, value);
+}

@@ -172,6 +172,9 @@ public sealed class Game : INotifyPropertyChanged
 
     public bool Parked => _parkedCover != null || _parkedPortrait != null;
 
+    /// <summary>The file the square cover was read from while it's put away (lean mode), to borrow it without bringing it back.</summary>
+    public string? ParkedCoverFile => _parkedCover?.Path;
+
     /// <summary>Reads the parked pictures back in (off the interface thread) and puts them back on the tile.</summary>
     /// A picture that can't be read back (its file was replaced or deleted meanwhile) is left empty; the caller then
     /// loads that tile's art the usual way (see MainWindow.RestoreMissingArt).
@@ -185,16 +188,22 @@ public sealed class Game : INotifyPropertyChanged
             if (cover is { } c && _cover == null)
             {
                 var image = await Task.Run(() => Services.ImageLoader.FromFile(c.Path, c.Width));
+                // A file still busy (the game's own updates, antivirus, Steam writing art) can fail once: try again shortly.
+                if (image == null) { await Task.Delay(500); image = await Task.Run(() => Services.ImageLoader.FromFile(c.Path, c.Width)); }
                 if (_cover == null && image != null) Cover = image;
             }
             if (portrait is { } p && _portraitCover == null)
             {
                 var image = await Task.Run(() => Services.ImageLoader.FromFile(p.Path, p.Width));
+                if (image == null) { await Task.Delay(500); image = await Task.Run(() => Services.ImageLoader.FromFile(p.Path, p.Width)); }
                 if (_portraitCover == null && image != null) PortraitCover = image;
                 else if (image == null) PortraitTried = false; // looked for again
             }
         }
-        catch (Exception) { }
+        catch (Exception)
+        {
+            // Not read back: leave it for MainWindow.RestoreMissingArt to load the usual way.
+        }
     }
 
     /// <summary>True once the tall cover has been looked for (found or not), so it isn't asked for again.</summary>
@@ -357,12 +366,9 @@ public sealed class Game : INotifyPropertyChanged
             if (IsCustom) return "Custom game";
             if (!IsInstalled) return "Not installed";
             if (IsExternal) return Source;
-            var parts = new List<string>();
-            if (HasUpdate) parts.Add(UpdateText);
-            if (ReleaseYear is int y) parts.Add($"Released {y}");
-            if (LastPlayed is DateTime d) parts.Add($"Last played {d:MMM d, yyyy}");
-            if (SizeOnDisk > 0) parts.Add($"{SizeOnDisk / 1024d / 1024d / 1024d:0.0} GB");
-            return string.Join("   ·   ", parts);
+            // The release year, last played date and size on disk used to follow here; taken off Home for now (8.5.15).
+            // An update waiting is still shown.
+            return HasUpdate ? UpdateText : "";
         }
     }
 

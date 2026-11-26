@@ -3,6 +3,171 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.5.31
+
+- Game Genie with the companion: while the big companion is in the middle of the page searching, its usual small self in the corner steps away, so there's only one of it. It comes back as soon as the answers are in.
+
+## 8.5.30
+
+- With the companion on, it takes over from the Genie (by default):
+  - The button on a game's page reads "Ask" and its name ("Ask Pip"), and the Game Genie page is titled the same.
+  - While the answers are found, your companion does the searching in the Genie's place, as a big version of itself trying one thing after another: typing furiously on a laptop (code and question marks fly off the keys), sweeping a magnifying glass over floating web pages, opening tab after tab while a loading ring spins, reading a thick guide, catching the signal with an antenna, sorting answer cards into a stack, surfing a wave of links, and finally having the idea (a bulb, an exclamation mark and a burst of sparkles).
+  - The page's lines use its name ("Pip is reading up on…"). With the companion off, the Genie stays as it was.
+- Game Genie page: the button hints at the bottom now show the X and Y buttons (Ask your own, More questions); they were missing. The game's name under the sections slides along to show the rest when it's too long, instead of being cut off.
+- Trailers: the companion's movie night is new and much busier. It moves from one bit to the next every few seconds: munching popcorn, tossing pieces up and catching them (one now and then bounces off its head), leaning back in 3D glasses as things fly out of the screen, slurping a soda, and nodding along with a film reel spinning beside it.
+  - A new trailer starts with a clapperboard "Action!". Skipping makes it jump and spill popcorn everywhere.
+  - Pausing makes it bored, then drowsy with Zs floating up, and playing again wakes it with a "Shh!".
+  - Little sounds go with it (crunch, clap, slurp, pop).
+- Companion: more when you tap it. Every character has a few more noises of its own: a cat's trill, a bunny's thumps, a ghost's "boo!", a robot computing with a ding, a dino's chomp, the blob's wobble.
+  - Half the time it does one of ten new reactions, each with a sound: a hop (boing), a spin (whoosh), a backflip (slide whistle), a ticklish wiggle (giggle), a blush and a kiss, star eyes (chime), a bow (ba-dum-tss), zoomies, a heart burst (pop) and a static spark (zap).
+
+## 8.5.29
+
+- The Switch UI style now starts out without the hero background behind the home row.
+  - Choosing Switch again (from another style) turns it off; choosing another style turns it back on, as those styles start out with it. It can still be turned on or off in Settings > Home screen.
+  - If you're on Switch now, it's turned off once on updating.
+
+## 8.5.28
+
+- Fixed: in Settings (and the other Switch 2 style pages), one row, usually the third, always looked highlighted in a lighter gray.
+  - It was the mouse-over look. On a handheld Windows hides the mouse pointer, but it stays where it was left (often the middle of the screen), so whatever row sat under it looked hovered.
+  - Hover looks now show only while the mouse is really in use (it moved, or a button was clicked). They go away as soon as you use the controller or the keyboard.
+
+## 8.5.27
+
+- Updates: Check for updates automatically (on by default) now also checks every 12 hours while SquareDeck runs, not just when it starts.
+  - The 12 hours count from the last check, so they carry on across restarts. A check that comes due during a game waits until the game is over.
+  - Settings > Updates shows when it last checked.
+
+## 8.5.26
+
+- The game options pop-up (Y on a game or app) is now laid out like the Switch 2's: a large card in your UI style's colors.
+  - At the top: the game's cover small, its name and a line about it, then a thin line.
+  - The groups of options run down the left, with the one shown in the highlight color and a bar beside it. That group's options are on the right as flat rows with the rimmed highlight.
+  - "B Back" and "A OK" sit at the bottom right.
+  - Moving down the left shows each group. Right or A goes into its options; left or B comes back, and B again closes.
+- After an update, older widget versions are removed: an older copy still installed for you (one signed with another certificate installs side by side and shows up as a second SquareDeck widget in Game Bar), and older package files left in the Widget folder. A notice says when an older copy was removed.
+
+## 8.5.25
+
+- Widget: the 30 / 40 / 60 FPS targets (and the status line under them) in the Power card show only while Auto TDP is switched on. Widget 1.6.19.0.
+
+## 8.5.24
+
+- Fixed: the game's icon sometimes didn't show in the widget.
+  - Behind a game, lean mode puts the covers away to save memory, so the cover could be missing just when the widget asked for it. If the online icon couldn't be fetched then, the widget got nothing, and that empty answer was kept.
+  - Now the cover is read from its file when it's put away. An empty answer isn't kept, and the widget asks again a few times if no picture arrives.
+- Widget: the power menu (Lock, Sleep, Hibernate, Restart, Shut down) is now in the Switch 2 style, in your UI style's colors: a plain floating card, regular type and flat rows with the highlight's ring.
+  - Restart and Shut down ask once more in the same card. Widget 1.6.18.0.
+
+## 8.5.23
+
+- Cloud gaming: leaving is much easier.
+  - A Switch 2 style leave panel drops in at the top of the screen with Leave, Reload and Keep playing. It opens whenever you tap the screen, move the mouse to the top edge, tap the little dot in the corner, or give the leave buttons a quick press.
+  - Holding the leave buttons still leaves right away, filling a bar on the panel as you hold.
+  - With the controller, left / right moves between the buttons (Keep playing is highlighted first, so a stray A doesn't end the game), A presses one and B closes it.
+  - The panel shows the service and how long you've been playing. It never takes the focus from the game, lets taps through to it, and slides away by itself after a few seconds.
+
+## 8.5.22
+
+- Captures viewer: with the controller, the floating toolbar (previous, zoom, full screen, share, delete, close, next) and the name under it are hidden. Its buttons are all on the controller already: LB / RB or left / right for previous and next, LT / RT to zoom, Y to share, X to delete, Start for full screen, A to play or pause a clip, B to close.
+  - The toolbar comes back as soon as you use the mouse or keyboard. The header, filmstrip and button hints stay.
+
+## 8.5.21
+
+- Covers that tilt and the Continue where you left off parallax can't be on at the same time any more, since both move with the motion sensor.
+  - While one is on, the other's switch is greyed out ("Off · … is on"). Selecting it asks which effect you want, and turning one on turns the other off.
+  - If both were on, the parallax is kept.
+- The Companion page (character, color, name, outfit, reactions) is now in the Switch 2 style, like the other list pages.
+- Cover art effect:
+  - The pixel size has three more steps past Fine: Detailed, Very detailed and Almost smooth, for much finer, less pixelated covers. Retro also gets more colors at the finer sizes, and Bricks, Terminal and the Windows 2000 icon get more detail too.
+  - Six new effects: Pop art, Pointillism, Chalkboard, Embossed metal, Infrared and Cyberpunk.
+
+## 8.5.20
+
+- Widget: the line under the power dial no longer shows the processor and how power is set ("AMD Ryzen Z2 Extreme · via ASUS firmware"). It shows "game profile" only when the game's own profile is in charge.
+- Widget: tap your profile picture at the top to open your profile page in SquareDeck. Game Bar closes and SquareDeck comes forward on it, and a game that's running keeps running. Widget 1.6.17.0.
+
+## 8.5.19
+
+- Widget: it always starts at the top. Opened for the first time, opened again with the Ally's button or Win + G, or shown again, the cards are scrolled all the way up and the highlight is on the first thing there. It used to put the highlight on the power presets, which scrolled the widget part of the way down. Widget 1.6.16.0.
+
+## 8.5.18
+
+- Widget: the Per-game profile switch in the game card is no longer cut off on the right. Sized to exactly its rail it lost the rail's rounded end, so it has a few pixels of spare room now, and its right end still lines up with the end of "profile". Widget 1.6.15.0.
+
+## 8.5.17
+
+- Fixed: closing a cloud game (Xbox Cloud Gaming, GeForce NOW…) from the Game Bar widget could freeze SquareDeck.
+  - The widget forced SquareDeck on top with Game Bar's input attached while the page still had the keyboard, and the page was then torn down straight away.
+  - Now SquareDeck is only brought forward (the service is already a page inside it). On leaving, the stream is stopped and the page blanked and let go of first, and the web view is disposed once SquareDeck is idle. This applies to every way of leaving, not just the widget.
+- Companion: petting it (tapping it on Home) now plays its own little noise, different for each character: the blob bloops, the cat mews or purrs, the bunny squeaks, the ghost goes "ooOOoo", the robot beeps and boops, and the dino gives a tiny rawr.
+  - Each has a few versions with the pitch shifting a touch, and a bigger one if you keep petting.
+  - Each also does its own thing: the cat purrs and leans, the bunny hops, the ghost fades and floats, the robot sparks, the dino stomps, the blob jiggles.
+  - Pet lines for each character. Sounds play with interface sounds on.
+- Companion: eight new things it gets up to on Home: a yo-yo, flying a kite, painting on an easel, jump rope, blowing a bubble of gum until it pops, nodding along in headphones, stargazing (with a shooting star) and a snack.
+  - They're on its page under Hobbies, with a "Pet" row to try the noise.
+
+## 8.5.16
+
+- LB / RB now flip only between Home, Favorites and Apps. Game library, Captures, Multimedia, Friends and Settings are taken out of the cycle (set once for everyone on updating). They still open from their buttons, and each can be put back in Settings > Pages LB / RB switch between.
+
+## 8.5.15
+
+- Settings > Home screen > Animations: Home buttons, Opening pages, Selected game and Punch-in when opening now open a picker with a live preview of every choice. Each one plays on a small scene (round buttons, a page opening, a row of games) while it's highlighted or under the mouse, using the same animation code as Home. Choosing one uses it.
+- Home: the line under the highlighted game no longer shows the release year, last played date and size (an update waiting is still shown).
+- Home buttons: the defaults are now Home, Favorites, Apps, Captures, Multimedia, Web browser, Explorer, Stores, Settings and Power. Friends, News and My Device are off to start with, and each can be turned on in Settings > Home screen (set once for everyone on updating). "Music button" there is now called "Multimedia button".
+
+## 8.5.14
+
+- Style schedule (Settings > Themes) is now in the Switch 2 style, like the other list pages: its name with an icon and a line under it, flat rows with the rimmed highlight, bar-and-name headings and pop-ups in the Switch 2 look, all in your UI style's colors.
+
+## 8.5.13
+
+- Trailers: with the companion on, it watches along from a red cinema seat beside the buttons, with a striped bucket of popcorn.
+  - It reaches in, pops a piece into its mouth and munches. Now and then it tosses one up and catches it with a hop.
+  - It looks bored while the trailer is paused, cheers when another trailer starts, and gasps when you skip ahead, with a few words for each.
+  - Uses your companion's character, color and outfit. It isn't shown with reduced motion on.
+
+## 8.5.12
+
+- Game details: the highlight on a card in Your screenshots (and in Developer's Screenshots and News and updates) is no longer cut off at the top and bottom. These rows scroll sideways and clipped the rim. The cards now sit inside a margin wide enough for it, and still line up with the rest of the page.
+
+## 8.5.11
+
+- New Performance Boost animation, **Switch 2 power-up**:
+  - Two controllers slide in from the sides and snap onto the game's cover with a click.
+  - The Switch 2 rim (blue, purple, pink, or your UI style's own ring) spins up faster and faster round the cover while eight power bars fill one by one.
+  - Then a ring in the rim's colors flashes out, all in the UI style's page colors with quiet type, and with its own vibration pattern.
+  - It's first in Settings > Performance Boost > Animation and the default for new setups.
+- New look for the countdown before a game starts, **Switch 2 full screen** (now the default look):
+  - The game's cover large in the middle, with the Switch 2 rim around it draining as the seconds go.
+  - The game's logo (or name) under it, and each second rising in large regular numbers.
+  - It ends on "Start!" with a flash of the rim and a longer pulse. Start now and Cancel stay under it.
+  - Settings > Games > Countdown look switches between it and the card, and "Try the countdown" plays it with the highlighted game.
+
+## 8.5.10
+
+- Captures: LT / RT (L2 / R2) now change between the kinds of capture (instead of LB / RB), like the Multimedia page.
+
+## 8.5.9
+
+- Friends: LT / RT (L2 / R2) move between the lists: Everyone, In a game, Online and Pinned (X still goes to the next one).
+
+## 8.5.8
+
+- News: LT / RT (L2 / R2) now change between the sections too, as well as LB / RB.
+
+## 8.5.7
+
+- The trailer player on a game's page is now in the Switch 2 style: a floating card in the card color, the trailer's name in regular type, the bar's track in the line color, and round buttons that take the rimmed, glowing highlight, with Play / Pause filled in the highlight color.
+
+## 8.5.6
+
+- New in Settings > Experimental: **Companion on the update screens**. Your companion rides the progress bar while an update downloads and installs. On the download card it looks around while connecting, then carries the new version along the bar. It dashes when the connection is fast, hops at each quarter, cheers when the download is done, shrugs at a cancel and looks worried if the download fails. On the full-screen install window it naps while SquareDeck closes, walks the bar with the box and hops at each install step, with a line for each. It tinkers with a wrench while the Game Bar widget updates, then cheers among the confetti at the end (or looks worried if the install fails). The feature's page lets you try either screen with nothing downloaded or installed. Uses your companion's character, color, name and outfit.
+- Fixed: covers sometimes not loading after closing a game and coming back to SquareDeck. One page asking for covers cancelled the covers another page was still fetching (for example Home putting art back after a game while the library or a refresh asked for its own). Those tiles stayed blank. Asks now add to what's being fetched. A cover file that's busy for a moment is read again shortly after, and tiles still without art are checked again a few seconds after you're back. This also covers a game that closed before SquareDeck had put its art away.
+- File Explorer: a highlighted folder (or drive) now has **Open in a new tab** right under Open.
+
 ## 8.5.5
 - Widget: in the game card, the Per-game profile switch now sits right under the end of its label (it was pushed left by room the switch keeps for words it doesn't have), and Close game has its own line across the card, so "Press again to close" shows in full. Widget 1.6.14.0.
 

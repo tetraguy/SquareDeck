@@ -175,9 +175,13 @@
                                 <Setter TargetName="Pill" Property="Background" Value="{DynamicResource TabActiveFill}"/>
                                 <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource RingBrush}"/>
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="sd:PointerMode.Active" Value="True"/>
+                                </MultiTrigger.Conditions>
                                 <Setter TargetName="Ring" Property="BorderBrush" Value="#40FFFFFF"/>
-                            </Trigger>
+                            </MultiTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -205,9 +209,13 @@
                             <Trigger Property="Tag" Value="selected-active">
                                 <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource AccentBrush}"/>
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="sd:PointerMode.Active" Value="True"/>
+                                </MultiTrigger.Conditions>
                                 <Setter TargetName="Ring" Property="Stroke" Value="#40FFFFFF"/>
-                            </Trigger>
+                            </MultiTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -253,9 +261,13 @@
                                 <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource FgBrush}"/>
                                 <Setter TargetName="Icon" Property="Foreground" Value="{DynamicResource FgBrush}"/>
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="sd:PointerMode.Active" Value="True"/>
+                                </MultiTrigger.Conditions>
                                 <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource FgBrush}"/>
-                            </Trigger>
+                            </MultiTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -347,9 +359,13 @@
                                 <Setter TargetName="B" Property="Background" Value="{DynamicResource AccentBrush}"/>
                                 <Setter Property="Foreground" Value="{DynamicResource BgBrush}"/>
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="sd:PointerMode.Active" Value="True"/>
+                                </MultiTrigger.Conditions>
                                 <Setter TargetName="Ring" Property="BorderBrush" Value="#40FFFFFF"/>
-                            </Trigger>
+                            </MultiTrigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource RingBrush}"/>
                                 <Setter TargetName="Ring" Property="Effect" Value="{DynamicResource RingGlow}"/>
@@ -386,9 +402,13 @@
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource RingBrush}"/>
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="sd:PointerMode.Active" Value="True"/>
+                                </MultiTrigger.Conditions>
                                 <Setter TargetName="B" Property="BorderBrush" Value="#40FFFFFF"/>
-                            </Trigger>
+                            </MultiTrigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="B" Property="Opacity" Value="0.75"/>
                             </Trigger>
@@ -484,9 +504,13 @@
         <ControlTemplate x:Key="SlimThumb" TargetType="Thumb">
             <Border x:Name="T" CornerRadius="3" Background="{DynamicResource SubtleBrush}" Opacity="0.35"/>
             <ControlTemplate.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsMouseOver" Value="True"/>
+                        <Condition Property="sd:PointerMode.Active" Value="True"/>
+                    </MultiTrigger.Conditions>
                     <Setter TargetName="T" Property="Opacity" Value="0.7"/>
-                </Trigger>
+                </MultiTrigger>
                 <Trigger Property="IsDragging" Value="True">
                     <Setter TargetName="T" Property="Opacity" Value="0.9"/>
                 </Trigger>

@@ -79,7 +79,7 @@ public sealed class GameNewsScreen : Screen
             PanningMode = PanningMode.VerticalOnly, Focusable = false, Content = body
         };
         // Switch 2 style: the sections down the left like System Settings', the stories on the right.
-        SetPage("News", _s2 ? Switch2Pages.Shell(_s2Nav, scroll) : scroll, "LB RB  Section      {Select}  Open      {Details}  Refresh      {Back}  Back", wide: true);
+        SetPage("News", _s2 ? Switch2Pages.Shell(_s2Nav, scroll) : scroll, "LB RB / LT RT  Section      {Select}  Open      {Details}  Refresh      {Back}  Back", wide: true);
         if (_s2) UseSwitch2Chrome("News", "\uE789");
     }
 
@@ -127,9 +127,11 @@ public sealed class GameNewsScreen : Screen
         {
             case NavAction.Y:
             case NavAction.RB:
+            case NavAction.RT:
                 MoveSection(+1);
                 return true;
             case NavAction.LB:
+            case NavAction.LT:
                 MoveSection(-1);
                 return true;
             case NavAction.X:
@@ -140,7 +142,7 @@ public sealed class GameNewsScreen : Screen
         return false;
     }
 
-    /// <summary>Next or previous section (LB / RB, or Y for next), with the first post of it selected.</summary>
+    /// <summary>Next or previous section (LB / RB or LT / RT, or Y for next), with the first post of it selected.</summary>
     private void MoveSection(int step)
     {
         int i = Array.FindIndex(Sections, x => x.Id == _section);

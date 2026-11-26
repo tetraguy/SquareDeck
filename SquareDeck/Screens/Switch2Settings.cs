@@ -110,7 +110,7 @@ public static class Switch2Settings
     /// <summary>A settings row: flat on a thin line; highlighted, a card with the rim.</summary>
     public static Style RowStyle => _row ??= Parse(
         """
-        <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="Button">
+        <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sd="clr-namespace:SquareDeck;assembly=SquareDeck" TargetType="Button">
           <Setter Property="Foreground" Value="{DynamicResource FgBrush}"/>
           <Setter Property="FontSize" Value="20"/>
           <Setter Property="Margin" Value="0"/>
@@ -135,9 +135,13 @@ public static class Switch2Settings
                     <Setter TargetName="Card" Property="Effect" Value="{DynamicResource S2Glow}"/>
                     <Setter TargetName="Line" Property="Opacity" Value="0"/>
                   </Trigger>
-                  <Trigger Property="IsMouseOver" Value="True">
+                  <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                      <Condition Property="IsMouseOver" Value="True"/>
+                      <Condition Property="sd:PointerMode.Active" Value="True"/>
+                    </MultiTrigger.Conditions>
                     <Setter TargetName="Card" Property="Background" Value="{DynamicResource S2Card}"/>
-                  </Trigger>
+                  </MultiTrigger>
                 </ControlTemplate.Triggers>
               </ControlTemplate>
             </Setter.Value>
@@ -148,7 +152,7 @@ public static class Switch2Settings
     /// <summary>A section on the left: plain text; the one you're in is blue with a bar beside it.</summary>
     public static Style NavStyle => _nav ??= Parse(
         """
-        <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="Button">
+        <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sd="clr-namespace:SquareDeck;assembly=SquareDeck" TargetType="Button">
           <Setter Property="Foreground" Value="{DynamicResource FgBrush}"/>
           <Setter Property="FontSize" Value="19"/>
           <Setter Property="Margin" Value="0"/>

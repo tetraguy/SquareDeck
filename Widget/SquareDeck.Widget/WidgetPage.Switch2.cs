@@ -25,6 +25,9 @@ namespace SquareDeck.Widget
         private string _s2Key;
         private Grid _headerGrid;
 
+        /// <summary>The Switch 2 colors in use (for menus drawn later, like the power menu), or null with the widget's own look.</summary>
+        private Color? _s2Card, _s2Fg, _s2Sub, _s2Line, _s2Accent;
+
         /// <summary>Called with every state from SquareDeck: applies, updates or removes the Switch 2 look.</summary>
         private void ApplySwitch2(JsonObject s)
         {
@@ -45,6 +48,8 @@ namespace SquareDeck.Widget
             if (!TryParseColor(Str(p, "line"), out line)) line = Color.FromArgb(0x40, fg.R, fg.G, fg.B);
             if (!TryParseColor(Str(p, "card"), out card)) card = Color.FromArgb(0xFF, (byte)Math.Min(255, bg.R + 18), (byte)Math.Min(255, bg.G + 18), (byte)Math.Min(255, bg.B + 18));
             bool hasAccent = TryParseColor(Str(p, "accent"), out accent);
+            _s2Card = card; _s2Fg = fg; _s2Sub = sub; _s2Line = line; _s2Accent = hasAccent ? accent : (Color?)null;
+            _s2Undo.Add(() => { _s2Card = _s2Fg = _s2Sub = _s2Line = _s2Accent = null; });
 
             // The panel: the page color, no teal glow in the corner.
             var oldRoot = Root.Background;

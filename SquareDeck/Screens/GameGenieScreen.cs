@@ -77,8 +77,8 @@ public sealed class GameGenieScreen : Screen
         Grid.SetColumn(_scroll, 1);
         body.Children.Add(_scroll);
 
-        SetPage("Game Genie", body, _s2 ? "{Select}  Open answer        {X}  Ask your own        {Y}  More questions        LT / RT  Section        {Back}  Back"
-                                        : "{Select}  Open answer        {X}  Ask your own        {Y}  More questions        {Back}  Back", wide: true);
+        SetPage(Ask.PageTitle, body, _s2 ? "{Select}  Open answer        {Details}  Ask your own        {Options}  More questions        LT / RT  Section        {Back}  Back"
+                                        : "{Select}  Open answer        {Details}  Ask your own        {Options}  More questions        {Back}  Back", wide: true);
         if (_s2) SetUpSwitch2(art, name, leftScroll, body);
     }
 
@@ -125,9 +125,9 @@ public sealed class GameGenieScreen : Screen
         _scroll.SetValue(Grid.ColumnProperty, 0);
 
         ReplaceBody(Switch2Pages.Shell(_s2Nav, _scroll, _s2Under));
-        UseSwitch2Chrome("Game Genie", "\uE82F");
-        var under = Ui.Text(_game.Name, 15, "SubtleBrush");
-        under.TextTrimming = TextTrimming.CharacterEllipsis;
+        UseSwitch2Chrome(Ask.PageTitle, "\uE82F");
+        // A long name slides along to show the rest (and back), instead of being cut off.
+        var under = new MarqueeText(Ui.Text(_game.Name, 15, "SubtleBrush")) { HorizontalAlignment = HorizontalAlignment.Left };
         _s2Under.Children.Add(under);
         _s2Under.Children.Add(Ui.Text("Answers by Google Gemini", 12, "SubtleBrush"));
         _scroll.ScrollChanged += (_, _) => MarkS2();
@@ -233,7 +233,7 @@ public sealed class GameGenieScreen : Screen
     private async Task WaitForPreparedAsync(Task<GameGenie.Sheet?> pending)
     {
         _busy = true;
-        ShowThinking("The Genie is almost ready with " + _game.Name + "…");
+        ShowThinking(Ask.Who + " is almost ready with " + _game.Name + "…");
         GameGenie.Sheet? sheet = null;
         try { sheet = await pending; } catch (Exception) { }
         _busy = false;
@@ -246,7 +246,7 @@ public sealed class GameGenieScreen : Screen
     {
         if (_busy) return;
         _busy = true;
-        ShowThinking("The Genie is reading up on " + _game.Name + "…");
+        ShowThinking(Ask.Who + " is reading up on " + _game.Name + "…");
         try
         {
             // Each answer appears as soon as Gemini has written it; the rest keep coming in underneath.
@@ -339,7 +339,7 @@ public sealed class GameGenieScreen : Screen
         again.Margin = new Thickness(0, 0, 10, 10);
         again.Click += async (_, _) =>
         {
-            if (await Host.AskAsync("Start again?", "The Genie writes a new set of questions. Your own questions go too.", "Start again", "Cancel") != 0) return;
+            if (await Host.AskAsync("Start again?", Ask.Who + " writes a new set of questions. Your own questions go too.", "Start again", "Cancel") != 0) return;
             GameGenie.Forget(_game.Key);
             _sheet = null;
             await MakeAsync();
@@ -392,7 +392,7 @@ public sealed class GameGenieScreen : Screen
             if (!Theme.ReduceMotion) spin.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromSeconds(1.2)) { RepeatBehavior = RepeatBehavior.Forever });
             line.Children.Add(dots);
             int count = answers.Count(a => !a.Mine);
-            line.Children.Add(Ui.Text(count == 0 ? "The Genie is writing the answers…" : $"The Genie is still writing… {count} {(count == 1 ? "answer" : "answers")} so far", 15, "SubtleBrush"));
+            line.Children.Add(Ui.Text(count == 0 ? Ask.Who + " is writing the answers…" : $"{Ask.Who} is still writing… {count} {(count == 1 ? "answer" : "answers")} so far", 15, "SubtleBrush"));
             _list.Children.Add(line);
         }
 
@@ -520,8 +520,11 @@ public sealed class GameGenieScreen : Screen
     private void ShowThinking(string text)
     {
         _list.Children.Clear();
-        // The Genie at work: floating from the lamp and trying one way after another to find the answers.
-        var genie = new GenieSearch(text) { Margin = new Thickness(0, 30, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
+        // The Genie at work, floating from the lamp and trying one way after another to find the answers; or, with the
+        // companion on, your companion doing the searching in its place.
+        FrameworkElement genie = Ask.UseCompanion ? new CompanionSearch(text) : new GenieSearch(text);
+        genie.Margin = new Thickness(0, 30, 0, 0);
+        genie.HorizontalAlignment = HorizontalAlignment.Center;
         _list.Children.Add(genie);
         _s2Heads.Clear();
         _s2Counts.Clear();
@@ -531,7 +534,7 @@ public sealed class GameGenieScreen : Screen
 
     private void ShowProblem(string message)
     {
-        if (_sheet != null) { Show(); Host.ShowToast("Game Genie", "The Genie couldn't answer", message, "", "info"); return; }
+        if (_sheet != null) { Show(); Host.ShowToast("Game Genie", Ask.Who + " couldn't answer", message, "", "info"); return; }
         _list.Children.Clear();
         var t = Ui.Text(message, 18, "FgBrush");
         t.TextWrapping = TextWrapping.Wrap;
@@ -550,10 +553,10 @@ public sealed class GameGenieScreen : Screen
     private async Task AskOwnAsync()
     {
         if (_busy || _sheet == null) return;
-        string? question = await Host.PromptAsync("Ask the Genie", "Anything about " + _game.Name + ": how to beat a part, what to do first, settings for a handheld…", "", "Ask");
+        string? question = await Host.PromptAsync(Ask.Title, "Anything about " + _game.Name + ": how to beat a part, what to do first, settings for a handheld…", "", "Ask");
         if (string.IsNullOrWhiteSpace(question)) return;
         _busy = true;
-        ShowThinking("The Genie is thinking about: " + question.Trim());
+        ShowThinking(Ask.Who + " is thinking about: " + question.Trim());
         try
         {
             var answer = await GameGenie.AskAsync(_game.Key, _sheet, _known, question, _cts.Token);
@@ -622,4 +625,25 @@ public sealed class GameGenieScreen : Screen
         }
         return new Viewbox { Width = size, Height = size, Child = canvas };
     }
+}
+
+/// <summary>
+/// Who answers on the Game Genie page: the Genie, or, with the companion on (the default when it's on), your
+/// companion by name: "Ask Pip" on the game's page, and Pip doing the searching in the Genie's place.
+/// </summary>
+public static class Ask
+{
+    public static bool UseCompanion => Labs.On("companion");
+
+    /// <summary>"The Genie", or the companion's name.</summary>
+    public static string Who => UseCompanion ? CompanionArt.Name : "The Genie";
+
+    /// <summary>The button on a game's page: "Ask Genie", or "Ask Pip".</summary>
+    public static string Button => UseCompanion ? "Ask " + CompanionArt.Name : "Ask Genie";
+
+    /// <summary>The question prompt's title.</summary>
+    public static string Title => UseCompanion ? "Ask " + CompanionArt.Name : "Ask the Genie";
+
+    /// <summary>The page's title.</summary>
+    public static string PageTitle => UseCompanion ? "Ask " + CompanionArt.Name : "Game Genie";
 }

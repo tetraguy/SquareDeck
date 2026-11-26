@@ -46,6 +46,13 @@ public static class CoverEffects
         ("crt", "CRT television", "Curved glass, glowing phosphor stripes and scanlines"),
         ("holofoil", "Holo foil", "A rainbow foil card that shimmers with sparkles"),
         ("kaleidoscope", "Kaleidoscope", "Mirrored six ways, like looking down a kaleidoscope"),
+        // 8.5.21: six more.
+        ("popart", "Pop art", "Four bold, flat-color panels, like a 1960s screen print"),
+        ("pointillism", "Pointillism", "Painted in little dots of pure color on white"),
+        ("chalkboard", "Chalkboard", "Drawn in white and colored chalk on a green board"),
+        ("emboss", "Embossed metal", "Pressed into a sheet of brushed silver"),
+        ("infrared", "Infrared", "False-color infrared film: pink leaves and deep teal skies"),
+        ("cyberpunk", "Cyberpunk", "Teal and magenta city-light grading with a neon glow and scanlines"),
         ("shuffle", "Shuffle", "Every cover gets a different effect"),
     };
 
@@ -63,7 +70,13 @@ public static class CoverEffects
     /// <summary>The effect in use ("" for none). Set by the Labs page; changing it redraws the covers.</summary>
     public static string Kind { get; set; } = "";
 
-    /// <summary>The Detail option (Chunky 32 / Classic 48 / Fine 72) for the pixel and grid effects.</summary>
+    /// <summary>
+    /// The Detail option for the pixel and grid effects: Chunky 32, Classic 48, Fine 72, Detailed 112, Very detailed 160,
+    /// Almost smooth 224 (the larger, the more detail and the less pixelated).
+    /// </summary>
+    public static readonly (string Value, string Name)[] DetailLevels =
+        { ("32", "Chunky"), ("48", "Classic"), ("72", "Fine"), ("112", "Detailed"), ("160", "Very detailed"), ("224", "Almost smooth") };
+
     public static int Detail { get; set; } = 48;
 
     /// <summary>The Duotone palette's id.</summary>
@@ -198,6 +211,12 @@ public static class CoverEffects
         "crt" => Crt(source),
         "holofoil" => HoloFoil(source),
         "kaleidoscope" => Kaleidoscope(source),
+        "popart" => PopArt(source),
+        "pointillism" => Pointillism(source),
+        "chalkboard" => Chalkboard(source),
+        "emboss" => Emboss(source),
+        "infrared" => Infrared(source),
+        "cyberpunk" => Cyberpunk(source),
         _ => source,
     };
 
@@ -359,8 +378,10 @@ public static class CoverEffects
     private static BitmapSource Retro(BitmapSource s, int detail)
     {
         var p = Load(s, detail);
+        // More detail also gets more colors, so the fine sizes look less posterized.
+        double step = detail switch { >= 200 => 17, >= 150 => 24, >= 100 => 32, _ => 51 };
         for (int i = 0; i < p.D.Length; i += 4)
-            for (int c = 0; c < 3; c++) p.D[i + c] = (byte)(Math.Round(p.D[i + c] / 51.0) * 51);
+            for (int c = 0; c < 3; c++) p.D[i + c] = (byte)Math.Min(255, Math.Round(p.D[i + c] / step) * step);
         return Enlarge(p, Math.Max(1, 256 / Math.Max(p.W, p.H))).ToBitmap();
     }
 
@@ -390,7 +411,7 @@ public static class CoverEffects
 
     private static BitmapSource Bricks(BitmapSource s, int detail)
     {
-        int across = detail switch { <= 32 => 16, >= 72 => 32, _ => 24 };
+        int across = detail switch { <= 32 => 16, <= 48 => 24, <= 72 => 32, <= 112 => 44, <= 160 => 56, _ => 72 };
         double aspect = s.PixelHeight / (double)s.PixelWidth;
         int cw = aspect <= 1 ? across : Math.Max(4, (int)Math.Round(across / aspect));
         int ch = aspect <= 1 ? Math.Max(4, (int)Math.Round(across * aspect)) : across;
@@ -457,7 +478,7 @@ public static class CoverEffects
     private static BitmapSource Terminal(BitmapSource s, int detail)
     {
         var glyphs = _glyphs!;
-        int cols = detail switch { <= 32 => 36, >= 72 => 64, _ => 48 };
+        int cols = detail switch { <= 32 => 36, <= 48 => 48, <= 72 => 64, <= 112 => 88, <= 160 => 112, _ => 140 };
         int rows = Math.Max(8, (int)Math.Round(cols * (s.PixelHeight / (double)s.PixelWidth) * GlyphW / GlyphH));
         var small = Load(s, cols, rows, keepAspect: false);
         var l = Luma(small);
@@ -867,7 +888,7 @@ public static class CoverEffects
         // A desktop the shape of the cover, in Windows 2000's own blue, with one icon on it.
         double aspect = s.PixelHeight / (double)s.PixelWidth;
         int cw = 64, ch = Math.Max(40, (int)Math.Round(64 * aspect));
-        int icon = detail switch { <= 32 => 28, >= 72 => 40, _ => 34 };
+        int icon = detail switch { <= 32 => 28, <= 48 => 34, <= 72 => 40, <= 112 => 44, _ => 48 };
         var desk = Hex("#3A6EA5");
         var o = new Px(cw, ch);
         for (int y = 0; y < ch; y++) for (int x = 0; x < cw; x++) o.Set(x, y, desk);
@@ -1191,6 +1212,143 @@ public static class CoverEffects
                 double scan = y % 3 == 2 ? 0.62 : 1.0;
                 double vignette = 1 - 0.4 * Smooth(0.4, 1.3, Math.Sqrt(bx * bx + by * by));
                 o.Set(x, y, (c.R * mr * scan + gl.R * 0.35) * vignette, (c.G * mg * scan + gl.G * 0.35) * vignette, (c.B * mb * scan + gl.B * 0.35) * vignette);
+            }
+        return o.ToBitmap();
+    }
+
+    // ---------------------------------------------------------------- 8.5.21
+
+    /// <summary>Four panels of the cover, each posterized into three flat colors from a different bold set.</summary>
+    private static BitmapSource PopArt(BitmapSource s)
+    {
+        var p = Load(s, 160);
+        var l = Luma(p);
+        Stretch(l);
+        string[][] sets =
+        {
+            new[] { "#1B1464", "#ED1E79", "#FCEE21" }, new[] { "#00A99D", "#F7931E", "#FFFFFF" },
+            new[] { "#662D91", "#39B54A", "#FBB03B" }, new[] { "#C1272D", "#29ABE2", "#F2F2F2" },
+        };
+        var o = new Px(p.W * 2, p.H * 2);
+        for (int panel = 0; panel < 4; panel++)
+        {
+            var c = sets[panel].Select(Hex).ToArray();
+            int ox = panel % 2 * p.W, oy = panel / 2 * p.H;
+            for (int y = 0; y < p.H; y++)
+                for (int x = 0; x < p.W; x++)
+                {
+                    float v = l[y * p.W + x];
+                    var col = v < 85 ? c[0] : v < 170 ? c[1] : c[2];
+                    bool border = x < 2 || y < 2 || x >= p.W - 2 || y >= p.H - 2;
+                    o.Set(ox + x, oy + y, border ? Colors.Black : col);
+                }
+        }
+        return o.ToBitmap();
+    }
+
+    /// <summary>Dots of saturated color, each the color under it, scattered over white paper.</summary>
+    private static BitmapSource Pointillism(BitmapSource s)
+    {
+        var p = Load(s, 320);
+        var o = new Px(p.W, p.H);
+        for (int i = 0; i < o.D.Length; i += 4) { o.D[i] = 236; o.D[i + 1] = 244; o.D[i + 2] = 248; o.D[i + 3] = 255; }
+        var rng = new Random(11);
+        int dots = p.W * p.H / 7;
+        for (int n = 0; n < dots; n++)
+        {
+            int cx = rng.Next(p.W), cy = rng.Next(p.H);
+            var c = Saturate(p.Get(cx, cy), 1.5);
+            int rad = 1 + rng.Next(2);
+            for (int y = -rad; y <= rad; y++)
+                for (int x = -rad; x <= rad; x++)
+                {
+                    if (x * x + y * y > rad * rad + 1) continue;
+                    int px = cx + x, py = cy + y;
+                    if (px < 0 || py < 0 || px >= p.W || py >= p.H) continue;
+                    o.Set(px, py, c.R, c.G, c.B);
+                }
+        }
+        return o.ToBitmap();
+    }
+
+    /// <summary>Edges in chalk (white, with a hint of the cover's color) over a dusty green board.</summary>
+    private static BitmapSource Chalkboard(BitmapSource s)
+    {
+        var p = Load(s, 320);
+        var l = Luma(p);
+        var e = Edges(Blur(l, p.W, p.H, 1, 2), p.W, p.H);
+        var o = new Px(p.W, p.H);
+        for (int y = 0; y < p.H; y++)
+            for (int x = 0; x < p.W; x++)
+            {
+                int i = y * p.W + x;
+                double grain = Noise(x, y, 3) * 18;
+                double chalk = Smooth(10, 34, e[i]) * (0.75 + 0.25 * Noise(x / 2, y / 2, 9));
+                double fill = l[i] / 255.0 * 0.22; // a soft smudge of the lighter parts
+                var (r, g, b) = p.Get(x, y);
+                double tint = 0.25;
+                double baseR = 34 + grain, baseG = 62 + grain, baseB = 48 + grain;
+                double k = Math.Min(1, chalk + fill);
+                o.Set(x, y, baseR + (235 * (1 - tint) + r * tint - baseR) * k,
+                            baseG + (240 * (1 - tint) + g * tint - baseG) * k,
+                            baseB + (230 * (1 - tint) + b * tint - baseB) * k);
+            }
+        return o.ToBitmap();
+    }
+
+    /// <summary>Lit from the top left as if pressed into metal, with fine horizontal brushing.</summary>
+    private static BitmapSource Emboss(BitmapSource s)
+    {
+        var p = Load(s, 320);
+        var l = Blur(Luma(p), p.W, p.H, 1, 1);
+        var o = new Px(p.W, p.H);
+        for (int y = 0; y < p.H; y++)
+            for (int x = 0; x < p.W; x++)
+            {
+                float a = l[Math.Max(0, y - 1) * p.W + Math.Max(0, x - 1)], b = l[Math.Min(p.H - 1, y + 1) * p.W + Math.Min(p.W - 1, x + 1)];
+                double relief = (a - b) * 1.6;
+                double brush = Noise(x / 9, y, 5) * 14;
+                double v = 150 + relief + brush;
+                o.Set(x, y, v * 0.97, v * 0.99, v * 1.03);
+            }
+        return o.ToBitmap();
+    }
+
+    /// <summary>False-color infrared: greens turn pink and white, blues turn deep teal, reds go golden.</summary>
+    private static BitmapSource Infrared(BitmapSource s)
+    {
+        var p = Load(s, 320);
+        var o = new Px(p.W, p.H);
+        for (int y = 0; y < p.H; y++)
+            for (int x = 0; x < p.W; x++)
+            {
+                var (r, g, b) = p.Get(x, y);
+                // Channel swap (green becomes red), then a pink lift for what was green.
+                double leaf = Math.Max(0, g - (r + b) / 2) / 255.0;
+                double nr = g * 0.9 + 255 * leaf * 0.6, ng = b * 0.55 + r * 0.25 + 120 * leaf * 0.4, nb = r * 0.4 + b * 0.45 + 160 * leaf * 0.5;
+                o.Set(x, y, nr + 20, ng + 10, nb + 30);
+            }
+        return o.ToBitmap();
+    }
+
+    /// <summary>Shadows to teal, lights to magenta, a neon glow on the edges and faint scanlines.</summary>
+    private static BitmapSource Cyberpunk(BitmapSource s)
+    {
+        var p = Load(s, 320);
+        var l = Luma(p);
+        var e = Edges(Blur(l, p.W, p.H, 1, 1), p.W, p.H).Select(v => (float)Smooth(14, 40, v)).ToArray();
+        var glow = Blur(e, p.W, p.H, 3, 2);
+        var o = new Px(p.W, p.H);
+        for (int y = 0; y < p.H; y++)
+            for (int x = 0; x < p.W; x++)
+            {
+                int i = y * p.W + x;
+                var (r, g, b) = p.Get(x, y);
+                double t = l[i] / 255.0;
+                double gr = r * 0.55 + (20 + 235 * t) * 0.45, gg = g * 0.45 + (60 * (1 - t) + 20 * t) * 0.55, gb = b * 0.5 + (120 + 100 * t) * 0.5;
+                double gl = Math.Min(1, glow[i] * 2);
+                double scan = y % 3 == 0 ? 0.85 : 1;
+                o.Set(x, y, (gr + 255 * gl * 0.5) * scan, (gg + 40 * gl) * scan, (gb + 230 * gl * 0.5) * scan);
             }
         return o.ToBitmap();
     }

@@ -858,10 +858,11 @@ public sealed partial class ExplorerScreen : Screen
         if (_folder == null && focused != null)
         {
             // A drive on This PC.
-            int pick = await Host.AskWithIconsAsync(focused.Name, null, ("Open", ""), ("Pin to the sidebar", ""), ("Properties", ""));
+            int pick = await Host.AskWithIconsAsync(focused.Name, null, ("Open", ""), ("Open in a new tab", "\uE8A7"), ("Pin to the sidebar", ""), ("Properties", ""));
             if (pick == 0) NavigateTo(focused.Path);
-            else if (pick == 1) TogglePin(focused.Path);
-            else if (pick == 2) await PropertiesAsync(new List<Entry> { focused });
+            else if (pick == 1) NewTab(focused.Path);
+            else if (pick == 2) TogglePin(focused.Path);
+            else if (pick == 3) await PropertiesAsync(new List<Entry> { focused });
             return;
         }
 
@@ -874,6 +875,7 @@ public sealed partial class ExplorerScreen : Screen
         void Add(string label, string glyph, Action run) => actions.Add((label, glyph, () => { run(); return Task.CompletedTask; }));
 
         if (single) Add("Open", "", () => Open(first));
+        if (single && first.IsFolder) Add("Open in a new tab", "\uE8A7", () => NewTab(first.Path));
         if (single && !first.IsFolder)
             Add("Open with…", "", () => ProcessUtil.Open("rundll32.exe", "shell32.dll,OpenAs_RunDLL " + first.Path));
         Add(_checked.Contains(first.Path) && single ? "Unselect" : "Select", "", () => { foreach (var t in targets) ToggleCheck(t); });

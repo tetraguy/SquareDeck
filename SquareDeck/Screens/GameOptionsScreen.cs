@@ -1,25 +1,32 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Shapes;
 using SquareDeck.Services;
 
 namespace SquareDeck.Screens;
 
 /// <summary>
-/// The Y menu for a game or app: its logo (or name) over a strip of its artwork, then its options in groups, each
-/// with an icon. Returns the chosen option's index.
+/// The Y menu for a game or app, the way the Switch 2 shows a game's options: a large card in the UI style's colors,
+/// the game's cover small at the top left with its name and a line about it, a thin line under that; then the groups
+/// of options down the left (the one shown in the highlight color with a bar beside it) and that group's options on
+/// the right as flat rows on thin lines, with the rimmed highlight; B Back and A OK at the bottom right. Moving down
+/// the left shows each group's options; right (or A) goes into them, left comes back. Returns the chosen option's index.
 /// </summary>
 public sealed class GameOptionsScreen : Screen
 {
     public sealed record Option(string Group, string Label, string Glyph, bool Danger = false);
 
     private readonly TaskCompletionSource<int> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly Game _game;
-    private readonly Border _logoHost = new() { Height = 96, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 4) };
-    private readonly Image _art = new() { Stretch = Stretch.UniformToFill, Opacity = 0 };
-    private readonly CancellationTokenSource _cts = new();
-    private readonly StackPanel _rows = new();
+    private readonly IReadOnlyList<Option> _options;
+    private readonly List<string> _groups;
+    private readonly StackPanel _nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+    private readonly StackPanel _rows = new() { Margin = new Thickness(0, 6, 14, 16) };
+    private readonly ScrollViewer _rowsScroll;
+    private readonly List<Button> _navButtons = new();
+    private string _group = "";
     private int _result = -1;
 
     public override bool IsDialog => true;
@@ -28,145 +35,147 @@ public sealed class GameOptionsScreen : Screen
 
     public GameOptionsScreen(Game game, IReadOnlyList<Option> options, string? subtitle)
     {
-        _game = game;
+        _options = options;
+        _groups = options.Select(o => o.Group).Distinct().ToList();
+        Switch2Settings.ApplyColors(this);
 
-        bool s2 = Switch2Pages.SystemOn; // Experimental: Switch 2 style
-        if (s2) Switch2Settings.ApplyColors(this);
-        // Header: artwork behind, the logo (or the name until the logo arrives, or if there is none).
-        var header = new Grid { Height = 150, ClipToBounds = true };
-        _art.Source = game.Cover;
-        _art.Effect = new BlurEffect { Radius = 26, RenderingBias = RenderingBias.Performance };
-        _art.Margin = new Thickness(-40);
-        header.Children.Add(_art);
-        var fade = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
-        var bg = (Application.Current.Resources["DialogBrush"] as SolidColorBrush)?.Color
-                 ?? (Application.Current.Resources["BgBrush"] as SolidColorBrush)?.Color ?? Colors.Black;
-        if (s2) bg = Switch2Settings.Card;
-        fade.GradientStops.Add(new GradientStop(Color.FromArgb(0x60, bg.R, bg.G, bg.B), 0));
-        fade.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, bg.R, bg.G, bg.B), 1));
-        header.Children.Add(new Border { Background = fade });
-        var titleStack = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(34, 0, 34, 10) };
-        _logoHost.Child = NameText(game.Name);
-        titleStack.Children.Add(_logoHost);
+        // ---- the top: the cover, the name and a line about it, then a thin line
+        var head = new Grid { Margin = new Thickness(40, 26, 40, 0) };
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition());
+        var cover = new Border { Width = 76, Height = 76, CornerRadius = new CornerRadius(GameCard.Round(6)), ClipToBounds = true, Margin = new Thickness(0, 0, 18, 0) };
+        if (game.Cover != null) cover.Background = new ImageBrush(game.Cover) { Stretch = Stretch.UniformToFill };
+        else { cover.SetResourceReference(Border.BackgroundProperty, "S2Line"); cover.Child = Ui.Glyph("\uE7FC", 30, "SubtleBrush"); }
+        cover.Clip = new RectangleGeometry(new Rect(0, 0, 76, 76), GameCard.Round(6), GameCard.Round(6));
+        head.Children.Add(cover);
+        var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var name = Ui.Text(game.Name, 26, "FgBrush");
+        name.TextTrimming = TextTrimming.CharacterEllipsis;
+        titles.Children.Add(name);
         if (!string.IsNullOrEmpty(subtitle))
         {
-            var sub = Ui.Text(subtitle, 15, "SubtleBrush");
-            sub.HorizontalAlignment = HorizontalAlignment.Center; // under the centered logo
-            titleStack.Children.Add(sub);
+            var sub = Ui.Text(subtitle, 16, "SubtleBrush");
+            sub.Margin = new Thickness(0, 4, 0, 0);
+            titles.Children.Add(sub);
         }
-        header.Children.Add(titleStack);
+        Grid.SetColumn(titles, 1);
+        head.Children.Add(titles);
 
-        // The options, in groups.
-        for (int i = 0; i < options.Count; i++)
+        // ---- the groups on the left, the group's options on the right
+        foreach (var g in _groups)
         {
-            var o = options[i];
-            if (i == 0 || options[i - 1].Group != o.Group)
-            {
-                var h = Ui.Text(s2 ? o.Group : o.Group.ToUpperInvariant(), 12, "SubtleBrush", bold: true);
-                if (s2) h.Tag = "group"; // drawn as a bar-and-name heading below
-                h.Margin = new Thickness(8, i == 0 ? 2 : 14, 0, 6);
-                _rows.Children.Add(h);
-            }
-            int index = i;
-            var row = Ui.Row(o.Label, glyph: o.Glyph);
-            row.FontSize = 18;
-            if (o.Danger) row.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x7A, 0x7A));
-            row.Click += (_, _) => Choose(index);
-            _rows.Children.Add(row);
+            string group = g;
+            var item = Switch2Pages.NavItem(group, null, false, () => EnterGroup(group));
+            item.GotKeyboardFocus += (_, _) => ShowGroup(group);
+            item.MouseEnter += (_, _) => ShowGroup(group);
+            item.DataContext = group;
+            _navButtons.Add(item);
+            _nav.Children.Add(item);
         }
-        Ui.GroupRows(_rows);
-        if (s2)
+        _rowsScroll = new ScrollViewer
         {
-            // Switch 2 style: flat rows on thin lines, no icons, headings with a short bar.
-            Switch2Settings.Restyle(_rows);
-            foreach (var h in _rows.Children.OfType<FrameworkElement>().Where(e => e.Tag as string == "s2header"))
-                h.Margin = new Thickness(14, _rows.Children.IndexOf(h) == 0 ? 4 : 20, 0, 4);
-            foreach (var r in _rows.Children.OfType<Button>()) r.MinHeight = 58;
-        }
-
-        var body = new ScrollViewer
-        {
-            MaxHeight = 430, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, PanningMode = PanningMode.VerticalOnly,
-            Focusable = false, Content = _rows, Padding = new Thickness(26, 6, 26, 20)
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            PanningMode = PanningMode.VerticalOnly, Focusable = false, Content = _rows
         };
-        var panel = new Grid();
-        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        panel.Children.Add(header);
-        Grid.SetRow(body, 1);
-        panel.Children.Add(body);
+        var panes = Switch2Pages.Shell(_nav, _rowsScroll, navWidth: 330);
+        panes.Margin = new Thickness(26, 10, 26, 0);
+
+        // ---- the bottom: a thin line, then B Back and A OK on the right
+        var foot = new Grid { Margin = new Thickness(26, 0, 26, 0) };
+        foot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        foot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var footLine = new Rectangle { Height = 1 };
+        footLine.SetResourceReference(Shape.FillProperty, "S2Line");
+        foot.Children.Add(footLine);
+        var hints = new HintBar("{Back}  Back      {Select}  OK") { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 14, 18) };
+        Grid.SetRow(hints, 1);
+        foot.Children.Add(hints);
+
+        var layout = new Grid();
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        layout.Children.Add(head);
+        var headLine = new Rectangle { Height = 1, Margin = new Thickness(26, 20, 26, 0) };
+        headLine.SetResourceReference(Shape.FillProperty, "S2Line");
+        Grid.SetRow(headLine, 1);
+        layout.Children.Add(headLine);
+        Grid.SetRow(panes, 2);
+        layout.Children.Add(panes);
+        Grid.SetRow(foot, 3);
+        layout.Children.Add(foot);
 
         var box = new Border
         {
-            Width = 640, CornerRadius = new CornerRadius(22), ClipToBounds = true, Child = panel,
-            Effect = new DropShadowEffect { BlurRadius = 44, ShadowDepth = 8, Opacity = 0.5 },
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+            MaxWidth = 1240, MaxHeight = 780, CornerRadius = new CornerRadius(18), Child = layout, Margin = new Thickness(70, 46, 70, 46),
+            Background = new SolidColorBrush(Switch2Settings.Card),
+            Effect = Perf.Active ? null : new DropShadowEffect { BlurRadius = 44, ShadowDepth = 8, Opacity = 0.5 },
         };
-        box.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
-        box.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
-        box.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
-        if (s2) { box.Background = new SolidColorBrush(Switch2Settings.Card); box.BorderThickness = new Thickness(0); }
-        // Rounded corners for the artwork too.
-        box.Loaded += (_, _) => panel.Clip = new RectangleGeometry(new Rect(0, 0, box.ActualWidth, box.ActualHeight), 22, 22);
-
-        var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(0xA8, 0, 0, 0)) };
+        var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)) };
+        backdrop.MouseLeftButtonDown += (_, e) => { if (e.OriginalSource == backdrop) Host.Pop(this); };
         backdrop.Children.Add(box);
-        var hints = new HintBar("{Select}  Select      {Back}  Close")
-        {
-            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 40, 24)
-        };
-        backdrop.Children.Add(hints);
         Content = backdrop;
+
+        if (_groups.Count > 0) ShowGroup(_groups[0]);
     }
 
-    private static TextBlock NameText(string name)
+    /// <summary>Shows a group's options on the right, and marks it on the left.</summary>
+    private void ShowGroup(string group)
     {
-        var t = Ui.Text(name, 34, "FgBrush", bold: true);
-        t.TextTrimming = TextTrimming.CharacterEllipsis;
-        t.MaxWidth = 560;
-        t.TextAlignment = TextAlignment.Center;
-        t.HorizontalAlignment = HorizontalAlignment.Center;
-        t.VerticalAlignment = VerticalAlignment.Bottom;
-        return t;
-    }
-
-    public override void OnShown()
-    {
-        _art.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0.85, TimeSpan.FromMilliseconds(300)));
-        _ = LoadArtAsync();
-    }
-
-    /// <summary>The game's logo and wide artwork from SteamGridDB (usually already downloaded).</summary>
-    private async Task LoadArtAsync()
-    {
-        if (!_game.IsGame) return;
-        var key = Host.Settings.SteamGridDbApiKey;
-        var ct = _cts.Token;
-        try
+        if (group == _group) return;
+        _group = group;
+        foreach (var b in _navButtons) b.Tag = Equals(b.DataContext, group) ? "selected" : null;
+        _rows.Children.Clear();
+        for (int i = 0; i < _options.Count; i++)
         {
-            var (logo, hero) = await Task.Run(async () =>
-            {
-                using var client = new SteamGridDbClient(key);
-                var logoPath = await client.GetLogoAsync(_game, ct);
-                var heroPath = await client.GetHeroAsync(_game, ct);
-                return (logoPath == null ? null : ImageLoader.FromFile(logoPath, 640),
-                        heroPath == null ? null : ImageLoader.FromFile(heroPath, 900));
-            }, ct);
-            if (ct.IsCancellationRequested) return;
-            if (hero != null) _art.Source = hero;
-            if (logo != null)
-            {
-                var image = new Image
-                {
-                    Source = logo, Stretch = Stretch.Uniform, MaxHeight = 96, MaxWidth = 420, HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Bottom, Opacity = 0, ToolTip = _game.Name,
-                    Effect = new DropShadowEffect { BlurRadius = 16, ShadowDepth = 0, Opacity = 0.6 }
-                };
-                _logoHost.Child = image;
-                image.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(250)));
-            }
+            var o = _options[i];
+            if (o.Group != group) continue;
+            int index = i;
+            var row = Switch2Pages.SettingRow(o.Label, null, () => Choose(index));
+            row.MinHeight = 62;
+            if (o.Danger) row.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x5E));
+            _rows.Children.Add(row);
         }
-        catch (Exception) { }
+        _rowsScroll.ScrollToTop();
+    }
+
+    /// <summary>Into a group's options (A or right on the group): the first one is highlighted.</summary>
+    private void EnterGroup(string group)
+    {
+        ShowGroup(group);
+        _rows.Children.OfType<Button>().FirstOrDefault()?.Focus();
+    }
+
+    public override bool OnAction(NavAction action)
+    {
+        var focused = Keyboard.FocusedElement as DependencyObject;
+        bool inNav = focused != null && _navButtons.Any(b => ReferenceEquals(b, focused));
+        bool inRows = focused is Button row && _rows.Children.Contains(row);
+        if (action == NavAction.Right && inNav) { EnterGroup(_group); UiSound.Move(); return true; }
+        if ((action == NavAction.Left || action == NavAction.Back) && inRows)
+        {
+            // Back to the groups, on the one being shown (B from the options goes back there first, then closes).
+            _navButtons.FirstOrDefault(b => Equals(b.DataContext, _group))?.Focus();
+            UiSound.Move();
+            return true;
+        }
+        if (inRows && action is NavAction.Up or NavAction.Down)
+        {
+            var rows = _rows.Children.OfType<Button>().ToList();
+            int at = rows.IndexOf((Button)focused!);
+            int next = Math.Clamp(at + (action == NavAction.Down ? 1 : -1), 0, rows.Count - 1);
+            if (next != at) { rows[next].Focus(); rows[next].BringIntoView(); UiSound.Move(); }
+            return true;
+        }
+        if (inNav && action is NavAction.Up or NavAction.Down)
+        {
+            int at = _navButtons.IndexOf((Button)focused!);
+            int next = Math.Clamp(at + (action == NavAction.Down ? 1 : -1), 0, _navButtons.Count - 1);
+            if (next != at) { _navButtons[next].Focus(); UiSound.Move(); }
+            return true;
+        }
+        return false;
     }
 
     private void Choose(int index)
@@ -175,11 +184,7 @@ public sealed class GameOptionsScreen : Screen
         Host.Pop(this);
     }
 
-    public override void OnClosed()
-    {
-        _cts.Cancel();
-        _done.TrySetResult(_result);
-    }
+    public override void OnClosed() => _done.TrySetResult(_result);
 
-    public override void FocusDefault() => _rows.Children.OfType<Button>().FirstOrDefault()?.Focus();
+    public override void FocusDefault() => _navButtons.FirstOrDefault()?.Focus();
 }

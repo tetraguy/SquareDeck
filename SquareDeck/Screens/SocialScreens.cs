@@ -35,7 +35,7 @@ public sealed class FriendsScreen : GridScreen
     private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
 
     public FriendsScreen() : base("Friends",
-        "{Select}  Open      {Options}  Pin      {Details}  Filter      {Back}  Back")
+        "LT RT  Switch list      {Select}  Open      {Options}  Pin      {Details}  Filter      {Back}  Back")
     {
         _refresh.Tick += (_, _) => _ = LoadAsync();
         if (_s2 && Body.Parent is ScrollViewer scroll)
@@ -524,9 +524,13 @@ public sealed class FriendsScreen : GridScreen
         _ => "everyone"
     };
 
-    private void CycleFilter()
+    private void CycleFilter() => StepFilter(+1);
+
+    /// <summary>The next or previous list (Everyone, In a game, Online, Pinned): X, or LT / RT.</summary>
+    private void StepFilter(int step)
     {
-        _filter = (Filter)(((int)_filter + 1) % 4);
+        _filter = (Filter)(((int)_filter + step + 4) % 4);
+        UiSound.Move();
         Build();
     }
 
@@ -593,6 +597,12 @@ public sealed class FriendsScreen : GridScreen
                 return true;
             case NavAction.X when HasKey && _friends != null:
                 CycleFilter();
+                return true;
+            case NavAction.RT when HasKey && _friends != null:
+                StepFilter(+1);
+                return true;
+            case NavAction.LT when HasKey && _friends != null:
+                StepFilter(-1);
                 return true;
         }
         return false;

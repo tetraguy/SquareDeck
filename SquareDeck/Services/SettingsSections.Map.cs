@@ -28,7 +28,7 @@ public static partial class SettingsSections
         {
             ["Achievements, play time and captures"] = new[] { "AchievementToasts", "CaptureAlbumIcons", "CaptureAlbums" },
             ["Cloud gaming"] = new[] { "CloudCorner", "CloudIntro", "CloudLeaveButtons", "CloudLeaveHold", "CloudServices" },
-            ["Launching games"] = new[] { "AskAboutUpdates", "LaunchCountdown", "LaunchCountdownSeconds", "LaunchSplash", "SteamDirectLaunch" },
+            ["Launching games"] = new[] { "AskAboutUpdates", "LaunchCountdown", "LaunchCountdownSeconds", "LaunchCountdownLook", "LaunchSplash", "SteamDirectLaunch" },
             ["Library and stores"] = new[] { "DisabledStores", "LibraryView", "OtherStores", "ReleaseAlerts", "SaleAlertMin", "SaleAlerts", "ShowHowLongToBeat", "ShowPlayerStats" },
             ["Service keys"] = new[] { "GeniePrepare" },
             ["While playing"] = new[] { "ClosePagesWhilePlaying", "DoNotDisturb", "FreeGpuDuringGames", "LeanInBackground", "LeanWhilePlaying", "ReturnToLauncher", "SessionSummary" },

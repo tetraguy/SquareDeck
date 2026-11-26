@@ -122,6 +122,7 @@ public sealed partial class ExplorerScreen
         var first = targets[0];
         var actions = new List<(string Label, string Glyph, Func<Task> Run)>();
         if (single) actions.Add(("Open", "\uE8E5", () => { Open(first); return Task.CompletedTask; }));
+        if (single && first.IsFolder) actions.Add(("Open in a new tab", "\uE8A7", () => { NewTab(first.Path); return Task.CompletedTask; }));
         actions.Add(("Download to Downloads", "\uE896", () => RunAsync("Downloading…", () =>
         {
             string downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");

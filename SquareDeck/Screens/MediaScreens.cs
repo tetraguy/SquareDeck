@@ -97,7 +97,7 @@ public sealed class CapturesScreen : GridScreen
         ImageTypes.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
     public CapturesScreen() : base("Captures", Switch2Pages.On
-        ? "{Select}  Open      {Details}  Delete / album options      LB / RB  Kind      {Back}  Back"
+        ? "{Select}  Open      {Details}  Delete / album options      LT / RT  Kind      {Back}  Back"
         : "{Select}  Open        {Details}  Delete / album options        {Back}  Back")
     {
         _note = Ui.Text("", 16, "SubtleBrush");
@@ -573,11 +573,12 @@ public sealed class CapturesScreen : GridScreen
 
     public override bool OnAction(NavAction action)
     {
-        if (_s2 && action is NavAction.LB or NavAction.RB)
+        // LT / RT (L2 / R2) move between the kinds (All, Screenshots, Videos…), like the Multimedia page's tabs.
+        if (_s2 && action is NavAction.LT or NavAction.RT)
         {
             int at = Math.Max(0, Array.IndexOf(Kinds, _filter));
             UiSound.Page();
-            PickKind(Kinds[(at + (action == NavAction.RB ? 1 : -1) + Kinds.Length) % Kinds.Length]);
+            PickKind(Kinds[(at + (action == NavAction.RT ? 1 : -1) + Kinds.Length) % Kinds.Length]);
             return true;
         }
         if (action == NavAction.Back && _album != null)
