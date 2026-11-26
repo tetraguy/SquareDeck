@@ -256,6 +256,16 @@ public sealed class DriveSpeedScreen : Screen
 
         SetPage("Storage speed test", new ScrollViewer { PanningMode = PanningMode.VerticalFirst, Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden, Focusable = false },
                 "{Select}  Run again      {Back}  Stop / back");
+        if (Switch2Pages.PcPage(this))
+        {
+            UseSwitch2Chrome("Storage speed test", Switch2Pages.PcGlyph(this));
+            // The result cards in the Switch 2 card color, the bars' tracks in the line color (the card being tested
+            // still gets the highlight color around it).
+            Resources["TileBrush"] = new SolidColorBrush(Switch2Settings.Card);
+            Resources["CircleBrush"] = new SolidColorBrush(Switch2Settings.Line);
+            foreach (var c in _cards.Values) c.Card.CornerRadius = new CornerRadius(16);
+            panel.Margin = new Thickness(60, 4, 60, 0);
+        }
     }
 
     private Border Card(DiskSpeed.Test test, string name, string about)

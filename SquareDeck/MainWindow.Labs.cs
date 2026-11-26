@@ -70,6 +70,9 @@ public partial class MainWindow
     /// Experimental "Your handheld in the corner": the controller symbol at the bottom left of Home becomes a drawing
     /// of the handheld SquareDeck detected (the same one the controller tester shows), in the text color.
     /// </summary>
+    /// <summary>The icon in the bottom-left corner changed (the ROG logo switched on or off): draw it again.</summary>
+    public void RefreshFooterIcon() => UpdateFooterPad();
+
     private void UpdateFooterPad()
     {
         foreach (var old in FooterLeft.Children.OfType<FrameworkElement>().Where(e => e.Tag as string == "devart").ToList()) FooterLeft.Children.Remove(old);
@@ -571,6 +574,16 @@ public partial class MainWindow
 
     private void SetCompanion(bool on)
     {
+        // Turned back on while it was saying goodbye: it stays, and says hello again instead.
+        if (on && _companion != null && _companionLeaving)
+        {
+            _companionLeaving = false;
+            _companionByeId++;
+            CompanionResetPose();
+            _companionTimer.Start();
+            CompanionHello();
+            return;
+        }
         if (on && _companion == null)
         {
             _companionSprite = new Canvas { Width = 72, Height = 72, HorizontalAlignment = System.Windows.HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom };
@@ -607,10 +620,16 @@ public partial class MainWindow
             _companionFrames.Tick += CompanionFrame;
             _companionTimer.Start();
             CompanionTick();
-            CompanionReact("wave");
+            CompanionHello(); // a different arrival each time
             HookCompanionPet();
         }
-        else if (!on && _companion != null)
+        else if (!on && _companion != null && !_companionLeaving)
+            CompanionGoodbye(RemoveCompanion); // a different goodbye each time, then off the screen
+    }
+
+    private void RemoveCompanion()
+    {
+        if (_companion != null)
         {
             _companionTimer.Stop();
             _companionFrames.Stop();

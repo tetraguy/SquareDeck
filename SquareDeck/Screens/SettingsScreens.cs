@@ -59,7 +59,7 @@ public sealed partial class SettingsScreen : ListScreen
     private static readonly Dictionary<string, (string Part, string[]? Groups)[]> Sections = new()
     {
         ["looks"] = new[] { ("looks", (string[]?)null) },
-        ["look"] = new[] { ("look", (string[]?)new[] { "Background", "Colors", "Font", "Your looks", "Profile", "Artwork" }), ("look", new[] { "Top bar", "Display", "Settings view and unlockables" }) },
+        ["look"] = new[] { ("look", (string[]?)new[] { "Background", "Colors", "Font", "Your looks", "Profile", "Artwork" }), ("look", new[] { "Top bar", "Display", "Settings view and unlockables", "Switch 2 style pages", "Home touches" }) },
         ["home"] = new[] { ("home", (string[]?)new[] { "Home row and buttons", "Buttons under the games", "Animations", "Covers and companion", "Moving background", "Screen saver", "Starting and closing" }) },
         ["sound"] = new[] { ("sound", (string[]?)null) },
         ["gaming"] = new[] { ("games", (string[]?)new[] { "Launching games", "While playing" }), ("power", new[] { "Performance Boost", "Performance overlay" }), ("games", new[] { "Cloud gaming" }),
@@ -1618,6 +1618,10 @@ public sealed partial class SettingsScreen : ListScreen
         AddFeature("s2system", "Menus, Search, Browser, Notifications and game pages");
         AddFeature("s2play", "Passport, Backlog Boss, Mood picker, Leaderboard and Free games");
         AddFeature("s2apps", "Installed apps");
+        AddFeature("s2device", "My Device");
+        AddFeature("s2details", "Game pages");
+        AddFeature("s2genie", "Game Genie");
+        AddFeature("s2pctools", "PC tools, network, device info, terminals, What's new, Changelogs and Credits");
         AddFeature("s2setup", "First-time setup");
         AddFeature("s2toast", "Notifications in the corner");
         AddHeader("Home touches");
@@ -2463,6 +2467,18 @@ public sealed partial class SettingsScreen : ListScreen
         AddHeader("Display and processor");
         AddFeaturePage("visualmodes", "Visual modes", "ASUS GameVisual screen modes and color temperature, with AMD's OLED Power Optimization handled");
         AddFeaturePage("cpucores", "CPU core configuration", "How many P-cores and E-cores are enabled (after a restart)");
+        string rog = Ui.RogFooter;
+        AddRow("ROG logo in the corner", rog switch { "auto" => "On", "white" => "White", "black" => "Black", _ => "Off" }, "\uE7FC", click: async () =>
+        {
+            string now = Ui.RogFooter;
+            string Mark(string id, string name) => (now == id ? "\u2713 " : "") + name;
+            int pick = await Host.AskAsync("ROG logo in the corner", "The ROG logo in the bottom-left corner, instead of the controller icon.",
+                Mark("off", "Off (the controller icon)"), Mark("auto", "On, in the text color"), Mark("white", "White"), Mark("black", "Black"));
+            if (pick < 0) return;
+            Ui.RogFooter = pick switch { 1 => "auto", 2 => "white", 3 => "black", _ => "off" };
+            Host.RefreshFooterIcon();
+            Rebuild();
+        }, subtitle: "On Home and the Switch 2 style pages. Black suits a white background or footer; \u201COn\u201D follows your UI style");
 
         AddHeader("Fans and temperature");
         var fan = AllyControl.FanCurves.FirstOrDefault(f => f.Id == s.AllyFan);
@@ -3291,6 +3307,8 @@ public sealed partial class SettingsScreen : ListScreen
                 "they might not work everywhere yet. Nothing here is turned on unless you turn it on. Features that have " +
                 "settled in have moved to their own places in Settings.");
 
+        if (!Labs.Features.Any(f => !Labs.Graduated.Contains(f.Id)))
+            AddNote("Nothing to try out right now: every feature has either settled into its own place in Settings or been removed.");
         BuildLabs();
     }
 

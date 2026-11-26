@@ -44,8 +44,47 @@ public static class Ui
     /// Experimental "Your handheld in the corner": the drawing of the detected handheld (the one the controller tester
     /// shows), as a silhouette in the given color and height. Null when the experiment is off or the device has no drawing.
     /// </summary>
+    /// <summary>
+    /// ROG Ally family: the ROG logo in the bottom-left corner instead of the controller icon (Settings > Handheld
+    /// Specific Settings). "off" (the default), "auto" (in the text color, so it suits light and dark styles), "white"
+    /// or "black" (for a white background or footer).
+    /// </summary>
+    public static string RogFooter
+    {
+        get => Services.Labs.Get("ally.roglogo") is ("auto" or "white" or "black") and var v ? v : "off";
+        set => Services.Labs.Put("ally.roglogo", value);
+    }
+
+    private static readonly Dictionary<string, ImageSource?> _rogLogos = new();
+
+    /// <summary>The ROG logo (Devices\RogLogoWhite.png / RogLogoBlack.png next to SquareDeck), or null when it's off or not an Ally.</summary>
+    private static FrameworkElement? RogLogo(double height, string brushKey)
+    {
+        string mode = RogFooter;
+        if (mode == "off" || !Services.AllyControl.IsAlly) return null;
+        string file = mode == "black" ? "RogLogoBlack.png" : "RogLogoWhite.png";
+        if (!_rogLogos.TryGetValue(file, out var logo))
+            _rogLogos[file] = logo = Services.OemGlyphs.Load(System.IO.Path.Combine(AppContext.BaseDirectory, "Devices", file));
+        if (logo is not System.Windows.Media.Imaging.BitmapSource art || art.PixelHeight == 0) return null;
+        double width = Math.Round(height * art.PixelWidth / art.PixelHeight);
+        if (mode == "auto")
+        {
+            // The logo's shape filled with the text color: light on dark styles, dark on light ones.
+            var shape = new System.Windows.Shapes.Rectangle
+            {
+                Height = height, Width = width, OpacityMask = new ImageBrush(art) { Stretch = Stretch.Uniform },
+                VerticalAlignment = VerticalAlignment.Center, ToolTip = Services.Handheld.DisplayName, Tag = "devart"
+            };
+            shape.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, brushKey);
+            return shape;
+        }
+        return new Image { Source = art, Height = height, Width = width, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center,
+                           ToolTip = Services.Handheld.DisplayName, Tag = "devart" };
+    }
+
     public static FrameworkElement? DeviceArt(double height, string brushKey = "FgBrush")
     {
+        if (RogLogo(height, brushKey) is { } rog) return rog;
         if (!Services.Labs.On("oemfooter")) return null;
         if (!_deviceArtTried) { _deviceArtTried = true; _deviceArt = Services.OemGlyphs.Load(Services.OemGlyphs.Controller); }
         if (_deviceArt is not System.Windows.Media.Imaging.BitmapSource art || art.PixelHeight == 0) return null;

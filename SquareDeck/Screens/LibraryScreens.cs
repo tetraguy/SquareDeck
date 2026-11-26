@@ -34,7 +34,12 @@ public sealed class ArtPickerScreen : GridScreen
         _note = Ui.Text("Loading images from SteamGridDB…", 17, "SubtleBrush");
         _note.Margin = new Thickness(4, 0, 0, 10);
         Body.Children.Insert(0, _note); // above the images, where it's seen
-        Body.Children.Insert(0, ArtTabs.Bar(item, kind, tab => ArtTabs.Switch(Host, this, item, tab)));
+        if (ArtTabs.Switch2)
+        {
+            Body.Children.Insert(0, ArtTabs.Heading(kind));
+            UseSwitch2Grid("Artwork", "\uE8B9", ArtTabs.Nav(kind, tab => ArtTabs.Switch(Host, this, item, tab)), ArtTabs.Under(item));
+        }
+        else Body.Children.Insert(0, ArtTabs.Bar(item, kind, tab => ArtTabs.Switch(Host, this, item, tab)));
 
         bool hasPick = SteamGridDbClient.FindChosenArt(item, kind) != null;
         AddTile(GlyphBox(_w, _h, ""), "Choose a file…", _w, Browse);
@@ -218,7 +223,12 @@ public sealed class CoverPickerScreen : GridScreen
         _note = Ui.Text("Loading images from SteamGridDB…", 17, "SubtleBrush");
         _note.Margin = new Thickness(4, 0, 0, 10);
         Body.Children.Insert(0, _note); // above the images, where it's seen
-        if (_tab != null) Body.Children.Insert(0, ArtTabs.Bar(item, _tab, t => ArtTabs.Switch(Host, this, item, t)));
+        if (_tab != null && ArtTabs.Switch2)
+        {
+            Body.Children.Insert(0, ArtTabs.Heading(_tab));
+            UseSwitch2Grid("Artwork", "\uE8B9", ArtTabs.Nav(_tab, t => ArtTabs.Switch(Host, this, item, t)), ArtTabs.Under(item));
+        }
+        else if (_tab != null) Body.Children.Insert(0, ArtTabs.Bar(item, _tab, t => ArtTabs.Switch(Host, this, item, t)));
 
         AddTile(GlyphBox(TileSize, TileSize, ""), "Choose a file…", TileSize, Browse);
         AddTile(GlyphBox(TileSize, TileSize, ""), "Use the default", TileSize, () => Finish(null));
@@ -474,6 +484,45 @@ public static class ArtTabs
         return outer;
     }
 
+    /// <summary>Switch 2 style artwork pages (with the Switch 2 style game pages).</summary>
+    public static bool Switch2 => Labs.On("s2details");
+
+    /// <summary>Switch 2 style: the kinds of artwork down the left, the one showing marked; a tap goes to it.</summary>
+    public static StackPanel Nav(string active, Action<string> go)
+    {
+        var nav = new StackPanel { Margin = new Thickness(0, 6, 0, 10) };
+        foreach (var (id, name, _) in Tabs)
+        {
+            string target = id;
+            nav.Children.Add(Switch2Pages.NavItem(name, null, id == active, () => { if (target != active) go(target); }, focusable: false));
+        }
+        return nav;
+    }
+
+    /// <summary>Switch 2 style: the kind of artwork as the page's heading, and where it's used under it.</summary>
+    public static FrameworkElement Heading(string active)
+    {
+        var outer = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+        outer.Children.Add(Switch2Pages.PageTitle(Tabs.First(t => t.Id == active).Name, null));
+        var bar = (StackPanel)Bar(null!, active, _ => { });
+        var what = bar.Children.OfType<TextBlock>().Last();
+        bar.Children.Remove(what);
+        what.Margin = new Thickness(14, 0, 0, 4);
+        outer.Children.Add(what);
+        return outer;
+    }
+
+    /// <summary>Under the sections on the left: the game the artwork is for.</summary>
+    public static FrameworkElement Under(Game item)
+    {
+        var under = new StackPanel { Margin = new Thickness(40, 0, 18, 14) };
+        var name = Ui.Text(item.Name, 15, "SubtleBrush");
+        name.TextTrimming = TextTrimming.CharacterEllipsis;
+        under.Children.Add(name);
+        under.Children.Add(Ui.Text("Pictures from SteamGridDB", 12, "SubtleBrush"));
+        return under;
+    }
+
     /// <summary>Swaps the current tab's page for another's.</summary>
     public static void Switch(MainWindow host, Screen current, Game item, string tab)
     {
@@ -515,6 +564,19 @@ public sealed class DetailsScreen : Screen
     private const double CardRadius = 12;
 
     private readonly Game _game;
+
+    /// <summary>
+    /// "Switch 2 style game page": the page laid out like the Switch 2's System Settings, in the UI style's colors. The
+    /// game's name in the title with a line under it; down the left, Overview and every section the page has (time to
+    /// beat, notes, screenshots, About, news, player stats, DLC, achievements…), the one in view marked as you scroll and
+    /// a tap jumping to it; on the right, the cover and details in a card, then the sections with bar-and-name
+    /// headings, flat rows, rimmed tiles and cards with a thin line. LT / RT jump between sections.
+    /// </summary>
+    private readonly bool _s2 = Labs.On("s2details");
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+    private readonly StackPanel _s2Under = new() { Margin = new Thickness(40, 0, 18, 14) };
+    private List<FrameworkElement> _s2Heads = new();
+    private int _s2Current = -1;
 
     /// <summary>The game this page is about.</summary>
     public Game Game => _game;
@@ -604,7 +666,7 @@ public sealed class DetailsScreen : Screen
 
         // ---- the top of the page, as the look lays it out
         bool descriptionPlaced = false;
-        switch (_layout)
+        switch (_s2 ? "switch" : _layout)
         {
             case "showcase": ArrangeShowcase(title, side: false); break;
             case "sidepanel": ArrangeShowcase(title, side: true); break;
@@ -615,9 +677,9 @@ public sealed class DetailsScreen : Screen
             case "orbit": ArrangeOrbit(title); break;
             default: ArrangeSwitch(); break;
         }
+        AddScreenshots(); // your own screenshots of the game, right under the top of the page
         _page.Children.Add(_hltb);
         _page.Children.Add(_notes);
-        AddScreenshots();
 
         // ---- about: description beside a column of facts (the facts alone where the description is up top)
         _page.Children.Add(SectionTitle("About"));
@@ -655,8 +717,10 @@ public sealed class DetailsScreen : Screen
             _hero.Opacity = _heroImage.Source == null ? 0 : Math.Max(0, 1 - offset / (HeroHeight * 0.9));
         };
 
-        SetPage("", _scroll, "{Select}  Choose      {Details}  Collections      {Options}  Rating and notes      {Back}  Back", wide: true);
-        if (Switch2Pages.SystemOn)
+        SetPage("", _scroll, _s2 ? "{Select}  Choose      {Details}  Collections      {Options}  Rating and notes      LT / RT  Section      {Back}  Back"
+                                 : "{Select}  Choose      {Details}  Collections      {Options}  Rating and notes      {Back}  Back", wide: true);
+        if (_s2) SetUpSwitch2();
+        else if (Switch2Pages.SystemOn)
         {
             // Switch 2 style (Experimental): the UI style's colors, bar-and-name section titles, flat rows and rimmed tiles.
             RefreshSwitch2Colors();
@@ -674,16 +738,169 @@ public sealed class DetailsScreen : Screen
         info.Children.Add(_titleHost);
         info.Children.Add(_meta);
         info.Children.Add(_badges);
-        var banner = new DockPanel { Margin = new Thickness(0, HeroHeight - 300, 0, 0), LastChildFill = true };
+        var banner = new DockPanel { Margin = new Thickness(0, _s2 ? 0 : HeroHeight - 300, 0, 0), LastChildFill = true };
         DockPanel.SetDock(_coverBox, Dock.Left);
         banner.Children.Add(_coverBox);
         DockPanel.SetDock(_logoHost, Dock.Right);
         banner.Children.Add(_logoHost);
         banner.Children.Add(info);
+        if (_s2)
+        {
+            // The cover and details in a card at the top.
+            var top = new StackPanel();
+            top.Children.Add(banner);
+            top.Children.Add(_actions);
+            top.Children.Add(_actionLabel);
+            var card = new Border { CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), Padding = new Thickness(22, 20, 22, 18), Margin = new Thickness(6, 14, 6, 0), Child = top };
+            card.SetResourceReference(Border.BackgroundProperty, "S2Card");
+            card.SetResourceReference(Border.BorderBrushProperty, "S2Line");
+            _page.Children.Add(card);
+            _page.Children.Add(_stats);
+            return;
+        }
         _page.Children.Add(banner);
         _page.Children.Add(_actions);
         _page.Children.Add(_actionLabel);
         _page.Children.Add(_stats);
+    }
+
+    // ---------------------------------------------------------------- Switch 2 style
+
+    private void SetUpSwitch2()
+    {
+        Switch2Settings.Refresh();
+        // The cards on the page take the Switch 2 card color.
+        var card = new SolidColorBrush(Switch2Settings.Card);
+        card.Freeze();
+        Resources["TileBrush"] = card;
+        _hero.Visibility = Visibility.Collapsed;
+        _scroll.Margin = new Thickness(0);
+        _page.Margin = new Thickness(0, 0, 18, 30);
+        _coverBox.Width = _coverBox.Height = 168;
+        if (_coverBox.Child is Grid g) g.Clip = new RectangleGeometry(new Rect(0, 0, 168, 168), CardRadius, CardRadius);
+        _logoHost.Margin = new Thickness(18, 0, 0, 0);
+        (_scroll.Parent as Panel)?.Children.Remove(_scroll);
+        if (_scroll.Parent is Decorator d) d.Child = null;
+        if (_scroll.Parent is ContentControl c) c.Content = null;
+        ReplaceBody(Switch2Pages.Shell(_s2Nav, _scroll, _s2Under));
+        UseSwitch2Chrome(_game.Name.Length > 46 ? _game.Name[..46] + "\u2026" : _game.Name, "\uE7FC");
+        _titleHost.Visibility = Visibility.Collapsed; // the name is in the title
+        Switch2Pages.AutoRestyle(_page);
+
+        var under = Ui.Text(_game.SourceName, 14, "SubtleBrush");
+        under.TextTrimming = TextTrimming.CharacterEllipsis;
+        _s2Under.Children.Add(under);
+
+        // The sections fill in as the page loads: the list on the left follows, a moment after the page changes.
+        var soon = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        soon.Tick += (_, _) => { soon.Stop(); RefreshS2Nav(); };
+        _page.LayoutUpdated += (_, _) => { if (!soon.IsEnabled) soon.Start(); };
+        Unloaded += (_, _) => soon.Stop();
+        _scroll.ScrollChanged += (_, _) => MarkS2Current();
+        RefreshS2Nav();
+    }
+
+    /// <summary>A heading's name: its biggest text (the count beside Achievements is smaller).</summary>
+    private static string S2HeadText(FrameworkElement head) =>
+        AllText(head).OrderByDescending(t => t.FontSize).FirstOrDefault()?.Text ?? "";
+
+    private static IEnumerable<TextBlock> AllText(DependencyObject root)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is TextBlock t) yield return t;
+            foreach (var deeper in AllText(child)) yield return deeper;
+        }
+    }
+
+    /// <summary>Builds the list on the left from the headings on the page (when they've changed).</summary>
+    private void RefreshS2Nav()
+    {
+        var heads = FindS2Heads(_page).Where(h => h.IsVisible || h.Visibility == Visibility.Visible).ToList();
+        bool same = heads.Count == _s2Heads.Count && heads.Select(S2HeadText).SequenceEqual(_s2Heads.Select(S2HeadText)) && _s2Nav.Children.Count > 0;
+        // Always the headings as they are now: a section that rebuilds itself (How long to beat, once its times arrive)
+        // puts up a new heading with the same name, and the old one is no longer on the page.
+        _s2Heads = heads;
+        if (same) return;
+        bool inNav = _s2Nav.IsKeyboardFocusWithin;
+        _s2Nav.Children.Clear();
+        _s2Nav.Children.Add(Switch2Pages.NavItem("Overview", null, false, () => ScrollToS2(-1), focusable: false));
+        for (int i = 0; i < heads.Count; i++)
+        {
+            int index = i;
+            _s2Nav.Children.Add(Switch2Pages.NavItem(S2HeadText(heads[i]), null, false, () => ScrollToS2(index), focusable: false));
+        }
+        _s2Current = -2;
+        MarkS2Current();
+        if (inNav) FocusDefault();
+    }
+
+    private static IEnumerable<FrameworkElement> FindS2Heads(DependencyObject root)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is FrameworkElement { Tag: "s2header" } head) { yield return head; continue; }
+            foreach (var deeper in FindS2Heads(child)) yield return deeper;
+        }
+    }
+
+    private double S2Top(FrameworkElement head)
+    {
+        try { return head.TransformToAncestor(_page).Transform(new Point(0, 0)).Y; }
+        catch (Exception) { return double.MaxValue; }
+    }
+
+    private void ScrollToS2(int index)
+    {
+        if (index >= 0 && (index >= _s2Heads.Count || !_page.IsAncestorOf(_s2Heads[index]))) RefreshS2Nav();
+        if (index >= _s2Heads.Count) return;
+        double to = index < 0 ? 0 : Math.Max(0, S2Top(_s2Heads[index]) - 10);
+        _scroll.ScrollToVerticalOffset(to);
+        UiSound.Move();
+        // Put the highlight on the first thing in that section.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
+        {
+            if (index < 0) { FocusDefault(); return; }
+            var first = FirstFocusableAfter(_s2Heads[index]);
+            first?.Focus();
+        }));
+    }
+
+    private UIElement? FirstFocusableAfter(FrameworkElement head)
+    {
+        double top = S2Top(head);
+        UIElement? best = null;
+        double bestY = double.MaxValue;
+        foreach (var b in FindButtons(_page))
+        {
+            if (!b.IsVisible || !b.Focusable) continue;
+            double y;
+            try { y = b.TransformToAncestor(_page).Transform(new Point(0, 0)).Y; } catch (Exception) { continue; }
+            if (y >= top && y < bestY) { bestY = y; best = b; }
+        }
+        return best;
+    }
+
+    private static IEnumerable<Button> FindButtons(DependencyObject root)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is Button b) yield return b;
+            foreach (var deeper in FindButtons(child)) yield return deeper;
+        }
+    }
+
+    /// <summary>Marks the section in view on the left.</summary>
+    private void MarkS2Current()
+    {
+        int current = -1;
+        double line = _scroll.VerticalOffset + 80;
+        for (int i = 0; i < _s2Heads.Count; i++) if (S2Top(_s2Heads[i]) <= line) current = i;
+        if (_scroll.VerticalOffset >= _scroll.ScrollableHeight - 2 && _s2Heads.Count > 0 && _scroll.ScrollableHeight > 0) current = Math.Max(current, _s2Heads.Count - 1);
+        if (current == _s2Current) return;
+        _s2Current = current;
+        for (int i = 0; i < _s2Nav.Children.Count; i++)
+            if (_s2Nav.Children[i] is Button b) b.Tag = i == current + 1 ? "selected" : null;
     }
 
     /// <summary>Puts the game's logo on the left, large, in place of its name once it has loaded.</summary>
@@ -961,7 +1178,7 @@ public sealed class DetailsScreen : Screen
     {
         var t = Ui.Text(text, 22, "FgBrush", bold: true);
         t.Margin = new Thickness(2, 30, 0, 12);
-        if (Switch2Pages.SystemOn) t.Tag = "s2title"; // redrawn as a bar-and-name heading
+        if (Switch2Pages.SystemOn || Labs.On("s2details")) t.Tag = "s2title"; // redrawn as a bar-and-name heading
         return t;
     }
 
@@ -1091,6 +1308,13 @@ public sealed class DetailsScreen : Screen
             case NavAction.Y:
                 Host.Push(new GameNotesScreen(_game));
                 return true;
+            case NavAction.LT or NavAction.RT when _s2:
+            {
+                // The previous or next section on the left.
+                int to = Math.Clamp(_s2Current + (action == NavAction.RT ? 1 : -1), -1, _s2Heads.Count - 1);
+                if (to != _s2Current || action == NavAction.LT) ScrollToS2(to);
+                return true;
+            }
         }
         return false;
     }
@@ -1985,7 +2209,22 @@ public sealed class DetailsScreen : Screen
             header.Children.Add(count);
         }
         header.Children.Add(Ui.Text("Achievements", 22, "FgBrush", bold: true));
-        _sections.Children.Add(header);
+        if (_s2)
+        {
+            // The bar-and-name heading, with the count on the right; listed on the left like the other sections.
+            var s2 = new Grid { Tag = "s2header" };
+            s2.Children.Add(Switch2Settings.Header("Achievements"));
+            if (header.Children.Count > 1 && header.Children[0] is TextBlock countText)
+            {
+                header.Children.Remove(countText);
+                countText.HorizontalAlignment = HorizontalAlignment.Right;
+                countText.VerticalAlignment = VerticalAlignment.Bottom;
+                countText.Margin = new Thickness(0, 0, 10, 10);
+                s2.Children.Add(countText);
+            }
+            _sections.Children.Add(s2);
+        }
+        else _sections.Children.Add(header);
         if (_progress is { Total: > 0 } progress)
         {
             var bar = Bar((double)progress.Unlocked / progress.Total, 8);
@@ -3100,7 +3339,6 @@ public sealed partial class LibraryScreen : Screen
             RetroUi.Logo(64) is { } retro ? new Image { Source = retro, Width = 20, Height = 20 } : null);
         if (Labs.On("mood")) Action("\uE76E", "How are you feeling?", "Pick a mood, get three games that fit", () => PlayPages.Mood());
         if (Labs.On("boss")) Action("\uE7EF", "Fight the Backlog Boss", "Your unfinished games as a boss to defeat, an hour at a time", () => PlayPages.Boss());
-        if (Labs.On("gamepass")) Action("\uE7FC", "Game Pass", "Games just added to Game Pass and leaving soon", () => new GamePassScreen());
         if (Labs.On("passport")) Action("", "My Gamer Passport", "Stamps for every genre, decade and store you've played", () => PlayPages.Passport(),
             PassportArt.Icon(16, Brushes.Transparent));
     }

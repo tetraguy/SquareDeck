@@ -335,7 +335,7 @@ public sealed class OnboardingScreen : Screen
         var over = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Top };
         over.SetResourceReference(Shape.FillProperty, "S2Line");
         foot.Children.Add(over);
-        FrameworkElement pad = Ui.DeviceArt(30) ?? Ui.Glyph(Ui.HandheldGlyph, 30, "FgBrush");
+        FrameworkElement pad = Ui.DeviceArt(30) ?? Ui.Glyph("\uE7FC", 30, "FgBrush");
         pad.HorizontalAlignment = HorizontalAlignment.Left;
         pad.VerticalAlignment = VerticalAlignment.Center;
         pad.Margin = new Thickness(16, 2, 0, 0);

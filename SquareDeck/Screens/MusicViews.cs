@@ -397,8 +397,8 @@ public sealed class LocalMusicView : Grid
         switch (action)
         {
             case NavAction.X: LocalMusic.TogglePlay(); return true;
-            case NavAction.LT: LocalMusic.Previous(); return true;
-            case NavAction.RT: LocalMusic.Next(); return true;
+            case NavAction.LB: LocalMusic.Previous(); return true;
+            case NavAction.RB: LocalMusic.Next(); return true;
             case NavAction.Y: _ = ChooseFolderAsync(); return true;
         }
         return false;
@@ -839,8 +839,8 @@ public sealed class SpotifyView : Grid
         {
             case NavAction.X: _ = SearchAsync(); return true;
             case NavAction.Y: _ = TogglePlayAsync(); return true;
-            case NavAction.LT: _ = Do(c => c.PreviousAsync(_cts.Token)); return true;
-            case NavAction.RT: _ = Do(c => c.NextAsync(_cts.Token)); return true;
+            case NavAction.LB: _ = Do(c => c.PreviousAsync(_cts.Token)); return true;
+            case NavAction.RB: _ = Do(c => c.NextAsync(_cts.Token)); return true;
         }
         return false;
     }

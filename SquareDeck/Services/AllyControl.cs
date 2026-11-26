@@ -454,7 +454,7 @@ public static class AllyControl
     public static async void SetRunning(Game? game, GameProfile? profile)
     {
         if (_settings == null || !IsAlly) return;
-        string key = game == null ? "" : game.Key + "|" + profile?.Lights + "|" + profile?.LightColor + "|" + profile?.LightColor2;
+        string key = game == null ? "" : game.Key + "|" + profile?.Lights + "|" + profile?.LightColor + "|" + profile?.LightColor2 + "|" + profile?.VisualMode + "|" + profile?.VisualTemperature;
         bool playing = game != null;
         if (key == _runningKey && playing == _playing) return;
         bool newGame = game?.Key != _running?.Key;
@@ -466,6 +466,7 @@ public static class AllyControl
         _running = game;
         _runningProfile = profile;
         _playing = playing;
+        ApplyGameVisual(playing ? profile : null);
         if (newGame)
         {
             _runningColor = null;
@@ -490,6 +491,31 @@ public static class AllyControl
     }
 
     private static string _runningHardware = "";
+    private static string _runningVisual = "";
+    private static bool _visualTouched;
+
+    /// <summary>
+    /// The running game's screen mode (its profile's GameVisual mode and color temperature), or your usual one back
+    /// when the game closes. Only when it changes, and never saved as your usual mode.
+    /// </summary>
+    private static void ApplyGameVisual(GameProfile? profile)
+    {
+        string key = profile is { VisualMode: not null } || profile is { VisualTemperature: not null } ? profile.VisualMode + "|" + profile.VisualTemperature : "";
+        if (key == _runningVisual) return;
+        _runningVisual = key;
+        if (!VisualModes.Available) return;
+        if (key.Length > 0)
+        {
+            int mode = profile!.VisualMode ?? VisualModes.SavedMode, temp = profile.VisualTemperature ?? VisualModes.SavedTemperature;
+            _visualTouched = true;
+            _ = Task.Run(() => VisualModes.ApplyAsync(mode, temp, remember: false));
+        }
+        else if (_visualTouched)
+        {
+            _visualTouched = false;
+            _ = Task.Run(() => VisualModes.ApplyAsync(VisualModes.SavedMode, VisualModes.SavedTemperature, remember: false));
+        }
+    }
 
     /// <summary>Applies a game profile's light effect now, while its game runs (after editing the profile).</summary>
     public static void ProfileChanged(Game game, GameProfile? profile)

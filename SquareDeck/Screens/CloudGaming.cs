@@ -140,6 +140,9 @@ public sealed class CloudGameScreen : Screen
 
     public CloudService Service { get; }
 
+    /// <summary>When the service was opened (for the Game Bar widget's "min now").</summary>
+    public DateTime OpenedAt => _openedAt.ToLocalTime();
+
     public CloudGameScreen(CloudService service)
     {
         Service = service;

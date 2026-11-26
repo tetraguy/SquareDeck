@@ -27,6 +27,18 @@ public sealed class GameGenieScreen : Screen
     private GameGenie.Sheet? _sheet;
     private bool _busy;
 
+    /// <summary>
+    /// "Switch 2 style Game Genie": "Game Genie" in the title with a line under it; the kinds of question down the left
+    /// (with how many each has), a tap or LT / RT jumping to them; on the right the game in a card (cover, name, the
+    /// Genie's summary and facts), then the questions under bar-and-name headings as flat rows, in the UI style's colors.
+    /// </summary>
+    private readonly bool _s2 = Labs.On("s2genie");
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+    private readonly StackPanel _s2Under = new() { Margin = new Thickness(40, 0, 18, 14) };
+    private readonly List<FrameworkElement> _s2Heads = new();
+    private readonly List<string> _s2Counts = new();
+    private int _s2Current = -1;
+
     public GameGenieScreen(Game game, StoreDetails? details, GameLookup.WikiSummary? wiki)
     {
         _game = game;
@@ -64,7 +76,111 @@ public sealed class GameGenieScreen : Screen
         Grid.SetColumn(_scroll, 1);
         body.Children.Add(_scroll);
 
-        SetPage("Game Genie", body, "{Select}  Open answer        {X}  Ask your own        {Y}  More questions        {Back}  Back", wide: true);
+        SetPage("Game Genie", body, _s2 ? "{Select}  Open answer        {X}  Ask your own        {Y}  More questions        LT / RT  Section        {Back}  Back"
+                                        : "{Select}  Open answer        {X}  Ask your own        {Y}  More questions        {Back}  Back", wide: true);
+        if (_s2) SetUpSwitch2(art, name, leftScroll, body);
+    }
+
+    // ---------------------------------------------------------------- Switch 2 style
+
+    private void SetUpSwitch2(Border art, TextBlock name, ScrollViewer leftScroll, Grid body)
+    {
+        Switch2Settings.Refresh();
+        var card = new SolidColorBrush(Switch2Settings.Card);
+        card.Freeze();
+        Resources["CircleBrush"] = card;
+        Resources["TileBrush"] = card;
+
+        // The game, in a card at the top of the right side: the cover on the left, the name, summary and facts beside it.
+        leftScroll.Content = null;
+        body.Children.Remove(leftScroll);
+        body.Children.Remove(_scroll);
+        _side.Children.Clear();
+        art.Width = art.Height = 150;
+        art.Margin = new Thickness(0, 0, 22, 0);
+        art.VerticalAlignment = VerticalAlignment.Top;
+        art.Effect = null;
+        art.CornerRadius = new CornerRadius(12);
+        name.FontSize = 24;
+        name.FontWeight = FontWeights.Normal;
+        var words = new StackPanel();
+        words.Children.Add(name);
+        words.Children.Add(_summary);
+        words.Children.Add(_facts);
+        var top = new Grid();
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        top.Children.Add(art);
+        Grid.SetColumn(words, 1);
+        top.Children.Add(words);
+        var gameCard = new Border { CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), Padding = new Thickness(22, 20, 22, 16), Margin = new Thickness(6, 14, 6, 6), Child = top };
+        gameCard.SetResourceReference(Border.BackgroundProperty, "S2Card");
+        gameCard.SetResourceReference(Border.BorderBrushProperty, "S2Line");
+        var right = new StackPanel { Margin = new Thickness(0, 0, 18, 24) };
+        right.Children.Add(gameCard);
+        _scroll.Content = null; // the list is still the scroller's content: let go of it first, or WPF refuses the move
+        right.Children.Add(_list);
+        _scroll.Content = right;
+        _scroll.SetValue(Grid.ColumnProperty, 0);
+
+        ReplaceBody(Switch2Pages.Shell(_s2Nav, _scroll, _s2Under));
+        UseSwitch2Chrome("Game Genie", "\uE82F");
+        var under = Ui.Text(_game.Name, 15, "SubtleBrush");
+        under.TextTrimming = TextTrimming.CharacterEllipsis;
+        _s2Under.Children.Add(under);
+        _s2Under.Children.Add(Ui.Text("Answers by Google Gemini", 12, "SubtleBrush"));
+        _scroll.ScrollChanged += (_, _) => MarkS2();
+        BuildS2Nav();
+    }
+
+    /// <summary>The kinds of question on the left, from the headings on the page.</summary>
+    private void BuildS2Nav()
+    {
+        if (!_s2) return;
+        _s2Nav.Children.Clear();
+        _s2Nav.Children.Add(Switch2Pages.NavItem("The game", null, false, () => JumpS2(-1), focusable: false));
+        for (int i = 0; i < _s2Heads.Count; i++)
+        {
+            int index = i;
+            var count = _s2Counts.ElementAtOrDefault(i);
+            _s2Nav.Children.Add(Switch2Pages.NavItem(_s2Heads[i].Uid, count, false, () => JumpS2(index), focusable: false));
+        }
+        _s2Current = -2;
+        MarkS2();
+    }
+
+    private double S2Top(FrameworkElement head)
+    {
+        try { return head.TransformToAncestor((Visual)_scroll.Content).Transform(new Point(0, 0)).Y; }
+        catch (Exception) { return double.MaxValue; }
+    }
+
+    private void JumpS2(int index)
+    {
+        if (index >= _s2Heads.Count) return;
+        _scroll.ScrollToVerticalOffset(index < 0 ? 0 : Math.Max(0, S2Top(_s2Heads[index]) - 10));
+        UiSound.Move();
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
+        {
+            // The highlight on the first question of that kind (or the first thing on the page).
+            if (index < 0) { Descendants<Button>(_list).FirstOrDefault(b => b.Focusable && b.IsVisible)?.Focus(); return; }
+            double top = S2Top(_s2Heads[index]);
+            Descendants<Button>(_list).Where(b => b.Focusable && b.IsVisible)
+                .Select(b => (b, y: S2Top(b))).Where(x => x.y >= top).OrderBy(x => x.y).FirstOrDefault().b?.Focus();
+        }));
+    }
+
+    private void MarkS2()
+    {
+        if (!_s2) return;
+        int current = -1;
+        double line = _scroll.VerticalOffset + 80;
+        for (int i = 0; i < _s2Heads.Count; i++) if (S2Top(_s2Heads[i]) <= line) current = i;
+        if (_scroll.ScrollableHeight > 0 && _scroll.VerticalOffset >= _scroll.ScrollableHeight - 2 && _s2Heads.Count > 0) current = _s2Heads.Count - 1;
+        if (current == _s2Current) return;
+        _s2Current = current;
+        for (int i = 0; i < _s2Nav.Children.Count; i++)
+            if (_s2Nav.Children[i] is Button b) b.Tag = i == current + 1 ? "selected" : null;
     }
 
     /// <summary>What SquareDeck knows about the game, for Gemini to work from.</summary>
@@ -207,7 +323,9 @@ public sealed class GameGenieScreen : Screen
         }
 
         _list.Children.Clear();
-        var tools = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        _s2Heads.Clear();
+        _s2Counts.Clear();
+        var tools = new WrapPanel { Margin = new Thickness(0, _s2 ? 10 : 0, 0, 10) };
         var ask = Ui.PanelButton("", "Ask your own question");
         ask.Margin = new Thickness(0, 0, 10, 10);
         ask.Click += (_, _) => _ = AskOwnAsync();
@@ -234,8 +352,19 @@ public sealed class GameGenieScreen : Screen
         {
             var items = answers.Where(a => a.Category == category).ToList();
             if (items.Count == 0) continue;
-            var header = Ui.Header(category);
-            header.Margin = new Thickness(4, 14, 0, 6);
+            FrameworkElement header;
+            if (_s2)
+            {
+                header = Switch2Settings.Header(category);
+                header.Uid = category;
+                _s2Heads.Add(header);
+                _s2Counts.Add(items.Count.ToString());
+            }
+            else
+            {
+                header = Ui.Header(category);
+                header.Margin = new Thickness(4, 14, 0, 6);
+            }
             _list.Children.Add(header);
             var group = new StackPanel();
             foreach (var a in items)
@@ -247,7 +376,7 @@ public sealed class GameGenieScreen : Screen
                 if (focusedQ != null && a.Q == focusedQ) keepButton = row;
                 if (openQs.Contains(a.Q)) Reopen(row, a);
             }
-            Ui.GroupRows(group);
+            if (_s2) Switch2Pages.RestyleTree(group, 72); else Ui.GroupRows(group);
             _list.Children.Add(group);
         }
         if (writing)
@@ -273,6 +402,7 @@ public sealed class GameGenieScreen : Screen
         credit.Opacity = 0.8;
         _list.Children.Add(credit);
 
+        BuildS2Nav();
         if (focusButton != null) { FocusLater(focusButton); OpenAnswer(focusButton, focusButton.Tag as GameGenie.Answer); }
         else if (keepButton != null) FocusLater(keepButton);
         else if (focusedTool >= 0 && Descendants<Button>(_list).ElementAtOrDefault(focusedTool) is { } sameTool) FocusLater(sameTool);
@@ -381,6 +511,9 @@ public sealed class GameGenieScreen : Screen
         // The Genie at work: floating from the lamp and trying one way after another to find the answers.
         var genie = new GenieSearch(text) { Margin = new Thickness(0, 30, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
         _list.Children.Add(genie);
+        _s2Heads.Clear();
+        _s2Counts.Clear();
+        BuildS2Nav();
         if (_sheet == null) { _summary.Text = ""; _facts.Children.Clear(); }
     }
 
@@ -451,6 +584,9 @@ public sealed class GameGenieScreen : Screen
         {
             case NavAction.X: _ = AskOwnAsync(); return true;
             case NavAction.Y: _ = MoreAsync(); return true;
+            case NavAction.LT or NavAction.RT when _s2:
+                JumpS2(Math.Clamp(_s2Current + (action == NavAction.RT ? 1 : -1), -1, _s2Heads.Count - 1));
+                return true;
         }
         return false;
     }

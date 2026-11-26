@@ -270,6 +270,7 @@ public sealed class LedColorScreen : GridScreen
     public LedColorScreen(string title, string current, Action<string> picked) : base(title)
     {
         _picked = picked;
+        if (Switch2Pages.PcPage(this)) UseSwitch2Grid(title, Switch2Pages.PcGlyph(this)); // swatches with the rimmed highlight
         var swatches = AllyControl.Palette.ToList();
         // The highlight color too, when it isn't one of the swatches already.
         if ((Application.Current.Resources["AccentBrush"] as Media.SolidColorBrush)?.Color is Media.Color accent)

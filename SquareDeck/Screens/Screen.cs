@@ -352,6 +352,20 @@ public abstract class Screen : UserControl
     /// colors over its background, the gear (or another icon) and title on the left with a line under them, and a line
     /// over the button hints with the controller at the left.
     /// </summary>
+    /// <summary>
+    /// Switch 2 style for a page drawn its own way (the controller testers): the title with its icon and a line under
+    /// it, and the page's cards, tracks and keys in the Switch 2 card color.
+    /// </summary>
+    protected void UseSwitch2Cards(string title, string glyph)
+    {
+        UseSwitch2Chrome(title, glyph);
+        var card = new System.Windows.Media.SolidColorBrush(Switch2Settings.Card);
+        card.Freeze();
+        Resources["CardBrush"] = card;
+        Resources["TileBrush"] = card;
+        Resources["CircleBrush"] = card;
+    }
+
     protected void UseSwitch2Chrome(string title, string glyph = "\uE713")
     {
         if (_pageRoot == null) return;
@@ -388,7 +402,7 @@ public abstract class Screen : UserControl
             var over = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Top };
             over.SetResourceReference(Shape.FillProperty, "S2Line");
             _footer.Children.Insert(0, over);
-            FrameworkElement pad = Ui.DeviceArt(30) ?? Ui.Glyph(Ui.HandheldGlyph, 30, "FgBrush"); // your own handheld, with that experiment on
+            FrameworkElement pad = Ui.DeviceArt(30) ?? Ui.Glyph("\uE7FC", 30, "FgBrush"); // your own handheld, with that experiment on
             pad.HorizontalAlignment = HorizontalAlignment.Left;
             pad.VerticalAlignment = VerticalAlignment.Center;
             pad.Margin = new Thickness(16, 2, 0, 0);
@@ -507,7 +521,21 @@ public abstract class ListScreen : Screen
         };
         if (layout == null) SetPage(title, scroll, hints);
         else SetPage(title, layout(scroll), hints, wide: true);
+
+        // Switch 2 style PC tools and info pages: the page's name with its icon and a line under it, and (after each
+        // build) bar-and-name headings and flat rows with the rimmed highlight, in the UI style's colors.
+        _s2Pc = layout == null && Switch2Pages.ListPage(this);
+        if (_s2Pc)
+        {
+            UseSwitch2Chrome(title, Switch2Pages.PcGlyph(this));
+            Rows.Width = double.NaN;
+            Rows.MaxWidth = 1100;
+            Rows.HorizontalAlignment = HorizontalAlignment.Stretch;
+            Rows.Margin = new Thickness(60, 0, 60, 24);
+        }
     }
+
+    private readonly bool _s2Pc;
 
     protected ScrollViewer RowsScroll { get; }
 
@@ -538,6 +566,7 @@ public abstract class ListScreen : Screen
         Build();
         Ui.GroupRows(Rows); // runs of rows become grouped cards
         AfterBuild();
+        if (_s2Pc) Switch2Settings.Restyle(Rows);
 
         buttons = Rows.Children.OfType<Button>().ToList();
         if (buttons.Count == 0 || SuppressAutoFocus) return;
@@ -647,7 +676,26 @@ public abstract class GridScreen : Screen
             Focusable = false,
             Content = Body
         };
+        GridScroll = scroll;
         SetPage(title, scroll, hints);
+    }
+
+    protected ScrollViewer GridScroll { get; }
+
+    /// <summary>
+    /// Switch 2 style: the title with its icon and a line under it, tiles in the card color with the rimmed highlight
+    /// (redrawn as they're added), and, given <paramref name="nav"/>, the page's sections down the left.
+    /// </summary>
+    protected void UseSwitch2Grid(string title, string glyph, UIElement? nav = null, UIElement? underNav = null)
+    {
+        UseSwitch2Chrome(title, glyph);
+        var card = new System.Windows.Media.SolidColorBrush(Switch2Settings.Card);
+        card.Freeze();
+        Resources["TileBrush"] = card;
+        Resources["CircleBrush"] = card;
+        Body.Margin = new Thickness(14, 8, 18, 24); // room for the highlight's rim and glow
+        if (nav != null) ReplaceBody(Switch2Pages.Shell(nav, GridScroll, underNav));
+        Switch2Pages.AutoRestyle(Tiles);
     }
 
     protected Button AddTile(UIElement visual, string? caption, double width, Action click, object? tag = null,
@@ -839,7 +887,9 @@ public sealed class MenuScreen : Screen
     /// Drawn like the Switch 2's pop-up lists (New Settings UI, over Settings): a light floating card, the choices on
     /// thin lines with a round mark at the right, filled in blue for the one in use (a choice written with ✓).
     /// </summary>
-    public void UseSwitch2Look()
+    /// <param name="marks">The round mark at each choice's right (a list of options); off for a menu of things to do
+    /// (Open Terminal's Command Prompt / PowerShell), which are plain rows.</param>
+    public void UseSwitch2Look(bool marks = true)
     {
         if (_choices == null || _box == null) return;
         Switch2Settings.ApplyColors(this);
@@ -864,6 +914,7 @@ public sealed class MenuScreen : Screen
                 label.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
             }
             foreach (var badge in grid.Children.OfType<FrameworkElement>().Where(e => Grid.GetColumn(e) == 0).ToList()) badge.Visibility = Visibility.Collapsed;
+            if (!marks && !chosen) continue;
             var ring = new Grid { Width = 30, Height = 30, Margin = new Thickness(16, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             var outer = new Ellipse { StrokeThickness = chosen ? 0 : 2 };
             if (chosen) outer.SetResourceReference(Shape.FillProperty, "AccentBrush");

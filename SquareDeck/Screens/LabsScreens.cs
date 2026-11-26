@@ -56,6 +56,8 @@ public sealed class MoveGameScreen : ListScreen
         top.Children.Add(_step);
         _card.Children.Add(top);
         _card.Children.Add(bar);
+        // Switch 2 style: the bar's track in the page's line color.
+        if (Switch2Pages.PcPage(this)) Resources["CircleBrush"] = new SolidColorBrush(Switch2Settings.Line);
     }
 
     private void ShowProgress(double fraction, string step)

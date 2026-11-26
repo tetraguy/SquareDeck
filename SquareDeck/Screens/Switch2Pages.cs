@@ -26,6 +26,51 @@ public static class Switch2Pages
     /// <summary>Experimental "Switch 2 style menus, Search, Browser, Notifications and game pages".</summary>
     public static bool SystemOn => Labs.On("s2system");
 
+    /// <summary>Experimental "Switch 2 style PC tools and info pages".</summary>
+    public static bool PcOn => Labs.On("s2pctools");
+
+    /// <summary>The PC tools and info pages drawn the Switch 2 way (most are lists: ListScreen redraws them).</summary>
+    public static bool PcPage(Screen screen) => PcOn && screen is PcSettingsScreen or BatteryScreen or DeviceInfoScreen
+        or WifiScreen or BluetoothScreen or SpeedTestScreen or NetworkToolsScreen or DiskCleanupScreen or StorageSpeedScreen
+        or DriveSpeedScreen or StorageScreen or DriverCheckScreen or StorageAdvisorScreen or CleanupScreen or AdrenalineHookScreen
+        or TerminalScreen or HomeAppScreen or WhatsNewScreen or ChangelogScreen or CreditsScreen or MoveGameScreen
+        or AllyControlScreen or DeviceHealthScreen or BatteryInsightScreen or BatteryHealthScreen or VisualModesScreen or CpuCoresScreen
+        or CustomFanScreen or ControllerTesterScreen or ControllerTestScreen or LedColorScreen;
+
+    /// <summary>List pages drawn the Switch 2 way by ListScreen: the PC tools and info pages, and a game's profile (with the game pages).</summary>
+    public static bool ListPage(Screen screen) => PcPage(screen) || (Labs.On("s2details") && screen is GameProfileScreen);
+
+    /// <summary>The icon beside a PC tool or info page's name in its title.</summary>
+    public static string PcGlyph(Screen screen) => screen switch
+    {
+        PcSettingsScreen => "\uE7F5",
+        BatteryScreen => "\uE945",
+        DeviceInfoScreen or CreditsScreen => "\uE946",
+        WifiScreen => "\uE701",
+        BluetoothScreen => "\uE702",
+        SpeedTestScreen or StorageSpeedScreen or DriveSpeedScreen => "\uEC4A",
+        NetworkToolsScreen => "\uE968",
+        DiskCleanupScreen or CleanupScreen => "\uE74D",
+        StorageScreen => "\uE88E",
+        MoveGameScreen => "\uE8DE",
+        GameProfileScreen => "\uE7FC",
+        AllyControlScreen => Ui.HandheldGlyph,
+        DeviceHealthScreen => "\uE95E",
+        BatteryInsightScreen or BatteryHealthScreen => "\uE945",
+        VisualModesScreen or LedColorScreen => "\uE790",
+        CpuCoresScreen => "\uE950",
+        CustomFanScreen => "\uE9CA",
+        ControllerTesterScreen or ControllerTestScreen => "\uE7FC",
+        DriverCheckScreen => "\uE964",
+        StorageAdvisorScreen => "\uEDA2",
+        AdrenalineHookScreen => "\uE768",
+        TerminalScreen => "\uE756",
+        HomeAppScreen => "\uE7FC",
+        WhatsNewScreen => "\uE734",
+        ChangelogScreen => "\uE81C",
+        _ => "\uE713",
+    };
+
     /// <summary>Pages drawn this way, whose pop-ups take the Switch 2 look too.</summary>
     public static bool Applies(Screen screen) =>
         screen is Switch2LibraryScreen || (Switch2Settings.On && screen is SettingsScreen)
@@ -35,7 +80,11 @@ public static class Switch2Pages
         || (SystemOn && screen is SearchScreen or DetailsScreen)
         || screen is S2PlayScreen
         || (Labs.On("s2apps") && screen is InstalledAppsScreen or AppOptionsScreen)
-        || (Labs.On("s2setup") && screen is OnboardingScreen);
+        || (Labs.On("s2device") && screen is MyDeviceScreen)
+        || (Labs.On("s2details") && screen is DetailsScreen or GameNotesScreen or ArtPickerScreen or CoverPickerScreen or GameProfileScreen)
+        || (Labs.On("s2genie") && screen is GameGenieScreen)
+        || (Labs.On("s2setup") && screen is OnboardingScreen)
+        || PcPage(screen);
 
     /// <summary>
     /// The two panes: the sections (and anything under them) on the left, the page on the right, a thin line between.

@@ -47,9 +47,85 @@ public sealed class MyDeviceScreen : ListScreen
         public double Size;
     }
 
+    /// <summary>
+    /// "Switch 2 style My Device": the sections down the left (Overview, Power, System, More) with the device and its
+    /// battery under them, one section at a time on the right, cards in the card color with a thin line, bar-and-name
+    /// headings and flat rows, all in the UI style's colors.
+    /// </summary>
+    private readonly bool _s2 = Labs.On("s2device");
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+    private readonly StackPanel _s2Under = new() { Margin = new Thickness(40, 0, 18, 14) };
+    private string _section = "overview";
+    private static readonly (string Id, string Name)[] S2Sections = { ("overview", "Overview"), ("power", "Power and battery"), ("system", "System"), ("more", "More settings") };
+
     public MyDeviceScreen() : base("My Device")
     {
         _timer.Tick += (_, _) => Refresh();
+        if (!_s2) return;
+        Rows.Width = double.NaN;
+        Rows.HorizontalAlignment = HorizontalAlignment.Stretch;
+        Rows.Margin = new Thickness(0, 0, 18, 24);
+        // The list's scroller is still in the old body: take it out first (an element can only be in one place).
+        (RowsScroll.Parent as Panel)?.Children.Remove(RowsScroll);
+        if (RowsScroll.Parent is Decorator d) d.Child = null;
+        (RowsScroll.Parent as ContentControl)?.SetValue(ContentControl.ContentProperty, null);
+        ReplaceBody(Switch2Pages.Shell(_s2Nav, RowsScroll, _s2Under));
+        UseSwitch2Chrome("My Device", Ui.HandheldGlyph);
+        ApplyS2Cards();
+    }
+
+    /// <summary>The cards take the Switch 2 card color and line.</summary>
+    private void ApplyS2Cards()
+    {
+        Switch2Settings.Refresh();
+        var card = new SolidColorBrush(Switch2Settings.Card);
+        card.Freeze();
+        Resources["CircleBrush"] = card;
+    }
+
+    private void BuildS2Nav()
+    {
+        _s2Nav.Children.Clear();
+        foreach (var (id, name) in S2Sections)
+        {
+            var which = id;
+            _s2Nav.Children.Add(Switch2Pages.NavItem(name, null, _section == id, () => ShowS2(which)));
+        }
+        _s2Under.Children.Clear();
+        var name2 = Ui.Text(Handheld.DisplayName, 16, "FgBrush");
+        name2.TextTrimming = TextTrimming.CharacterEllipsis;
+        _s2Under.Children.Add(name2);
+        var battery = Ui.Text("", 13, "SubtleBrush");
+        _s2Under.Children.Add(battery);
+        _s2Battery = battery;
+    }
+
+    private TextBlock? _s2Battery;
+
+    private void ShowS2(string section)
+    {
+        _section = section;
+        UiSound.Page();
+        RebuildFromTop();
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(FocusDefault));
+    }
+
+    public override bool OnAction(NavAction action)
+    {
+        if (_s2 && action is NavAction.LT or NavAction.RT)
+        {
+            int i = Array.FindIndex(S2Sections, x => x.Id == _section);
+            ShowS2(S2Sections[(i + (action == NavAction.RT ? 1 : -1) + S2Sections.Length) % S2Sections.Length].Id);
+            return true;
+        }
+        return base.OnAction(action);
+    }
+
+    protected override void AfterBuild()
+    {
+        if (!_s2) return;
+        Switch2Settings.Restyle(Rows);
+        BuildS2Nav();
     }
 
     private bool _opened;
@@ -77,7 +153,12 @@ public sealed class MyDeviceScreen : ListScreen
         _timer.Start();
     }
 
-    public override void OnResumed() { base.OnResumed(); _timer.Start(); }
+    public override void OnResumed()
+    {
+        if (_s2) { RefreshSwitch2Colors(); ApplyS2Cards(); }
+        base.OnResumed();
+        _timer.Start();
+    }
     public override void OnCovered() { base.OnCovered(); _timer.Stop(); }
 
     public override void OnClosed()
@@ -94,6 +175,9 @@ public sealed class MyDeviceScreen : ListScreen
     {
         _cards.Clear();
         _gauges.Clear();
+        _batteryRing = null;
+        _batteryState = null;
+        if (_s2) { BuildS2(); return; }
         Rows.Children.Add(Hero());
 
         Section("Live");
@@ -146,6 +230,85 @@ public sealed class MyDeviceScreen : ListScreen
         Refresh();
     }
 
+    /// <summary>The Switch 2 style page: one section at a time.</summary>
+    private void BuildS2()
+    {
+        Rows.Children.Add(Switch2Pages.PageTitle(S2Sections.First(x => x.Id == _section).Name, null));
+        switch (_section)
+        {
+            case "overview":
+            {
+                var hero = Hero();
+                if (hero is FrameworkElement fe) fe.Margin = new Thickness(6, 6, 6, 4);
+                Rows.Children.Add(hero);
+                Section("Live");
+                var live = new WrapPanel();
+                GaugeTile(live, "cpu", "\uE950", "Processor", () => Host.Push(new TaskManagerScreen()));
+                GaugeTile(live, "gpu", "\uE7F4", "Graphics", () => Host.Push(new TaskManagerScreen()));
+                GaugeTile(live, "temp", "\uE9CA", "Temperature", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
+                GaugeTile(live, "fans", "\uE9CA", "Fan", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
+                Rows.Children.Add(live);
+                break;
+            }
+            case "power":
+            {
+                Section("Battery and power");
+                var power = new WrapPanel();
+                CardTile(power, "draw", "\uE945", "Power draw", () => Host.Push(new BatteryScreen()), graph: true);
+                CardTile(power, "health", "\uE83F", "Battery health", () => Host.Push(new BatteryScreen()), bar: true);
+                CardTile(power, "drain", "\uE916", "Battery pace", () => Host.Push(new BatteryScreen()));
+                CardTile(power, "tdp", "\uE9F5", "Power limit", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
+                Rows.Children.Add(power);
+                Section("Controls");
+                var controls = new WrapPanel();
+                CardTile(controls, "pad", "\uE7FC", "Controller", () => Host.Push(new SettingsScreen("controller")));
+                CardTile(controls, "brightness", "\uE706", "Brightness", () => Host.Push(new QuickSettingsScreen()), bar: true);
+                Rows.Children.Add(controls);
+                break;
+            }
+            case "system":
+            {
+                Section("Memory and storage");
+                var storage = new WrapPanel();
+                CardTile(storage, "memory", "\uE964", "Memory", () => Host.Push(new TaskManagerScreen()), bar: true, graph: true);
+                foreach (var drive in Drives())
+                {
+                    var root = drive.RootDirectory.FullName;
+                    CardTile(storage, "drive:" + drive.Name, "\uEDA2", "Storage  " + drive.Name.TrimEnd('\\'), () => Host.Push(new ExplorerScreen(root)), bar: true);
+                }
+                Rows.Children.Add(storage);
+                Section("Screen, sound and network");
+                var system = new WrapPanel();
+                CardTile(system, "display", "\uE7F4", "Display", () => Host.Push(new SettingsScreen("look")));
+                CardTile(system, "network", "\uE701", "Network", () => Host.Push(new SettingsScreen("network")));
+                CardTile(system, "sound", "\uE767", "Sound", () => Host.Push(new SettingsScreen("sound")), bar: true);
+                Rows.Children.Add(system);
+                Section("Windows");
+                var windows = new WrapPanel();
+                CardTile(windows, "windows", "\uE770", "Windows", () => Host.Push(new SettingsScreen("system")));
+                CardTile(windows, "uptime", "\uE823", "On for", () => Host.Push(new SettingsScreen("system")));
+                Rows.Children.Add(windows);
+                break;
+            }
+            default:
+                AddRow(Handheld.DisplayName + " Specific Settings", null, Ui.HandheldGlyph, click: () => Host.Push(new SettingsScreen("handheld")),
+                    subtitle: "TDP limit, lights, power modes, fans, charge limit and more for this device");
+                AddRow("Performance Boost and the overlay", null, "\uE945", click: () => Host.Push(new SettingsScreen("gaming")),
+                    subtitle: "Performance Boost, SquareDeck performance mode and the performance overlay, in Gaming");
+                AddRow("Battery", null, "\uE83F", click: () => Host.Push(new BatteryScreen()), subtitle: "Battery saver, charging and usage");
+                AddRow("My Device on the home screen", Host.Settings.ShowMyDeviceButton ? "On" : "Off", "\uE8A9", click: () =>
+                {
+                    Host.Settings.ShowMyDeviceButton = !Host.Settings.ShowMyDeviceButton;
+                    Host.Settings.Save();
+                    Host.RefreshHomeButtonsPublic();
+                    Rebuild();
+                });
+                break;
+        }
+        _ticks = 0;
+        Refresh();
+    }
+
     private static IEnumerable<DriveInfo> Drives()
     {
         DriveInfo[] all;
@@ -160,6 +323,13 @@ public sealed class MyDeviceScreen : ListScreen
 
     private void Section(string title)
     {
+        if (_s2)
+        {
+            var header = Switch2Settings.Header(title);
+            header.Margin = new Thickness(4, 18, 0, 8);
+            Rows.Children.Add(header);
+            return;
+        }
         var t = Ui.Text(title.ToUpperInvariant(), 13, "SubtleBrush", bold: true);
         t.Margin = new Thickness(10, 22, 0, 4);
         Rows.Children.Add(t);
@@ -391,13 +561,25 @@ public sealed class MyDeviceScreen : ListScreen
     {
         var card = new Border { Width = CardWidth, Height = height, CornerRadius = new CornerRadius(20), Padding = new Thickness(16, 14, 16, 12), Child = content };
         card.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        if (Labs.On("s2device"))
+        {
+            card.CornerRadius = new CornerRadius(16);
+            card.BorderThickness = new Thickness(1);
+            card.SetResourceReference(Border.BorderBrushProperty, "S2Line");
+        }
         return card;
     }
 
     private Button Pressable(Panel into, Border face, Action open)
     {
-        var tile = Ui.Tile(face);
-        tile.Margin = new Thickness(0);
+        Button tile;
+        // The Switch 2 highlight: a rim round the card instead of the round tiles' glow.
+        if (_s2) tile = new Button { Style = Switch2Pages.TileStyle, Content = face, Margin = new Thickness(0, 0, 6, 8) };
+        else
+        {
+            tile = Ui.Tile(face);
+            tile.Margin = new Thickness(0);
+        }
         tile.Click += (_, _) => open();
         into.Children.Add(tile);
         return tile;
@@ -499,7 +681,8 @@ public sealed class MyDeviceScreen : ListScreen
 
     private void Refresh()
     {
-        if (_cards.Count == 0) return;
+        // Nothing on screen to fill in (the Switch 2 style's Overview has only the gauges and the battery ring, no cards).
+        if (_cards.Count == 0 && _gauges.Count == 0 && _batteryRing == null && _s2Battery == null) return;
         _ticks++;
         try
         {
@@ -515,6 +698,7 @@ public sealed class MyDeviceScreen : ListScreen
                 else state = Battery.GetTimeRemaining() is { } left ? Duration(left) + " left" : "On battery";
                 SetGauge(_batteryRing, p / 100.0, p + "%", r.Plugged ? "⚡ plugged in" : "battery");
                 if (_batteryState != null) _batteryState.Text = state;
+                if (_s2Battery != null) _s2Battery.Text = $"Battery {p}%  \u00B7  {state}";
                 Set("draw", draw > 0.05 ? $"{draw:0.0} W" : "—", r.Plugged ? (draw > 0.2 ? "Going into the battery" : "From the charger") : "From the battery", draw > 0 ? draw : null);
             }
             else

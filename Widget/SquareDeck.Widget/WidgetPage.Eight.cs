@@ -16,8 +16,7 @@ namespace SquareDeck.Widget
     /// <summary>
     /// The widget's experimental cards (SquareDeck 8.1), each shown only while it's turned on in SquareDeck's
     /// Settings > Experimental: frame cap and Auto TDP in the Power card, the thermal warning, game notes,
-    /// achievements, Ask Genie, the controller, friends, notifications, downloads, Invite on the game card, apps and
-    /// SquareDeck shortcuts, the card editor (with layouts and presets per game), the style match and the companion.
+    /// your apps, the card editor (with layouts and presets per game), the style match and the companion.
     /// </summary>
     public sealed partial class WidgetPage
     {
@@ -29,8 +28,8 @@ namespace SquareDeck.Widget
 
         private static readonly Color AmberColor = Color.FromArgb(255, 0xFF, 0xB0, 0x3B);
 
-        private static readonly string[] CardIds = { "game", "media", "power", "live", "ally", "notes", "achievements", "genie", "controller", "friends", "inbox", "downloads", "launch", "quick" };
-        private static readonly string[] CardNames = { "Game", "Now playing", "Power", "Live", "ROG Ally", "Game notes", "Achievements", "Ask Genie", "Controller", "Friends", "Notifications", "Downloads", "Launch", "Quick" };
+        private static readonly string[] CardIds = { "game", "media", "power", "live", "ally", "notes", "launch", "quick" };
+        private static readonly string[] CardNames = { "Game", "Now playing", "Power", "Live", "ROG Ally", "Game notes", "Launch", "Quick" };
 
         private Border CardOf(string id)
         {
@@ -82,44 +81,12 @@ namespace SquareDeck.Widget
             BuildPowerExtras();
             BuildThermal();
             BuildNotes(cards);
-            BuildAchievements(cards);
-            BuildGenie(cards);
-            BuildController(cards);
-            BuildFriends(cards);
-            BuildInbox(cards);
-            BuildDownloads(cards);
             BuildLaunch(cards);
             BuildHeaderExtras();
-            BuildParty();
             BuildEditor();
             // The Quick card stays last, as before.
             cards.Children.Remove(_quickCard);
             cards.Children.Add(_quickCard);
-            Root.GotFocus += OnWidgetFocus; // rumble while moving around (Experimental)
-            _achTimer.Tick += (s, e) => { if (_labs.Contains("wach") && _runningName.Length > 0) _link.Send("achievements"); };
-            _achTimer.Start();
-        }
-
-        // ---- rumble while moving around
-
-        private DateTime _lastRumble = DateTime.MinValue;
-        private object _lastFocused;
-
-        /// <summary>
-        /// The highlight moved to something new with the controller (or keyboard): asks SquareDeck for a short buzz, as
-        /// moving around SquareDeck itself does. Not for taps or mouse clicks, and at most every 40 ms.
-        /// </summary>
-        private void OnWidgetFocus(object sender, RoutedEventArgs e)
-        {
-            if (!_labs.Contains("wrumble")) return;
-            var control = e.OriginalSource as Control;
-            if (control == null || control.FocusState != FocusState.Keyboard) return;
-            if (ReferenceEquals(control, _lastFocused)) return;
-            _lastFocused = control;
-            var now = DateTime.Now;
-            if ((now - _lastRumble).TotalMilliseconds < 40) return;
-            _lastRumble = now;
-            _link.Send("navrumble");
         }
 
         // ---- Power: frame cap and Auto TDP
@@ -345,291 +312,10 @@ namespace SquareDeck.Widget
             AddCard(cards, "notes", "", "Game notes", body);
         }
 
-        // ---- achievements
-
-        private readonly DispatcherTimer _achTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
-        private TextBlock _achCount, _achNone;
-        private ProgressBar _achBar;
-        private StackPanel _achList;
-
-        private void BuildAchievements(StackPanel cards)
-        {
-            var body = new StackPanel();
-            _achBar = new ProgressBar { Minimum = 0, Maximum = 1, Height = 6, Foreground = _accentBrush, Margin = new Thickness(0, 0, 0, 10) };
-            body.Children.Add(_achBar);
-            _achNone = Line("Start a Steam game to see its achievements.", 13, Subtle);
-            body.Children.Add(_achNone);
-            _achList = new StackPanel();
-            body.Children.Add(_achList);
-            _achCount = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Subtle) };
-            AddCard(cards, "achievements", "", "Achievements", body, _achCount);
-        }
-
-        private void ApplyAchievements(JsonObject m)
-        {
-            _achList.Children.Clear();
-            string none = Str(m, "none");
-            _achNone.Visibility = none != null ? Visibility.Visible : Visibility.Collapsed;
-            _achNone.Text = none ?? "";
-            double unlocked = Num(m, "unlocked") ?? 0, total = Num(m, "total") ?? 0;
-            _achBar.Visibility = total > 0 ? Visibility.Visible : Visibility.Collapsed;
-            _achBar.Value = total > 0 ? unlocked / total : 0;
-            _achCount.Text = total > 0 ? unlocked.ToString("0") + " / " + total.ToString("0") : "";
-            string game = Str(m, "game") ?? "";
-            var next = Arr(m, "next");
-            if (next == null) return;
-            if (next.Count > 0) _achList.Children.Add(Label("Next to get"));
-            foreach (var v in next)
-            {
-                if (v.ValueType != JsonValueType.Object) continue;
-                var a = v.GetObject();
-                string name = Str(a, "name") ?? "", desc = Str(a, "desc") ?? "";
-                var row = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
-                row.Children.Add(Line(name, 14, Colors.White, bold: true));
-                if (desc.Length > 0) row.Children.Add(Line(desc, 12, Subtle));
-                var how = SmallButton("", "How to get this");
-                how.Margin = new Thickness(0, 6, 0, 0);
-                how.Click += async (s, e) =>
-                {
-                    string q = Uri.EscapeDataString(game + " \"" + name + "\" achievement guide");
-                    try { await Windows.System.Launcher.LaunchUriAsync(new Uri("https://www.google.com/search?q=" + q)); } catch (Exception) { }
-                };
-                row.Children.Add(how);
-                _achList.Children.Add(row);
-            }
-        }
-
-        // ---- Ask Genie
-
-        private TextBox _genieBox;
-        private TextBlock _genieAnswer, _genieQuestion;
-        private ProgressRing _genieRing;
-        private Button _genieSpoiler;
-
-        private void BuildGenie(StackPanel cards)
-        {
-            var body = new StackPanel();
-            var askRow = new Grid();
-            askRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            askRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            _genieBox = new TextBox { PlaceholderText = "Ask about the game you're playing", TextWrapping = TextWrapping.Wrap };
-            _genieBox.KeyDown += (s, e) => { if (e.Key == Windows.System.VirtualKey.Enter) AskGenie(_genieBox.Text); };
-            askRow.Children.Add(_genieBox);
-            var ask = SmallButton("", "Ask");
-            ask.Margin = new Thickness(8, 0, 0, 0);
-            ask.Click += (s, e) => AskGenie(_genieBox.Text);
-            Grid.SetColumn(ask, 1);
-            askRow.Children.Add(ask);
-            body.Children.Add(askRow);
-            var chips = new WrapPanelLite();
-            foreach (var q in new[] { "How do I get started?", "Any tips for where I am?", "Any secrets worth finding?", "What's the best way to level up?" })
-            {
-                var chip = SmallButton(null, q);
-                string question = q;
-                chip.Click += (s, e) => AskGenie(question);
-                chips.Children.Add(chip);
-            }
-            chips.Margin = new Thickness(0, 10, 0, 0);
-            body.Children.Add(chips);
-            var status = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
-            _genieRing = new ProgressRing { Width = 16, Height = 16, IsActive = false, Visibility = Visibility.Collapsed, Foreground = _accentBrush, Margin = new Thickness(0, 0, 8, 0) };
-            status.Children.Add(_genieRing);
-            _genieQuestion = Line("", 12, Subtle);
-            status.Children.Add(_genieQuestion);
-            body.Children.Add(status);
-            _genieAnswer = Line("", 14, Colors.White);
-            _genieAnswer.Margin = new Thickness(0, 6, 0, 0);
-            _genieSpoiler = SmallButton("", "Spoiler: select to show the answer");
-            _genieSpoiler.Visibility = Visibility.Collapsed;
-            _genieSpoiler.Click += (s, e) => { _genieSpoiler.Visibility = Visibility.Collapsed; _genieAnswer.Visibility = Visibility.Visible; };
-            body.Children.Add(_genieSpoiler);
-            body.Children.Add(new ScrollViewer { Content = _genieAnswer, MaxHeight = 220, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
-            AddCard(cards, "genie", "", "Ask Genie", body);
-        }
-
-        private void AskGenie(string question)
-        {
-            if (string.IsNullOrWhiteSpace(question)) return;
-            _link.Send("genie", "q", question.Trim());
-            _genieQuestion.Text = "Asking: " + question.Trim();
-            _genieRing.IsActive = true;
-            _genieRing.Visibility = Visibility.Visible;
-            _genieAnswer.Text = "";
-            _genieSpoiler.Visibility = Visibility.Collapsed;
-            _genieBox.Text = "";
-        }
-
-        private void ApplyGenie(JsonObject m)
-        {
-            _genieRing.IsActive = false;
-            _genieRing.Visibility = Visibility.Collapsed;
-            _genieQuestion.Text = Str(m, "q") ?? "";
-            string error = Str(m, "error");
-            _genieAnswer.Text = error ?? Str(m, "a") ?? "";
-            bool spoiler = error == null && Bool(m, "spoiler") == true;
-            _genieSpoiler.Visibility = spoiler ? Visibility.Visible : Visibility.Collapsed;
-            _genieAnswer.Visibility = spoiler ? Visibility.Collapsed : Visibility.Visible;
-        }
-
-        // ---- controller
-
-        private TextBlock _padBattery;
-        private Slider _padRumble;
-        private Throttle _rumbleSend;
-        private bool _padSyncing;
-        private DateTime _userRumble;
-
-        private void BuildController(StackPanel cards)
-        {
-            var body = new StackPanel();
-            _padBattery = Line("", 14, Colors.White, bold: true);
-            body.Children.Add(_padBattery);
-            body.Children.Add(Label("Rumble strength"));
-            _padRumble = new Slider { Minimum = 0, Maximum = 100, StepFrequency = 5, Foreground = _accentBrush, IsThumbToolTipEnabled = true };
-            _rumbleSend = new Throttle(v => _link.Send("rumble", "value", v));
-            _padRumble.ValueChanged += (s, e) => { if (_padSyncing) return; _userRumble = DateTime.Now; _rumbleSend.Push(e.NewValue); };
-            body.Children.Add(_padRumble);
-            var drift = SmallButton("", "Check for stick drift");
-            drift.Margin = new Thickness(0, 8, 0, 0);
-            drift.Click += (s, e) => _link.Send("drift");
-            body.Children.Add(drift);
-            AddCard(cards, "controller", "", "Controller", body);
-        }
-
-        // ---- friends
-
-        private StackPanel _friendsList;
-
-        private void BuildFriends(StackPanel cards)
-        {
-            _friendsList = new StackPanel();
-            AddCard(cards, "friends", "", "Friends online", _friendsList);
-        }
-
-        private string _friendsSig = "";
-
-        private void ApplyFriends(JsonObject s)
-        {
-            var list = Arr(s, "friends");
-            string sig = list == null ? "" : list.Stringify();
-            if (sig == _friendsSig) return;
-            _friendsSig = sig;
-            _friendsList.Children.Clear();
-            if (Bool(s, "friendsready") != true) { _friendsList.Children.Add(Line("Add your Steam Web API key in SquareDeck (Settings > Accounts) to see friends here.", 13, Subtle)); return; }
-            if (list == null || list.Count == 0) { _friendsList.Children.Add(Line("Nobody's online right now.", 13, Subtle)); return; }
-            foreach (var v in list)
-            {
-                if (v.ValueType != JsonValueType.Object) continue;
-                var f = v.GetObject();
-                string name = Str(f, "name") ?? "", id = Str(f, "id") ?? "";
-                bool playing = Bool(f, "playing") == true;
-                var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                var initial = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(16), Margin = new Thickness(0, 0, 10, 0), Background = new SolidColorBrush(Color.FromArgb(0x55, _accent.R, _accent.G, _accent.B)) };
-                initial.Child = new TextBlock { Text = name.Length > 0 ? name.Substring(0, 1).ToUpperInvariant() : "?", FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Colors.White), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-                row.Children.Add(initial);
-                var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-                words.Children.Add(new TextBlock { Text = name, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis });
-                words.Children.Add(new TextBlock { Text = Str(f, "status") ?? "", FontSize = 12, Foreground = playing ? _accentBrush : new SolidColorBrush(Subtle), TextTrimming = TextTrimming.CharacterEllipsis });
-                Grid.SetColumn(words, 1);
-                row.Children.Add(words);
-                var chat = SmallButton("", "Message");
-                chat.Margin = new Thickness(6, 0, 0, 0);
-                chat.Click += (o, e) => _link.Send("chat", "id", id);
-                Grid.SetColumn(chat, 2);
-                row.Children.Add(chat);
-                _friendsList.Children.Add(row);
-            }
-        }
-
-        // ---- notifications
-
-        private StackPanel _inboxList;
-        private string _inboxSig = "";
-
-        private void BuildInbox(StackPanel cards)
-        {
-            _inboxList = new StackPanel();
-            AddCard(cards, "inbox", "", "Notifications", _inboxList);
-        }
-
-        private void ApplyInbox(JsonObject s)
-        {
-            var list = Arr(s, "inbox");
-            string sig = list == null ? "" : list.Stringify();
-            if (sig == _inboxSig) return;
-            _inboxSig = sig;
-            _inboxList.Children.Clear();
-            if (list == null || list.Count == 0) { _inboxList.Children.Add(Line("No notifications.", 13, Subtle)); return; }
-            foreach (var v in list)
-            {
-                if (v.ValueType != JsonValueType.Object) continue;
-                var n = v.GetObject();
-                var row = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
-                var top = new Grid();
-                top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                var title = new TextBlock { Text = Str(n, "title") ?? "", FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis };
-                top.Children.Add(title);
-                var when = new TextBlock { Text = Str(n, "when") ?? "", FontSize = 11, Foreground = new SolidColorBrush(Subtle), Margin = new Thickness(8, 0, 0, 0) };
-                Grid.SetColumn(when, 1);
-                top.Children.Add(when);
-                row.Children.Add(top);
-                string text = Str(n, "text") ?? "";
-                if (text.Length > 0) row.Children.Add(Line(text, 12, Subtle));
-                _inboxList.Children.Add(row);
-            }
-        }
-
-        // ---- downloads
-
-        private StackPanel _downloadsList;
-        private Button _stopQueue;
-        private string _downloadsSig = "";
-
-        private void BuildDownloads(StackPanel cards)
-        {
-            var body = new StackPanel();
-            _downloadsList = new StackPanel();
-            body.Children.Add(_downloadsList);
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
-            var steam = SmallButton("", "Steam downloads");
-            steam.Click += (s, e) => _link.Send("steamdownloads");
-            buttons.Children.Add(steam);
-            _stopQueue = SmallButton("", "Stop SquareDeck's queue");
-            _stopQueue.Click += (s, e) => _link.Send("clearqueue");
-            buttons.Children.Add(_stopQueue);
-            body.Children.Add(buttons);
-            body.Children.Add(Line("Steam's own downloads pause from its downloads page.", 11, Subtle));
-            AddCard(cards, "downloads", "", "Downloads", body);
-        }
-
-        private void ApplyDownloads(JsonObject s)
-        {
-            _stopQueue.Visibility = (Num(s, "queue") ?? 0) > 0 ? Visibility.Visible : Visibility.Collapsed;
-            var list = Arr(s, "downloads");
-            string sig = list == null ? "" : list.Stringify();
-            if (sig == _downloadsSig) return;
-            _downloadsSig = sig;
-            _downloadsList.Children.Clear();
-            if (list == null || list.Count == 0) { _downloadsList.Children.Add(Line("Nothing downloading.", 13, Subtle)); return; }
-            foreach (var v in list)
-            {
-                if (v.ValueType != JsonValueType.Object) continue;
-                var d = v.GetObject();
-                var row = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
-                row.Children.Add(new TextBlock { Text = Str(d, "name") ?? "", FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis });
-                row.Children.Add(Line(Str(d, "text") ?? "", 12, Subtle));
-                _downloadsList.Children.Add(row);
-            }
-        }
-
-        // ---- launch: apps and SquareDeck shortcuts
+        // ---- launch: your apps
 
         private WrapPanelLite _appsRow;
-        private StackPanel _appsBlock, _pagesBlock;
+        private StackPanel _appsBlock;
         private string _appsAsked = "";
 
         private void BuildLaunch(StackPanel cards)
@@ -640,18 +326,6 @@ namespace SquareDeck.Widget
             _appsRow = new WrapPanelLite();
             _appsBlock.Children.Add(_appsRow);
             body.Children.Add(_appsBlock);
-            _pagesBlock = new StackPanel();
-            _pagesBlock.Children.Add(Label("SquareDeck"));
-            var pages = new WrapPanelLite();
-            foreach (var p in new[] { new[] { "home", "", "Home" }, new[] { "library", "", "Library" }, new[] { "retro", "", "Retro Lounge" }, new[] { "captures", "", "Captures" }, new[] { "settings", "", "Settings" } })
-            {
-                var b = SmallButton(p[1], p[2]);
-                string page = p[0];
-                b.Click += (s, e) => _link.Send("go", "page", page);
-                pages.Children.Add(b);
-            }
-            _pagesBlock.Children.Add(pages);
-            body.Children.Add(_pagesBlock);
             AddCard(cards, "launch", "", "Launch", body);
         }
 
@@ -708,26 +382,6 @@ namespace SquareDeck.Widget
         {
             var image = await Decode(Str(m, "image"));
             if (image != null) _companionImage.Source = image;
-        }
-
-        // ---- game card: Invite
-
-        private Button _invite;
-
-        private void BuildParty()
-        {
-            var words = _closeGame.Parent as StackPanel;
-            if (words == null) return;
-            int at = words.Children.IndexOf(_closeGame);
-            words.Children.Remove(_closeGame);
-            var row = new StackPanel { Orientation = Orientation.Horizontal };
-            row.Children.Add(_closeGame);
-            _invite = SmallButton("", "Invite");
-            _invite.Margin = new Thickness(8, 0, 0, 0);
-            _invite.Visibility = Visibility.Collapsed;
-            _invite.Click += (s, e) => _link.Send("party");
-            row.Children.Add(_invite);
-            words.Children.Insert(at, row);
         }
 
         // ---- the card editor
@@ -877,9 +531,7 @@ namespace SquareDeck.Widget
 
         private void ApplyEightMessage(string type, JsonObject m)
         {
-            if (type == "achievements") ApplyAchievements(m);
-            else if (type == "genie") ApplyGenie(m);
-            else if (type == "apps") ApplyApps(m);
+            if (type == "apps") ApplyApps(m);
             else if (type == "theme") ApplyTheme(m);
             else if (type == "companion") ApplyCompanionImage(m);
         }
@@ -891,11 +543,7 @@ namespace SquareDeck.Widget
             if (labs != null) foreach (var v in labs) if (v.ValueType == JsonValueType.String) _labs.Add(v.GetString());
             var game = Obj(s, "game");
             string running = game != null && Bool(game, "other") != true ? (Str(game, "name") ?? "") : "";
-            if (running != _runningName)
-            {
-                _runningName = running;
-                if (_labs.Contains("wach")) _link.Send("achievements");
-            }
+            if (running != _runningName) _runningName = running;
 
             // Power: the wattage look (Experimental).
             Guard("wattage look", () =>
@@ -954,24 +602,9 @@ namespace SquareDeck.Widget
                     _notesText.Text = string.IsNullOrWhiteSpace(notes) ? (running.Length > 0 ? "No notes yet for " + running + "." : "Start a game to see its notes.") : notes;
                 }
             });
-            Guard("controller card", () =>
-            {
-                var pad = Obj(s, "pad");
-                if (pad != null)
-                {
-                    string battery = Str(pad, "battery");
-                    _padBattery.Text = Bool(pad, "connected") == true ? "Battery: " + (battery ?? "unknown") : "No controller found";
-                    if ((DateTime.Now - _userRumble).TotalSeconds > 1.5) { _padSyncing = true; _padRumble.Value = Num(pad, "rumble") ?? 0; _padSyncing = false; }
-                }
-            });
-            Guard("friends", () => { if (_labs.Contains("wfriends")) ApplyFriends(s); });
-            Guard("notifications", () => { if (_labs.Contains("winbox")) ApplyInbox(s); });
-            Guard("downloads", () => { if (_labs.Contains("wdownloads")) ApplyDownloads(s); });
-            Guard("invite", () => { if (_invite != null) _invite.Visibility = _labs.Contains("wparty") && Str(s, "party") != null ? Visibility.Visible : Visibility.Collapsed; });
             Guard("launch apps and shortcuts", () =>
             {
                 _appsBlock.Visibility = _labs.Contains("wapps") ? Visibility.Visible : Visibility.Collapsed;
-                _pagesBlock.Visibility = _labs.Contains("wshortcuts") ? Visibility.Visible : Visibility.Collapsed;
                 string appsKey = Str(s, "appskey");
                 if (_labs.Contains("wapps") && appsKey != null && appsKey != _appsAsked) { _appsAsked = appsKey; _link.Send("apps"); }
             });
@@ -1000,13 +633,7 @@ namespace SquareDeck.Widget
             Guard("showing the cards", () =>
             {
                 ShowCard("notes", _labs.Contains("wnotes") && running.Length > 0);
-                ShowCard("achievements", _labs.Contains("wach"));
-                ShowCard("genie", _labs.Contains("wgenie"));
-                ShowCard("controller", _labs.Contains("wpad"));
-                ShowCard("friends", _labs.Contains("wfriends"));
-                ShowCard("inbox", _labs.Contains("winbox"));
-                ShowCard("downloads", _labs.Contains("wdownloads"));
-                ShowCard("launch", _labs.Contains("wapps") || _labs.Contains("wshortcuts"));
+                ShowCard("launch", _labs.Contains("wapps"));
             });
 
             // Layout: order and hidden cards.

@@ -378,7 +378,7 @@ public sealed class BrowserScreen : Screen
             var under = new Rectangle { Height = 1, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(18, 0, 18, 0) };
             under.SetResourceReference(Shape.FillProperty, "S2Line");
             _chrome.Children.Add(under);
-            FrameworkElement pad = Ui.DeviceArt(28) ?? Ui.Glyph(Ui.HandheldGlyph, 28, "FgBrush");
+            FrameworkElement pad = Ui.DeviceArt(28) ?? Ui.Glyph("\uE7FC", 28, "FgBrush");
             pad.HorizontalAlignment = HorizontalAlignment.Left;
             pad.VerticalAlignment = VerticalAlignment.Center;
             pad.Margin = new Thickness(14, 2, 0, 0);
@@ -1409,11 +1409,56 @@ public sealed class NotificationsScreen : Screen
         return false;
     }
 
+    private bool _clearing;
+
+    /// <summary>
+    /// Clear all, the way phones do it: the notifications swipe off to the right one after another from the top, each
+    /// fading as it goes, the list closes up behind them, and the "Nothing yet" note rises into place.
+    /// </summary>
     private void Clear()
     {
+        if (_clearing) return;
+        var parts = _rows.Children.OfType<FrameworkElement>().ToList();
+        if (Theme.ReduceMotion || Host.Notifications.Items.Count == 0 || parts.Count == 0) { ClearNow(false); return; }
+        _clearing = true;
+        UiSound.Move();
+        double width = Math.Max(_rows.ActualWidth, 300) + 80;
+        double step = Math.Min(0.055, 0.7 / parts.Count); // a quick cascade, however many there are
+        double delay = 0;
+        foreach (var part in parts)
+        {
+            var shift = new TranslateTransform();
+            part.RenderTransform = shift;
+            var begin = TimeSpan.FromSeconds(delay);
+            shift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, width, TimeSpan.FromSeconds(0.34))
+                { BeginTime = begin, EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } });
+            part.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.3)) { BeginTime = begin });
+            delay += step;
+        }
+        // Then the emptied list closes up, and the page settles on the empty note.
+        var squeeze = new ScaleTransform(1, 1);
+        _rows.LayoutTransform = squeeze;
+        var close = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.22))
+            { BeginTime = TimeSpan.FromSeconds(delay + 0.3), EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
+        close.Completed += (_, _) => ClearNow(true);
+        squeeze.BeginAnimation(ScaleTransform.ScaleYProperty, close);
+    }
+
+    private void ClearNow(bool animated)
+    {
+        _clearing = false;
+        if (_rows.LayoutTransform is ScaleTransform squeeze) squeeze.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        _rows.LayoutTransform = Transform.Identity;
         Host.Notifications.Clear();
         Host.UpdateBell();
         Rebuild();
+        if (!animated || _rows.Children.Count == 0) return;
+        var note = (FrameworkElement)_rows.Children[0];
+        var rise = new TranslateTransform(0, 18);
+        note.RenderTransform = rise;
+        rise.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(18, 0, TimeSpan.FromSeconds(0.35)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        note.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.35)));
+        _close.Focus();
     }
 
     private void Rebuild()

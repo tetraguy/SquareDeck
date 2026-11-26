@@ -77,6 +77,15 @@ public partial class MainWindow
             if (_sessionStart.TryGetValue(running.Key, out var started)) game["minutes"] = (int)(DateTime.Now - started).TotalMinutes;
             state["game"] = game;
         }
+        else if (OpenCloudGame() is { } cloud)
+        {
+            // A cloud gaming service open in SquareDeck (Xbox Cloud Gaming, GeForce NOW…): shown like a game, with Close.
+            state["game"] = new JsonObject
+            {
+                ["name"] = cloud.Service.Name, ["key"] = "cloud:" + cloud.Service.Id, ["profile"] = false, ["close"] = s.WidgetCloseGame,
+                ["cloud"] = "Cloud gaming", ["minutes"] = (int)Math.Max(0, (DateTime.Now - cloud.OpenedAt).TotalMinutes),
+            };
+        }
         else if (s.WidgetCloseGame && WindowActivator.FrontApp() is { } front)
             state["game"] = new JsonObject { ["name"] = front.Title, ["key"] = "", ["profile"] = false, ["close"] = true, ["other"] = true };
 
@@ -444,10 +453,25 @@ public partial class MainWindow
                 await Task.Delay(120);
                 await StopGameAsync(running, confirm: false);
             }
+            else if (OpenCloudGame() is { } cloud)
+            {
+                // Leaves the cloud service, as its own Leave buttons do.
+                if (barOpen)
+                {
+                    ToggleGameBar();
+                    await Task.Delay(450);
+                }
+                WindowActivator.ShowOnTop(this);
+                await Task.Delay(120);
+                cloud.Exit();
+            }
             else if (WindowActivator.FrontApp() is { } front) await WindowActivator.CloseAppAsync(front);
         }
         catch (Exception ex) { CrashLog.Write("Widget close game", ex); }
     }
+
+    /// <summary>The cloud gaming service open in SquareDeck right now, if any.</summary>
+    private SquareDeck.Screens.CloudGameScreen? OpenCloudGame() => _screens.OfType<SquareDeck.Screens.CloudGameScreen>().LastOrDefault();
 
     private readonly Dictionary<string, JsonObject> _widgetArt = new();
 
@@ -458,6 +482,18 @@ public partial class MainWindow
     private async Task SendWidgetArtAsync(string key)
     {
         if (_widgetArt.TryGetValue(key, out var ready)) { WidgetBridge.Send(ready); return; }
+        if (key.StartsWith("cloud:", StringComparison.Ordinal))
+        {
+            // A cloud service: its logo (CloudLogos\<id>.png) as the icon and behind the card.
+            string file = System.IO.Path.Combine(AppContext.BaseDirectory, "CloudLogos", key[6..] + ".png");
+            var logo = System.IO.File.Exists(file) ? ImageLoader.FromFile(file, 512) as BitmapSource : null;
+            if (logo == null) return;
+            if (!logo.IsFrozen && logo.CanFreeze) logo = (BitmapSource)logo.GetAsFrozen();
+            var cloudArt = new JsonObject { ["type"] = "art", ["key"] = key, ["icon"] = Encode(logo, 128, jpeg: false), ["hero"] = Encode(logo, 640, jpeg: true) };
+            _widgetArt[key] = cloudArt;
+            WidgetBridge.Send(cloudArt);
+            return;
+        }
         if (AllGames.FirstOrDefault(g => g.Key == key) is not { } game) return;
         BitmapSource? cover = game.Cover as BitmapSource;
         if (cover is { IsFrozen: false } && cover.CanFreeze) cover = (BitmapSource)cover.GetAsFrozen();

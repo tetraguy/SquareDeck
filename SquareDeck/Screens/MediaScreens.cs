@@ -22,13 +22,21 @@ public static class GameCaptures
         string name = Simple(game.Name), original = Simple(game.OriginalName);
         try
         {
+            bool Same(string of) => of.Length > 0 && (of == name || of == original || (of.Length > 5 && (name.StartsWith(of) || of.StartsWith(name))));
             if (Directory.Exists(CapturesScreen.Folder))
+            {
+                // Game Bar's captures, named after the game ("Axiom Verge 11_26_2026 7_30_12 AM.png" or
+                // "Axiom Verge Screenshot 2026.11.26 - 07.30.12.90.png").
                 foreach (var f in new DirectoryInfo(CapturesScreen.Folder).EnumerateFiles())
+                    if (!CapturesScreen.IsVideo(f.Name) && CapturesScreen.IsImage(f.Name) && Same(Simple(CapturesScreen.GameOf(f.Name)))) found.Add(f);
+                // And folders inside it: a folder named after the game holds its pictures; in any other, by file name.
+                foreach (var dir in new DirectoryInfo(CapturesScreen.Folder).EnumerateDirectories())
                 {
-                    if (CapturesScreen.IsVideo(f.Name) || !CapturesScreen.IsImage(f.Name)) continue;
-                    string of = Simple(CapturesScreen.GameOf(f.Name));
-                    if (of.Length > 0 && (of == name || of == original || (of.Length > 5 && (name.StartsWith(of) || of.StartsWith(name))))) found.Add(f);
+                    bool gameFolder = Same(Simple(dir.Name));
+                    foreach (var f in dir.EnumerateFiles("*", System.IO.SearchOption.AllDirectories).Take(2000))
+                        if (!CapturesScreen.IsVideo(f.Name) && CapturesScreen.IsImage(f.Name) && (gameFolder || Same(Simple(CapturesScreen.GameOf(f.Name))))) found.Add(f);
                 }
+            }
         }
         catch (Exception) { }
         // Steam's screenshots (F12): userdata/<account>/760/remote/<app id>/screenshots.
@@ -47,7 +55,8 @@ public static class GameCaptures
             }
             catch (Exception) { }
         }
-        return found.OrderByDescending(f => f.LastWriteTime).Take(max).Select(f => f.FullName).ToList();
+        return found.GroupBy(f => f.FullName, StringComparer.OrdinalIgnoreCase).Select(g => g.First())
+            .OrderByDescending(f => f.LastWriteTime).Take(max).Select(f => f.FullName).ToList();
     }
 }
 
@@ -145,7 +154,8 @@ public sealed class CapturesScreen : GridScreen
     public static string GameOf(string path)
     {
         var name = Path.GetFileNameWithoutExtension(path);
-        var match = System.Text.RegularExpressions.Regex.Match(name, @"^(.*?)\s+(\d{4}-\d{2}-\d{2}|\d{1,2}_\d{1,2}_\d{4})");
+        // "Game 2026-11-26 …", "Game 11_26_2026 …", and the newer "Game Screenshot 2026.11.26 - 07.30.12.90".
+        var match = System.Text.RegularExpressions.Regex.Match(name, @"^(.*?)\s+(?:Screenshot\s+|Recording\s+)?(\d{4}[-.]\d{2}[-.]\d{2}|\d{1,2}_\d{1,2}_\d{4})");
         var game = match.Success ? match.Groups[1].Value.Trim() : name;
         return game.Length > 0 ? game : name;
     }
@@ -929,12 +939,12 @@ public sealed class MediaScreen : Screen
         if (_s2)
         {
             // Switch 2 style pages (Experimental): the tabs listed down the left like the sections of System
-            // Settings (LB / RB or a tap change them), the tab itself on the right.
+            // Settings (LT / RT or a tap change them), the tab itself on the right.
             _tabBar.Orientation = Orientation.Vertical;
             _tabBar.Margin = new Thickness(0, 6, 0, 10);
             _tabHost.Margin = new Thickness(0, 10, 10, 0);
             root.Children.Add(Switch2Pages.Shell(_tabBar, _tabHost));
-            SetPage("Multimedia", root, "LB / RB  Section      {Select}  Choose      {Details}  Play / Search      {Options}  More      LT / RT  Previous / next      {Back}  Back", wide: true);
+            SetPage("Multimedia", root, "LT / RT  Section      {Select}  Choose      {Details}  Play / Search      {Options}  More      LB / RB  Previous / next      {Back}  Back", wide: true);
             UseSwitch2Chrome("Multimedia", "\uE8D6");
         }
         else
@@ -942,7 +952,7 @@ public sealed class MediaScreen : Screen
             DockPanel.SetDock(_tabBar, Dock.Top);
             root.Children.Add(_tabBar);
             root.Children.Add(_tabHost);
-            SetPage("Multimedia", root, "LB / RB  Tabs      {Select}  Choose      {Details}  Play / Search      {Options}  More      LT / RT  Previous / next      {Back}  Back");
+            SetPage("Multimedia", root, "LT / RT  Tabs      {Select}  Choose      {Details}  Play / Search      {Options}  More      LB / RB  Previous / next      {Back}  Back");
         }
         _timer.Tick += async (_, _) => await RefreshAsync();
         _visualTimer.Tick += (_, _) => DrawBars();
@@ -992,7 +1002,7 @@ public sealed class MediaScreen : Screen
             string t = tid;
             if (_s2)
             {
-                // A section on the left. Not a stop for the d-pad: each tab moves around itself, and LB / RB change tab.
+                // A section on the left. Not a stop for the d-pad: each tab moves around itself, and LT / RT change tab.
                 if (tid == "streaming" && _tabBar.Children.Count > 0) _tabBar.Children.Add(Switch2Pages.NavLine());
                 _tabBar.Children.Add(Switch2Pages.NavItem(name, null, tid == id, () => ShowTab(t, focus: true), focusable: false));
                 continue;
@@ -1066,8 +1076,8 @@ public sealed class MediaScreen : Screen
         var tabs = Tabs;
         int index = Math.Max(0, Array.FindIndex(tabs, t => t.Id == _tab));
         // A buzz on every move, like the home row: a tab change, or the highlight moving inside a tab.
-        if (action == NavAction.RB) { ShowTab(tabs[(index + 1) % tabs.Length].Id, focus: true); UiSound.Page(); Host.Rumble(); return true; }
-        if (action == NavAction.LB) { ShowTab(tabs[(index + tabs.Length - 1) % tabs.Length].Id, focus: true); UiSound.Page(); Host.Rumble(); return true; }
+        if (action == NavAction.RT) { ShowTab(tabs[(index + 1) % tabs.Length].Id, focus: true); UiSound.Page(); Host.Rumble(); return true; }
+        if (action == NavAction.LT) { ShowTab(tabs[(index + tabs.Length - 1) % tabs.Length].Id, focus: true); UiSound.Page(); Host.Rumble(); return true; }
         var before = System.Windows.Input.Keyboard.FocusedElement;
         bool handled = _tab switch
         {
@@ -1079,12 +1089,12 @@ public sealed class MediaScreen : Screen
         if (handled && action is NavAction.Up or NavAction.Down or NavAction.Left or NavAction.Right &&
             !ReferenceEquals(System.Windows.Input.Keyboard.FocusedElement, before)) Host.Rumble();
         if (_tab is "local" or "spotify" or "streaming") return handled;
-        // Now playing: X play / pause, LT / RT previous / next.
+        // Now playing: X play / pause, LB / RB previous / next (LT / RT change tab).
         switch (action)
         {
             case NavAction.X: _ = MediaService.PlayPauseAsync(); return true;
-            case NavAction.LT: _ = MediaService.PreviousAsync(); return true;
-            case NavAction.RT: _ = MediaService.NextAsync(); return true;
+            case NavAction.LB: _ = MediaService.PreviousAsync(); return true;
+            case NavAction.RB: _ = MediaService.NextAsync(); return true;
         }
         return false;
     }

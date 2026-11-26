@@ -92,13 +92,17 @@ public static class VisualModes
     /// Sets a mode and color temperature. Null when it went through; otherwise why not, in a sentence. Remembered, so it's
     /// put back when SquareDeck starts.
     /// </summary>
-    public static async Task<string?> ApplyAsync(int mode, int temperature)
+    /// <param name="remember">Kept as your usual mode (Settings). A game profile's mode isn't: your usual one comes back when the game closes.</param>
+    public static async Task<string?> ApplyAsync(int mode, int temperature, bool remember = true)
     {
         if (!Available) return "This device doesn't have ASUS's display tool (it comes with the ASUS System Control Interface driver).";
         if (AmdOled.IsOn() == true)
             return "AMD's OLED Power Optimization is on, and while it is, visual modes have no effect. Turn it off on this page (or in AMD Software: Display), then pick the mode again.";
-        Labs.Put("visual.mode", mode.ToString(), save: false);
-        Labs.Put("visual.temp", temperature.ToString());
+        if (remember)
+        {
+            Labs.Put("visual.mode", mode.ToString(), save: false);
+            Labs.Put("visual.temp", temperature.ToString());
+        }
         // Disabled: first value 2. Eyecare: its own fixed level. The rest: the color temperature.
         int? p1 = mode == 18 ? 2 : 0;
         int? p2 = mode == 18 ? null : mode == 17 ? 4 : temperature;
@@ -118,8 +122,11 @@ public static class VisualModes
         if (result.Contains("return code: -1", StringComparison.OrdinalIgnoreCase))
         {
             await RunAsync(DefaultMode, 0, Neutral);
-            Labs.Put("visual.mode", DefaultMode.ToString(), save: false);
-            Labs.Put("visual.temp", Neutral.ToString());
+            if (remember)
+            {
+                Labs.Put("visual.mode", DefaultMode.ToString(), save: false);
+                Labs.Put("visual.temp", Neutral.ToString());
+            }
             return "The display refused that mode, so it was put back to Default. (Visual modes don't work while HDR is on, and need the ASUS Optimization service.)";
         }
         return null;

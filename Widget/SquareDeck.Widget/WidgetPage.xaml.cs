@@ -480,13 +480,14 @@ namespace SquareDeck.Widget
             double? hours = Num(game, "hours"), minutes = Num(game, "minutes");
             if (hours != null && hours.Value > 0) parts.Add(hours.Value.ToString("0.#") + " h played");
             if (minutes != null) parts.Add(minutes.Value < 60 ? minutes.Value.ToString("0") + " min now" : Math.Floor(minutes.Value / 60) + " h " + (minutes.Value % 60).ToString("0") + " min now");
+            if (Str(game, "cloud") is string cloud && cloud.Length > 0) parts.Insert(0, cloud); // a cloud service open in SquareDeck
             if (Bool(game, "other") == true) parts.Add("Not started from SquareDeck");
             _gameDetail.Text = string.Join("  \u00B7  ", parts);
             _closeGame.Visibility = Bool(game, "close") == true ? Visibility.Visible : Visibility.Collapsed;
             if (_closeArmed == DateTime.MinValue && _closeLabel.Text == "Closing…" && key != _gameKey) _closeLabel.Text = "Close game";
 
             // Its own profile only for games SquareDeck knows, with TDP control set up.
-            _gameProfile.Visibility = key.Length > 0 && _tdpReady ? Visibility.Visible : Visibility.Collapsed;
+            _gameProfile.Visibility = key.Length > 0 && !key.StartsWith("cloud:") && _tdpReady ? Visibility.Visible : Visibility.Collapsed;
             _syncingProfile = true;
             _gameProfile.IsOn = Bool(game, "profile") == true;
             _syncingProfile = false;
@@ -1070,7 +1071,7 @@ namespace SquareDeck.Widget
                 try { ApplyEight(m); } catch (Exception ex) { ReportOnce("experimental", ex); }
             }
             else if (type == "art") ApplyArt(m);
-            else if (type == "achievements" || type == "genie" || type == "apps" || type == "theme" || type == "companion") ApplyEightMessage(type, m);
+            else if (type == "apps" || type == "theme" || type == "companion") ApplyEightMessage(type, m);
             else if (type == "avatar") ApplyAvatar(m);
             else if (type == "mediaart") ApplyMediaArt(m);
             else if (type == "wifi") ApplyWifi(m);

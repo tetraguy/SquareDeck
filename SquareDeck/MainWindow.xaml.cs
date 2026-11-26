@@ -1903,6 +1903,7 @@ public partial class MainWindow : Window
     public async Task<int> AskMandatoryAsync(string title, string? message, params string[] options)
     {
         var dialog = new MenuScreen(title, message, options) { Mandatory = true };
+        if (_screens.Count > 0 && SquareDeck.Screens.Switch2Pages.Applies(_screens[^1])) dialog.UseSwitch2Look();
         Push(dialog);
         return await dialog.Result;
     }
@@ -1911,6 +1912,8 @@ public partial class MainWindow : Window
     public async Task<int> AskWithIconsAsync(string title, string? message, params (string Label, string Glyph)[] options)
     {
         var dialog = new MenuScreen(title, message, options.Select(o => o.Label).ToArray(), null, options.Select(o => o.Glyph).ToArray());
+        // Switch 2 style: plain rows on thin lines in the card (the icons and round marks left off, as on its menus).
+        if (_screens.Count > 0 && SquareDeck.Screens.Switch2Pages.Applies(_screens[^1])) dialog.UseSwitch2Look(marks: false);
         Push(dialog);
         return await dialog.Result;
     }

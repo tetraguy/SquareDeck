@@ -8,7 +8,7 @@ namespace SquareDeck.Screens;
 
 /// <summary>
 /// News for the games you play: the latest posts from their Steam pages (patch notes and announcements
-/// included), Steam's own news, IGN, and sales (your wishlist first, then the Steam store's specials).
+/// included), Steam's own news, IGN, PC Gamer, Kotaku, Eurogamer, Nintendo Life, Xbox Wire, and sales (your wishlist first, then the Steam store's specials).
 /// The sections sit on one bar at the top; the newest story is featured large, the rest are cards three to a row.
 /// </summary>
 public sealed class GameNewsScreen : Screen
@@ -16,14 +16,15 @@ public sealed class GameNewsScreen : Screen
     private const int GamesToFollow = 18, PostsPerGame = 4;
     private static readonly int SteamNewsAppId = 593110; // Steam's own news feed
     private static readonly (string Id, string Name)[] Sections =
-        { ("all", "Latest"), ("patches", "Patches"), ("announcements", "Announcements"), ("ign", "IGN PC"), ("igngames", "IGN Games"), ("sales", "Sales") };
+        { ("all", "Latest"), ("patches", "Patches"), ("sales", "Sales"), ("announcements", "Announcements"), ("ign", "IGN PC"), ("igngames", "IGN Games"),
+          ("pcgamer", "PC Gamer"), ("kotaku", "Kotaku"), ("eurogamer", "Eurogamer"), ("nintendolife", "Nintendo Life"), ("xboxwire", "Xbox Wire") };
 
     // Kept between visits for a quarter of an hour, so opening News again is instant.
     private static List<(NewsItem Post, Game? Game, string GameName)>? _cachedNews;
     private static List<SaleItem>? _cachedSales;
     private static DateTime _cachedAt;
 
-    private readonly WrapPanel _tabs = new() { Margin = new Thickness(0) }; // six tabs: wrap rather than run off the page
+    private readonly WrapPanel _tabs = new() { Margin = new Thickness(0) }; // eleven tabs: wrap rather than run off the page
     private readonly StackPanel _list = new();
     private readonly TextBlock _note = Ui.Text("", 16, "SubtleBrush");
     private readonly CancellationTokenSource _cts = new();
@@ -36,12 +37,17 @@ public sealed class GameNewsScreen : Screen
     private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
     private readonly Border _s2Title = new();
 
-    // IGN's feeds (PC articles, all games): read only while this page is open, and let go when it closes
-    // (never kept between visits).
-    private static readonly Dictionary<string, (string Url, string About)> Feeds = new()
+    // The news sites' feeds (IGN's PC articles and all games, PC Gamer, Kotaku, Eurogamer, Nintendo Life, Xbox Wire): read only while this page
+    // is open, and let go when it closes (never kept between visits).
+    private static readonly Dictionary<string, (string Url, string About, string Site)> Feeds = new()
     {
-        ["ign"] = (RssFeed.IgnPc, "IGN's latest PC articles"),
-        ["igngames"] = (RssFeed.IgnGames, "IGN's latest games news")
+        ["ign"] = (RssFeed.IgnPc, "IGN's latest PC articles", "IGN"),
+        ["igngames"] = (RssFeed.IgnGames, "IGN's latest games news", "IGN"),
+        ["pcgamer"] = (RssFeed.PcGamer, "PC Gamer's latest news", "PC Gamer"),
+        ["kotaku"] = (RssFeed.Kotaku, "Kotaku's latest stories", "Kotaku"),
+        ["eurogamer"] = (RssFeed.Eurogamer, "Eurogamer's latest news", "Eurogamer"),
+        ["nintendolife"] = (RssFeed.NintendoLife, "Nintendo Life's latest news", "Nintendo Life"),
+        ["xboxwire"] = (RssFeed.XboxWire, "the latest from Xbox Wire", "Xbox Wire"),
     };
     private readonly Dictionary<string, List<NewsItem>?> _feeds = new();
     private readonly HashSet<string> _feedsLoading = new();
@@ -61,6 +67,8 @@ public sealed class GameNewsScreen : Screen
             body.Margin = new Thickness(0, 0, 18, 24);
             body.Children.Add(_s2Title);
             _note.Margin = new Thickness(14, 6, 14, 10);
+            // Room round the stories, so the highlight's rim and glow aren't cut off at the edge of the scrolling area.
+            _list.Margin = new Thickness(14, 8, 6, 0);
         }
         else body.Children.Add(bar);
         body.Children.Add(_note);
@@ -86,9 +94,9 @@ public sealed class GameNewsScreen : Screen
     {
         if (!_feedsLoading.Add(id)) return;
         _feedErrors.Remove(id);
-        try { _feeds[id] = await Task.Run(() => RssFeed.ReadAsync(Feeds[id].Url, "IGN", _cts.Token), _cts.Token); }
+        try { _feeds[id] = await Task.Run(() => RssFeed.ReadAsync(Feeds[id].Url, Feeds[id].Site, _cts.Token), _cts.Token); }
         catch (OperationCanceledException) { return; }
-        catch (Exception) { _feedErrors[id] = "Couldn't reach IGN. Check the internet connection, then press Details to try again."; }
+        catch (Exception) { _feedErrors[id] = "Couldn't reach " + Feeds[id].Site + ". Check the internet connection, then press Details to try again."; }
         finally { _feedsLoading.Remove(id); }
         if (Host.IsTop(this) && (_section == id || _focusId == null)) Build();
         else if (Host.IsTop(this)) RefreshTabs();
@@ -202,9 +210,9 @@ public sealed class GameNewsScreen : Screen
             bool counted = !((IsFeed(section) ? _feedsLoading.Contains(section) : _loading) || count == 0 || section == "sales" && _cachedSales == null);
             if (_s2)
             {
-                // A section on the left: its name and count; the one showing blue with a bar. A thin line before IGN's
-                // feeds and before Sales.
-                if (id is "ign" or "sales") _s2Nav.Children.Add(Switch2Pages.NavLine());
+                // A section on the left: its name and count; the one showing blue with a bar. A thin line before
+                // Announcements and before the news sites' feeds.
+                if (id is "announcements" or "ign") _s2Nav.Children.Add(Switch2Pages.NavLine());
                 var item = Switch2Pages.NavItem(name, counted ? (count > 99 ? "99+" : count.ToString()) : null, showing, () => { _section = section; Build(); });
                 item.DataContext = "tab:" + id;
                 item.GotKeyboardFocus += (_, _) => _focusId = "tab:" + section;
@@ -250,7 +258,7 @@ public sealed class GameNewsScreen : Screen
         "sales" => (_cachedSales ?? new List<SaleItem>()).Cast<object>(),
         "patches" => (_cachedNews ?? new()).Where(n => n.Post.IsPatch).Cast<object>(),
         "announcements" => (_cachedNews ?? new()).Where(n => n.Post.IsAnnouncement && !n.Post.IsPatch).Cast<object>(),
-        _ when IsFeed(section) => (_feeds.GetValueOrDefault(section) ?? new()).Select(p => (Post: p, Game: (Game?)null, GameName: "IGN")).Cast<object>(),
+        _ when IsFeed(section) => (_feeds.GetValueOrDefault(section) ?? new()).Select(p => (Post: p, Game: (Game?)null, GameName: Feeds[section].Site)).Cast<object>(),
         _ => (_cachedNews ?? new()).Cast<object>()
     };
 
@@ -259,7 +267,7 @@ public sealed class GameNewsScreen : Screen
         var posts = Items(_section).Cast<(NewsItem Post, Game? Game, string GameName)>().ToList();
         _note.Text = IsFeed(_section)
             ? (_feedErrors.GetValueOrDefault(_section) ?? (_feedsLoading.Contains(_section) && _feeds.GetValueOrDefault(_section) == null
-                ? "Getting " + Feeds[_section].About + "…" : posts.Count == 0 ? "IGN's feed is empty right now." : ""))
+                ? "Getting " + Feeds[_section].About + "…" : posts.Count == 0 ? Feeds[_section].Site + "'s feed is empty right now." : ""))
             : _loading && _cachedNews == null ? "Getting the latest news for your games…"
             : posts.Count == 0 ? "Nothing new here in the last two months."
             : _loading ? "Checking for newer posts…" : "";
@@ -268,7 +276,7 @@ public sealed class GameNewsScreen : Screen
         if (posts.Count == 0) return;
         // The newest story big across the top, the rest as cards three to a row.
         _list.Children.Add(HeroCard(posts[0].Post, posts[0].Game, posts[0].GameName));
-        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = new Thickness(-6, 4, -6, 0) };
+        var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3, Margin = _s2 ? new Thickness(0, 4, 0, 0) : new Thickness(-6, 4, -6, 0) };
         foreach (var (post, game, gameName) in posts.Skip(1)) grid.Children.Add(NewsCard(post, game, gameName));
         _list.Children.Add(grid);
     }
@@ -329,7 +337,7 @@ public sealed class GameNewsScreen : Screen
         var card = new Border { Child = face };
         card.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
         RoundCorners(card, Math.Max(Theme.TileCorner + 6, 8));
-        return Wrap(card, post, new Thickness(-8, 4, -8, 6));
+        return Wrap(card, post, _s2 ? new Thickness(0, 4, 8, 10) : new Thickness(-8, 4, -8, 6));
     }
 
     /// <summary>A story card: picture on top (with the game's name on it), then when, the title and a line of the text.</summary>
@@ -394,21 +402,31 @@ public sealed class GameNewsScreen : Screen
         if (wish.Count > 0)
         {
             AddHeading($"On sale from your wishlist  ({wish.Count})");
-            var panel = new WrapPanel();
+            var panel = SaleRows();
             Host.EnsureCovers(wish);
             foreach (var g in wish.Take(24))
-                panel.Children.Add(SaleCard(g.AppId, g.Name, g.DiscountPercent, "", g.Price, null, g, null));
+                panel.Children.Add(Fit(SaleCard(g.AppId, g.Name, g.DiscountPercent, "", g.Price, null, g, null)));
             _list.Children.Add(panel);
         }
         if (specials.Count > 0)
         {
             AddHeading("Steam specials");
-            var panel = new WrapPanel();
+            var panel = SaleRows();
             foreach (var sale in specials)
-                panel.Children.Add(SaleCard(sale.AppId, sale.Name, sale.DiscountPercent, sale.OldPrice, sale.Price, sale.Image, null, sale.Ends));
+                panel.Children.Add(Fit(SaleCard(sale.AppId, sale.Name, sale.DiscountPercent, sale.OldPrice, sale.Price, sale.Image, null, sale.Ends)));
             _list.Children.Add(panel);
         }
     }
+
+    /// <summary>Sales three to a row, whatever the width of the page.</summary>
+    private static System.Windows.Controls.Primitives.UniformGrid SaleRows() => new() { Columns = 3, VerticalAlignment = VerticalAlignment.Top };
+
+    /// <summary>A sale card in its column: its own size where there's room, a little smaller where three wouldn't fit.</summary>
+    private static Viewbox Fit(Button card) => new()
+    {
+        Child = card, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly,
+        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top
+    };
 
     private void AddHeading(string text)
     {

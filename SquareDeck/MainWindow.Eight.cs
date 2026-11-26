@@ -20,7 +20,6 @@ namespace SquareDeck;
 public partial class MainWindow
 {
     private readonly DispatcherTimer _eightTimer = new() { Interval = TimeSpan.FromSeconds(5) };
-    private readonly DispatcherTimer _trailerSoon = new();
     private int _eightTicks;
     private bool _eightBusy;
 
@@ -29,16 +28,12 @@ public partial class MainWindow
         StartCrashRecovery();
         _eightTimer.Tick += (_, _) => _ = EightTickAsync();
         _eightTimer.Start();
-        _trailerSoon.Tick += (_, _) => { _trailerSoon.Stop(); _ = StartTrailerPreviewAsync(); };
-        GameList.SelectionChanged += (_, _) => TrailerPreviewSoon();
         Labs.Changed += id =>
         {
             switch (id)
             {
                 case "docked": if (!Labs.On("docked") && _docked) SetDocked(false); break;
-                case "friendswidget": _friendsAt = DateTime.MinValue; if (!Labs.On("friendswidget") && _friendsCard != null) _friendsCard.Visibility = Visibility.Collapsed; break;
-                case "trailerpreview": if (!Labs.On("trailerpreview")) StopTrailerPreview(); break;
-                case "smartcollections": case "microsd": Eight.ForgetShelves(); break;
+                case "microsd": Eight.ForgetShelves(); break;
             }
         };
         // Visual modes: the chosen GameVisual mode is put back at start (Windows or Armoury Crate may have reset it).
@@ -73,11 +68,8 @@ public partial class MainWindow
             if (Labs.On("charger") && _eightTicks % 6 == 0) ChargerTick(running);
             if (Labs.On("microsd") && _eightTicks % 2 == 0) CardsTick();
             if (Labs.On("drivenotice")) DrivesTick(); else _knownDrives = null;
-            if (Labs.On("friendswidget")) await FriendsWidgetTickAsync();
             if (Labs.On("achtoasts") && _eightTicks % 12 == 0) await AchievementToastsTickAsync(running);
             if (Labs.On("updateguard") && running != null && _eightTicks % 120 == 0) await UpdateGuardTickAsync(running);
-            if (Labs.On("dailypick") && running == null && IsActive && _screens.Count == 0 && _eightTicks % 3 == 0) await DailyPickTickAsync();
-            if (_trailerVideo != null && (_screens.Count > 0 || running != null || !IsActive)) StopTrailerPreview();
         }
         catch (Exception ex) { CrashLog.Write("Experimental features (8.0)", ex); }
         finally { _eightBusy = false; }
@@ -93,7 +85,6 @@ public partial class MainWindow
     private async Task OnGameStartingEightAsync(Game game)
     {
         _lastLaunched = game;
-        StopTrailerPreview();
         try
         {
             if (Labs.On("scripts") && Eight.PreScript(game.Key) is { Length: > 0 } pre)
@@ -165,10 +156,10 @@ public partial class MainWindow
 
     // ---- smooth return
 
-    /// <summary>When a game closes: Home fades back in with the game you launched highlighted.</summary>
+    /// <summary>When a game closes: back on the game you launched, the Switch 2 way (when that's on).</summary>
     private void ReturnAnimationEight()
     {
-        if ((!Labs.On("returnanim") && !GameCard.S2) || _lastLaunched == null) return;
+        if (!GameCard.S2 || _lastLaunched == null) return;
         var key = _lastLaunched.Key;
         var item = GameList.Items.OfType<Game>().FirstOrDefault(g => g.Actual.Key == key);
         if (item != null)
@@ -177,20 +168,7 @@ public partial class MainWindow
             GameList.ScrollIntoView(item);
         }
         if (Theme.ReduceMotion) return;
-        if (GameCard.S2) { SwitchReturn(item); return; }
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        RootGrid.BeginAnimation(OpacityProperty, new DoubleAnimation(0.0, 1.0, TimeSpan.FromMilliseconds(520)) { EasingFunction = ease });
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
-        {
-            if (item == null || GameList.ItemContainerGenerator.ContainerFromItem(item) is not FrameworkElement tile) return;
-            var scale = new ScaleTransform(1.18, 1.18);
-            tile.RenderTransformOrigin = new Point(0.5, 0.5);
-            tile.RenderTransform = scale;
-            var grow = new DoubleAnimation(1.18, 1.0, TimeSpan.FromMilliseconds(620)) { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.3 } };
-            grow.Completed += (_, _) => tile.RenderTransform = Transform.Identity;
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
-            scale.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
-        }));
+        SwitchReturn(item);
     }
 
     /// <summary>
@@ -445,84 +423,6 @@ public partial class MainWindow
         }
     }
 
-    // ================================================================ friends playing (Home)
-
-    private Border? _friendsCard;
-    private StackPanel? _friendsRows;
-    private DateTime _friendsAt = DateTime.MinValue;
-
-    private async Task FriendsWidgetTickAsync()
-    {
-        bool home = _screens.Count == 0 && IsActive;
-        if (DateTime.Now - _friendsAt > TimeSpan.FromMinutes(2) && Settings.SteamWebApiKey.Length > 0 && home)
-        {
-            _friendsAt = DateTime.Now;
-            var (friends, _) = await Task.Run(() => SteamFriends.GetAsync(Settings.SteamWebApiKey, CancellationToken.None));
-            if (friends != null) await BuildFriendsCardAsync(friends.Where(f => f.InGame).Take(4).ToList());
-        }
-        if (_friendsCard != null)
-            _friendsCard.Visibility = home && _friendsRows?.Children.Count > 0 && Settings.SteamWebApiKey.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private async Task BuildFriendsCardAsync(List<Friend> playing)
-    {
-        if (_friendsCard == null)
-        {
-            _friendsRows = new StackPanel();
-            var stack = new StackPanel();
-            var head = Ui.Text("FRIENDS PLAYING", 11, "SubtleBrush", bold: true);
-            head.Margin = new Thickness(2, 0, 0, 6);
-            stack.Children.Add(head);
-            stack.Children.Add(_friendsRows);
-            _friendsCard = new Border
-            {
-                Child = stack, Padding = new Thickness(12, 10, 14, 10), CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner, 10)),
-                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = Labs.Get("friends.corner", "top") == "bottom" ? VerticalAlignment.Bottom : VerticalAlignment.Top,
-                Margin = Labs.Get("friends.corner", "top") == "bottom" ? new Thickness(0, 0, 62, 70) : new Thickness(0, 118, 62, 0),
-                IsHitTestVisible = false, MaxWidth = 300
-            };
-            _friendsCard.SetResourceReference(Border.BackgroundProperty, "CardBrush");
-            Panel.SetZIndex(_friendsCard, 50);
-            AddOverlay(_friendsCard);
-        }
-        _friendsRows!.Children.Clear();
-        foreach (var f in playing)
-        {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 3) };
-            var avatar = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(14), ClipToBounds = true, Margin = new Thickness(0, 0, 9, 0) };
-            avatar.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
-            if (await FriendPictureAsync(f.Avatar) is { } pic) avatar.Child = new Image { Source = pic, Stretch = Stretch.UniformToFill };
-            avatar.Clip = new EllipseGeometry(new Point(14, 14), 14, 14);
-            row.Children.Add(avatar);
-            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            var name = Ui.Text(f.Name, 13, "FgBrush", bold: true);
-            name.TextTrimming = TextTrimming.CharacterEllipsis;
-            text.Children.Add(name);
-            var game = Ui.Text(f.Game ?? "", 12, "AccentBrush");
-            game.TextTrimming = TextTrimming.CharacterEllipsis;
-            game.MaxWidth = 220;
-            text.Children.Add(game);
-            row.Children.Add(text);
-            _friendsRows.Children.Add(row);
-        }
-    }
-
-    // ================================================================ daily pick
-
-    private async Task DailyPickTickAsync()
-    {
-        string today = DateTime.Today.ToString("yyyy-MM-dd");
-        if (Labs.Get("dailypick.shown") == today) return;
-        if (DateTime.Now - _homeShownAt < TimeSpan.FromSeconds(8)) return; // let Home settle first
-        Labs.Put("dailypick.shown", today);
-        if (Eight.DailyPick(AllGames, Playtime, Library) is not { } pick) return;
-        Labs.Put("dailypick.game", pick.Game.Key);
-        Labs.Put("dailypick.why", pick.Why);
-        ShowToast("TODAY'S PICK", pick.Game.Name, pick.Why, "", "info", await GameIconAsync(pick.Game), pick.Game);
-    }
-
-    private readonly DateTime _homeShownAt = DateTime.Now;
-
     // ================================================================ Windows Update guard (while playing)
 
     private bool _guardWarned;
@@ -539,65 +439,6 @@ public partial class MainWindow
         GameNotice.Show("Windows wants to restart", inHours
             ? "It won't restart by itself during your active hours, but save " + running.Name + " when you can."
             : "Save " + running.Name + " soon: it's outside your active hours, so Windows may restart.", "");
-    }
-
-    // ================================================================ trailer previews (Home)
-
-    private MediaElement? _trailerVideo;
-    private string? _trailerKey;
-    private CancellationTokenSource? _trailerCts;
-
-    private void TrailerPreviewSoon()
-    {
-        if (!Labs.On("trailerpreview")) return;
-        var key = (GameList.SelectedItem as Game)?.Actual.Key;
-        if (key == _trailerKey && _trailerVideo != null) return;
-        StopTrailerPreview();
-        double seconds = double.TryParse(Labs.Get("trailer.delay", "2"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 2;
-        _trailerSoon.Interval = TimeSpan.FromSeconds(Math.Clamp(seconds, 0.5, 10));
-        _trailerSoon.Start();
-    }
-
-    private async Task StartTrailerPreviewAsync()
-    {
-        if (!Labs.On("trailerpreview") || _screens.Count > 0 || !IsActive || Perf.Active || AllGames.Any(g => g.IsRunning)) return;
-        if ((GameList.SelectedItem as Game)?.Actual is not { IsSteam: true } game) return;
-        _trailerCts?.Cancel();
-        var cts = _trailerCts = new CancellationTokenSource();
-        StoreDetails? details;
-        try { details = await SteamStoreClient.GetDetailsAsync(game.AppId, cts.Token); }
-        catch (Exception) { return; }
-        if (cts.IsCancellationRequested || !ReferenceEquals((GameList.SelectedItem as Game)?.Actual, game) || _screens.Count > 0) return;
-        var url = details?.Trailers.FirstOrDefault(t => t.Url != null)?.Url;
-        if (url == null) return;
-        var video = new MediaElement
-        {
-            Source = new Uri(url), IsMuted = true, Stretch = Stretch.UniformToFill, LoadedBehavior = MediaState.Manual,
-            UnloadedBehavior = MediaState.Close, Opacity = 0, IsHitTestVisible = false
-        };
-        Grid.SetRowSpan(video, Math.Max(1, RootGrid.RowDefinitions.Count));
-        Grid.SetColumnSpan(video, Math.Max(1, RootGrid.ColumnDefinitions.Count));
-        video.MediaOpened += (_, _) => video.BeginAnimation(OpacityProperty, new DoubleAnimation(0, double.TryParse(Labs.Get("trailer.opacity", "0.7"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var o) ? o : 0.7, TimeSpan.FromMilliseconds(700)));
-        video.MediaEnded += (_, _) => { video.Position = TimeSpan.Zero; video.Play(); };
-        video.MediaFailed += (_, _) => StopTrailerPreview();
-        // Behind the home row and its text, in front of the wallpaper and the game's artwork.
-        int at = RootGrid.Children.IndexOf(HeroScrim);
-        RootGrid.Children.Insert(at >= 0 ? at : 0, video);
-        _trailerVideo = video;
-        _trailerKey = game.Key;
-        video.Play();
-    }
-
-    private void StopTrailerPreview()
-    {
-        _trailerSoon.Stop();
-        _trailerCts?.Cancel();
-        if (_trailerVideo is not { } video) return;
-        _trailerVideo = null;
-        _trailerKey = null;
-        var fade = new DoubleAnimation(video.Opacity, 0, TimeSpan.FromMilliseconds(250));
-        fade.Completed += (_, _) => { video.Stop(); video.Close(); RootGrid.Children.Remove(video); };
-        video.BeginAnimation(OpacityProperty, fade);
     }
 
     // ================================================================ crash recovery

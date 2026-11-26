@@ -73,23 +73,17 @@ public static partial class Labs
         new("sessiontimer", "Session timer and break reminder", "A gentle reminder after the time you choose, or when the battery gets low, shown over the game", "\uE916", Playing),
         new("launchopts", "Launch options per game", "Command-line options, environment variables and \u201CRun as administrator\u201D, in each game's profile", "\uE756", Playing),
         new("scripts", "Scripts before and after a game", "Run a program or command before a game starts and after it closes (a mod manager, closing an app, mounting a drive). In each game's profile", "\uE943", Playing),
-        new("returnanim", "Smooth return after playing", "When a game closes, Home fades back in on the game you launched, instead of jumping", "\uE72B", Playing),
         new("s2game", "Switch 2 style launch, stop and return", "The launch countdown, the Stop game confirmation (and Stopping…), the update-before-playing card and \"is still running\" in your UI style's colors and the Switch 2 manner: a plain card, quiet text, flat buttons with the soft rimmed highlight. And when a game closes, the Switch way back: the game's cover large on the page color, flying down into its tile on Home as the screen fades back", "\uE768", Playing),
         new("charger", "Charger check", "Tells you when the charger can't keep up: plugged in, but the battery is still going down", "\uE83E", Playing),
-        new("smartcollections", "Smart collections", "Library shelves that fill themselves: never played, played once and left, short sessions, best on battery and more", "\uE8F1", LibraryGroup),
-        new("dailypick", "Daily pick", "Once a day, one game from your library you haven't played in a while, and why it's worth another look", "\uE734", LibraryGroup),
-        new("gamepass", "Game Pass shelf", "A Game Pass button in the Library: games just added and leaving soon, from Xbox's own lists", "\uE7FC", LibraryGroup),
         new("aboutgame", "About This Game", "A game's \u201CAbout This Game\u201D as on its Steam store page, with its artwork, moving images and screenshots, from a \u201CLearn more\u201D button in the About section of the game's page", "\uE946", LibraryGroup),
         new("visualmodes", "Visual modes", "ASUS GameVisual screen modes (Racing, Scenery, RTS/RPG, FPS, Cinema, Vivid, Eyecare\u2026) and color temperature, as Armoury Crate offers them, with AMD\u2019s OLED Power Optimization handled for the X20\u2019s OLED screen", "\uE790", SystemGroup),
         new("cpucores", "CPU core configuration", "Choose how many P-cores and E-cores are enabled, as Armoury Crate\u2019s More Settings does: fewer cores can save battery in light games. Takes effect after a restart", "\uE950", SystemGroup),
         new("fancurve", "Custom fan curve", "Draw your own fan curve: the fan speed at each of eight temperatures, shown as a graph, then pick \u201CCustom\u201D anywhere fans are chosen (Settings, the ROG Ally page, game profiles)", "\uE9CA", SystemGroup),
-        new("trailerpreview", "Trailer previews on Home", "Rest on a game for a moment and its trailer plays, muted, behind the home row", "\uE714", LibraryGroup),
         new("microsd", "microSD awareness", "Games on each microSD card get their own Library shelf, and stay listed (grayed out) when the card is out", "\uE88E", LibraryGroup),
         new("rascraper", "Box art and screenshots from ScreenScraper", "Fills in missing Retro Lounge covers and screenshots from ScreenScraper's database (free account needed)", "\uEB9F", Retro),
         new("rashaders", "Shaders and bezels per console", "A CRT look for NES and SNES, an LCD grid for Game Boy, borders at the sides: chosen per console, for games played in RetroArch", "\uE790", Retro),
         new("rastates", "Save state browser", "A game's RetroArch save states with their pictures, and \u201CLoad\u201D to start the game straight from one", "\uE74E", Retro),
         new("rasurprise", "Surprise me", "A button on Retro Lounge's Home that picks a random game for you", "\uE8B1", Retro),
-        new("friendswidget", "Friends playing on Home", "A small card on Home with the Steam friends who are playing right now", "\uE716", Social),
         new("achtoasts", "Achievement pop-ups", "A pop-up in your style when you unlock a Steam achievement or a RetroAchievement, shown over the game", "\uE734", Social),
         new("twitch", "Twitch", "Twitch on the Multimedia page's Streaming tab, with the other services", "\uE714", Social),
         new("crashrecovery", "Crash recovery", "If SquareDeck closes unexpectedly, it offers to go back to where you were and to send the log", "\uE7BA", SystemGroup),
@@ -101,20 +95,11 @@ public static partial class Labs
         new("wautotdp", "Widget: Auto TDP", "In the Power card: the lowest TDP that holds the frame rate you pick, adjusted every few seconds (needs the frame counter and TDP control)", "\uE945", WidgetGroup),
         new("wthermal", "Widget: thermal warning", "The Live card turns amber with a note when the chip gets close to its temperature limit", "\uE7BA", WidgetGroup),
         new("wnotes", "Widget: game notes", "The running game's notes in the widget, with \u201CAdd note\u201D for codes, hints and where you left off", "\uE70B", WidgetGroup),
-        new("wach", "Widget: achievements", "Progress for the running Steam game, the next locked achievements, and \u201CHow to get this\u201D", "\uE734", WidgetGroup),
-        new("wgenie", "Widget: Ask Genie", "Ask Game Genie about the game you're playing, without leaving it", "\uE945", WidgetGroup),
-        new("wpad", "Widget: controller card", "Controller battery, rumble strength and a stick drift check", "\uE7FC", WidgetGroup),
-        new("wfriends", "Widget: friends online", "Your Steam friends who are online or playing, with a button to message them", "\uE716", WidgetGroup),
-        new("winbox", "Widget: notifications", "SquareDeck's latest notifications (downloads, drives, achievements…), readable in the widget", "\uEA8F", WidgetGroup),
-        new("wdownloads", "Widget: downloads", "What Steam and SquareDeck are downloading, with Steam's downloads page and stopping SquareDeck's queue", "\uE896", WidgetGroup),
-        new("wparty", "Widget: invite friends", "An \u201CInvite\u201D button on the game card: Steam's friends list for Steam games, Game Bar's Xbox Social for the rest", "\uE8FA", WidgetGroup),
         new("wapps", "Widget: launch apps", "A row of your apps (Discord, a browser, Spotify…) to open over the game", "\uE71D", WidgetGroup),
-        new("wshortcuts", "Widget: SquareDeck shortcuts", "Buttons that open SquareDeck's Home, Library, Retro Lounge, Captures or Settings", "\uE80F", WidgetGroup),
         new("wcards", "Widget: card order and hiding", "An Edit button in the widget's header: move cards up and down and hide the ones you don't use", "\uE8CB", WidgetGroup),
         new("wgameaware", "Widget: layout per game", "Each game remembers the widget's card order, hidden cards and Live tiles from the last time you played it", "\uE8A9", WidgetGroup),
         new("wpresets", "Widget: presets per game", "\u201CSave this setup to the game\u201D in the card editor: card order, hidden cards, Live tiles and Quick tiles", "\uE74E", WidgetGroup),
         new("wtheme", "Widget: match my style", "The widget takes on the current SquareDeck style: its colors, font and wallpaper (Mythical styles too)", "\uE790", WidgetGroup),
-        new("wrumble", "Widget: rumble", "The controller buzzes as you move around the widget, like it does in SquareDeck (uses the rumble strength from Settings > Controller)", "\uE7FC", WidgetGroup),
         new("wpowerlook", "Widget: wattage look", "A smaller look for the TDP in the widget's Power card: slim bar, mini dial beside the presets, the number alone (select it for the full dial) or preset chips. Select to choose", "\uE945", WidgetGroup),
         new("newsettings", "Switch 2 style Settings", "Settings drawn like the Nintendo Switch 2\u2019s System Settings: flat rows on thin lines, values in blue, pill switches, sections listed on the left with a blue bar, and the soft blue-to-pink highlight. Light or dark, following your theme", "\uE713", Looks),
         new("newlibrary", "Switch 2 style Library", "The game library laid out like the Switch 2\u2019s System Settings: sections on the left with a blue bar and a storage gauge, games as flat rows with small covers, play time in blue, grouped under Today, This week or A, B, C, and the soft highlight. Follows your UI style", "\uE8F1", Looks),
@@ -123,6 +108,10 @@ public static partial class Labs
         new("wfpsslider", "Widget: frame cap slider", "The Game Bar widget\u2019s frame cap becomes an Off button and a slider from 30 to 120 FPS (in steps of 5), and the Save button goes: the cap you set is kept for that game straight away", "\uEC4A", WidgetGroup),
         new("ws2", "Switch 2 style widget", "The Game Bar widget dressed like SquareDeck's Switch 2 style pages, in the colors of the UI style you use: a plain panel in the page color, a thin line under the header, each card titled with a short bar and its name, quiet cards and tiles, and the highlight in the style's color", "\uE8A9", WidgetGroup),
         new("switchbootplus", "Switch boot: logo and loading line", "With the Switch-style game boot, the Hide hint goes, the game\u2019s logo sits in the top-left corner (its name when there\u2019s no logo), and in the bottom-right corner, beside the turning ring, a line keeps changing as it loads: Warming up the pixels\u2026, Spawning the player\u2026, Checking for dragons\u2026 and more", "\uE7FC", Play),
+        new("s2device", "Switch 2 style My Device", "My Device laid out like the Switch 2\u2019s System Settings, in your UI style\u2019s colors: Overview, Power and battery, System and More settings down the left with the device and battery under them, one section at a time on the right, live cards in the card color with a thin line and the rimmed highlight, bar-and-name headings and flat rows. LT / RT change section", "\uE950", Looks),
+        new("s2details", "Switch 2 style game page", "Each game\u2019s page laid out like the Switch 2\u2019s System Settings, in your UI style\u2019s colors: the game\u2019s name in the title, Overview and every section of the page down the left (the one in view marked as you scroll, LT / RT or a tap to jump), the cover and details in a card, bar-and-name headings, flat rows and rimmed tiles", "\uE7FC", Looks),
+        new("s2pctools", "Switch 2 style PC tools and info pages", "PC settings, Battery, Device information, Wi-Fi, Bluetooth, the speed tests, Network troubleshooting, Disk cleanup, Format external storage, Driver check, Storage advisor, Library cleanup, Move game, Adrenaline Hook, the Command Prompt and PowerShell terminals, Xbox mode home app, What\u2019s new, Changelogs and Credits laid out like the Switch 2\u2019s System Settings, in your UI style\u2019s colors: the page\u2019s name with its icon and a line under it, bar-and-name headings and flat rows with the rimmed highlight", "\uE770", Looks),
+        new("s2genie", "Switch 2 style Game Genie", "Game Genie laid out like the Switch 2\u2019s System Settings, in your UI style\u2019s colors: the kinds of question down the left with how many each has (LT / RT or a tap to jump), the game in a card with the Genie\u2019s summary and facts, and the questions under bar-and-name headings as flat rows", "\uE82F", Looks),
         new("s2setup", "Switch 2 style first-time setup", "The welcome pages (first start, or Settings > Run first-time setup again) laid out like the Switch 2\u2019s System Settings, in your UI style\u2019s colors: System Setup with the gear and a line under it, every step listed down the left with a tick on the ones done and a progress bar, the page on the right with bar-and-name headings and rimmed cards, and a line over Back, Skip and Next", "\uE713", Looks),
         new("s2apps", "Switch 2 style Installed apps", "Settings > Apps > Installed apps, and the page for each app (uninstall, modify, repair, reset), laid out like the Switch 2\u2019s System Settings, in your UI style\u2019s colors: All, desktop and Store apps and the sort order down the left with their counts, the space your apps use with the five biggest as a bar, flat rows with blue sizes, and each app\u2019s page headed by its icon, name, publisher and size", "\uE71D", Looks),
         new("plxcontinue", "Continue where you left off parallax", "On Home, while the Continue where you left off game is there, moving the handheld moves its artwork in depth with the gyro: the art slides and leans one way, the logo and name drift the other, and in the big-artwork Home layout the artwork behind the page moves too. Whatever angle you hold it at becomes the middle after a moment. Select to choose how deep", "\uE8B4", Looks),
@@ -164,7 +153,7 @@ public static partial class Labs
     public static readonly HashSet<string> DefaultOn8124 = new() { "newsettings" };
 
     /// <summary>On for everyone once (when updating to 8.1.58): every look and sound experiment, the Switch boot and the other launch, store and zone animations, and the widget's Switch 2 style and frame cap slider. Each keeps a switch in its new place in Settings.</summary>
-    public static readonly HashSet<string> DefaultOn8158 = new() { "newlibrary", "s2pages", "s2tools", "s2social", "s2system", "s2play", "s2apps", "s2setup", "s2toast", "oemfooter", "switchboot", "switchbootplus", "s2game", "zoneexit", "storeintro", "rasurprise", "ws2", "wfpsslider" };
+    public static readonly HashSet<string> DefaultOn8158 = new() { "newlibrary", "s2pages", "s2tools", "s2social", "s2system", "s2play", "s2apps", "s2setup", "s2toast", "switchboot", "switchbootplus", "s2game", "zoneexit", "storeintro", "rasurprise", "ws2", "wfpsslider" };
 
     /// <summary>On for everyone once (when updating to 8.1.18), with a switch in their new place in Settings.</summary>
     public static readonly HashSet<string> DefaultOn818 = new() { "crashrecovery", "drivenotice", "microsd", "achtoasts" };
@@ -186,6 +175,12 @@ public static partial class Labs
         "newsettings",
         // 8.1.58: the Switch 2 style everywhere, and the launch, store and zone animations, are the defaults.
         "newlibrary", "s2pages", "s2tools", "s2social", "s2system", "s2play", "s2apps", "s2setup", "s2toast", "oemfooter", "plxcontinue", "switchboot", "switchbootplus", "s2game", "zoneexit", "storeintro", "rasurprise", "ws2", "wfpsslider",
+        // 8.1.62
+        "s2device",
+        // 8.1.66
+        "s2details",
+        // 8.1.68
+        "s2genie", "s2pctools",
     }));
 
     public static LabFeature? Feature(string id) => Features.FirstOrDefault(f => f.Id == id);
@@ -222,6 +217,37 @@ public static partial class Labs
         {
             foreach (var id in DefaultOn8158) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
             settings.LabsGraduated8158 = true;
+            settings.Save();
+        }
+        if (!settings.LabsGraduated8162)
+        {
+            if (!settings.Labs.Contains("s2device")) settings.Labs.Add("s2device");
+            settings.LabsGraduated8162 = true;
+            settings.Save();
+        }
+        if (!settings.LabsGraduated8166)
+        {
+            if (!settings.Labs.Contains("s2details")) settings.Labs.Add("s2details");
+            settings.LabsGraduated8166 = true;
+            settings.Save();
+        }
+        if (!settings.LabsGraduated8168)
+        {
+            if (!settings.Labs.Contains("s2genie")) settings.Labs.Add("s2genie");
+            settings.LabsGraduated8168 = true;
+            settings.Save();
+        }
+        if (!settings.LabsGraduatedPcTools)
+        {
+            if (!settings.Labs.Contains("s2pctools")) settings.Labs.Add("s2pctools");
+            settings.LabsGraduatedPcTools = true;
+            settings.Save();
+        }
+        // 8.1.65: the controller icon in the corner is back for everyone (8.1.58 had turned on the handheld's own picture).
+        if (!settings.OemFooterOff8165)
+        {
+            settings.Labs.Remove("oemfooter");
+            settings.OemFooterOff8165 = true;
             settings.Save();
         }
         // 8.1.60: the Continue where you left off parallax is off by default (8.1.58 turned it on): off once, then it's yours to turn on.

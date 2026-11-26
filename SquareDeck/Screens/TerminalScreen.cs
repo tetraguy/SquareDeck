@@ -111,6 +111,16 @@ public sealed class TerminalScreen : Screen
 
         SetPage("Terminal", frame,
             "{Select}  Type a command      {Options}  Handy commands      LT / RT  Scroll      View  Clear      Start  Stop      {Back}  Close", wide: true);
+        if (Switch2Pages.PcPage(this))
+        {
+            UseSwitch2Chrome(powerShell ? "Windows PowerShell" : "Command Prompt", Switch2Pages.PcGlyph(this));
+            // The console stays dark inside (it's a terminal); its frame and title bar take the Switch 2 card and line.
+            frame.CornerRadius = new CornerRadius(16);
+            frame.SetResourceReference(Border.BorderBrushProperty, "S2Line");
+            title.SetResourceReference(Panel.BackgroundProperty, "S2Card");
+            name.SetResourceReference(TextBlock.ForegroundProperty, "SubtleBrush");
+            frame.Margin = new Thickness(20, 6, 20, 14);
+        }
         _flush.Tick += (_, _) => Flush();
     }
 

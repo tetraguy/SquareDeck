@@ -18,7 +18,9 @@ namespace SquareDeck.Screens;
 ///
 /// The acts, one after another: peering through a spyglass, reading a book (pages turning), circling a crystal ball,
 /// unrolling a scroll, sweeping a magnifying glass over question cards, casting a spell with both hands (sparks fly),
-/// and having an idea (question marks rise, a bulb flashes, eyebrows jump). All the while it floats, breathes, blinks,
+/// having an idea (question marks rise, a bulb flashes, eyebrows jump), juggling three glowing orbs, and twirling round
+/// in a ring of sparkles. Between acts it vanishes in a puff of sparks. All the while it floats (drifting side to side
+/// too) in a pulsing aura with motes of light circling it, shooting stars cross the sky, it breathes, blinks,
 /// tilts its head, its plume sways, wisps rise from the lamp, the jewel glints and stars twinkle; the mouth smiles,
 /// hums, gasps and grins along with what it's doing.
 /// </summary>
@@ -26,6 +28,7 @@ public sealed class GenieSearch : Grid
 {
     private const double W = 360, H = 340;
     private const double ActLength = 3.6, Blend = 0.55;
+    private const int ActCount = 9;
     private static readonly string[] Lines =
     {
         "Rubbing the lamp…", "Peering into the distance…", "Flipping through ancient guides…", "Consulting the crystal ball…",
@@ -57,7 +60,11 @@ public sealed class GenieSearch : Grid
 
     private Arm _right = null!, _left = null!;
     private readonly TranslateTransform _float = new(), _pupils = new(), _brows = new();
-    private readonly ScaleTransform _blink = new(1, 1, 180, 99), _breathe = new(1, 1, 180, 210);
+    private readonly ScaleTransform _blink = new(1, 1, 180, 99), _breathe = new(1, 1, 180, 210), _turn = new(1, 1, 180, 0);
+    private readonly List<Ellipse> _motes = new();
+    private readonly List<TextBlock> _dots = new();
+    private double _nextStar = 2.5, _nextRing;
+    private bool _started;
     private readonly RotateTransform _tilt = new(0, Neck.X, Neck.Y), _plume = new(0, 182, 72);
     private Path _tail = null!, _mouth = null!;
     private Ellipse _glint = null!;
@@ -83,10 +90,19 @@ public sealed class GenieSearch : Grid
         title.MaxWidth = 620;
         title.Margin = new Thickness(0, 4, 0, 0);
         stack.Children.Add(title);
-        _line = Ui.Text(Lines[0], 15, "SubtleBrush");
-        _line.HorizontalAlignment = HorizontalAlignment.Center;
-        _line.Margin = new Thickness(0, 6, 0, 0);
-        stack.Children.Add(_line);
+        _line = Ui.Text(Lines[0].TrimEnd('…'), 15, "SubtleBrush");
+        // The line about what it's doing, with three dots after it that bounce in a wave.
+        var lineRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
+        lineRow.Children.Add(_line);
+        for (int i = 0; i < 3; i++)
+        {
+            var dot = Ui.Text(".", 15, "SubtleBrush");
+            dot.FontWeight = FontWeights.Bold;
+            dot.RenderTransform = new TranslateTransform();
+            _dots.Add(dot);
+            lineRow.Children.Add(dot);
+        }
+        stack.Children.Add(lineRow);
         Children.Add(stack);
 
         Draw();
@@ -139,19 +155,19 @@ public sealed class GenieSearch : Grid
         var glow = At(new Ellipse { Width = 230, Height = 46, Fill = new RadialGradientBrush(Color.FromArgb(0x90, 0xFF, 0xC8, 0x5A), Color.FromArgb(0, 0xFF, 0xC8, 0x5A)) }, 66, 296);
         _stage.Children.Add(glow);
         if (!_calm) glow.BeginAnimation(OpacityProperty, new DoubleAnimation(0.45, 1, TimeSpan.FromSeconds(1.2)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
-        var lamp = new Path
-        {
-            Data = Geometry.Parse(
-                "M 118,286 Q 180,276 242,286 Q 254,306 180,312 Q 106,306 118,286 Z " +                    // bowl
-                "M 234,286 Q 266,290 290,270 Q 302,262 310,264 Q 302,272 296,280 Q 274,302 240,302 Z " +  // spout
-                "M 122,290 C 88,280 86,308 114,302 L 116,296 C 100,298 100,290 122,296 Z " +              // handle
-                "M 154,284 Q 180,256 206,284 Z " +                                                     // lid
-                "M 158,308 L 202,308 L 210,320 L 150,320 Z"),                                          // foot
-            Fill = Gold, Stroke = B(0x8A, 0x5A, 0x10), StrokeThickness = 1.4
-        };
+        // Each part is its own shape: drawn as one, the places where they overlap (the spout and handle on the bowl,
+        // the lid on its rim) were cut out as holes, and the knob floated above the lid.
+        var rim = B(0x8A, 0x5A, 0x10);
+        Path Part(string data) => new() { Data = Geometry.Parse(data), Fill = Gold, Stroke = rim, StrokeThickness = 1.4, StrokeLineJoin = PenLineJoin.Round };
+        var lamp = new Canvas { Width = W, Height = H, IsHitTestVisible = false };
+        lamp.Children.Add(Part("M 128,288 C 94,278 88,308 120,304 L 121,298 C 100,302 100,288 128,296 Z"));                      // handle
+        lamp.Children.Add(Part("M 230,286 Q 266,290 290,270 Q 302,262 310,264 Q 302,272 296,280 Q 274,302 236,302 Z"));          // spout
+        lamp.Children.Add(Part("M 158,306 L 202,306 L 210,320 L 150,320 Z"));                                                     // foot
+        lamp.Children.Add(Part("M 118,286 Q 180,276 242,286 Q 254,306 180,312 Q 106,306 118,286 Z"));                           // bowl
+        lamp.Children.Add(Part("M 154,285 Q 180,256 206,285 Z"));                                                                 // lid
+        lamp.Children.Add(At(new Ellipse { Width = 11, Height = 11, Fill = Gold, Stroke = rim, StrokeThickness = 1.2 }, 174.5, 262)); // knob, on the lid
         if (!Perf.Active) lamp.Effect = new DropShadowEffect { Color = Color.FromRgb(0xFF, 0xC8, 0x5A), BlurRadius = 16, ShadowDepth = 0, Opacity = 0.7 };
         _stage.Children.Add(lamp);
-        _stage.Children.Add(At(new Ellipse { Width = 11, Height = 11, Fill = Gold, Stroke = B(0x8A, 0x5A, 0x10), StrokeThickness = 1.2 }, 174.5, 252));
         _glint = At(new Ellipse { Width = 9, Height = 9, Fill = Brushes.White, Opacity = 0 }, 140, 288);
         if (!Perf.Active) _glint.Effect = new DropShadowEffect { Color = Colors.White, BlurRadius = 10, ShadowDepth = 0 };
         _stage.Children.Add(_glint);
@@ -161,8 +177,24 @@ public sealed class GenieSearch : Grid
         _stage.Children.Add(_tail);
 
         var body = Layer();
-        body.RenderTransform = _float;
+        var moves = new TransformGroup();
+        moves.Children.Add(_turn);  // twirling round
+        moves.Children.Add(_float); // floating and drifting
+        body.RenderTransform = moves;
         _stage.Children.Add(body);
+
+        // A soft aura behind the Genie that swells and fades as it breathes magic.
+        var auraSize = new ScaleTransform(1, 1, 105, 115);
+        var aura = At(new Ellipse { Width = 210, Height = 230, RenderTransform = auraSize,
+            Fill = new RadialGradientBrush(Color.FromArgb(0x70, 0xB0, 0x7A, 0xFF), Color.FromArgb(0, 0xB0, 0x7A, 0xFF)) }, 75, 40);
+        body.Children.Add(aura);
+        if (!_calm)
+        {
+            aura.BeginAnimation(OpacityProperty, new DoubleAnimation(0.4, 1, TimeSpan.FromSeconds(1.6)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
+            var swell = new DoubleAnimation(0.94, 1.06, TimeSpan.FromSeconds(1.6)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() };
+            auraSize.BeginAnimation(ScaleTransform.ScaleXProperty, swell);
+            auraSize.BeginAnimation(ScaleTransform.ScaleYProperty, swell);
+        }
 
         // Arms first (behind the robe); sleeves go over the shoulders afterwards.
         _right = MakeArm(RShoulder, REl0, RHand0, right: true, body);
@@ -209,6 +241,17 @@ public sealed class GenieSearch : Grid
         BuildProps(body);
         body.Children.Add(_fx);
         Mouth("smile");
+
+        // Motes of light circling the Genie (placed every frame).
+        var moteColors = new[] { Color.FromRgb(0xFF, 0xE0, 0x6A), Color.FromRgb(0x7F, 0xFF, 0xE9), Color.FromRgb(0xFF, 0x9A, 0xE0) };
+        for (int i = 0; i < 8; i++)
+        {
+            double size = 5 + (i % 3) * 2;
+            var mote = new Ellipse { Width = size, Height = size, Fill = new SolidColorBrush(moteColors[i % 3]), IsHitTestVisible = false };
+            if (!Perf.Active) mote.Effect = new DropShadowEffect { Color = moteColors[i % 3], BlurRadius = 8, ShadowDepth = 0 };
+            _motes.Add(mote);
+            _stage.Children.Add(mote);
+        }
     }
 
     private Arm MakeArm(Point shoulder, Point elbow, Point hand, bool right, Panel into)
@@ -305,6 +348,18 @@ public sealed class GenieSearch : Grid
             cards.Children.Add(At(card, x, y));
         }
 
+        // Juggling: three glowing orbs tossed from hand to hand.
+        var juggle = Prop("juggle", body);
+        var orbColors = new[] { (Color.FromRgb(0xC8, 0xFF, 0xF4), Color.FromRgb(0x1E, 0xC8, 0xA8)), (Color.FromRgb(0xFF, 0xD8, 0xF0), Color.FromRgb(0xE0, 0x3A, 0x9A)), (Color.FromRgb(0xFF, 0xF4, 0xC8), Color.FromRgb(0xE8, 0xA0, 0x1E)) };
+        for (int i = 0; i < 3; i++)
+        {
+            var orb2 = new Ellipse { Width = 20, Height = 20, Fill = new RadialGradientBrush(orbColors[i].Item1, orbColors[i].Item2) { GradientOrigin = new Point(0.35, 0.3) } };
+            if (!Perf.Active) orb2.Effect = new DropShadowEffect { Color = orbColors[i].Item2, BlurRadius = 14, ShadowDepth = 0 };
+            juggle.Children.Add(At(orb2, 170, 190));
+            _bits["orb" + i] = orb2;
+        }
+        Prop("twirl", body);
+
         // Spell: rings of light around the raised hands are drawn as sparks in the effects layer; nothing to hold.
         Prop("magic", body);
 
@@ -345,7 +400,7 @@ public sealed class GenieSearch : Grid
         _last = t;
 
         // A new act every few seconds; the pose blends from where the last one left off.
-        int act = (int)(t / ActLength) % 7;
+        int act = (int)(t / ActLength) % ActCount;
         if (act != _act)
         {
             _from = _now;
@@ -360,15 +415,20 @@ public sealed class GenieSearch : Grid
         _now = (Lerp(_from.R, goal.R, k), Lerp(_from.L, goal.L, k), _from.Gx + (goal.Gx - _from.Gx) * k, _from.Gy + (goal.Gy - _from.Gy) * k, _from.Tilt + (goal.Tilt - _from.Tilt) * k);
 
         // Float, breathe, sway.
-        double bob = _calm ? 0 : -6 * Math.Sin(t * 2.2);
+        // Twirling: up it goes, spinning round twice (seen from the front, a turn is the body narrowing and widening).
+        double lift = act == 8 && !_calm ? -16 * Math.Sin(Math.PI * Math.Clamp((at - 0.2) / 2.8, 0, 1)) : 0;
+        double bob = _calm ? 0 : -6 * Math.Sin(t * 2.2) + lift;
+        double drift = _calm ? 0 : 5 * Math.Sin(t * 1.1);
+        _float.X = drift;
         _float.Y = bob;
+        _turn.ScaleX = act == 8 && !_calm && at > 0.4 && at < 2.8 ? Math.Cos(2 * Math.PI * (at - 0.4) / 1.2) : 1;
         _breathe.ScaleX = 1 + 0.015 * Math.Sin(t * 2.6);
         _breathe.ScaleY = 1 - 0.012 * Math.Sin(t * 2.6);
         _plume.Angle = 9 * Math.Sin(t * 3.1);
         _tilt.Angle = _now.Tilt + (_calm ? 0 : 2 * Math.Sin(t * 1.3));
         _pupils.X = _now.Gx;
         _pupils.Y = _now.Gy;
-        Tail(t, bob);
+        Tail(t, bob, drift);
 
         // Blink now and then.
         if (t >= _nextBlink) { _nextBlink = t + 2.2 + _rand.NextDouble() * 2.5; }
@@ -382,10 +442,34 @@ public sealed class GenieSearch : Grid
         // The act's own moving parts.
         Animate(act, at, t);
 
+        // Motes circling: brighter and lower as they pass in front, dimmer and higher behind.
+        for (int i = 0; i < _motes.Count; i++)
+        {
+            double a = (_calm ? 0 : t * 0.9) + i * Math.PI * 2 / _motes.Count;
+            double depth = Math.Sin(a);
+            var m = _motes[i];
+            Canvas.SetLeft(m, 180 + 138 * Math.Cos(a) - m.Width / 2 + drift);
+            Canvas.SetTop(m, 166 + 36 * depth + (_calm ? 0 : 14 * Math.Sin(t * 1.7 + i)) - m.Height / 2 + bob);
+            m.Opacity = 0.3 + 0.6 * (depth + 1) / 2;
+        }
+
+        // The dots after the line bounce one after another.
+        for (int i = 0; i < _dots.Count; i++)
+            ((TranslateTransform)_dots[i].RenderTransform).Y = _calm ? 0 : -5 * Math.Max(0, Math.Sin(t * 6 - i * 0.9));
+
         if (_calm || dt <= 0) return;
         // Wisps rising from the spout, a glint on the lamp, sparks.
         if (t >= _nextWisp) { Wisp(); _nextWisp = t + 0.25 + _rand.NextDouble() * 0.25; }
         if (t >= _nextSpark && act == 5) { Spark(Hand(_right)); Spark(Hand(_left)); _nextSpark = t + 0.07; }
+        // While twirling, a ring of sparkles spins round the robe.
+        if (act == 8 && at > 0.4 && at < 2.8 && t >= _nextRing)
+        {
+            double r = t * 11;
+            Spark(new Point(180 + 78 * Math.Cos(r) + drift, 196 + 16 * Math.Sin(r) + bob));
+            Spark(new Point(180 - 78 * Math.Cos(r) + drift, 196 - 16 * Math.Sin(r) + bob));
+            _nextRing = t + 0.045;
+        }
+        if (t >= _nextStar) { ShootingStar(); _nextStar = t + 3 + _rand.NextDouble() * 4; }
         double g = (t % 3.2) / 3.2;
         Canvas.SetLeft(_glint, 126 + g * 100);
         _glint.Opacity = g < 0.5 ? Math.Sin(g * 2 * Math.PI) * 0.9 : 0;
@@ -403,20 +487,35 @@ public sealed class GenieSearch : Grid
             3 => (new Point(270, 152), new Point(138, 204), 3, -1 + Math.Min(4, at * 1.5), 5),                                                       // scroll: reads down it
             4 => (new Point(236 + 30 * Math.Sin(at * 2.2), 196 + 12 * Math.Cos(at * 4.4)), new Point(138, 206), 2 + 2 * Math.Sin(at * 2.2), 1 + Math.Cos(at * 4.4), 4), // magnifier: sweeps the cards
             5 => (new Point(254 + 12 * c, 108 + 12 * s), new Point(106 - 12 * c, 108 + 12 * s), 0, -2.5, 0),                                        // spell: both hands up, circling
-            _ => (new Point(232, 96), new Point(166, 140), at < 1.7 ? 3 : 0, at < 1.7 ? -2.5 : 0, at < 1.7 ? -6 : 2),                                 // idea: a finger raised, hand on chin
+            6 => (new Point(232, 96), new Point(166, 140), at < 1.7 ? 3 : 0, at < 1.7 ? -2.5 : 0, at < 1.7 ? -6 : 2),                                 // idea: a finger raised, hand on chin
+            7 => (new Point(226, 204 + 7 * Math.Sin(at * Math.PI * 2 / 0.65)), new Point(134, 204 + 7 * Math.Sin(at * Math.PI * 2 / 0.65 + Math.PI)),
+                  Math.Clamp((JuggleOrb(0, at).X - 180) / 22, -3.5, 3.5), Math.Clamp((JuggleOrb(0, at).Y - 170) / 20, -3, 2), 2 * Math.Sin(at * 3)),  // juggling: eyes follow an orb
+            _ => (new Point(262, 146 + 6 * Math.Sin(t * 4)), new Point(98, 146 - 6 * Math.Sin(t * 4)), 0, -1.5, 0),                                // twirl: arms out wide
         };
+    }
+
+    /// <summary>Where a juggled orb is: a high toss from the left hand to the right, a lower one back.</summary>
+    private static Point JuggleOrb(int i, double at)
+    {
+        double p = (at / 1.3 + i / 3.0) % 1;
+        if (p < 0.5) { double u = p * 2; return new Point(136 + 88 * u, 196 - 4 * 84 * u * (1 - u)); }
+        double v = (p - 0.5) * 2;
+        return new Point(224 - 88 * v, 196 - 4 * 38 * v * (1 - v));
     }
 
     private void StartAct(int act)
     {
         var fade = TimeSpan.FromMilliseconds(280);
-        string name = act switch { 0 => "spyglass", 1 => "book", 2 => "crystal", 3 => "scroll", 4 => "magnifier", 5 => "magic", _ => "idea" };
+        string name = act switch { 0 => "spyglass", 1 => "book", 2 => "crystal", 3 => "scroll", 4 => "magnifier", 5 => "magic", 6 => "idea", 7 => "juggle", _ => "twirl" };
         foreach (var p in _props)
         {
             bool on = (string)p.Tag == name || (name == "magnifier" && (string)p.Tag == "cards");
             p.BeginAnimation(OpacityProperty, new DoubleAnimation(on ? 1 : 0, fade));
         }
-        Mouth(act switch { 1 or 3 or 4 => "hum", 5 => "grin", _ => "smile" });
+        Mouth(act switch { 1 or 3 or 4 => "hum", 5 or 7 => "grin", 8 => "open", _ => "smile" });
+        // A puff of sparkles as one act gives way to the next.
+        if (_started && !_calm) Burst();
+        _started = true;
         if (act == 3 && _bits["paper"] is Border paper && _bits["rod"] is Border rod && rod.RenderTransform is TranslateTransform drop)
         {
             var unroll = new DoubleAnimation(0, 118, TimeSpan.FromSeconds(1.3)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
@@ -438,6 +537,15 @@ public sealed class GenieSearch : Grid
 
     private void Animate(int act, double at, double t)
     {
+        if (act == 7)
+            for (int i = 0; i < 3; i++)
+            {
+                var p = JuggleOrb(i, _calm ? i * 0.4 : at);
+                var orb = _bits["orb" + i];
+                Canvas.SetLeft(orb, p.X - 10);
+                Canvas.SetTop(orb, p.Y - 10);
+            }
+        if (act == 8 && at >= 2.8 && at < 2.85) Mouth("grin");
         if (act == 1 && _bits["page"].RenderTransform is ScaleTransform flip) flip.ScaleX = Math.Cos(t * 5.5);
         if (act == 2 && _bits["swirl"].RenderTransform is RotateTransform spin) spin.Angle = t * 220 % 360;
         if (act == 6)
@@ -500,7 +608,7 @@ public sealed class GenieSearch : Grid
     {
         var p = arm.Fore.Transform(arm.Hand0);
         p = arm.Upper.Transform(p);
-        return new Point(p.X, p.Y + _float.Y);
+        return new Point(p.X + _float.X, p.Y + _float.Y);
     }
 
     private static Point Lerp(Point a, Point b, double k) => new(a.X + (b.X - a.X) * k, a.Y + (b.Y - a.Y) * k);
@@ -508,15 +616,15 @@ public sealed class GenieSearch : Grid
     // ================================================================ smoke, wisps and sparks
 
     /// <summary>The curl of smoke: from a thin wisp at the spout to the full width of the robe, swaying as the Genie floats.</summary>
-    private void Tail(double t, double bob)
+    private void Tail(double t, double bob, double drift)
     {
         double sway = _calm ? 0 : Math.Sin(t * 1.8);
         var p0 = Spout;
         var p1 = new Point(336 + 10 * sway, 230);
         // The smoke rises straight up into the robe and ends well inside it (behind it), so however the Genie bobs,
         // sways or breathes, the robe's hem always sits on the smoke with no gap.
-        var p2 = new Point(Waist.X + 8 - 10 * sway, Waist.Y + 48 + bob * 0.8);
-        var p3 = new Point(Waist.X, Waist.Y - 16 + bob);
+        var p2 = new Point(Waist.X + 8 - 10 * sway + drift * 0.6, Waist.Y + 48 + bob * 0.8);
+        var p3 = new Point(Waist.X + drift, Waist.Y - 16 + bob);
         const int n = 30;
         var left = new List<Point>();
         var right = new List<Point>();
@@ -577,6 +685,37 @@ public sealed class GenieSearch : Grid
         star.BeginAnimation(OpacityProperty, fade);
     }
 
+    /// <summary>Sparkles bursting all over the Genie, between acts.</summary>
+    private void Burst()
+    {
+        var c = new Point(180 + _float.X, 160 + _float.Y);
+        for (int i = 0; i < 14; i++) Spark(new Point(c.X + (_rand.NextDouble() - 0.5) * 110, c.Y + (_rand.NextDouble() - 0.5) * 120));
+    }
+
+    /// <summary>A shooting star streaking across the sky behind the Genie.</summary>
+    private void ShootingStar()
+    {
+        var streak = new Line
+        {
+            X1 = 0, Y1 = 0, X2 = -40, Y2 = -14, StrokeThickness = 2.4, StrokeStartLineCap = PenLineCap.Round, IsHitTestVisible = false,
+            Stroke = new LinearGradientBrush(Color.FromArgb(0xFF, 0xFF, 0xF6, 0xD0), Color.FromArgb(0, 0xFF, 0xF6, 0xD0), new Point(1, 1), new Point(0, 0)),
+        };
+        At(streak, 30 + _rand.NextDouble() * 150, 10 + _rand.NextDouble() * 50);
+        _stage.Children.Insert(Math.Min(16, _stage.Children.Count), streak); // in the sky, behind the lamp and the Genie
+        var move = new TranslateTransform();
+        streak.RenderTransform = move;
+        var life = TimeSpan.FromSeconds(0.9);
+        var ease = new QuadraticEase { EasingMode = EasingMode.EaseIn };
+        move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 150, life) { EasingFunction = ease });
+        move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, 52, life) { EasingFunction = ease });
+        var fade = new DoubleAnimationUsingKeyFrames { Duration = life };
+        fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)));
+        fade.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromPercent(0.2)));
+        fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(1)));
+        fade.Completed += (_, _) => _stage.Children.Remove(streak);
+        streak.BeginAnimation(OpacityProperty, fade);
+    }
+
     private void NextLine()
     {
         _lineIndex = (_lineIndex + 1) % Lines.Length;
@@ -584,7 +723,7 @@ public sealed class GenieSearch : Grid
         var out1 = new DoubleAnimation(0, TimeSpan.FromMilliseconds(160));
         out1.Completed += (_, _) =>
         {
-            _line.Text = next;
+            _line.Text = next.TrimEnd('…');
             _line.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)));
         };
         _line.BeginAnimation(OpacityProperty, out1);

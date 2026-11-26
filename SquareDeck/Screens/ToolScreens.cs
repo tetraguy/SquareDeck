@@ -290,6 +290,38 @@ public sealed partial class GameProfileScreen : ListScreen
                         click: () => Host.Push(new LedColorScreen("Second light color – " + _game.Name, two, hex => { Profile.LightColor2 = hex; Saved(); })));
             }
         }
+        // The ROG Ally's screen while this game runs: an ASUS GameVisual mode and color temperature.
+        if (AllyControl.IsAlly)
+        {
+            AddHeader("Screen (ROG Ally)");
+            var modes = VisualModes.Modes;
+            var usual = modes.FirstOrDefault(m => m.Id == VisualModes.SavedMode) ?? modes[0];
+            var chosen = p.VisualMode is int vm ? modes.FirstOrDefault(m => m.Id == vm) : null;
+            string? needs = VisualModes.Available ? null : "Needs ASUS's display tool (it comes with the ASUS System Control Interface driver)";
+            AddRow("Visual mode", chosen?.Name ?? "Default (" + usual.Name + ")", "\uE790", click: async () =>
+            {
+                int choice = await Host.AskAsync("Visual mode while playing", "ASUS GameVisual, applied when the game starts. Your usual mode comes back when it closes.",
+                    modes.Select(m => (m.Id == p.VisualMode ? "\u2713 " : "") + m.Name + "  \u00B7  " + m.About).Prepend((p.VisualMode == null ? "\u2713 " : "") + "Default (" + usual.Name + ")").ToArray());
+                if (choice < 0) return;
+                Profile.VisualMode = choice == 0 ? null : modes[choice - 1].Id;
+                Saved();
+            }, subtitle: needs ?? "Racing, Scenery, RTS/RPG, FPS, Cinema, Vivid, Eyecare and more");
+            var effective = chosen ?? usual;
+            if (effective.UsesTemperature)
+            {
+                var temps = VisualModes.Temperatures;
+                string tempName = p.VisualTemperature is int vt ? temps.FirstOrDefault(t => t.Value == vt).Name ?? vt.ToString()
+                    : "Default (" + (temps.FirstOrDefault(t => t.Value == VisualModes.SavedTemperature).Name ?? "Neutral") + ")";
+                AddRow("Color temperature", tempName, "\uE706", click: async () =>
+                {
+                    int choice = await Host.AskAsync("Color temperature while playing", null,
+                        temps.Select(t => (t.Value == p.VisualTemperature ? "\u2713 " : "") + t.Name).Prepend((p.VisualTemperature == null ? "\u2713 " : "") + "Default (your usual)").ToArray());
+                    if (choice < 0) return;
+                    Profile.VisualTemperature = choice == 0 ? null : temps[choice - 1].Value;
+                    Saved();
+                }, subtitle: needs);
+            }
+        }
         // The Ally's fans, rumble and Xbox button light while this game runs.
         if (AllyControl.IsAlly)
         {
@@ -776,6 +808,7 @@ public sealed class ControllerTestScreen : Screen
         body.Children.Add(chips);
         body.Children.Add(actions);
         SetPage("Controller test", body, "{Back}  Back  (it lights up here too)");
+        if (Switch2Pages.PcPage(this)) UseSwitch2Cards("Controller test", Switch2Pages.PcGlyph(this));
 
         _timer.Tick += (_, _) => Refresh();
     }
@@ -1078,6 +1111,7 @@ public sealed class StoresScreen : GridScreen
         string value = tile.Tag switch
         {
             StoreApp => "Installed",
+            "Recomp Zone" or "Retro Lounge" => "Built-in",
             string s when s.Contains(" · ") => s.Split(" · ")[1],
             _ => ""
         };

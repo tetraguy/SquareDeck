@@ -46,17 +46,13 @@ public sealed partial class SettingsScreen
         "fpscap" => () => Host.Push(new FpsCapScreen()),
         "docked" => () => Host.Push(new DockedScreen()),
         "sessiontimer" => () => Host.Push(new SessionTimerScreen()),
-        "trailerpreview" => () => Host.Push(new TrailerPreviewScreen()),
-        "friendswidget" => () => Host.Push(new FriendsWidgetScreen()),
         "rascraper" => () => Host.Push(new ScreenScraperScreen()),
         "rashaders" => () => Host.Push(new RetroLooksScreen()),
-        "gamepass" => () => Host.Push(new GamePassScreen()),
         "padtest" => () => Host.Push(new ControllerTesterScreen()),
         "updateguard" => () => Host.Push(new UpdateGuardScreen()),
         "drivercheck" => () => Host.Push(new DriverCheckScreen()),
         "startupapps" => () => Host.Push(new StartupAppsScreen()),
         "twitch" => () => { var t = StreamingService.All.First(s => s.Id == "twitch"); _ = StreamingScreen.OpenAsync(Host, t); },
-        "dailypick" => () => _ = ShowDailyPickAsync(),
         "visualmodes" => () => Host.Push(new VisualModesScreen()),
         "wpowerlook" => () => _ = PickPowerLookAsync(),
         "cpucores" => () => Host.Push(new CpuCoresScreen()),
@@ -64,16 +60,6 @@ public sealed partial class SettingsScreen
         _ => null
     };
 
-    private async Task ShowDailyPickAsync()
-    {
-        if (Eight.DailyPick(Host.AllGames, Host.Playtime, Host.Library) is not { } pick)
-        {
-            await Host.AskAsync("Daily pick", "Nothing to suggest yet: play a few games first, and come back after a few weeks.", "OK");
-            return;
-        }
-        int c = await Host.AskAsync("Today's pick: " + pick.Game.Name, pick.Why, "Open its page", "Not now");
-        if (c == 0) Host.Push(new DetailsScreen(pick.Game));
-    }
 }
 
 /// <summary>A list page with one choice that cycles through options: shared by the small option pages below.</summary>
@@ -156,33 +142,6 @@ public sealed class SessionTimerScreen : EightOptionsScreen
     }
 }
 
-public sealed class TrailerPreviewScreen : EightOptionsScreen
-{
-    public TrailerPreviewScreen() : base("Trailer previews on Home") { }
-
-    protected override void Build()
-    {
-        Cycle("Start after", "trailer.delay", "2", new[] { ("1", "1 second"), ("2", "2 seconds"), ("3", "3 seconds"), ("5", "5 seconds") }, "");
-        Cycle("How strong", "trailer.opacity", "0.7", new[] { ("0.45", "Subtle"), ("0.7", "Normal"), ("0.95", "Full") }, "");
-        AddNote("Steam games only, with a trailer Steam offers as a video file. Always muted; it stops as soon as you move, open a page or start a game, and in Performance mode.");
-    }
-}
-
-public sealed class FriendsWidgetScreen : EightOptionsScreen
-{
-    public FriendsWidgetScreen() : base("Friends playing on Home") { }
-
-    protected override void Build()
-    {
-        if (Host.Settings.SteamWebApiKey.Length == 0)
-            AddRow("Needs your Steam Web API key", null, "", subtitle: "Add it in Settings > Accounts (it's how SquareDeck sees your friends)");
-        Cycle("Where", "friends.corner", "top", new[] { ("top", "Top right"), ("bottom", "Bottom right") }, "", "Takes effect the next time SquareDeck starts");
-        AddNote("Shows up to four Steam friends who are in a game, refreshed every two minutes. Xbox friends need a Microsoft sign-in that isn't offered to other apps, so they can't be shown.");
-    }
-}
-
-// ==================================================================== a game's profile: frame cap, launch options, scripts
-
 public sealed partial class GameProfileScreen
 {
     private void AddEightRows()
@@ -255,71 +214,30 @@ public sealed partial class GameProfileScreen
     }
 }
 
-// ==================================================================== Library: smart collections and microSD cards
+// ==================================================================== Library: microSD cards
 
 public sealed partial class LibraryScreen
 {
     private void AddEightChips(List<Game> everything, Action<string, string, int?, string?> add)
     {
-        bool smart = Labs.On("smartcollections"), cards = Labs.On("microsd");
-        if (!smart && !cards) return;
+        if (!Labs.On("microsd")) return;
         if (_chips.Children.Count == 0) add("all", "Everything", null, null);
-        if (smart)
-        {
-            var members = Eight.ShelfMembers(Host.AllGames, Host.Playtime, Host.Library);
-            foreach (var shelf in Eight.Shelves)
-                if (members.TryGetValue(shelf.Id, out var set) && set.Count > 0) add("smart:" + shelf.Id, shelf.Name, set.Count, shelf.Glyph);
-        }
-        if (cards)
-            foreach (var card in Eight.KnownCards(Host.AllGames))
+        foreach (var card in Eight.KnownCards(Host.AllGames))
                 add("card:" + card.Id, card.Label + (card.Present ? "" : " (out)"), card.Games.Count, "");
     }
 
     private string EightFilterName(string filter)
     {
-        if (filter.StartsWith("smart:")) return Eight.Shelves.FirstOrDefault(s => s.Id == filter[6..])?.Name ?? "Smart collection";
         var card = Eight.KnownCards(Host.AllGames).FirstOrDefault(c => c.Id == filter[5..]);
         return card == null ? "microSD" : card.Label + (card.Present ? "" : " (not inserted)");
     }
 
     private bool EightMatches(Game g, string filter)
     {
-        if (filter.StartsWith("smart:"))
-            return Eight.ShelfMembers(Host.AllGames, Host.Playtime, Host.Library).TryGetValue(filter[6..], out var set) && set.Contains(g.Key);
         var card = Eight.KnownCards(Host.AllGames).FirstOrDefault(c => c.Id == filter[5..]);
         return card != null && card.Games.Contains(g.Key);
     }
 }
-
-// ==================================================================== Game Pass
-
-public sealed class GamePassScreen : ListScreen
-{
-    public GamePassScreen() : base("Game Pass") { }
-
-    private void Open(string url) => Host.Push(BrowserScreen.Open(Host, url));
-
-    protected override void Build()
-    {
-        AddNote("Microsoft keeps its Game Pass lists on Xbox's own site (it has no list other apps may read), so these open there, inside SquareDeck.");
-        AddHeader("Coming and going");
-        AddRow("Recently added and leaving soon", null, "", click: () => Open("https://www.xbox.com/en-US/xbox-game-pass/games"),
-            subtitle: "Xbox's Game Pass catalog: pick “Recently added” or “Leaving soon” (games leaving in the next two weeks)");
-        AddRow("This month's announcements", null, "", click: () => Open("https://news.xbox.com/en-us/tag/xbox-game-pass/"),
-            subtitle: "Xbox Wire: what's coming, with the dates games leave");
-        AddRow("PC Game Pass", null, "", click: () => Open("https://www.xbox.com/en-US/xbox-game-pass/pc-game-pass"));
-        AddHeader("Play");
-        var xbox = Host.AllGames.Where(g => g.IsGame && g.Source == "Xbox").OrderByDescending(g => g.RecentAt).Take(8).ToList();
-        foreach (var g in xbox)
-        {
-            var game = g;
-            AddRow(g.Name, null, "", click: () => Host.Push(new DetailsScreen(game)), subtitle: "Installed from the Xbox app");
-        }
-        AddRow("Open the Xbox app", null, "", click: () => ProcessUtil.OpenOutside("xbox:"));
-    }
-}
-
-// ==================================================================== Retro Lounge
 
 public sealed partial class RetroLoungeScreen
 {
@@ -658,6 +576,7 @@ public sealed class ControllerTesterScreen : Screen, IPagePad
         body.Children.Add(_status);
         var fit = new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = body };
         SetPage("Controller tester", fit, "Hold B (or View + Menu) to leave      Both triggers fully: rumble");
+        if (Switch2Pages.PcPage(this)) UseSwitch2Cards("Controller tester", Switch2Pages.PcGlyph(this));
         _timer.Tick += (_, _) => Tick();
     }
 

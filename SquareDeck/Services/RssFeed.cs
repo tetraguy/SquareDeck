@@ -11,6 +11,11 @@ public static class RssFeed
 {
     public const string IgnPc = "https://feeds.feedburner.com/ign/pc-articles";
     public const string IgnGames = "https://feeds.feedburner.com/ign/games-all";
+    public const string PcGamer = "https://www.pcgamer.com/rss/";
+    public const string Kotaku = "https://kotaku.com/feed";
+    public const string Eurogamer = "https://www.eurogamer.net/feed";
+    public const string NintendoLife = "https://www.nintendolife.com/feeds/latest";
+    public const string XboxWire = "https://news.xbox.com/en-us/feed/";
 
     public static async Task<List<NewsItem>> ReadAsync(string url, string feedName, CancellationToken ct)
     {

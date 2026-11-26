@@ -22,20 +22,16 @@ public partial class MainWindow
 {
     private static readonly string[] WidgetLabs =
     {
-        "wfpscap", "wautotdp", "wthermal", "wnotes", "wach", "wgenie", "wpad", "wfriends", "winbox", "wdownloads",
-        "wparty", "wapps", "wshortcuts", "wcards", "wgameaware", "wpresets", "wtheme", "wcompanion", "wpowerlook", "wrumble", "ws2", "wfpsslider",
+        "wfpscap", "wautotdp", "wthermal", "wnotes", "wapps", "wcards", "wgameaware", "wpresets", "wtheme", "wcompanion", "wpowerlook", "ws2", "wfpsslider",
     };
 
     /// <summary>Every card the widget has, in its usual order (the editor's list).</summary>
     private static readonly string[] WidgetCardIds =
     {
-        "game", "media", "power", "live", "ally", "notes", "achievements", "genie", "controller", "friends", "inbox", "downloads", "launch", "quick",
+        "game", "media", "power", "live", "ally", "notes", "launch", "quick",
     };
 
     private int _widgetCap;                    // the frame cap the widget set for this session (0: none)
-    private List<Friend>? _widgetFriends;
-    private DateTime _widgetFriendsAt = DateTime.MinValue;
-    private bool _genieBusy;
 
     // ================================================================ the state
 
@@ -88,39 +84,6 @@ public partial class MainWindow
         if (Labs.On("wpowerlook")) state["powerlook"] = Labs.Has("w.powerlook") ? Labs.Get("w.powerlook") : "dial";
         if (Labs.On("wthermal")) state["templimit"] = Settings.TdpTempLimit > 0 ? Settings.TdpTempLimit : 95;
         if (Labs.On("wnotes") && key != null) state["notes"] = Library.Find(key)?.Notes ?? "";
-        if (Labs.On("wpad"))
-            state["pad"] = new JsonObject { ["battery"] = ControllerBattery, ["connected"] = PadState.Connected, ["rumble"] = Math.Max(0, Settings.RumbleStrength) };
-        if (Labs.On("wfriends"))
-        {
-            if (DateTime.Now - _widgetFriendsAt > TimeSpan.FromMinutes(2) && Settings.SteamWebApiKey.Length > 0)
-            {
-                _widgetFriendsAt = DateTime.Now;
-                _ = Task.Run(async () =>
-                {
-                    var (friends, _) = await SteamFriends.GetAsync(Settings.SteamWebApiKey, CancellationToken.None);
-                    if (friends != null) _widgetFriends = friends;
-                });
-            }
-            var list = (_widgetFriends ?? new List<Friend>()).Where(f => f.IsOnline).OrderByDescending(f => f.InGame).ThenBy(f => f.Name).Take(8);
-            state["friends"] = new JsonArray(list.Select(f => (JsonNode)new JsonObject { ["id"] = f.Id, ["name"] = f.Name, ["status"] = f.Status, ["playing"] = f.InGame }).ToArray());
-            state["friendsready"] = Settings.SteamWebApiKey.Length > 0;
-        }
-        if (Labs.On("winbox"))
-            state["inbox"] = new JsonArray(Notifications.Items.Take(8).Select(n => (JsonNode)new JsonObject
-            {
-                ["title"] = n.Title, ["text"] = n.Text, ["when"] = n.When.Date == DateTime.Today ? n.When.ToString("h:mm tt") : n.When.ToString("MMM d"), ["kind"] = n.Kind,
-            }).ToArray());
-        if (Labs.On("wdownloads"))
-        {
-            var items = new List<JsonNode>();
-            foreach (var g in _steam.Where(g => g.UpdateText.Length > 0 && (g.UpdateText.Contains('%') || g.UpdateText.Contains("queued", StringComparison.OrdinalIgnoreCase) || g.UpdateText.StartsWith("Updating", StringComparison.Ordinal))).Take(6))
-                items.Add(new JsonObject { ["name"] = g.Name, ["text"] = g.UpdateText });
-            if (_installing != null) items.Add(new JsonObject { ["name"] = _installing.Name, ["text"] = "Installing through Steam" });
-            foreach (var g in InstallQueue.Take(5)) items.Add(new JsonObject { ["name"] = g.Name, ["text"] = "Waiting in SquareDeck's queue" });
-            state["downloads"] = new JsonArray(items.ToArray());
-            state["queue"] = InstallQueue.Count + (_installing != null ? 1 : 0);
-        }
-        if (Labs.On("wparty") && running != null) state["party"] = running.IsSteam ? "steam" : "xbox";
         if (Labs.On("wapps")) state["appskey"] = string.Join("|", _apps.OrderByDescending(a => a.RecentAt).Take(6).Select(a => a.LaunchId));
         if (Labs.On("wtheme")) state["themekey"] = UiStyles.Current.Id + "|" + WidgetAccent() + "|" + Settings.Wallpaper;
         if (Labs.On("wcompanion"))
@@ -166,10 +129,6 @@ public partial class MainWindow
         var running = AllGames.FirstOrDefault(g => g.IsRunning);
         switch (op)
         {
-            case "navrumble":
-                // Moving around the widget (Experimental): the same short buzz as in SquareDeck.
-                if (Labs.On("wrumble")) { if (Int("ms") is int ms) Rumble(Math.Clamp(ms, 10, 200)); else Rumble(); }
-                return true;
             case "fpscap" when Int("value") is int fps:
                 _ = SetWidgetCapAsync(fps);
                 // The slider has no Save button: the cap is kept for the game as you set it.
@@ -200,43 +159,11 @@ public partial class MainWindow
                 WidgetNote("Note saved");
                 return true;
             }
-            case "achievements":
-                if (running is { IsSteam: true }) _ = SendWidgetAchievementsAsync(running);
-                else WidgetBridge.Send(new JsonObject { ["type"] = "achievements", ["none"] = running == null ? "No game running" : "Achievements are shown for Steam games" });
-                return true;
-            case "genie" when Str("q") is { Length: > 0 } question:
-                _ = WidgetGenieAsync(running, question);
-                return true;
-            case "rumble" when Int("value") is int level:
-                Settings.RumbleStrength = Math.Clamp(level, 0, 100);
-                Settings.Save();
-                if (level > 0) RumbleTest(level);
-                return true;
-            case "drift":
-                _ = WidgetDriftAsync();
-                return true;
-            case "chat" when Str("id") is { Length: > 0 } friend:
-                ProcessUtil.OpenOutside("steam://friends/message/" + friend);
-                return true;
-            case "steamdownloads":
-                ProcessUtil.OpenOutside("steam://open/downloads");
-                return true;
-            case "clearqueue":
-                ClearInstallQueue();
-                WidgetNote("SquareDeck's download queue stopped");
-                return true;
-            case "party":
-                if (running is { IsSteam: true }) { ProcessUtil.OpenOutside("steam://open/friends"); WidgetNote("Steam's friends list: right-click a friend to invite"); }
-                else WidgetNote("Open Game Bar's Xbox Social widget to invite friends");
-                return true;
             case "apps":
                 _ = SendWidgetAppsAsync();
                 return true;
             case "launch" when Str("id") is { Length: > 0 } app:
                 if (!InstalledApps.Launch(app)) WidgetNote("Couldn't start it");
-                return true;
-            case "go" when Str("page") is { Length: > 0 } page:
-                WidgetGo(page);
                 return true;
             case "layout":
                 SaveWidgetLayout(running, Str("order") ?? "", Str("hidden") ?? "");
@@ -329,64 +256,7 @@ public partial class MainWindow
         _autoTdpStatus = "";
     }
 
-    // ---- achievements
-
-    private async Task SendWidgetAchievementsAsync(Game game)
-    {
-        var list = await Labs.AchievementsAsync(game.AppId, CancellationToken.None);
-        var message = new JsonObject { ["type"] = "achievements", ["game"] = game.Name };
-        if (list == null || list.Count == 0) message["none"] = "No achievements found (the Steam profile needs to be public)";
-        else
-        {
-            message["unlocked"] = list.Count(a => a.Unlocked);
-            message["total"] = list.Count;
-            message["next"] = new JsonArray(list.Where(a => !a.Unlocked).OrderBy(a => a.Description.Length == 0).Take(5)
-                .Select(a => (JsonNode)new JsonObject { ["name"] = a.Name, ["desc"] = a.Description }).ToArray());
-        }
-        WidgetBridge.Send(message);
-    }
-
-    // ---- Ask Genie
-
-    private async Task WidgetGenieAsync(Game? game, string question)
-    {
-        void Reply(string? answer, string? error, bool spoiler = false) =>
-            WidgetBridge.Send(new JsonObject { ["type"] = "genie", ["q"] = question, ["a"] = answer, ["error"] = error, ["spoiler"] = spoiler });
-        if (game == null) { Reply(null, "Start a game first: Genie answers about the game you're playing."); return; }
-        if (!GameGenie.HasKey) { Reply(null, "Game Genie needs a Google Gemini key (Settings > Experimental > Game Genie)."); return; }
-        if (_genieBusy) { Reply(null, "Genie is still thinking about the last question."); return; }
-        _genieBusy = true;
-        try
-        {
-            StoreDetails? details = game.IsSteam ? await SteamStoreClient.GetDetailsAsync(game.AppId, CancellationToken.None) : null;
-            string known = GameGenieScreen.Known(game, details, null);
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
-            var sheet = GameGenie.Cached(game.Key) ?? await GameGenie.MakeAsync(game.Key, game.Name, known, cts.Token);
-            var answer = await GameGenie.AskAsync(game.Key, sheet, known, question, cts.Token);
-            Reply(answer.A, null, answer.Spoiler);
-        }
-        catch (Exception ex) { Reply(null, ex is GameGenie.GenieException g ? g.Message : "Genie couldn't answer right now."); }
-        finally { _genieBusy = false; }
-    }
-
-    // ---- controller drift
-
-    private async Task WidgetDriftAsync()
-    {
-        WidgetNote("Checking: keep your thumbs off the sticks");
-        double left = 0, right = 0;
-        for (int i = 0; i < 30; i++)
-        {
-            var p = PadState;
-            left = Math.Max(left, Math.Sqrt(Math.Pow(p.LeftX / 32768.0, 2) + Math.Pow(p.LeftY / 32768.0, 2)));
-            right = Math.Max(right, Math.Sqrt(Math.Pow(p.RightX / 32768.0, 2) + Math.Pow(p.RightY / 32768.0, 2)));
-            await Task.Delay(100);
-        }
-        string Verdict(double v) => v < 0.06 ? "fine" : v < 0.12 ? "a little drift" : "drift";
-        WidgetNote($"Left {left * 100:0}% ({Verdict(left)}), right {right * 100:0}% ({Verdict(right)})");
-    }
-
-    // ---- apps, pages
+    // ---- apps
 
     private async Task SendWidgetAppsAsync()
     {
@@ -405,21 +275,6 @@ public partial class MainWindow
             list.Add(new JsonObject { ["id"] = a.LaunchId, ["name"] = a.Name, ["icon"] = icon });
         }
         WidgetBridge.Send(new JsonObject { ["type"] = "apps", ["apps"] = list });
-    }
-
-    private void WidgetGo(string page)
-    {
-        WindowActivator.BringToFront(this);
-        while (_screens.Count > 0 && _screens[^1] is not BusyScreen && !(_screens[^1] is MenuScreen { Mandatory: true })) Pop(_screens[^1]);
-        if (_screens.Count > 0) return;
-        SetMode(HomeView.Games);
-        switch (page)
-        {
-            case "library": Push(SquareDeck.Screens.Switch2LibraryScreen.Create()); break;
-            case "retro": Push(new RetroLoungeScreen()); break;
-            case "captures": Push(new CapturesScreen()); break;
-            case "settings": Push(new SettingsScreen()); break;
-        }
     }
 
     // ---- layout

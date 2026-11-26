@@ -235,6 +235,10 @@ public sealed class InstalledAppsScreen : ListScreen
         Rows.Width = double.NaN;
         Rows.HorizontalAlignment = HorizontalAlignment.Stretch;
         Rows.Margin = new Thickness(0, 0, 18, 24);
+        // The list's scroller is still in the old body: take it out first (an element can only be in one place).
+        (RowsScroll.Parent as Panel)?.Children.Remove(RowsScroll);
+        if (RowsScroll.Parent is Decorator d) d.Child = null;
+        (RowsScroll.Parent as ContentControl)?.SetValue(ContentControl.ContentProperty, null);
         ReplaceBody(Switch2Pages.Shell(_s2Nav, RowsScroll, _s2Under));
         UseSwitch2Chrome("Installed apps", "\uE71D");
     }

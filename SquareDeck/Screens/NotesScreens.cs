@@ -36,6 +36,15 @@ public sealed class GameNotesScreen : Screen
     private List<NoteEntry> _notes = new();
     private string? _focusId;
 
+    /// <summary>
+    /// Switch 2 style (with the Switch 2 style game pages): "Notebook" in the title with a line under it; Rating and
+    /// status, Notes and Templates down the left (a tap jumps there), the game under them; on the right the game in a
+    /// card, the notes as cards with the rimmed highlight and the templates as flat rows, under bar-and-name headings.
+    /// </summary>
+    private readonly bool _s2 = Labs.On("s2details");
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+    private ScrollViewer _scroll = null!;
+
     public GameNotesScreen(Game game)
     {
         _game = game;
@@ -44,7 +53,43 @@ public sealed class GameNotesScreen : Screen
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             PanningMode = PanningMode.VerticalOnly, Focusable = false, Content = _page
         };
-        SetPage("Notebook – " + game.Name, scroll, "{Select}  Open        {Details}  Note options        {Back}  Back");
+        _scroll = scroll;
+        SetPage("Notebook – " + game.Name, scroll, "{Select}  Open        {Details}  Note options        {Back}  Back", wide: _s2);
+        if (_s2) SetUpSwitch2(scroll);
+    }
+
+    private void SetUpSwitch2(ScrollViewer scroll)
+    {
+        UseSwitch2Chrome("Notebook", "\uE70B");
+        // Cards and pills in the Switch 2 card color; room round the cards so the highlight's rim and glow show.
+        var card = new SolidColorBrush(Switch2Settings.Card);
+        card.Freeze();
+        Resources["TileBrush"] = card;
+        Resources["CircleBrush"] = card;
+        _page.Margin = new Thickness(14, 8, 18, 24);
+        var under = new StackPanel { Margin = new Thickness(40, 0, 18, 14) };
+        var name = Ui.Text(_game.Name, 15, "SubtleBrush");
+        name.TextTrimming = TextTrimming.CharacterEllipsis;
+        under.Children.Add(name);
+        under.Children.Add(Ui.Text("Your notebook", 12, "SubtleBrush"));
+        ReplaceBody(Switch2Pages.Shell(_s2Nav, scroll, under));
+    }
+
+    /// <summary>The sections on the left: each scrolls to its part of the page and puts the highlight on its first item.</summary>
+    private void BuildS2Nav(FrameworkElement header, FrameworkElement notes, FrameworkElement templates, Button first, Button firstTemplate)
+    {
+        _s2Nav.Children.Clear();
+        void Jump(FrameworkElement to, Button target)
+        {
+            try { _scroll.ScrollToVerticalOffset(Math.Max(0, to.TransformToAncestor(_page).Transform(new Point(0, 0)).Y - 10)); }
+            catch (InvalidOperationException) { }
+            UiSound.Move();
+            FocusLater(target);
+        }
+        var stars = header.FindDescendants<Button>().FirstOrDefault();
+        _s2Nav.Children.Add(Switch2Pages.NavItem("Rating and status", null, false, () => { if (stars != null) Jump(header, stars); }, focusable: false));
+        _s2Nav.Children.Add(Switch2Pages.NavItem("Notes", _notes.Count.ToString(), false, () => Jump(notes, first), focusable: false));
+        _s2Nav.Children.Add(Switch2Pages.NavItem("Templates", Templates.Length.ToString(), false, () => Jump(templates, firstTemplate), focusable: false));
     }
 
     private ItemOverride Mine => Host.Library.For(_game.Key);
@@ -61,20 +106,34 @@ public sealed class GameNotesScreen : Screen
     {
         _notes = GameNotebook.Load(_game);
         _page.Children.Clear();
-        _page.Children.Add(Header());
+        var header = (FrameworkElement)Header();
+        _page.Children.Add(header);
 
         // Notes
+        FrameworkElement notesHeading;
         var title = new DockPanel { Margin = new Thickness(4, 26, 4, 12) };
         var count = Ui.Text(_notes.Count == 0 ? "" : _notes.Count == 1 ? "1 note" : $"{_notes.Count} notes", 15, "SubtleBrush");
         count.VerticalAlignment = VerticalAlignment.Center;
         DockPanel.SetDock(count, Dock.Right);
         title.Children.Add(count);
         title.Children.Add(Ui.Text("Notes", 24, "FgBrush", bold: true));
-        _page.Children.Add(title);
+        if (_s2)
+        {
+            // A bar-and-name heading, with how many at the right.
+            var bar = new DockPanel { Margin = new Thickness(0, 22, 4, 6) };
+            DockPanel.SetDock(count, Dock.Right);
+            title.Children.Remove(count);
+            bar.Children.Add(count);
+            bar.Children.Add(Switch2Settings.Header("Notes"));
+            notesHeading = bar;
+        }
+        else notesHeading = title;
+        _page.Children.Add(notesHeading);
 
         var cards = new WrapPanel();
         Button? focus = null;
         var create = Card(null);
+        if (_s2) Switch2Pages.RestyleTile(create);
         cards.Children.Add(create);
         create.Click += (_, _) => Open(null, null);
         foreach (var note in GameNotebook.Ordered(_notes))
@@ -83,6 +142,7 @@ public sealed class GameNotesScreen : Screen
             var n = note;
             card.Click += (_, _) => Open(n, null);
             card.Tag = n;
+            if (_s2) Switch2Pages.RestyleTile(card);
             cards.Children.Add(card);
             if (n.Id == _focusId) focus = card;
         }
@@ -100,18 +160,32 @@ public sealed class GameNotesScreen : Screen
         }
 
         // Templates
-        var templateTitle = Ui.Text("Start from a template", 18, "FgBrush", bold: true);
-        templateTitle.Margin = new Thickness(4, 22, 0, 10);
+        FrameworkElement templateTitle;
+        if (_s2)
+        {
+            var heading = Switch2Settings.Header("Start from a template");
+            heading.Margin = new Thickness(0, 22, 0, 6);
+            templateTitle = heading;
+        }
+        else
+        {
+            var plain = Ui.Text("Start from a template", 18, "FgBrush", bold: true);
+            plain.Margin = new Thickness(4, 22, 0, 10);
+            templateTitle = plain;
+        }
         _page.Children.Add(templateTitle);
-        var templates = new WrapPanel();
+        Panel templates = _s2 ? new StackPanel() : new WrapPanel();
         foreach (var template in Templates)
         {
             var t = template;
-            var b = new Button { Style = Ui.StyleOf("PillButton"), Margin = new Thickness(0, 0, 10, 10), Content = IconLine(t.Glyph, t.Name) };
-            b.Click += (_, _) => Open(null, t);
+            // Switch 2 style: flat rows on thin lines; otherwise pills.
+            var b = _s2 ? Switch2Pages.SettingRow(t.Name, null, () => Open(null, t))
+                        : new Button { Style = Ui.StyleOf("PillButton"), Margin = new Thickness(0, 0, 10, 10), Content = IconLine(t.Glyph, t.Name) };
+            if (!_s2) b.Click += (_, _) => Open(null, t);
             templates.Children.Add(b);
         }
         _page.Children.Add(templates);
+        if (_s2) BuildS2Nav(header, notesHeading, templateTitle, create, (Button)templates.Children[0]);
 
         FocusLater(focus ?? (_notes.Count > 0 && cards.Children.Count > 1 ? cards.Children[1] as Button : create));
     }
@@ -128,9 +202,9 @@ public sealed class GameNotesScreen : Screen
     private UIElement Header()
     {
         var mine = Host.Library.Find(_game.Key);
-        var card = new Border { CornerRadius = new CornerRadius(22), Padding = new Thickness(22) };
-        card.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
-        card.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+        var card = new Border { CornerRadius = new CornerRadius(_s2 ? 16 : 22), Padding = new Thickness(22) };
+        card.SetResourceReference(Border.BackgroundProperty, _s2 ? "S2Card" : "DialogBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, _s2 ? "S2Line" : "PanelStroke");
         card.BorderThickness = new Thickness(1);
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -189,8 +263,8 @@ public sealed class GameNotesScreen : Screen
     private Button Card(NoteEntry? note)
     {
         const double W = 300, H = 214;
-        var face = new Border { Width = W, Height = H, CornerRadius = new CornerRadius(18), ClipToBounds = true, BorderThickness = new Thickness(1) };
-        face.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
+        var face = new Border { Width = W, Height = H, CornerRadius = new CornerRadius(_s2 ? 12 : 18), ClipToBounds = true, BorderThickness = new Thickness(1) };
+        face.SetResourceReference(Border.BorderBrushProperty, _s2 ? "S2Line" : "PanelStroke");
         var tint = note != null ? GameNotebook.ColorOf(note.Color) : null;
         if (tint is { } c)
         {

@@ -3,6 +3,53 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.1.68
+- More pages in the Switch 2 style, on by default (switch: "PC tools, network, device info, terminals, What's new, Changelogs and Credits", with the other Switch 2 style pages in Settings > Look and feel): PC settings, Battery, Device information, Wi-Fi, Bluetooth, Network speed test, Network troubleshooting, Disk cleanup, Storage speed test (and its results), Format external storage, Driver check, Storage advisor, Library cleanup, Move game to another drive, Adrenaline Hook, the Command Prompt and PowerShell terminals, Xbox mode home app, What's new, Changelogs and Credits; and the ROG Ally and device pages: ROG Ally controls (and each of its parts), light colors, Device health, Battery and performance by game, Battery health, Visual modes, CPU core configuration, Custom fan curve, the Controller tester (with your handheld drawn) and the simple controller test. Each has its name and icon in the title with a line under it, bar-and-name headings and flat rows with the rimmed highlight, in your UI style's colors. The terminals keep their dark console inside a card-colored frame.
+- With the Switch 2 style game pages ("Game pages" switch), a game's Notebook, Artwork and Game profile pages take the Switch 2 style too:
+  - Notebook: "Notebook" in the title; Rating and status, Notes and Templates down the left (a tap jumps there), the game under them; the game in a card, the notes as cards with the rimmed highlight, the templates as flat rows, under bar-and-name headings.
+  - Artwork (SteamGridDB): the kinds of artwork (square covers, icons, tall grids, header capsules, hero images, logos) down the left instead of the tab bar, the one showing marked (LB / RB still switch); the kind as the heading with where it's used; the pictures as tiles with the rimmed highlight in the card color.
+  - Game profile: flat rows and bar-and-name headings, like Settings.
+- Game Bar widget: while a cloud gaming service (Xbox Cloud Gaming, GeForce NOW, Amazon Luna, Antstream Arcade) is open in SquareDeck, the widget's game card shows it, with its logo, "Cloud gaming" and how long it's been open, and Close game leaves it (as its own leave buttons do). Widget 1.6.13.0.
+- ROG Ally family: "ROG logo in the corner" (Settings > Handheld Specific Settings, under Display and processor) puts the ROG logo in the bottom-left corner instead of the controller icon, on Home and the Switch 2 style pages. Off by default; On (in the text color, so it suits light and dark styles), White, or Black for a white background or footer.
+- Game profile, on the ROG Ally: a Screen section with the visual mode (ASUS GameVisual: Racing, Scenery, RTS/RPG, FPS, Cinema, Vivid, Eyecare, Disabled) and color temperature to use while the game runs. They're applied when the game starts (and straight away if it's running), and your usual mode comes back when it closes, without changing your usual mode.
+- The companion arrives and leaves a different way each time you turn it on or off. Hellos: drops from the sky, pops up from below, runs in, teleports, parachutes down, spins in, rockets in, or wakes up from a nap. Goodbyes: sinks away, blasts off, vanishes in a poof, walks off, floats away on a balloon, spins out, dozes off, or beams up. Each goes through all eight before any comes back, and it says something to match. Turning it back on mid-goodbye brings it straight back.
+- News: five more news sites under IGN Games, PC Gamer, Kotaku, Eurogamer, Nintendo Life and Xbox Wire, read from their feeds while News is open, like IGN's. Sales now comes right after Patches, and shows three games to a row (a little smaller when the page is too narrow for three at full size).
+- Fixed (News, Switch 2 style): the highlight round the big story at the top was cut off along its top and left edges.
+- Pop-ups with icons (Open Terminal's Command Prompt / PowerShell and the many others like it) and pop-ups that need an answer now take the Switch 2 look over Switch 2 style pages, as the other pop-ups already did: the floating card in the card color, plain rows on thin lines with the rimmed highlight.
+- Notifications: Clear all swipes the notifications off to the right one after another, like a phone, then the list closes up and the empty note rises in.
+- The Genie has more to do while it waits for answers: it juggles three glowing orbs and twirls round in a ring of sparkles (two new acts), vanishes in a puff of sparks between acts, drifts side to side as it floats, glows with a pulsing aura, has motes of light circling it, and shooting stars cross the sky. The dots after its status line bounce. With Reduce motion on, it all stays still.
+- Fixed: Ask Genie did nothing with the Switch 2 style Game Genie on. The question list was moved into the new layout while still in the old one, which Windows refuses.
+- Stores: Recomp Zone and Retro Lounge say "Built-in" on the right, where installed stores say "Installed".
+- Game Genie in the Switch 2 style, on by default (switch: "Game Genie", with the other Switch 2 style pages in Settings > Look and feel): "Game Genie" in the title with a line under it; the kinds of question down the left with how many each has, the one in view marked as you scroll, LT / RT or a tap jumping to them; the game in a card at the top (cover, name, the Genie's summary and facts); the questions under bar-and-name headings as flat rows, in your UI style's colors.
+- Fixed the Genie's lamp: the lid's knob floated above the lid, and the handle and spout were cut out where they meet the bowl (drawn as one shape, the overlaps became holes). Each part is now its own shape.
+- Game pages (Switch 2 style):
+  - Achievements is now listed on the left, after DLC, like the other sections.
+  - "How long to beat" on the left now jumps to its section. It rebuilds itself once the times arrive, and the list kept pointing at the old heading.
+  - Your screenshots of the game come right after the top card (before How long to beat), so they're second on the left.
+  - More of your screenshots are found: Game Bar's newer names ("Game Screenshot 2026.11.26 - 07.30.12.90.png"), and folders inside Captures (a folder named after the game, or pictures named after it).
+
+## 8.1.67
+- Fixed: in the Switch 2 style My Device, the Overview's battery ring and the processor, graphics, temperature and fan gauges stayed empty. They only updated when the page also had cards on it, and Overview has none.
+
+## 8.1.66
+- Game pages in the Switch 2 style, on by default (a switch for it, "Game pages", is with the other Switch 2 style pages in Settings > Look and feel): the game's name in the title with a line under it; down the left, Overview and every section the page has (How long to beat, Your notes, screenshots, About, News and updates, Player stats, DLC, achievements and the rest), the one in view marked as you scroll; LT / RT or a tap jump to a section and put the highlight on its first item; the cover, details, badges and buttons in a card at the top; bar-and-name headings, flat rows, rimmed tiles and cards in the Switch 2 card color, all in your UI style's colors.
+
+## 8.1.65
+- The controller icon is back in the bottom-left corner for every device, on Home and on the Switch 2 style pages (they had shown a drawn handheld). "Your handheld in the corner" is off by default again (switched off once when you update) and stays in Settings under Home touches if you want it.
+
+## 8.1.64
+- Removed from SquareDeck, with everything that was left in Experimental: Smooth return after playing (the Switch 2 style return stays), Smart collections, Daily pick, the Game Pass shelf, Trailer previews on Home, Friends playing on Home, and the widget's Achievements, Ask Genie, Controller, Friends, Notifications and Downloads cards, Invite button, SquareDeck shortcuts and rumble while moving around. Experimental is now empty. Widget 1.6.12.0.
+- Fixed: the "Switch 2 style pages" and "Home touches" switches (including the Continue where you left off parallax) didn't show in Settings > Look and feel.
+
+## 8.1.63
+- Fixed: My Device (and Installed apps) wouldn't open with the Switch 2 style on. The page's list was moved into the new layout while still in the old one, which Windows refuses.
+
+## 8.1.62
+- My Device in the Switch 2 style, on by default (a switch for it is with the other Switch 2 style pages in Settings): Overview (the device card with its battery ring, and the live processor, graphics, temperature and fan gauges), Power and battery, System, and More settings down the left with the device name and battery under them, one section at a time on the right (LT / RT change section), cards in the card color with a thin line and the rimmed highlight, bar-and-name headings and flat rows, all in your UI style's colors.
+
+## 8.1.61
+- Multimedia: LT / RT (L2 / R2) now change between Now playing, My music, Spotify and the other tabs, instead of LB / RB. Previous / next track moved to LB / RB.
+
 ## 8.1.60
 - The Continue where you left off parallax is now off by default (8.1.58 had turned it on). It's switched off once when you update; turn it on in Settings under Home touches, on the page with Night light and Screen shape.
 

@@ -71,12 +71,17 @@ public sealed class GameProfile
     public string? FanCurve { get; set; }
     public int? Vibration { get; set; }
     public bool? XboxLightOff { get; set; }
+    // The ROG Ally's screen while this game runs: an ASUS GameVisual mode (VisualModes.Modes' id; null = your usual
+    // one) and its color temperature (null = your usual one). Put back when the game closes.
+    public int? VisualMode { get; set; }
+    public int? VisualTemperature { get; set; }
     /// <summary>The Game Bar widget's quick tiles while this game runs (null = the usual ones).</summary>
     public List<string>? WidgetQuick { get; set; }
 
     public bool IsEmpty => Width == 0 && RefreshRate == 0 && Hdr == null && PowerPlanId == null && AudioDeviceId == null && !HasPower
                            && Lights == null && LightColor == null && LightColor2 == null && !AmdMetricsOverlay
-                           && FanCurve == null && Vibration == null && XboxLightOff == null && WidgetQuick == null;
+                           && FanCurve == null && Vibration == null && XboxLightOff == null && WidgetQuick == null
+                           && VisualMode == null && VisualTemperature == null;
 }
 
 /// <summary>A game the user added by hand: any program on the PC.</summary>

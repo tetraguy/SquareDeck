@@ -81,7 +81,7 @@ public partial class MainWindow
             {
                 if (_tiltWasRunning) _tiltTimer.Start();
                 _tiltWasRunning = false;
-                if (_companion != null) _companionTimer.Start();
+                if (_companion != null && !_companionLeaving) _companionTimer.Start();
                 if (!_backgroundMode) _padTimer.Interval = TimeSpan.FromMilliseconds(16);
             }
             PauseAmbient(rest || _backgroundMode);
