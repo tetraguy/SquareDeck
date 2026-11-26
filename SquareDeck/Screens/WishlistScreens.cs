@@ -301,10 +301,47 @@ public sealed class ReleaseCalendarScreen : Screen
     private DateTime _month = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private string? _focusTag;
 
+    /// <summary>
+    /// Switch 2 style (with Captures, Multimedia and Stores): "Release calendar" in the title with a line under it,
+    /// Wishlist and sales / Release calendar down the left instead of the tab bar, the days as cards in the card color
+    /// with the rimmed highlight, and bar-and-name headings.
+    /// </summary>
+    private readonly bool _s2 = Switch2Pages.On;
+    private readonly StackPanel _s2Nav = new() { Margin = new Thickness(0, 6, 0, 10) };
+
     public ReleaseCalendarScreen()
     {
         var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, PanningMode = PanningMode.VerticalOnly, Focusable = false, Content = _page };
         SetPage("Release calendar", scroll, "{Select}  See games        LT RT  Month        {LB}{RB}  Switch page        {Back}  Back", wide: true);
+        if (!_s2) return;
+        UseSwitch2Chrome("Release calendar", "\uE787");
+        var card = new SolidColorBrush(Switch2Settings.Card);
+        card.Freeze();
+        Resources["TileBrush"] = card;
+        Resources["DialogBrush"] = card;
+        Resources["CircleBrush"] = card;
+        _page.Margin = new Thickness(14, 8, 18, 24); // room for the highlight's rim and glow
+        foreach (var (id, name, _) in WishTabs.Tabs)
+        {
+            string target = id;
+            _s2Nav.Children.Add(Switch2Pages.NavItem(name, null, id == "calendar", () => { if (target != "calendar") WishTabs.Switch(Host, this, target); }, focusable: false));
+        }
+        Detach(scroll); // still in the old layout: let go of it first
+        ReplaceBody(Switch2Pages.Shell(_s2Nav, scroll));
+    }
+
+    /// <summary>A section heading: bar-and-name in the Switch 2 style.</summary>
+    private FrameworkElement Heading(string text)
+    {
+        if (_s2)
+        {
+            var h = Switch2Settings.Header(text);
+            h.Margin = new Thickness(0, 22, 0, 6);
+            return h;
+        }
+        var t = Ui.Text(text, 20, "FgBrush", bold: true);
+        t.Margin = new Thickness(4, 22, 0, 10);
+        return t;
     }
 
     public override void OnShown()
@@ -343,7 +380,7 @@ public sealed class ReleaseCalendarScreen : Screen
     private void Build()
     {
         _page.Children.Clear();
-        _page.Children.Add(WishTabs.Bar("calendar", t => WishTabs.Switch(Host, this, t)));
+        if (!_s2) _page.Children.Add(WishTabs.Bar("calendar", t => WishTabs.Switch(Host, this, t)));
         var games = Host.PriceWatch.Games.Where(g => g.Name.Length > 0).ToList();
 
         // Month header: arrows, the month, Today.
@@ -366,8 +403,12 @@ public sealed class ReleaseCalendarScreen : Screen
         head.Children.Add(nav);
         int inMonth = games.Count(g => g.ReleaseDay is { } d && d.Year == _month.Year && d.Month == _month.Month);
         var title = new StackPanel();
-        title.Children.Add(Ui.Text(_month.ToString("MMMM yyyy"), 34, "FgBrush", bold: true));
-        title.Children.Add(Ui.Text(inMonth == 0 ? "No release days this month" : inMonth == 1 ? "1 release this month" : $"{inMonth} releases this month", 15, "SubtleBrush"));
+        var monthName = Ui.Text(_month.ToString("MMMM yyyy"), 34, "FgBrush", bold: !_s2);
+        if (_s2) monthName.Margin = new Thickness(14, 0, 0, 0);
+        title.Children.Add(monthName);
+        var count = Ui.Text(inMonth == 0 ? "No release days this month" : inMonth == 1 ? "1 release this month" : $"{inMonth} releases this month", 15, "SubtleBrush");
+        if (_s2) count.Margin = new Thickness(14, 2, 0, 0);
+        title.Children.Add(count);
         head.Children.Add(title);
         _page.Children.Add(head);
 
@@ -416,9 +457,7 @@ public sealed class ReleaseCalendarScreen : Screen
         var monthOnly = games.Where(g => g.ReleaseDay == null && g.ReleaseMonth is { } m && m.Year == _month.Year && m.Month == _month.Month).ToList();
         if (monthOnly.Count > 0)
         {
-            var t = Ui.Text("Sometime in " + _month.ToString("MMMM") + " (or that quarter)", 20, "FgBrush", bold: true);
-            t.Margin = new Thickness(4, 22, 0, 10);
-            _page.Children.Add(t);
+            _page.Children.Add(Heading("Sometime in " + _month.ToString("MMMM") + " (or that quarter)"));
             var row = new WrapPanel();
             foreach (var g in monthOnly) row.Children.Add(Chip(g));
             _page.Children.Add(row);
@@ -427,9 +466,7 @@ public sealed class ReleaseCalendarScreen : Screen
         var upcoming = games.Where(g => g.ReleaseDay is { } d && d > _month.AddMonths(1).AddDays(-1)).OrderBy(g => g.ReleaseDay).Take(6).ToList();
         if (upcoming.Count > 0)
         {
-            var t = Ui.Text("After this month", 20, "FgBrush", bold: true);
-            t.Margin = new Thickness(4, 22, 0, 10);
-            _page.Children.Add(t);
+            _page.Children.Add(Heading("After this month"));
             var row = new WrapPanel();
             foreach (var g in upcoming) row.Children.Add(Chip(g, g.ReleaseDay!.Value.ToString("MMM d, yyyy")));
             _page.Children.Add(row);
@@ -458,7 +495,8 @@ public sealed class ReleaseCalendarScreen : Screen
         bool today = day == DateTime.Today;
         var face = new Border { Height = 118, CornerRadius = new CornerRadius(14), Margin = new Thickness(3), Padding = new Thickness(8, 6, 8, 8), BorderThickness = new Thickness(today ? 2 : 1) };
         face.SetResourceReference(Border.BackgroundProperty, games.Count > 0 ? "DialogBrush" : "TileBrush");
-        face.SetResourceReference(Border.BorderBrushProperty, today ? "AccentBrush" : "PanelStroke");
+        face.SetResourceReference(Border.BorderBrushProperty, today ? "AccentBrush" : _s2 ? "S2Line" : "PanelStroke");
+        if (_s2) face.CornerRadius = new CornerRadius(12);
         face.Opacity = inThisMonth ? 1 : 0.4;
         var stack = new DockPanel();
         var number = new TextBlock { Text = day.Day.ToString(), FontSize = 16, FontWeight = today ? FontWeights.Bold : FontWeights.SemiBold };
@@ -490,7 +528,7 @@ public sealed class ReleaseCalendarScreen : Screen
         face.Child = stack;
         if (games.Count == 0) return face;
 
-        var button = new Button { Style = Ui.StyleOf("TileButton"), Content = face, Tag = "day:" + day.ToString("yyyy-MM-dd"), Padding = new Thickness(0), Margin = new Thickness(-8) };
+        var button = new Button { Style = _s2 ? Switch2Pages.TileStyle : Ui.StyleOf("TileButton"), Content = face, Tag = "day:" + day.ToString("yyyy-MM-dd"), Padding = new Thickness(0), Margin = new Thickness(_s2 ? -3 : -8) };
         button.Click += async (_, _) =>
         {
             _focusTag = "day:" + day.ToString("yyyy-MM-dd");

@@ -8,8 +8,8 @@ namespace SquareDeck;
 
 /// <summary>
 /// Experimental "Continue where you left off parallax": on Home, while the "Continue where you left off" game is
-/// there, moving the handheld moves its artwork in depth. The art slides and leans one way, the logo and name drift
-/// the other at a shallower depth, and in the big-artwork Home layout the artwork behind the page moves too.
+/// there, moving the handheld moves its artwork in depth. Only the pictures move: the tile's art slides behind its
+/// logo, name and label (which stay put), and in the big-artwork Home layout the artwork behind the page moves too.
 ///
 /// It reads the handheld's motion sensors: the inclinometer (the gyro and accelerometer together) when Windows has
 /// one, else the gyro on its own, else the accelerometer. Whatever angle you hold it at becomes the middle after a
@@ -172,17 +172,17 @@ public partial class MainWindow
         double depth = double.TryParse(Labs.Get("plx.depth", "1"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 1;
         if (art != null)
         {
-            // The art: a little bigger than its frame so it can slide, leaning slightly as it goes.
+            // The art: a little bigger than its frame so it can slide, flat (no lean, which made it look uneven).
             var group = new TransformGroup();
             // Enough extra size that its edges never show inside the tile, however deep the setting.
             double zoom = 1 + 0.14 * Math.Max(1, depth);
             group.Children.Add(new ScaleTransform(zoom, zoom));
-            group.Children.Add(new SkewTransform(x * 1.6 * depth, -y * 1.2 * depth));
             group.Children.Add(new TranslateTransform(-x * 22 * depth, -y * 16 * depth));
             art.RenderTransformOrigin = new Point(0.5, 0.5);
             art.RenderTransform = group;
         }
-        if (face != null) face.RenderTransform = new TranslateTransform(x * 8 * depth, y * 6 * depth);
+        // The logo, name and label stay where they are: only the picture behind them moves.
+        if (face != null && face.RenderTransform is not MatrixTransform { Matrix.IsIdentity: true }) face.RenderTransform = Transform.Identity;
         if (hero && HeroImage != null)
         {
             // The art behind the page is the deepest layer: it moves the most (it has room past the window's edges).

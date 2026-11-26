@@ -1605,25 +1605,10 @@ public sealed partial class SettingsScreen : ListScreen
         AddNote("16:10 fills handhelds and laptops with taller screens (1280 x 800, 1920 x 1200, 2560 x 1600) edge to edge " +
                 "instead of leaving bars at the top and bottom.");
 
-        AddHeader("Settings view and unlockables");
-        AddFeature("newsettings");
-        if (!Labs.On("newsettings")) AddFeature("settingsview"); // the Switch 2 look has its own layout
+        // The Switch 2 style is the look everywhere now (no switches for it, or for the older Settings layouts).
+        AddHeader("Unlockables");
         AddFeaturePage("unlockables", "Unlockables", "Highlight colors and companion outfits you earn by playing, and the ones still locked");
 
-        AddHeader("Switch 2 style pages");
-        AddFeature("newlibrary", "Library");
-        AddFeature("s2pages", "Captures, Multimedia and Stores");
-        AddFeature("s2tools", "Recomp Zone, Retro Lounge, Explorer and Task Manager");
-        AddFeature("s2social", "News, Friends and Your profile");
-        AddFeature("s2system", "Menus, Search, Browser, Notifications and game pages");
-        AddFeature("s2play", "Passport, Backlog Boss, Mood picker, Leaderboard and Free games");
-        AddFeature("s2apps", "Installed apps");
-        AddFeature("s2device", "My Device");
-        AddFeature("s2details", "Game pages");
-        AddFeature("s2genie", "Game Genie");
-        AddFeature("s2pctools", "PC tools, network, device info, terminals, What's new, Changelogs and Credits");
-        AddFeature("s2setup", "First-time setup");
-        AddFeature("s2toast", "Notifications in the corner");
         AddHeader("Home touches");
         AddFeature("oemfooter");
         AddFeature("plxcontinue");
@@ -1889,7 +1874,6 @@ public sealed partial class SettingsScreen : ListScreen
         }
         AddFeature("wtheme", "Widget: match my style");
         AddFeature("wcompanion", "Widget: companion");
-        AddFeature("ws2", "Widget: Switch 2 style");
         AddFeature("wfpsslider", "Widget: frame cap slider");
         AddFeaturePage("wpowerlook", "Widget: wattage look", "How the TDP shows in the Power card: full dial, slim bar, mini dial, number only or preset chips");
         AddNote("The widget's cards are all built in now: media controls, frame cap buttons, Auto TDP and the thermal warning in the Power and Live cards, " +
@@ -2974,7 +2958,6 @@ public sealed partial class SettingsScreen : ListScreen
         }
         AddFeature("switchboot");
         if (Labs.On("switchboot")) AddFeature("switchbootplus", "Logo and loading line on the Switch boot");
-        AddFeature("s2game");
         AddFeature("zoneexit");
         AddFeature("storeintro");
         AddFeature("rasurprise", "Surprise me in Retro Lounge");

@@ -577,6 +577,9 @@ public sealed class DetailsScreen : Screen
     private readonly StackPanel _s2Under = new() { Margin = new Thickness(40, 0, 18, 14) };
     private List<FrameworkElement> _s2Heads = new();
     private int _s2Current = -1;
+    /// <summary>The sections listed on the left (after Overview), in page order: there from the start, not as they load.</summary>
+    private List<string> _s2Names = new();
+    private readonly DateTime _s2OpenedAt = DateTime.Now;
 
     /// <summary>The game this page is about.</summary>
     public Game Game => _game;
@@ -798,6 +801,45 @@ public sealed class DetailsScreen : Screen
         Unloaded += (_, _) => soon.Stop();
         _scroll.ScrollChanged += (_, _) => MarkS2Current();
         RefreshS2Nav();
+        // Once the page has had time to load, sections it turned out not to have are dimmed on the left.
+        var settle = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(S2SettleSeconds + 0.5) };
+        settle.Tick += (_, _) => { settle.Stop(); RefreshS2Nav(); };
+        settle.Start();
+        Unloaded += (_, _) => settle.Stop();
+    }
+
+    private const double S2SettleSeconds = 10;
+
+    /// <summary>A section's name for matching ("DLC and mods" is the DLC section).</summary>
+    private static string S2Key(string name) => name.StartsWith("DLC", StringComparison.Ordinal) ? "DLC" : name;
+
+    /// <summary>
+    /// The sections this game's page will have, in page order, known when it opens, so the list on the left is complete
+    /// straight away instead of growing as each one loads. Your screenshots are added only when there are some.
+    /// </summary>
+    private List<string> S2Expected()
+    {
+        var list = new List<string>();
+        if (Host?.Settings.ShowHowLongToBeat == true && _game.IsGame) list.Add("How long to beat");
+        var mine = Host?.Library.Find(_game.Key);
+        if (mine is { Rating: > 0 } || !string.IsNullOrWhiteSpace(mine?.Status) || GameNotebook.Load(_game).Count > 0) list.Add("Your notes");
+        list.Add("About");
+        if (_game.IsSteam)
+        {
+            list.Add("Developer's Screenshots");
+            if (Host?.Settings.ShowPlayerStats == true) list.Add("Player stats");
+            list.Add("News and updates");
+            list.Add("DLC");
+            list.Add("Achievements");
+        }
+        return list;
+    }
+
+    private void ScrollToS2Name(string name)
+    {
+        int index = _s2Heads.FindIndex(h => S2Key(S2HeadText(h)) == S2Key(name) && _page.IsAncestorOf(h));
+        if (index < 0) { RefreshS2Nav(); index = _s2Heads.FindIndex(h => S2Key(S2HeadText(h)) == S2Key(name)); }
+        if (index >= 0) ScrollToS2(index); // not on the page (yet): nothing to go to
     }
 
     /// <summary>A heading's name: its biggest text (the count beside Achievements is smaller).</summary>
@@ -816,23 +858,46 @@ public sealed class DetailsScreen : Screen
     /// <summary>Builds the list on the left from the headings on the page (when they've changed).</summary>
     private void RefreshS2Nav()
     {
-        var heads = FindS2Heads(_page).Where(h => h.IsVisible || h.Visibility == Visibility.Visible).ToList();
-        bool same = heads.Count == _s2Heads.Count && heads.Select(S2HeadText).SequenceEqual(_s2Heads.Select(S2HeadText)) && _s2Nav.Children.Count > 0;
         // Always the headings as they are now: a section that rebuilds itself (How long to beat, once its times arrive)
         // puts up a new heading with the same name, and the old one is no longer on the page.
+        var heads = FindS2Heads(_page).Where(h => h.IsVisible || h.Visibility == Visibility.Visible).ToList();
         _s2Heads = heads;
-        if (same) return;
-        bool inNav = _s2Nav.IsKeyboardFocusWithin;
-        _s2Nav.Children.Clear();
-        _s2Nav.Children.Add(Switch2Pages.NavItem("Overview", null, false, () => ScrollToS2(-1), focusable: false));
-        for (int i = 0; i < heads.Count; i++)
+        var found = heads.Select(S2HeadText).ToList();
+
+        // The usual sections, listed from the start; any others on the page (your screenshots…) where they sit on it.
+        var names = S2Expected();
+        for (int i = 0; i < found.Count; i++)
         {
-            int index = i;
-            _s2Nav.Children.Add(Switch2Pages.NavItem(S2HeadText(heads[i]), null, false, () => ScrollToS2(index), focusable: false));
+            if (names.Any(n => S2Key(n) == S2Key(found[i]))) continue;
+            int pos = 0;
+            for (int j = i - 1; j >= 0; j--)
+            {
+                int k = names.FindIndex(n => S2Key(n) == S2Key(found[j]));
+                if (k >= 0) { pos = k + 1; break; }
+            }
+            names.Insert(pos, found[i]);
         }
+        var shown = names.Select(n => found.FirstOrDefault(f => S2Key(f) == S2Key(n)) ?? n).ToList(); // "DLC and mods" once known
+
+        if (!shown.SequenceEqual(_s2Names) || _s2Nav.Children.Count == 0)
+        {
+            _s2Names = shown;
+            bool inNav = _s2Nav.IsKeyboardFocusWithin;
+            _s2Nav.Children.Clear();
+            _s2Nav.Children.Add(Switch2Pages.NavItem("Overview", null, false, () => ScrollToS2(-1), focusable: false));
+            foreach (var name in shown)
+            {
+                string target = name;
+                _s2Nav.Children.Add(Switch2Pages.NavItem(name, null, false, () => ScrollToS2Name(target), focusable: false));
+            }
+            if (inNav) FocusDefault();
+        }
+        // Still loading: every section looks ready. After that, ones the page doesn't have are dimmed.
+        bool settled = (DateTime.Now - _s2OpenedAt).TotalSeconds >= S2SettleSeconds;
+        for (int i = 0; i < _s2Names.Count && i + 1 < _s2Nav.Children.Count; i++)
+            _s2Nav.Children[i + 1].Opacity = !settled || found.Any(f => S2Key(f) == S2Key(_s2Names[i])) ? 1 : 0.4;
         _s2Current = -2;
         MarkS2Current();
-        if (inNav) FocusDefault();
     }
 
     private static IEnumerable<FrameworkElement> FindS2Heads(DependencyObject root)
@@ -899,8 +964,10 @@ public sealed class DetailsScreen : Screen
         if (_scroll.VerticalOffset >= _scroll.ScrollableHeight - 2 && _s2Heads.Count > 0 && _scroll.ScrollableHeight > 0) current = Math.Max(current, _s2Heads.Count - 1);
         if (current == _s2Current) return;
         _s2Current = current;
+        // The heading in view, as its entry on the left (Overview above the first one).
+        int entry = current < 0 ? 0 : 1 + _s2Names.FindIndex(n => S2Key(n) == S2Key(S2HeadText(_s2Heads[current])));
         for (int i = 0; i < _s2Nav.Children.Count; i++)
-            if (_s2Nav.Children[i] is Button b) b.Tag = i == current + 1 ? "selected" : null;
+            if (_s2Nav.Children[i] is Button b) b.Tag = i == entry ? "selected" : null;
     }
 
     /// <summary>Puts the game's logo on the left, large, in place of its name once it has loaded.</summary>
@@ -1283,6 +1350,7 @@ public sealed class DetailsScreen : Screen
         _ = TintFromCoverAsync();
         _ = LoadHeroAsync();
         _ = LoadAsync();
+        if (_s2) RefreshS2Nav(); // the whole list on the left now, before anything has loaded
     }
 
     public override void OnResumed()

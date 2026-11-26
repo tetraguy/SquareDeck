@@ -72,6 +72,7 @@ public sealed class GameNotesScreen : Screen
         name.TextTrimming = TextTrimming.CharacterEllipsis;
         under.Children.Add(name);
         under.Children.Add(Ui.Text("Your notebook", 12, "SubtleBrush"));
+        Detach(scroll); // still in the old layout: let go of it first, or Windows refuses the move
         ReplaceBody(Switch2Pages.Shell(_s2Nav, scroll, under));
     }
 

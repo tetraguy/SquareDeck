@@ -134,6 +134,10 @@ public static partial class Labs
     /// <summary>Always on: they're simply part of SquareDeck now, with no switch.</summary>
     public static readonly HashSet<string> AlwaysOn = new()
     {
+        // 8.5.0: the Switch 2 style is the look everywhere, with no switches: Settings, the Library and every page
+        // drawn that way, the notifications in the corner, the launch / stop / return, and the Game Bar widget.
+        "newsettings", "newlibrary", "s2pages", "s2tools", "s2social", "s2system", "s2play", "s2apps", "s2device", "s2details",
+        "s2genie", "s2pctools", "s2setup", "s2toast", "s2game", "ws2",
         "move", "storage", "cleanup", "fixgame", "sticks", "battery", "gamegenie", "unlockables",
         // 8.1.18
         "visualmodes", "cpucores", "fancurve", "padtest", "drivercheck", "startupapps", "twitch", "aboutgame",
@@ -179,7 +183,7 @@ public static partial class Labs
         "s2device",
         // 8.1.66
         "s2details",
-        // 8.1.68
+        // 8.5.0
         "s2genie", "s2pctools",
     }));
 

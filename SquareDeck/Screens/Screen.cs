@@ -438,6 +438,20 @@ public abstract class Screen : UserControl
     }
 
     /// <summary>Swaps the page's content for another layout (with the wide page margins).</summary>
+    /// <summary>
+    /// Takes an element out of whatever holds it, so it can go into a new layout (Windows refuses an element that's
+    /// still in another one). Pages call this on their scroller before putting it into Switch2Pages.Shell.
+    /// </summary>
+    protected static void Detach(FrameworkElement element)
+    {
+        switch (element.Parent)
+        {
+            case Panel panel: panel.Children.Remove(element); break;
+            case Decorator decorator: decorator.Child = null; break;
+            case ContentControl content: content.Content = null; break;
+        }
+    }
+
     protected void ReplaceBody(UIElement body)
     {
         if (_bodyHost == null) return;
@@ -694,7 +708,11 @@ public abstract class GridScreen : Screen
         Resources["TileBrush"] = card;
         Resources["CircleBrush"] = card;
         Body.Margin = new Thickness(14, 8, 18, 24); // room for the highlight's rim and glow
-        if (nav != null) ReplaceBody(Switch2Pages.Shell(nav, GridScroll, underNav));
+        if (nav != null)
+        {
+            Detach(GridScroll); // still in the old layout: let go of it first
+            ReplaceBody(Switch2Pages.Shell(nav, GridScroll, underNav));
+        }
         Switch2Pages.AutoRestyle(Tiles);
     }
 

@@ -38,7 +38,8 @@ public static class Switch2Pages
         or CustomFanScreen or ControllerTesterScreen or ControllerTestScreen or LedColorScreen;
 
     /// <summary>List pages drawn the Switch 2 way by ListScreen: the PC tools and info pages, and a game's profile (with the game pages).</summary>
-    public static bool ListPage(Screen screen) => PcPage(screen) || (Labs.On("s2details") && screen is GameProfileScreen);
+    public static bool ListPage(Screen screen) => PcPage(screen) || (Labs.On("s2details") && screen is GameProfileScreen)
+        || (On && screen is AddStoresScreen); // from Stores, with Captures, Multimedia and Stores
 
     /// <summary>The icon beside a PC tool or info page's name in its title.</summary>
     public static string PcGlyph(Screen screen) => screen switch
@@ -54,6 +55,7 @@ public static class Switch2Pages
         StorageScreen => "\uE88E",
         MoveGameScreen => "\uE8DE",
         GameProfileScreen => "\uE7FC",
+        AddStoresScreen => "\uE710",
         AllyControlScreen => Ui.HandheldGlyph,
         DeviceHealthScreen => "\uE95E",
         BatteryInsightScreen or BatteryHealthScreen => "\uE945",
@@ -74,7 +76,7 @@ public static class Switch2Pages
     /// <summary>Pages drawn this way, whose pop-ups take the Switch 2 look too.</summary>
     public static bool Applies(Screen screen) =>
         screen is Switch2LibraryScreen || (Switch2Settings.On && screen is SettingsScreen)
-        || (On && screen is CapturesScreen or MediaScreen or StoresScreen)
+        || (On && screen is CapturesScreen or MediaScreen or StoresScreen or ReleaseCalendarScreen or AddStoresScreen)
         || (ToolsOn && screen is RecompZoneScreen or RetroLoungeScreen or ExplorerScreen or TaskManagerScreen)
         || (SocialOn && screen is GameNewsScreen or FriendsScreen or ProfileScreen)
         || (SystemOn && screen is SearchScreen or DetailsScreen)

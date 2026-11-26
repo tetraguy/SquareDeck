@@ -154,8 +154,18 @@ public sealed class CaptureViewerScreen : Screen
         Content = root;
         _hideTimer.Tick += (_, _) => HideChrome();
         _videoTimer.Tick += (_, _) => UpdateProgress();
+        // Opens full screen, with nothing over the picture; Start (or the toolbar's button) leaves it.
+        _fullScreen = true;
+        ((TextBlock)_fullButton.Content).Text = "\uE73F";
+        _fullButton.Tag = _fullButton.ToolTip = "Exit full screen";
+        _chromeShown = false;
+        _chrome.Opacity = 0;
+        _chrome.IsHitTestVisible = false;
         Show();
     }
+
+    /// <summary>Full screen with the controller: the toolbar stays away whatever is pressed (the mouse or a touch brings it back).</summary>
+    private bool Quiet => _fullScreen && _padInput;
 
     // ---------------------------------------------------------------- building blocks
 
@@ -181,7 +191,7 @@ public sealed class CaptureViewerScreen : Screen
 
     public override void FocusDefault() => (_paths.Count > 0 && CapturesScreen.IsVideo(Current) ? _play : _share).Focus();
 
-    public override void OnShown() => Wake();
+    public override void OnShown() { if (!_fullScreen) Wake(); }
 
     public override void OnResumed()
     {
@@ -200,6 +210,25 @@ public sealed class CaptureViewerScreen : Screen
     {
         // With the controller the controls stay up (Menu switches to full screen for a clean look).
         _padInput = true;
+        if (_fullScreen)
+        {
+            // Full screen with the controller: the buttons do their job and the toolbar doesn't pop up.
+            if (_chromeShown) HideChrome(force: true);
+            switch (action)
+            {
+                case NavAction.RB: case NavAction.Right when _zoomLevel == 0: Step(+1); return true;
+                case NavAction.LB: case NavAction.Left when _zoomLevel == 0: Step(-1); return true;
+                case NavAction.RT: Zoom(+1); return true;
+                case NavAction.LT: Zoom(-1); return true;
+                case NavAction.Y: Share(); return true;
+                case NavAction.X: _ = DeleteAsync(); return true;
+                case NavAction.Accept: if (_video != null) TogglePlay(); return true;
+                case NavAction.Back when _zoomLevel > 0: Zoom(-_zoomLevel); return true; // B zooms out first, then closes
+                case NavAction.Start: ToggleFullScreen(); return true; // out of full screen, with the toolbar
+                case NavAction.Left or NavAction.Right or NavAction.Up or NavAction.Down: return true; // nothing hidden to move to
+            }
+            return false;
+        }
         // The first press after the controls were hidden only brings them back (B still closes).
         bool wasHidden = !_chromeShown;
         Wake();
@@ -455,6 +484,7 @@ public sealed class CaptureViewerScreen : Screen
     /// <summary>Brings the header, toolbar and filmstrip back, and starts the clock to fade them again.</summary>
     private void Wake()
     {
+        if (Quiet) return; // full screen with the controller: the toolbar stays away
         _hideTimer.Stop();
         _hideTimer.Start();
         if (_chromeShown) return;
