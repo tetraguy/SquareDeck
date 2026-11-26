@@ -39,6 +39,7 @@ public sealed class Settings
     /// <summary>8.5.29: the hero background set once to off for the Switch style, its default.</summary>
     public bool HeroOff8529 { get; set; }
     public bool CloudIntro8533 { get; set; }
+    public bool BrowserKeep8539 { get; set; }
 
     // Explorer: folders pinned to its sidebar, grid or list, sort order, and hidden files.
     public List<string> ExplorerPins { get; set; } = new();
@@ -114,6 +115,8 @@ public sealed class Settings
     public bool LabsGraduated819 { get; set; }
     public bool LabsGraduated8124 { get; set; }
     public bool LabsGraduated8158 { get; set; }
+    public bool SwitchBootOff8541 { get; set; }
+    public bool TdpBoost8542 { get; set; }
     public bool ParallaxOff8160 { get; set; }
     public bool LabsGraduated8162 { get; set; }
     public bool OemFooterOff8165 { get; set; }
@@ -146,7 +149,7 @@ public sealed class Settings
     public int TdpTempLimit { get; set; }
 
     /// <summary>Boost window: "off" (all three limits equal) or "short" (brief bursts above the limit, like the device's own software).</summary>
-    public string TdpBoostWindow { get; set; } = "off";
+    public string TdpBoostWindow { get; set; } = "short";
 
     /// <summary>RyzenAdj's own power profile: "" (leave), "saving" or "performance".</summary>
     public string RyzenProfile { get; set; } = "";
@@ -397,7 +400,7 @@ public sealed class Settings
     public int BrowserZoom { get; set; } = 125;
 
     /// <summary>Keep the browser (and its tabs) running when you leave it, so it comes back exactly where you were.</summary>
-    public bool BrowserKeepOpen { get; set; } = true;
+    public bool BrowserKeepOpen { get; set; } // off: the browser is closed when you leave it (8.5.39); on, it sleeps in the background
 
     /// <summary>Web links anywhere in SquareDeck open in its own browser rather than Windows' default one.</summary>
     public bool OpenLinksInSquareDeck { get; set; } = true;
@@ -719,6 +722,16 @@ public sealed class Settings
                         s.ShowMusicButton = s.ShowBrowserButton = s.ShowExplorerButton = true;
                         s.ShowFriendsButton = s.ShowNewsButton = s.ShowMyDeviceButton = false;
                         s.HomeButtons8515 = true;
+                    }
+                    if (!s.TdpBoost8542)
+                    {
+                        s.TdpBoostWindow = "short"; // short bursts above the limit, as ASUS's own modes allow: no more sluggish menus
+                        s.TdpBoost8542 = true;
+                    }
+                    if (!s.BrowserKeep8539)
+                    {
+                        s.BrowserKeepOpen = false; // pages you've left don't stay loaded in the background
+                        s.BrowserKeep8539 = true;
                     }
                     if (!s.CloudIntro8533)
                     {

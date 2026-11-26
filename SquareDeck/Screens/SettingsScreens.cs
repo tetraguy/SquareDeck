@@ -673,6 +673,10 @@ public sealed partial class SettingsScreen : ListScreen
         health.Click += (_, _) => Host.Push(new DeviceHealthScreen());
         health.Margin = new Thickness(0, 4, 0, 0);
         Rows.Children.Add(health);
+        var playtime = Ui.Row("Your play time", null, "\uE823", subtitle: "This week, your streaks, when you play and the games you've played most");
+        playtime.Click += (_, _) => Host.Push(new PlaytimeScreen());
+        playtime.Margin = new Thickness(0, 4, 0, 0);
+        Rows.Children.Add(playtime);
         Rows.Children.Add(new Border { Height = 4 });
 
         // Every section, as a card (two panes list them on the left already).
@@ -1863,7 +1867,7 @@ public sealed partial class SettingsScreen : ListScreen
         AddRow("Vibrate on A and B", OnOff(s.RumbleOnButtons), "\uE7FC",
             click: () => Toggle(() => s.RumbleOnButtons = !s.RumbleOnButtons), subtitle: "On every page: a crisp tap when you press A, a softer double thud when you press B to go back");
         AddRow("Vibrate while moving through menus", OnOff(s.RumbleInSettings), "\uE7FC",
-            click: () => Toggle(() => s.RumbleInSettings = !s.RumbleInSettings), subtitle: "A light tick from row to row in Settings, quick settings and the power menu");
+            click: () => Toggle(() => s.RumbleInSettings = !s.RumbleInSettings), subtitle: "A light tick from row to row in Settings, Search, quick settings and the power menu");
         AddFeaturePage("padtest", "Controller tester", "Every button, trigger and stick live on screen with your handheld's own drawing, plus a stick drift check and a rumble test");
         AddRow("Simple controller test", glyph: "\uE7FC", click: () => Host.Push(new ControllerTestScreen()));
         AddFeaturePage("sticks", "Stick check and dead zone");
@@ -2086,8 +2090,8 @@ public sealed partial class SettingsScreen : ListScreen
                     s.TdpBoostWindow = s.TdpBoostWindow == "short" ? "off" : "short";
                     SaveTdp();
                 }, subtitle: s.TdpBoostWindow == "short"
-                    ? $"Up to {Math.Min(chip.Max, (int)Math.Round(TdpControl.Clamp(s.TdpWatts) * 1.25))} W for a few seconds, then back to the limit"
-                    : "The limit holds all the time. Short bursts help loading screens and busy moments");
+                    ? $"Up to {TdpControl.BoostLimits(TdpControl.Clamp(s.TdpWatts)).Fast} W for a few seconds, then back to the limit (recommended)"
+                    : "The limit holds all the time, with no bursts above it: menus and loading can feel sluggish at lower limits");
                 AddRow("Power profile", s.RyzenProfile switch { "saving" => "Power saving", "performance" => "Maximum performance", _ => "Device default" }, "\uE83F",
                     click: async () =>
                     {
@@ -3201,7 +3205,7 @@ public sealed partial class SettingsScreen : ListScreen
         {
             Toggle(() => s.BrowserKeepOpen = !s.BrowserKeepOpen);
             if (!s.BrowserKeepOpen) BrowserScreen.DisposeKept();
-        }, subtitle: "Tabs and pages stay as they were when you come back");
+        }, subtitle: "Tabs and pages stay as they were when you come back. It sleeps while you're away, so it uses no power, but it keeps its memory");
         AddRow("Most tabs open at once", s.BrowserMaxTabs + " tabs", "\uE737", click: async () =>
         {
             int[] counts = { 2, 3, 4, 6, 8, 10, 15 };

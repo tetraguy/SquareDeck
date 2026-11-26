@@ -205,6 +205,21 @@ public static class TdpControl
 
     public static int Clamp(int watts) => Chip is { } c ? Math.Clamp(watts, c.Min, c.Max) : watts;
 
+    /// <summary>
+    /// The slow and fast boost limits that go with a sustained limit. With the boost window on (the default since
+    /// 8.5.42) the chip may burst above the limit for a moment, as it does under ASUS's own modes: at least 2 W more for
+    /// the slow limit and 5 W more for the fast one (10% and 25% at higher limits), never past the chip's maximum.
+    /// Without it, all three are the same and the chip can never burst, which makes everything (menus included) feel
+    /// sluggish at lower limits.
+    /// </summary>
+    public static (int Slow, int Fast) BoostLimits(int watts)
+    {
+        if (_settings?.TdpBoostWindow != "short" || Chip is not { } c || watts <= 0) return (watts, watts);
+        int slow = Math.Min(c.Max, Math.Max((int)Math.Round(watts * 1.1), watts + 2));
+        int fast = Math.Min(c.Max, Math.Max((int)Math.Round(watts * 1.25), watts + 5));
+        return (Math.Max(slow, watts), Math.Max(fast, slow));
+    }
+
     // ================================================================ settings in effect
 
     public static void Init(Settings settings)
@@ -216,16 +231,21 @@ public static class TdpControl
         {
             // Sleep can put the firmware's own limit back.
             var ui = System.Windows.Application.Current?.Dispatcher;
-            if (e.Mode == PowerModes.Resume && Ready) ui?.BeginInvoke(new Action(() => _ = ApplyAsync(quiet: true)));
+            if (e.Mode == PowerModes.Resume && Ready) ui?.BeginInvoke(new Action(() => { _cpuApplied = null; _ = ApplyAsync(quiet: true); }));
             else if (e.Mode == PowerModes.StatusChange) ui?.BeginInvoke(new Action(CheckPower)); // charger plugged in or out
         };
         UpdateReapplyTimer();
         if (Ready) _ = ApplyAsync(quiet: true);
     }
 
+    /// <summary>
+    /// Re-applying every 15 seconds: when chosen, and always through the ROG Ally's firmware, which puts its own limit
+    /// back whenever its operating mode changes (Command Center, the charger, waking from sleep). There it's three
+    /// quick firmware calls; Windows' CPU settings are only written again when they change.
+    /// </summary>
     public static void UpdateReapplyTimer()
     {
-        if (_settings is { TdpEnabled: true, TdpReapply: true } && CanApply) Reapply.Start();
+        if (_settings is { TdpEnabled: true } && CanApply && (_settings.TdpReapply || Method == "asus")) Reapply.Start();
         else Reapply.Stop();
     }
 
@@ -298,22 +318,24 @@ public static class TdpControl
             string method = Method;
             if (method is "asus" or "lenovo" or "msi" or "kx")
             {
-                await SetCpuWithoutHelperAsync(EffectiveBoost, EffectiveMaxCpu);
-                await ApplyCpuExtrasAsync(s);
-                if (!s.TdpEnabled || watts <= 0) { LastResult = ""; return true; }
-                int slowW = watts, fastW = watts;
-                if (s.TdpBoostWindow == "short" && Chip is { } c)
+                // Windows' CPU settings (boost, top speed, energy preference, cores): only written when they change, so
+                // re-applying the limit doesn't start powercfg over and over.
+                string cpu = $"{EffectiveBoost}|{EffectiveMaxCpu}|{s.CpuEpp}|{s.CpuCores}";
+                if (!quiet || cpu != _cpuApplied)
                 {
-                    slowW = Math.Min(c.Max, (int)Math.Round(watts * 1.1));
-                    fastW = Math.Min(c.Max, (int)Math.Round(watts * 1.25));
+                    await SetCpuWithoutHelperAsync(EffectiveBoost, EffectiveMaxCpu);
+                    await ApplyCpuExtrasAsync(s);
+                    _cpuApplied = cpu;
                 }
+                if (!s.TdpEnabled || watts <= 0) { LastResult = ""; return true; }
+                var (slowW, fastW) = BoostLimits(watts);
                 bool done;
                 string why;
                 switch (method)
                 {
                     case "asus":
                         done = await Task.Run(() => AsusAcpi.SetPowerLimits(watts, slowW, fastW));
-                        why = "Couldn't reach the ASUS firmware";
+                        why = AsusAcpi.Available ? "The ASUS firmware refused the limit" : "Couldn't reach the ASUS firmware";
                         break;
                     case "lenovo":
                         done = (await DeviceHelper.RunAsync($"legion-tdp {watts} {fastW}")).Ok;
@@ -329,7 +351,9 @@ public static class TdpControl
                         break;
                 }
                 if (done) AppliedWatts = watts;
-                LastResult = done ? $"Applied {watts} W ({MethodName(method)})" : "Couldn't apply: " + why;
+                LastResult = done
+                    ? (fastW > watts ? $"Applied {watts} W, bursts to {fastW} W ({MethodName(method)})" : $"Applied {watts} W ({MethodName(method)})")
+                    : "Couldn't apply: " + why;
                 return done;
             }
 
@@ -344,12 +368,8 @@ public static class TdpControl
 
             // Sustained (STAPM), slow and fast limits. With the short boost window the slow and fast limits sit a little
             // above the chosen one, so the chip can burst briefly (loading screens, busy scenes) and settle back.
-            int mw = watts * 1000, slow = mw, fast = mw;
-            if (s.TdpBoostWindow == "short" && Chip is { } chip && watts > 0)
-            {
-                slow = Math.Min(chip.Max, (int)Math.Round(watts * 1.1)) * 1000;
-                fast = Math.Min(chip.Max, (int)Math.Round(watts * 1.25)) * 1000;
-            }
+            var (slowLimit, fastLimit) = BoostLimits(watts);
+            int mw = watts * 1000, slow = slowLimit * 1000, fast = fastLimit * 1000;
             int profile = s.RyzenProfile switch { "saving" => 1, "performance" => 2, _ => 0 };
             string request = string.Join(' ', mw, fast, slow, s.TdpEnabled ? s.TdpTempLimit : 0, EffectiveBoost ? 1 : 0, EffectiveMaxCpu, profile);
             await ApplyCpuExtrasAsync(s);
@@ -427,6 +447,8 @@ public static class TdpControl
         }
         catch (Exception) { }
     }
+
+    private static string? _cpuApplied;
 
     private static bool _coresChanged = true; // the first time, "all cores" is written too, undoing an earlier limit
 

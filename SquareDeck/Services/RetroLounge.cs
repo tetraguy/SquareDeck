@@ -845,8 +845,6 @@ public static class RetroLounge
         return list.GroupBy(g => g.System + "|" + g.Title.ToLowerInvariant()).Select(x => x.OrderByDescending(Score).First()).ToList();
     }
 
-    public static int CountFor(string system) => Visible().Count(g => g.System == system);
-
     /// <summary>Makes a ROM folder with one folder per console (and a BIOS folder beside it), as EmuDeck does.</summary>
     public static string CreateFolders(string parent)
     {

@@ -68,17 +68,6 @@ public static class GameLookup
         return id;
     }
 
-    /// <summary>Forgets the match for a title (used when the details shown were for the wrong game).</summary>
-    public static void ForgetMatch(string name, int appId = -1)
-    {
-        lock (Lock)
-        {
-            _matches ??= Load();
-            _matches[Simplify(name)] = appId < 0 ? 0 : appId;
-            Save();
-        }
-    }
-
     private static Dictionary<string, int> Load()
     {
         try { return JsonSerializer.Deserialize<Dictionary<string, int>>(File.ReadAllText(CacheFile)) ?? new(); }

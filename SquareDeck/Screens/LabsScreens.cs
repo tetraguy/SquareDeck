@@ -1395,7 +1395,12 @@ public sealed class ChangelogScreen : ListScreen
                 _versions[^1].Lines.Add(line);
             }
         }
-        if (Host.IsTop(this)) Rebuild();
+        if (!Host.IsTop(this)) return;
+        Rebuild();
+        // Start at the top, at the newest version: the only button (Show older versions) is at the bottom, and the
+        // highlight going to it would otherwise carry the page down there.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () => RowsScroll.ScrollToTop());
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => RowsScroll.ScrollToTop());
     }
 
     /// <summary>Markdown's emphasis and code marks taken out, for plain reading.</summary>

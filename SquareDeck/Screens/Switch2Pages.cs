@@ -42,6 +42,7 @@ public static class Switch2Pages
         || (On && screen is AddStoresScreen) // from Stores, with Captures, Multimedia and Stores
         || screen is StyleScheduleScreen     // Settings > Themes > Style schedule
         || screen is CompanionScreen         // the companion's character, color, name, outfit and reactions
+        || screen is PlaytimeScreen          // Your play time: the week, the charts and the games, on Switch 2 cards
         || (ThemePages && screen is ThemeScreen or WallpaperEngineScreen); // with the Switch style: My themes, looks and wallpaper
 
     /// <summary>
@@ -69,6 +70,7 @@ public static class Switch2Pages
         StyleScheduleScreen => "\uE823",
         CompanionScreen => "\uE899",
         ThemeScreen => "\uE771",
+        PlaytimeScreen => "\uE823",
         WallpaperEngineScreen => "\uE714",
         AllyControlScreen => Ui.HandheldGlyph,
         DeviceHealthScreen => "\uE95E",
@@ -101,7 +103,7 @@ public static class Switch2Pages
         || (Labs.On("s2details") && screen is DetailsScreen or GameNotesScreen or ArtPickerScreen or CoverPickerScreen or GameProfileScreen or FixGameScreen)
         || (Labs.On("s2genie") && screen is GameGenieScreen)
         || (Labs.On("s2setup") && screen is OnboardingScreen)
-        || screen is StyleScheduleScreen or CompanionScreen
+        || screen is StyleScheduleScreen or CompanionScreen or PlaytimeScreen
         || (ThemePages && screen is ThemeScreen or WallpaperScreen or ColorThemeScreen or DynamicBackgroundScreen or WallpaperEngineScreen)
         || PcPage(screen);
 

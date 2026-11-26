@@ -3,6 +3,40 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.5.42
+
+TDP fixes, for a device that felt sluggish with TDP control on:
+- Bursts above the limit are back. With the boost window off (it was the default), the sustained, slow and fast limits were all set to the same number, so the chip could never burst above it, even for a moment. ASUS's own modes always allow that, which is why menus, app launches and loading felt slow at lower limits. The boost window ("Short bursts") is now on by default, and switched on once for everyone: at least 2 W more for the slow limit and 5 W more for the fast one (10% and 25% at higher limits), up to the chip's maximum. At 15 W it bursts to 20 W. Turn it off in Settings > Power > Boost window.
+- On the ROG Ally, the limit is re-applied every 15 seconds. The firmware puts its own limit back whenever its operating mode changes (Command Center, the charger, waking from sleep), so a chosen limit could quietly disappear. It's three quick firmware calls; Windows' CPU settings are only written again when they change, so powercfg no longer runs over and over.
+- The ROG Ally's firmware answers are checked now: "Applied" only shows when it accepted the limits, and they're written in an order it can't hold back.
+- Auto TDP no longer goes below 8 W, and turning it off goes back to the game's profile or your usual limit instead of staying wherever it had got to.
+
+## 8.5.41
+
+- The Switch-style game boot (the cover rushing toward you, then the game's icon waiting with the ring of dots) is off by default now, and switched off once for everyone. Turn it on in Settings > Games > Launching games.
+
+## 8.5.40
+
+- The update page's "Download and install" shows only the download's size now, not the file's name.
+- Changelogs open at the top (the newest version) instead of scrolled down to "Show older versions" at the bottom.
+
+## 8.5.39
+
+- Pages you're not on use nothing:
+  - A page covered by another page isn't drawn, and now its own timers stop too, starting again when you go back to it. (Pop-ups over a page leave it running, since it's still in view.)
+  - Pages you've left are closed and let go, as before.
+  - The web browser now closes when you leave it (Settings > Web browser > "Keep the browser open when you leave it" is off, and switched off once for everyone). With it on, the browser sleeps in the background (Edge's suspend: no scripts, timers or drawing) and wakes when you open it again.
+  - A paused video streaming service sleeps the same way. A music service keeps playing, as before.
+- While a game runs, everything goes to the game: on top of what SquareDeck already did (not drawing at all, lower priority, giving memory back, the companion asleep), every open page's timers stop, the browser and a paused streaming service sleep, and SquareDeck's own checks slow right down (connections every 30 seconds instead of 10, updates every 2 minutes, the idle check every 10 seconds, now playing every 10 seconds). It all comes back when you return.
+- Search: a light vibration as the highlight moves through what was found, like in Settings (Settings > Controller > Vibrate while moving through menus).
+- Tidying up the code, with no features removed: five empty leftover files from old versions, and 13 methods nothing used any more (an old power confirmation, an old look switcher, a process priority helper, and others).
+
+## 8.5.38
+
+- The companion sleeps while a game runs, so it uses nothing: once its goodbye wave is over, its timers stop, any animation on it is let go and it's taken off the screen. Reactions that would come during the game (an achievement, say) are skipped. When the game closes it comes back and says welcome back, as before. Switching to SquareDeck mid-game no longer starts its timer again either.
+- Your play time page in the Switch 2 style: the page's name with its icon and a line under it, bar-and-name headings, flat rows with the rimmed highlight and cards in the Switch 2 card color.
+- Settings > Home: "Your play time" is under your profile now, with Find a setting and Device health.
+
 ## 8.5.37
 
 - Ten more unlockable styles (Settings > Themes > Unlockable), each with its own drawn panels, buttons, pop-ups, switches, home button icons, pointer and wallpaper:

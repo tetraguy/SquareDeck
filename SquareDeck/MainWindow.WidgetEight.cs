@@ -245,15 +245,19 @@ public partial class MainWindow
         int watts = TdpControl.EffectiveWatts, next = watts;
         if (fps < _autoTdpTarget - 2) next += fps < _autoTdpTarget - 8 ? 2 : 1;
         else if (fps > _autoTdpTarget + 4) next -= fps > _autoTdpTarget + 12 ? 2 : 1;
-        next = Math.Clamp(next, chip.Min, chip.Max);
+        // Never below 8 W (or the chip's own minimum, if higher): under that the whole device crawls, menus included.
+        next = Math.Clamp(next, Math.Max(chip.Min, 8), chip.Max);
         if (next != watts) TdpControl.SetSessionWatts(next);
         _autoTdpStatus = $"{fps:0} FPS at {next} W";
     }
 
     private void StopAutoTdp()
     {
+        bool wasRunning = _autoTdpCounting;
         if (_autoTdpCounting) { _autoTdpCounting = false; _ = Task.Run(FrameCounter.Stop); }
         _autoTdpStatus = "";
+        // Turned off: back to the game's profile or your usual limit, not whatever Auto TDP had got down to.
+        if (wasRunning && TdpControl.SessionWatts != null) TdpControl.ClearSession();
     }
 
     // ---- apps

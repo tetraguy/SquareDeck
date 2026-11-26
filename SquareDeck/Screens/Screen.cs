@@ -88,6 +88,62 @@ public abstract class Screen : UserControl
     /// <summary>Called when another page or pop-up opens on top of this one.</summary>
     public virtual void OnCovered() { }
 
+    // ---------------------------------------------------------------- resting pages
+
+    /// <summary>
+    /// Pages whose timers must keep going when they're out of sight (a cloud game, a streaming service). Pop-ups keep
+    /// theirs too: they're short-lived and often waiting on something (an update, a game starting).
+    /// </summary>
+    protected virtual bool KeepsTimers => IsDialog;
+
+    private List<System.Windows.Threading.DispatcherTimer>? _pausedTimers;
+
+    private static readonly Dictionary<Type, System.Reflection.FieldInfo[]> TimerFields = new();
+
+    /// <summary>The page's own timers (fields of the page and the kinds of page it's built on).</summary>
+    private IEnumerable<System.Windows.Threading.DispatcherTimer> OwnTimers()
+    {
+        var type = GetType();
+        if (!TimerFields.TryGetValue(type, out var fields))
+        {
+            var list = new List<System.Reflection.FieldInfo>();
+            for (var t = type; t != null && t != typeof(UserControl); t = t.BaseType)
+                list.AddRange(t.GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.DeclaredOnly)
+                    .Where(f => f.FieldType == typeof(System.Windows.Threading.DispatcherTimer)));
+            TimerFields[type] = fields = list.ToArray();
+        }
+        foreach (var f in fields)
+            if (f.GetValue(this) is System.Windows.Threading.DispatcherTimer timer) yield return timer;
+    }
+
+    /// <summary>
+    /// Out of sight (another page over it, or a game running): the page's running timers stop, so a page you're not
+    /// looking at uses nothing. <see cref="ResumeTimers"/> starts the same ones again.
+    /// </summary>
+    public void PauseTimers()
+    {
+        if (KeepsTimers) return;
+        try
+        {
+            foreach (var timer in OwnTimers())
+            {
+                if (!timer.IsEnabled) continue;
+                timer.Stop();
+                (_pausedTimers ??= new()).Add(timer);
+            }
+        }
+        catch (Exception) { }
+    }
+
+    /// <summary>Back in sight: the timers <see cref="PauseTimers"/> stopped start again.</summary>
+    public void ResumeTimers()
+    {
+        if (_pausedTimers == null) return;
+        var timers = _pausedTimers;
+        _pausedTimers = null;
+        foreach (var timer in timers) { try { timer.Start(); } catch (Exception) { } }
+    }
+
     /// <summary>
     /// SquareDeck went to the background (true) or came back (false): pause and resume anything the page animates or
     /// refreshes on its own. Music or video the person chose to play keeps going.
@@ -131,41 +187,6 @@ public abstract class Screen : UserControl
 
     private TextBlock? _titleText;
     private DockPanel? _header;
-
-    /// <summary>Shows a logo image where the page title is. The title text stays as a fallback until then.</summary>
-    protected void SetTitleLogo(System.Windows.Media.ImageSource logo)
-    {
-        if (_header == null || _titleText == null || !_header.Children.Contains(_titleText)) return;
-
-        var image = new Image
-        {
-            Source = logo,
-            Height = 60,
-            MaxWidth = 460,
-            Stretch = System.Windows.Media.Stretch.Uniform,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        System.Windows.Media.RenderOptions.SetBitmapScalingMode(image, System.Windows.Media.BitmapScalingMode.HighQuality);
-
-        FrameworkElement element = image;
-        if (!Theme.CurrentIsDark)
-        {
-            // Logos are usually drawn light, for dark backgrounds: give them one on the light theme.
-            element = new Border
-            {
-                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2D, 0x2D, 0x2D)),
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(14, 4, 14, 4),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Child = image
-            };
-        }
-        element.Margin = new Thickness(0, -8, 0, 0);
-
-        int index = _header.Children.IndexOf(_titleText);
-        _header.Children.RemoveAt(index);
-        _header.Children.Insert(index, element);
-    }
 
     private System.Windows.Shapes.Rectangle? _wallpaperLayer, _wallpaperScrim;
     private Image? _backdrop;

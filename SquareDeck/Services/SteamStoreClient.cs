@@ -475,10 +475,4 @@ public static class SteamStoreClient
         }
     }
 
-    /// <summary>Unlocked/total achievements, or null when the profile isn't public.</summary>
-    public static async Task<(int Unlocked, int Total)?> GetAchievementProgressAsync(int appId, CancellationToken ct)
-    {
-        var all = await GetAchievementsAsync(appId, ct).ConfigureAwait(false);
-        return all == null ? null : (all.Count(a => a.Unlocked == true), all.Count);
-    }
 }

@@ -190,7 +190,7 @@ public partial class MainWindow
             return;
         }
         _companionNotice.Stop();
-        _companionNotice.Start();
+        if (!_companionAsleep) _companionNotice.Start();
     }
 
     private void CompanionNoticeTick()

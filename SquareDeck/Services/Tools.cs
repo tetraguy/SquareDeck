@@ -324,8 +324,6 @@ public sealed class SystemStats
         "dwm", "fontdrvhost", "Memory Compression", "Secure System", "MsMpEng", "sihost", "explorer"
     };
 
-    public static bool IsProtected(string processName) => Protected.Contains(processName);
-
     /// <summary>Asks windows to close politely (so the app can save). Returns how many accepted the request.</summary>
     public static int Close(IEnumerable<int> ids)
     {
@@ -357,22 +355,6 @@ public sealed class SystemStats
             catch (Exception) { }
         }
         return killed;
-    }
-
-    public static bool SetPriority(IEnumerable<int> ids, ProcessPriorityClass priority)
-    {
-        bool any = false;
-        foreach (var id in ids)
-        {
-            try
-            {
-                using var p = Process.GetProcessById(id);
-                p.PriorityClass = priority;
-                any = true;
-            }
-            catch (Exception) { }
-        }
-        return any;
     }
 
     public static string Bytes(double bytes) =>

@@ -43,6 +43,12 @@ public sealed class SearchScreen : Screen
     public SearchScreen(bool settingsOnly = false)
     {
         _settingsOnly = settingsOnly;
+        // A light tick on the controller as the highlight moves through what was found (as in Settings).
+        AddHandler(UIElement.GotKeyboardFocusEvent, new System.Windows.Input.KeyboardFocusChangedEventHandler((_, e) =>
+        {
+            if (Host?.Settings.RumbleInSettings == true && e.NewFocus is Button && e.OldFocus is Button && !ReferenceEquals(e.NewFocus, e.OldFocus))
+                Host.Rumble(16);
+        }), true);
         if (settingsOnly) _placeholder.Text = "Wallpaper, vibration, sounds, Wi-Fi\u2026";
         // The big search box.
         var grid = new Grid { Height = 60 };

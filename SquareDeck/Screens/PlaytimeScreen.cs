@@ -19,7 +19,16 @@ public sealed class PlaytimeScreen : ListScreen
     private Dictionary<string, string>? _genres; // game key -> its first genre, filled in from the Steam store
     private const double CardWidth = 940;
 
-    public PlaytimeScreen() : base("Your play time", "{Select}  Details      {LB}{RB}  Week      {Back}  Back") { }
+    public PlaytimeScreen() : base("Your play time", "{Select}  Details      {LB}{RB}  Week      {Back}  Back")
+    {
+        // Switch 2 style: the cards, bars and tracks take the Switch 2 card color.
+        if (Switch2Pages.ListPage(this))
+        {
+            var card = new SolidColorBrush(Switch2Settings.Card);
+            card.Freeze();
+            Resources["TileBrush"] = card;
+        }
+    }
 
     public override bool OnAction(NavAction action)
     {

@@ -158,7 +158,7 @@ public static partial class Labs
     public static readonly HashSet<string> DefaultOn8124 = new() { "newsettings" };
 
     /// <summary>On for everyone once (when updating to 8.1.58): every look and sound experiment, the Switch boot and the other launch, store and zone animations, and the widget's Switch 2 style and frame cap slider. Each keeps a switch in its new place in Settings.</summary>
-    public static readonly HashSet<string> DefaultOn8158 = new() { "newlibrary", "s2pages", "s2tools", "s2social", "s2system", "s2play", "s2apps", "s2setup", "s2toast", "switchboot", "switchbootplus", "s2game", "zoneexit", "storeintro", "rasurprise", "ws2", "wfpsslider" };
+    public static readonly HashSet<string> DefaultOn8158 = new() { "newlibrary", "s2pages", "s2tools", "s2social", "s2system", "s2play", "s2apps", "s2setup", "s2toast", "switchbootplus", "s2game", "zoneexit", "storeintro", "rasurprise", "ws2", "wfpsslider" }; // switchboot: off by default since 8.5.41
 
     /// <summary>On for everyone once (when updating to 8.1.18), with a switch in their new place in Settings.</summary>
     public static readonly HashSet<string> DefaultOn818 = new() { "crashrecovery", "drivenotice", "microsd", "achtoasts" };
@@ -246,6 +246,13 @@ public static partial class Labs
         {
             if (!settings.Labs.Contains("s2pctools")) settings.Labs.Add("s2pctools");
             settings.LabsGraduatedPcTools = true;
+            settings.Save();
+        }
+        // 8.5.41: the Switch-style game boot is off by default: off once, then it's yours to turn on (Settings > Games).
+        if (!settings.SwitchBootOff8541)
+        {
+            settings.Labs.Remove("switchboot");
+            settings.SwitchBootOff8541 = true;
             settings.Save();
         }
         // 8.1.65: the controller icon in the corner is back for everyone (8.1.58 had turned on the handheld's own picture).

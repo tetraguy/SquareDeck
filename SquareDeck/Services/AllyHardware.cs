@@ -111,8 +111,6 @@ public static class AsusAcpi
         return BitConverter.ToInt32(Call(Dsts, args), 0) - 65536;
     }
 
-    public static bool Supports(uint device) => Available && Get(device) >= 0;
-
     // CPU core configuration (Armoury Crate's "CPU Core Configuration"): values are 0x0E0P, E-cores in the high byte,
     // P-cores in the low byte. The endpoints were documented by G-Helper; SquareDeck's own code.
     public const uint CoresNow = 0x001200D2, CoresMax = 0x001200D3, CoresMin = 0x001200D4;
@@ -136,10 +134,13 @@ public static class AsusAcpi
     public static bool SetPowerLimits(int sustained, int slow, int fast)
     {
         if (!Available) return false;
-        Set(PptSustained, sustained);
+        // The firmware may hold a limit under the one above it, so they're written top down, then once more bottom up:
+        // whichever way the limits move, all three end up where they should be.
+        int a = Set(PptFast, fast), b = Set(PptSlow, slow), c = Set(PptSustained, sustained);
         Set(PptSlow, slow);
         Set(PptFast, fast);
-        return true;
+        // A negative answer is the firmware saying no (or not offering that limit).
+        return a >= 0 && b >= 0 && c >= 0;
     }
 
     /// <summary>Silent, Performance or Turbo, the same as Armoury Crate's operating modes.</summary>

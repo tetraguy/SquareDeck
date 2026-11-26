@@ -344,6 +344,14 @@ public partial class MainWindow
             _padTimer.Interval = TimeSpan.FromMilliseconds(50); // still quick enough for the Guide button
             _clockTimer.Stop();
             _heroTimer.Stop();
+            // Housekeeping slows right down: everything goes to the game. (The widget and the Guide button still answer.)
+            _idleTimer.Interval = TimeSpan.FromSeconds(10);
+            _updateTimer.Interval = TimeSpan.FromMinutes(2);
+            _connectionTimer.Interval = TimeSpan.FromSeconds(30);
+            _musicTimer.Interval = TimeSpan.FromSeconds(10);
+            if (gameRunning) foreach (var screen in _screens) screen.PauseTimers(); // every open page, the one on top too
+            SquareDeck.Screens.BrowserScreen.SleepKept();
+            SquareDeck.Screens.StreamingScreen.SleepKept();
             Motion.StopPulse(RingOf(GameList.SelectedItem));
             try { Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.BelowNormal; } catch (Exception) { }
             ProcessUtil.TrimWorkingSet();
@@ -352,6 +360,11 @@ public partial class MainWindow
         {
             RootGrid.Visibility = Visibility.Visible;
             _padTimer.Interval = TimeSpan.FromMilliseconds(_resting ? 50 : 16);
+            _idleTimer.Interval = TimeSpan.FromSeconds(2);
+            _updateTimer.Interval = TimeSpan.FromSeconds(30);
+            _connectionTimer.Interval = TimeSpan.FromSeconds(10);
+            _musicTimer.Interval = TimeSpan.FromSeconds(3);
+            if (_screens.Count > 0) _screens[^1].ResumeTimers(); // the pages underneath wait until they're back on top
             _clockTimer.Start();
             UpdateClock();
             try { Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.Normal; } catch (Exception) { }

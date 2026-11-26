@@ -1800,7 +1800,8 @@ public partial class MainWindow : Window
             below.LastFocus = Keyboard.FocusedElement;
             below.SavedScroll = ScrollersOf(below).Select(v => v.VerticalOffset).ToList();
             below.OnCovered();
-            if (!screen.IsDialog) below.Visibility = Visibility.Collapsed;
+            // A whole page over it: it's out of sight, so it isn't drawn and its own timers wait until it's back.
+            if (!screen.IsDialog) { below.Visibility = Visibility.Collapsed; below.PauseTimers(); }
         }
 
         screen.Host = this;
@@ -1849,6 +1850,7 @@ public partial class MainWindow : Window
 
         var top = _screens[^1];
         top.Visibility = Visibility.Visible;
+        if (!_backgroundMode) top.ResumeTimers();
         top.OnResumed();
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
         {
@@ -2754,15 +2756,6 @@ public partial class MainWindow : Window
 
         if (Settings.ExitAnimation && !Theme.ReduceMotion) await PlayExitAnimationAsync();
         Close();
-    }
-
-    private async Task<bool> ConfirmPowerAsync(string question, string action)
-    {
-        var running = AllGames.FirstOrDefault(g => g.IsRunning);
-        string? warning = running == null
-            ? null
-            : running.Name + " is still running. Unsaved progress will be lost.";
-        return await AskAsync(question, warning, action, "Cancel") == 0;
     }
 
     private void Quick_Click(object sender, RoutedEventArgs e) => Push(new QuickSettingsScreen());

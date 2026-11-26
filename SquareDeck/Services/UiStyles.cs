@@ -1565,10 +1565,6 @@ public static class UiStyles
     /// <summary>Whether a style is one of the Advanced ones (Settings > Themes > Advanced).</summary>
     public static bool IsAdvanced(string? id) => Advanced.Any(s => s.Id == id);
 
-    /// <summary>Whether a style is one of the Legendary ones (Advanced styles drawn by Claude: Settings > Themes > Legendary).</summary>
-    /// <summary>Legendary (since 8.1.48): the styles once called Basic and Advanced, together.</summary>
-    public static bool IsLegendary(string? id) => !IsMythical(id) && (All.Any(s => s.Id == id) || Advanced.Any(s => s.Id == id && s.Unlock == null));
-
     /// <summary>Whether a style is one of the Mythical ones (the top tier, drawn by Claude: Settings > Themes > Mythical).</summary>
     public static bool IsMythical(string? id) => Advanced.Any(s => s.Id == id && s.Mythical);
 

@@ -655,7 +655,7 @@ public partial class MainWindow
     /// </summary>
     public void CompanionReact(string action)
     {
-        if (_companion == null || _companionSprite == null) return;
+        if (_companion == null || _companionSprite == null || _companionAsleep) return;
         _companionAction = action;
         double seconds = CompanionExtraSeconds(action) ?? action switch
         {
@@ -1011,7 +1011,7 @@ public partial class MainWindow
 
     private void CompanionSay(string text)
     {
-        if (_companionBubble == null || _companionBubbleText == null) return;
+        if (_companionBubble == null || _companionBubbleText == null || _companionAsleep) return;
         var line = new TextBlock();
         line.Inlines.Add(new System.Windows.Documents.Run(CompanionArt.Name + ": ") { FontWeight = FontWeights.Normal });
         line.Inlines.Add(new System.Windows.Documents.Run(text) { FontWeight = FontWeights.Bold });
@@ -1125,16 +1125,64 @@ public partial class MainWindow
         CompanionTick();
     }
 
-    /// <summary>Game started (bye) or ended (welcome back).</summary>
+    /// <summary>Game started (bye, then it sleeps) or ended (it wakes, and welcome back).</summary>
     private void CompanionGameState(bool playing)
     {
         if (playing == _companionWasPlaying) return;
         _companionWasPlaying = playing;
-        if (!playing)
+        if (playing)
         {
-            if (CompanionWelcomeBack() is { } line) _companionLines["wave"] = line;
-            CompanionReact("wave");
+            // Let the goodbye finish, then rest for the whole game.
+            int id = ++_companionSleepId;
+            Dispatcher.BeginInvoke(async () =>
+            {
+                await Task.Delay(3000);
+                if (id == _companionSleepId && _companionWasPlaying) CompanionSleep();
+            });
+            return;
         }
+        _companionSleepId++;
+        CompanionWake();
+        if (CompanionWelcomeBack() is { } line) _companionLines["wave"] = line;
+        CompanionReact("wave");
+    }
+
+    private int _companionSleepId;
+    private bool _companionAsleep;
+
+    /// <summary>
+    /// While a game runs the companion uses nothing: its timers stop, any animation on it is let go, its sparkles are
+    /// cleared and it's taken off the screen (collapsed, so it isn't drawn). Reactions that would come during the game
+    /// (an achievement, say) are skipped.
+    /// </summary>
+    private void CompanionSleep()
+    {
+        if (_companion == null || _companionAsleep) return;
+        _companionAsleep = true;
+        _companionTimer.Stop();
+        _companionFrames.Stop();
+        _companionNotice.Stop();
+        _companionQueue.Clear();
+        _companionAction = null;
+        CompanionResetPose();
+        _companionPos.BeginAnimation(TranslateTransform.XProperty, null);
+        _companionPos.BeginAnimation(TranslateTransform.YProperty, null);
+        _companionFx?.Children.Clear();
+        _companionSprite?.Children.Clear();
+        _companionDrawn = "";
+        if (_companionBubble != null) { _companionBubble.BeginAnimation(OpacityProperty, null); _companionBubble.Opacity = 0; _companionBubble.Visibility = Visibility.Collapsed; }
+        _companion.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>The game closed: back on the screen and ticking again.</summary>
+    private void CompanionWake()
+    {
+        if (!_companionAsleep) return;
+        _companionAsleep = false;
+        _companionPageSeen = false; // glide to its spot on the page it comes back to
+        if (_companion == null) return;
+        _companionTimer.Start();
+        CompanionTick();
     }
 
     private void CompanionFrame(object? sender, EventArgs e)
@@ -1159,7 +1207,7 @@ public partial class MainWindow
 
     private void CompanionTick()
     {
-        if (_companion == null || _companionSprite == null) return;
+        if (_companion == null || _companionSprite == null || _companionAsleep) return;
         // Everywhere in the launcher (doing what suits each page), except full-screen pages, pop-ups and the intro.
         var top = _screens.Count == 0 ? null : _screens[^1];
         // Not while a big copy of it is on the page already (searching on the Game Genie page).

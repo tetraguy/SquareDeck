@@ -181,6 +181,9 @@ public sealed class CloudGameScreen : Screen
         }
     }
 
+    // The leave buttons are watched by its timers, so they keep going.
+    protected override bool KeepsTimers => true;
+
     public override void FocusDefault() => _web.Focus();
 
     public override void OnShown()

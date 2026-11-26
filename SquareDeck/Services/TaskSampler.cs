@@ -10,8 +10,6 @@ namespace SquareDeck.Services;
 internal static class TaskNative
 {
     // ---- theming / icons ----------------------------------------------------------------
-    [DllImport("dwmapi.dll")]
-    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     [DllImport("dwmapi.dll")]
     public static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out int value, int size);

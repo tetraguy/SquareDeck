@@ -495,29 +495,6 @@ public partial class MainWindow
             StyleLogo.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350)));
     }
 
-    /// <summary>
-    /// Switches to a UI style. With "Match wallpaper, sounds and music" on (the default), it also brings the style's own
-    /// wallpaper or moving background, interface sounds, menu music and colors, so everything fits together.
-    /// </summary>
-    /// <summary>Switches to a look (Settings > Themes): its UI style, colors, sounds and music.</summary>
-    public void UseLook(Look look)
-    {
-        // Undo: everything back as it was before the new look (a look changes colors, sounds, music and more).
-        string before = SnapshotSettings();
-        string previous = Looks.Current.Name;
-        Settings.LookId = look.Id;
-        Looks.Select(look.Id);
-        // The look's own library layout and art (you can still change them in the library afterwards).
-        Settings.LibraryLayout = look.Design.LibraryLayout;
-        Settings.LibraryView = look.Design.LibraryView;
-        // Its home screen, colors, sounds and music. A look built around the game's artwork shows it, with the
-        // moving background set aside (a moving background would cover it).
-        var style = UiStyles.Find(look.StyleId);
-        if (style.WantsHero && Settings.StyleMatching) UseDynamicBackground("");
-        UseStyle(style); // saves and redraws
-        if (previous != look.Name) OfferUndo($"Theme changed to {look.Name} (from {previous})", () => RestoreSettings(before));
-    }
-
     public void UseStyle(UiStyle style)
     {
         var s = Settings;

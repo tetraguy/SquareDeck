@@ -4020,22 +4020,6 @@ public sealed partial class LibraryScreen : Screen
         Rebuild();
     }
 
-    /// <summary>Without a sidebar: the sections in a list (the main ones, then each store).</summary>
-    private async void ChooseSection()
-    {
-        var everything = Host.AllGames.Where(g => g.IsGame && g.IsInstalled);
-        var filters = new List<string> { "all", "favorites", "installed", "notinstalled", "wishlist", "collections", "updates", "rated" };
-        filters.AddRange(everything.Select(g => g.SourceName).Distinct().OrderBy(x => x).Select(x => "src:" + x));
-        filters.AddRange(Host.Library.Collections.Select(c => "col:" + c.Id));
-        var menu = new MenuScreen("Show", null, filters.Select(FilterName).ToArray());
-        Host.Push(menu);
-        int choice = await menu.Result;
-        if (choice < 0 || choice >= filters.Count) return;
-        _filter = filters[choice];
-        _lastFocus = null;
-        Rebuild();
-    }
-
     /// <summary>Spotlight: the highlighted game large across the top: its cover over a blur of itself, name and facts.</summary>
     private void ShowSpotlight(Game g)
     {

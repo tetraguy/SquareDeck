@@ -210,6 +210,33 @@ public sealed class BrowserScreen : Screen
         return new BrowserScreen(url);
     }
 
+    /// <summary>
+    /// The browser kept in the background goes to sleep (Edge's suspend: no scripts, timers or drawing, the pages stay
+    /// as they were). It wakes on its own when it's opened again. Also when a game starts.
+    /// </summary>
+    public static void SleepKept()
+    {
+        if (_kept is { _disposed: false } kept && kept.Host?.IsTop(kept) != true) kept.Sleep();
+    }
+
+    private async void Sleep()
+    {
+        await Task.Delay(1500); // let the pause of any video land first
+        if (_disposed || Host?.IsTop(this) == true) return;
+        foreach (var t in _tabs.Where(t => t.Ready).ToList())
+        {
+            try { if (t.Web.CoreWebView2 is { IsSuspended: false } core) await core.TrySuspendAsync(); } catch (Exception) { }
+        }
+    }
+
+    private void Wake()
+    {
+        foreach (var t in _tabs.Where(t => t.Ready))
+        {
+            try { if (t.Web.CoreWebView2 is { IsSuspended: true } core) core.Resume(); } catch (Exception) { }
+        }
+    }
+
     /// <summary>Closes a browser kept in the background (when the setting is switched off).</summary>
     public static void DisposeKept()
     {
@@ -418,6 +445,7 @@ public sealed class BrowserScreen : Screen
         if (_started)
         {
             // Back from the background: everything is as it was.
+            Wake();
             ShowCurrent();
             return;
         }
@@ -443,6 +471,7 @@ public sealed class BrowserScreen : Screen
             foreach (var t in _tabs.Where(t => t.Ready))
                 _ = t.Web.ExecuteScriptAsync("document.querySelectorAll('video,audio').forEach(function(m){try{m.pause();}catch(e){}});");
             _kept = this;
+            Sleep(); // and then it sleeps, using nothing until it's opened again
             return;
         }
         DisposeAll();
@@ -1057,7 +1086,7 @@ public sealed class UpdateScreen : ListScreen
                 (_release.Published is DateTime when ? $"  This release was published on {when:MMMM d, yyyy}." : ""));
 
         if (_release.AssetUrl != null)
-            AddRow("Download and install", _release.AssetName + (_release.AssetSize > 0 ? "   " + SystemStats.Bytes(_release.AssetSize) : ""),
+            AddRow("Download and install", _release.AssetSize > 0 ? SystemStats.Bytes(_release.AssetSize) : null, // just the size, not the file's name
                 "", click: () => _ = Host.InstallUpdateAsync(_release));
         else
             AddNote("This release has no installer or ZIP attached, so it can't be installed from here. Open its page to get it.");

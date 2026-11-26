@@ -182,6 +182,27 @@ public sealed class StreamingScreen : Screen, IPagePad
         host.Push(new StreamingScreen(service));
     }
 
+    // A page of its own kind: its timers keep going (the paused service is put to sleep instead, below).
+    protected override bool KeepsTimers => true;
+
+    /// <summary>A paused service in the background goes to sleep (not a music service, which keeps playing).</summary>
+    public static void SleepKept()
+    {
+        if (Current is { } c && c.Host?.IsTop(c) != true && !c.Service.Music) c.Sleep();
+    }
+
+    private async void Sleep()
+    {
+        await Task.Delay(1500); // let the pause land first
+        if (_disposed || Service.Music || Host?.IsTop(this) == true) return;
+        try { if (_web.CoreWebView2 is { IsSuspended: false } core) await core.TrySuspendAsync(); } catch (Exception) { }
+    }
+
+    private void Wake()
+    {
+        try { if (_web.CoreWebView2 is { IsSuspended: true } core) core.Resume(); } catch (Exception) { }
+    }
+
     /// <summary>Closes the service kept in the background (when a game starts, or from the Multimedia page).</summary>
     public static void CloseKept()
     {
@@ -267,6 +288,7 @@ public sealed class StreamingScreen : Screen, IPagePad
         Changed();
         if (_started)
         {
+            Wake();
             _web.Visibility = _ready && _revealed && _introHost.Children.Count == 0 ? Visibility.Visible : Visibility.Hidden;
             _ = Run("document.querySelectorAll('video').forEach(function(v){ if(v.dataset.sdPaused==='1'){ v.dataset.sdPaused=''; v.play(); } });");
             Dispatcher.BeginInvoke(() => _web.Focus(), DispatcherPriority.Input);
@@ -305,6 +327,7 @@ public sealed class StreamingScreen : Screen, IPagePad
 
     public override void OnResumed()
     {
+        Wake();
         if (_ready && _introHost.Children.Count == 0) _web.Visibility = Visibility.Visible;
         Dispatcher.BeginInvoke(() => _web.Focus(), DispatcherPriority.Input);
     }
@@ -325,6 +348,7 @@ public sealed class StreamingScreen : Screen, IPagePad
         Changed();
         _ = Run("document.querySelectorAll('video').forEach(function(v){ if(!v.paused){ v.dataset.sdPaused='1'; v.pause(); } });");
         Host.ShowToast("STREAMING", Service.Name + " is still open", "Paused. Go back to it from Multimedia > Streaming.", "", "info");
+        Sleep(); // paused and asleep: it uses nothing until you go back to it
     }
 
     private async Task StartAsync()
