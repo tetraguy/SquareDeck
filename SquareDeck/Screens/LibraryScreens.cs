@@ -758,7 +758,8 @@ public sealed class DetailsScreen : Screen
             var card = new Border { CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), Padding = new Thickness(22, 20, 22, 18), Margin = new Thickness(6, 14, 6, 0), Child = top };
             card.SetResourceReference(Border.BackgroundProperty, "S2Card");
             card.SetResourceReference(Border.BorderBrushProperty, "S2Line");
-            if (Host.Settings.DetailsCardHero) WrapCardInArt(card, top);
+            // Host isn't set yet while the page is being built: the settings come from the main window.
+            if ((Application.Current.MainWindow as MainWindow)?.Settings.DetailsCardHero == true) WrapCardInArt(card, top);
             _page.Children.Add(card);
             _page.Children.Add(_stats);
             return;

@@ -22,6 +22,16 @@ public static class CompanionArt
         ("Lemon", "#FFE27A"), ("Rose", "#FF8FB1"), ("Snow", "#E8ECF2"), ("Charcoal", "#6A7383"),
     };
 
+    /// <summary>Every outfit, by id, with the name shown for it (earned in Unlockables).</summary>
+    public static readonly (string Id, string Name)[] Outfits =
+    {
+        ("cap", "Cap"), ("scarf", "Scarf"), ("shades", "Sunglasses"), ("crown", "Crown"),
+        ("headphones", "Headphones"), ("wizard", "Wizard hat"), ("halo", "Halo"), ("bow", "Bow"), ("tophat", "Top hat"),
+        ("party", "Party hat"), ("flower", "Flower"), ("bandana", "Bandana"), ("horns", "Little horns"), ("visor", "Space visor"),
+    };
+
+    public static string OutfitName(string id) => id.Length == 0 ? "None" : Outfits.FirstOrDefault(o => o.Id == id).Name ?? id;
+
     public static string SpeciesId => Labs.Get("companion.species", "blob");
     public static string ColorHex => Labs.Get("companion.color", "#7FD8BE");
     public static string Name => Labs.Get("companion.name", "Pip");
@@ -100,6 +110,44 @@ public static class CompanionArt
             case "crown": Put(3, 0, 'G'); Put(6, 0, 'G'); Put(8, 0, 'G'); for (int x = 3; x <= 8; x++) Put(x, 1, 'G'); break;
             case "scarf": for (int x = 1; x <= 10; x++) Put(x, 10, 'S'); Put(9, 11, 'S'); break;
             case "shades": for (int x = 2; x <= 9; x++) Put(x, 5, 'K'); Put(3, 6, 'K'); Put(4, 6, 'K'); Put(7, 6, 'K'); Put(8, 6, 'K'); break;
+            // 8.5.37: ten more, earned in Unlockables.
+            case "headphones":
+                for (int x = 3; x <= 8; x++) Put(x, 1, 'H');
+                Put(2, 2, 'H'); Put(9, 2, 'H'); Put(1, 3, 'H'); Put(10, 3, 'H');
+                for (int y = 5; y <= 7; y++) { Put(0, y, 'H'); Put(1, y, 'H'); Put(10, y, 'H'); Put(11, y, 'H'); }
+                Put(0, 6, 'C'); Put(11, 6, 'C');
+                break;
+            case "wizard":
+                Put(7, 0, 'V'); Put(6, 1, 'V'); Put(7, 1, 'V'); for (int x = 4; x <= 7; x++) Put(x, 2, 'V'); Put(5, 2, 'G');
+                for (int x = 1; x <= 10; x++) Put(x, 3, 'V');
+                break;
+            case "halo": for (int x = 3; x <= 8; x++) Put(x, 0, 'G'); Put(2, 1, 'G'); Put(9, 1, 'G'); break;
+            case "bow":
+                Put(6, 1, 'R'); Put(6, 2, 'R'); Put(6, 3, 'R'); Put(7, 2, 'R'); Put(8, 2, 'P');
+                Put(9, 2, 'R'); Put(10, 1, 'R'); Put(10, 2, 'R'); Put(10, 3, 'R');
+                break;
+            case "tophat":
+                for (int y = 0; y <= 1; y++) for (int x = 4; x <= 7; x++) Put(x, y, 'K');
+                for (int x = 4; x <= 7; x++) Put(x, 2, 'S');
+                for (int x = 2; x <= 9; x++) Put(x, 3, 'K');
+                break;
+            case "party":
+                Put(6, 0, 'W'); Put(5, 1, 'C'); Put(6, 1, 'G'); for (int x = 4; x <= 7; x++) Put(x, 2, x % 2 == 0 ? 'C' : 'G');
+                for (int x = 3; x <= 8; x++) Put(x, 3, x % 2 == 0 ? 'G' : 'C');
+                break;
+            case "flower": Put(3, 1, 'W'); Put(2, 2, 'W'); Put(4, 2, 'W'); Put(3, 3, 'W'); Put(3, 2, 'G'); Put(4, 3, 'L'); Put(5, 3, 'L'); break;
+            case "bandana":
+                for (int x = 2; x <= 9; x++) Put(x, 3, 'S');
+                for (int x = 1; x <= 10; x++) Put(x, 4, 'S');
+                Put(4, 3, 'W'); Put(7, 4, 'W'); Put(3, 4, 'W'); Put(11, 4, 'S'); Put(11, 5, 'S');
+                break;
+            case "horns": Put(2, 0, 'M'); Put(2, 1, 'M'); Put(3, 2, 'M'); Put(9, 0, 'M'); Put(9, 1, 'M'); Put(8, 2, 'M'); break;
+            case "visor":
+                Put(6, 0, 'R'); Put(6, 1, 'X'); Put(6, 2, 'X');
+                for (int x = 1; x <= 10; x++) Put(x, 4, 'X');
+                for (int y = 5; y <= 6; y++) for (int x = 2; x <= 9; x++) Put(x, y, 'A');
+                Put(1, 5, 'X'); Put(10, 5, 'X'); Put(1, 6, 'X'); Put(10, 6, 'X'); Put(3, 5, 'W');
+                break;
         }
         var body = (Color)ColorConverter.ConvertFromString(colorHex);
         var dark = Color.FromRgb((byte)(body.R * 0.68), (byte)(body.G * 0.68), (byte)(body.B * 0.68));
@@ -109,6 +157,8 @@ public static class CompanionArt
             ['R'] = Color.FromRgb(0xE0, 0x4F, 0x5F), ['P'] = Color.FromRgb(0xF5, 0x8F, 0xA8), ['E'] = Color.FromRgb(0xF5, 0xB5, 0xC5),
             ['A'] = Color.FromRgb(0x6F, 0xE6, 0xFF), ['C'] = Color.FromRgb(0x3E, 0x6F, 0xD9), ['G'] = Color.FromRgb(0xF2, 0xC1, 0x4E),
             ['S'] = Color.FromRgb(0xD9, 0x48, 0x48),
+            ['H'] = Color.FromRgb(0x3A, 0x3F, 0x4B), ['V'] = Color.FromRgb(0x6B, 0x4B, 0xD8), ['L'] = Color.FromRgb(0x4C, 0xC2, 0x6A),
+            ['M'] = Color.FromRgb(0xB3, 0x26, 0x3A), ['X'] = Color.FromRgb(0xC9, 0xD0, 0xD8),
         };
         var brushes = colors.ToDictionary(kv => kv.Key, kv => { var b = new SolidColorBrush(kv.Value); b.Freeze(); return (Brush)b; });
         for (int y = 0; y < 12; y++)

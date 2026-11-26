@@ -1305,7 +1305,7 @@ public sealed class CompanionScreen : ListScreen
             var n = await Host.PromptAsync("Name your companion", null, CompanionArt.Name);
             if (n != null && n.Trim().Length > 0) Change("companion.name", n.Trim().Length > 16 ? n.Trim()[..16] : n.Trim());
         });
-        AddRow("Outfit", Labs.Outfit.Length == 0 ? "None" : Labs.Outfit, "", click: () => Host.Push(new UnlockablesScreen()), subtitle: "Earned in Unlockables");
+        AddRow("Outfit", CompanionArt.OutfitName(Labs.Outfit), "", click: () => Host.Push(new UnlockablesScreen()), subtitle: "Earned in Unlockables");
 
         AddHeader("Try a reaction");
         AddNote("It reacts by itself on Home: a wave when you come back from a game, a jump for achievements, a spin for milestones, " +

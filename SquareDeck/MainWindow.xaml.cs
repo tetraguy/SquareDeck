@@ -2104,8 +2104,8 @@ public partial class MainWindow : Window
 
         switch (action)
         {
-            case NavAction.Accept: UiSound.Select(); break;
-            case NavAction.Back: UiSound.Back(); break;
+            case NavAction.Accept: UiSound.Select(); ButtonRumble(back: false); break;
+            case NavAction.Back: UiSound.Back(); ButtonRumble(back: true); break;
         }
 
         // Moving around: the click (and buzz) only when something actually moved. At the bottom or edge of a page,
@@ -2554,6 +2554,17 @@ public partial class MainWindow : Window
     public void Rumble()
     {
         if (Settings.RumbleStrength > 0) _gamepad.Pulse(45, Settings.RumbleStrength);
+    }
+
+    /// <summary>
+    /// The feel of A and B on every page (Settings > Controller > Vibrate on A and B): A is one crisp tap on the light
+    /// motor, B a softer double thud on the heavy one, so going back feels different from choosing.
+    /// </summary>
+    private void ButtonRumble(bool back)
+    {
+        if (Settings.RumbleStrength <= 0 || !Settings.RumbleOnButtons) return;
+        if (back) _gamepad.Taps(Settings.RumbleStrength, (55, 0, 34), (0, 0, 46), (40, 0, 30));
+        else _gamepad.Taps(Settings.RumbleStrength, (10, 85, 38));
     }
 
     /// <summary>A controller pulse of <paramref name="milliseconds"/>, if the user turned vibration on.</summary>

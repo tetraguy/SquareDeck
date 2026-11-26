@@ -336,6 +336,34 @@ public sealed class Gamepad
         return null;
     }
 
+    /// <summary>
+    /// A pattern of taps on each motor separately: the left one is the heavy, low rumble, the right one the light, quick
+    /// buzz. Each step is (left %, right %, milliseconds); 0 and 0 is a pause. Strength is scaled like <see cref="Pulse"/>.
+    /// </summary>
+    public async void Taps(int percent, params (int Left, int Right, int Ms)[] steps)
+    {
+        if (!_available || percent <= 0 || steps.Length == 0) return;
+        double level = Math.Clamp(percent, 1, 100) / 100.0;
+        ushort Scale(int p) => (ushort)(65535 * Math.Clamp(p, 0, 100) / 100.0 * level * level * 0.75);
+        int token = ++_rumbleToken;
+        try
+        {
+            foreach (var (left, right, ms) in steps)
+            {
+                var v = new XInputVibration { LeftMotor = Scale(left), RightMotor = Scale(right) };
+                XInputSetState(_index, ref v);
+                await Task.Delay(ms);
+                if (token != _rumbleToken) return; // a newer pulse owns the motors now
+            }
+            var off = new XInputVibration();
+            XInputSetState(_index, ref off);
+        }
+        catch (Exception)
+        {
+            _available = false;
+        }
+    }
+
     /// <summary>A short, light rumble on the controller last seen by <see cref="Poll"/>.</summary>
     /// <param name="percent">Strength, 1 to 100.</param>
     public async void Pulse(int milliseconds = 45, int percent = 60)

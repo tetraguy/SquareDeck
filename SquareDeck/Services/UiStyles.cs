@@ -1283,6 +1283,97 @@ public static class UiStyles
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#160806", "#050202" }, PageScrim = 0.5,
             Unlock = "streak:7", Skin = new AdvancedSkin("ember"), TileAnimation = "glow"
         },
+        // 8.5.37: ten more unlockables. Drawn by Claude.
+        new()
+        {
+            Id = "adv-ruby", Name = "Ruby", Sounds = "chime", NavSounds = "glass", Music = "track:Sun Rays", Moving = "", Wallpaper = "image:Ruby.jpg",
+            Description = "A hundred hours in: wine-dark cards framed in cut ruby with little gems at the corners, faceted home buttons, and a great pear-cut ruby glowing on velvet.",
+            Dark = new[] { "#1A0408", "#FFE6EA", "#D8A0AC", "#2A0710", "#22060C", "#FF4060" }, Mode = "dark",
+            Font = "file:Marcellus-Regular.ttf#Marcellus", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#2A0710", "#0A0204" }, PageScrim = 0.5,
+            Unlock = "hours:100", Skin = new AdvancedSkin("ruby"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "adv-sapphire", Name = "Sapphire", Sounds = "glass", NavSounds = "droplet", Music = "track:Meditation", Moving = "", Wallpaper = "image:Sapphire.jpg",
+            Description = "Two hundred and fifty achievements: deep-blue cards framed in sapphire, gem-studded corners, faceted home buttons, and a round brilliant sapphire shining in the dark.",
+            Dark = new[] { "#050C20", "#E6EEFF", "#9EB4E0", "#0A1838", "#08142E", "#4F8BFF" }, Mode = "dark",
+            Font = "file:Forum-Regular.ttf#Forum", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#0A1838", "#02050E" }, PageScrim = 0.5,
+            Unlock = "achievements:250", Skin = new AdvancedSkin("sapphire"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "adv-emerald", Name = "Emerald", Sounds = "chime", NavSounds = "kalimba", Music = "track:Relaxing", Moving = "", Wallpaper = "image:Emerald.jpg",
+            Description = "Twenty-five games finished: forest-dark cards framed in emerald, square-cut corners with tiny gems, and a long step-cut emerald on a deep green ground.",
+            Dark = new[] { "#03140C", "#E4FFEF", "#9CD8B8", "#06261A", "#052016", "#3FE08A" }, Mode = "dark",
+            Font = "file:Spectral-Regular.ttf#Spectral", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#06261A", "#010805" }, PageScrim = 0.5,
+            Unlock = "finished:25", Skin = new AdvancedSkin("emerald"), TileAnimation = "float"
+        },
+        new()
+        {
+            Id = "adv-diamond", Name = "Diamond", Sounds = "glass", NavSounds = "glass", Music = "track:Sweetness", Moving = "", Wallpaper = "image:Diamond.jpg",
+            Description = "Two hundred and fifty hours: frosted white cards edged in ice, a rainbow shimmer on the pop-ups, and a brilliant-cut diamond splitting light into a rainbow.",
+            Light = new[] { "#EEF4FA", "#16263A", "#5A7088", "#FBFDFF", "#E6F0F8", "#4F86C6" }, ForceLight = true,
+            Font = "file:JuliusSansOne-Regular.ttf#Julius Sans One", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#F4F8FC", "#C9DCEC" }, PageScrim = 0.4,
+            Unlock = "hours:250", Skin = new AdvancedSkin("diamond"), TileAnimation = "float"
+        },
+        new()
+        {
+            Id = "adv-earlybird", Name = "Early Bird", Sounds = "soft", NavSounds = "kalimba", Music = "track:Daybreak", Moving = "", Wallpaper = "image:EarlyBird.jpg",
+            Description = "For morning players: cream cards with a sunrise frame and little suns in the corners, warm home buttons, and the sun coming up over pink hills as the birds head out.",
+            Light = new[] { "#FFF4E8", "#5A2A20", "#9A6A58", "#FFFAF4", "#FDEBDD", "#FF7A59" }, ForceLight = true,
+            Font = "file:Merienda-Regular.ttf#Merienda", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#FFF4E4", "#FFD9B0" }, PageScrim = 0.4,
+            Unlock = "early:5", Skin = new AdvancedSkin("earlybird"), TileAnimation = "breathe"
+        },
+        new()
+        {
+            Id = "adv-marathon", Name = "Marathon", Sounds = "deep", NavSounds = "tick", Music = "track:Fraxsu", Moving = "", Wallpaper = "image:Marathon.jpg",
+            Description = "Three hours without stopping: asphalt cards framed in running-track red with lane lines in the corners, and the bend of a track with its numbered lanes under a checkered finish line.",
+            Dark = new[] { "#0E1014", "#FFFFFF", "#AEB4C2", "#1C1F27", "#16181E", "#FF5A3C" }, Mode = "dark",
+            Font = "file:BarlowCondensed-SemiBold.ttf#Barlow Condensed SemiBold#Barlow Condensed", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#1C1F27", "#0A0B0F" }, PageScrim = 0.45,
+            Unlock = "marathon:3", Skin = new AdvancedSkin("marathon"), TileAnimation = "lift"
+        },
+        new()
+        {
+            Id = "adv-globetrotter", Name = "Globetrotter", Sounds = "chime", NavSounds = "tick", Music = "track:Coffee Shop", Moving = "", Wallpaper = "image:Globetrotter.jpg",
+            Description = "Twenty-five different games: parchment cards framed in brass with compass roses, teal title bars, and an old map crossed by dotted flight paths and passport stamps.",
+            Light = new[] { "#EFE4CA", "#2A2410", "#6A5A38", "#FAF3E2", "#EADDBE", "#2E7A78" }, ForceLight = true,
+            Font = "file:TenorSans-Regular.ttf#Tenor Sans", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#F6EDD6", "#E3D2AC" }, PageScrim = 0.4,
+            Unlock = "games:25", Skin = new AdvancedSkin("globetrotter"), TileAnimation = "lift"
+        },
+        new()
+        {
+            Id = "adv-carnival", Name = "Carnival", Sounds = "chime", NavSounds = "kalimba", Music = "track:Sweetness", Moving = "", Wallpaper = "image:Carnival.jpg",
+            Description = "Ten weekends of play: cream cards with gold frames and glowing bulbs, red title bars, home buttons ringed with lights, and a striped big top under strings of lights beside a Ferris wheel.",
+            Light = new[] { "#FFF1DE", "#3A0E0A", "#8A4A3A", "#FFFAF0", "#FCE8CC", "#E8413A" }, ForceLight = true,
+            Font = "file:Bangers-Regular.ttf#Bangers", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#FFF1D6", "#FFD7A8" }, PageScrim = 0.4,
+            Unlock = "weekends:10", Skin = new AdvancedSkin("carnival"), TileAnimation = "breathe"
+        },
+        new()
+        {
+            Id = "adv-phoenix", Name = "Phoenix", Sounds = "deep", NavSounds = "laser", Music = "track:Sun Rays", Moving = "", Wallpaper = "image:Phoenix.jpg",
+            Description = "Thirty days in a row: ember-dark cards framed in molten gold with flame feathers in the corners, home buttons ringed with fire, and a phoenix rising on blazing wings.",
+            Dark = new[] { "#120403", "#FFF0DC", "#D8A888", "#220806", "#1A0604", "#FFB43D" }, Mode = "dark",
+            Font = "file:CormorantSC-Regular.ttf#Cormorant SC", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#220806", "#050101" }, PageScrim = 0.5,
+            Unlock = "streak:30", Skin = new AdvancedSkin("phoenix"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "adv-eclipse", Name = "Eclipse", Sounds = "soft", NavSounds = "droplet", Music = "track:Meditation", Moving = "", Wallpaper = "image:Eclipse.jpg",
+            Description = "Twenty-five late nights: black cards with a silver corona frame and crescent moons, home buttons wreathed in light, and a total eclipse with its corona and diamond ring among the stars.",
+            Dark = new[] { "#040406", "#F2F4FA", "#9AA3B8", "#0E0F14", "#0A0B10", "#C9D6FF" }, Mode = "dark",
+            Font = "file:Philosopher-Regular.ttf#Philosopher", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#06070C", "#010102" }, PageScrim = 0.5,
+            Unlock = "nights:25", Skin = new AdvancedSkin("eclipse"), TileAnimation = "breathe"
+        },
         new()
         {
             Id = "adv-neon-grid", Name = "Neon Grid", Sounds = "pack:Essential UI", Music = "track:Fraxsu", Moving = "", Wallpaper = "",

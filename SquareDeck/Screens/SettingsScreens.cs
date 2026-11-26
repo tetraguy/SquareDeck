@@ -1860,6 +1860,8 @@ public sealed partial class SettingsScreen : ListScreen
         AddRow("Vibration strength", s.RumbleStrength <= 0 ? "Off" : s.RumbleStrength + "%", "\uE7FC", click: RumbleStrength);
         AddRow("Vibrate when a notification pops up", OnOff(s.RumbleOnNotifications), "\uEA8F",
             click: () => Toggle(() => s.RumbleOnNotifications = !s.RumbleOnNotifications));
+        AddRow("Vibrate on A and B", OnOff(s.RumbleOnButtons), "\uE7FC",
+            click: () => Toggle(() => s.RumbleOnButtons = !s.RumbleOnButtons), subtitle: "On every page: a crisp tap when you press A, a softer double thud when you press B to go back");
         AddRow("Vibrate while moving through menus", OnOff(s.RumbleInSettings), "\uE7FC",
             click: () => Toggle(() => s.RumbleInSettings = !s.RumbleInSettings), subtitle: "A light tick from row to row in Settings, quick settings and the power menu");
         AddFeaturePage("padtest", "Controller tester", "Every button, trigger and stick live on screen with your handheld's own drawing, plus a stick drift check and a rumble test");

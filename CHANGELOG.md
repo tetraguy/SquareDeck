@@ -3,6 +3,30 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.5.37
+
+- Ten more unlockable styles (Settings > Themes > Unlockable), each with its own drawn panels, buttons, pop-ups, switches, home button icons, pointer and wallpaper:
+  - Ruby: play 100 hours.
+  - Sapphire: unlock 250 achievements.
+  - Emerald: finish 25 games.
+  - Diamond: play 250 hours.
+  - Early Bird: play before 8 a.m. on 5 different days.
+  - Marathon: play for 3 hours in one go.
+  - Globetrotter: play 25 different games.
+  - Carnival: play on 10 different weekends.
+  - Phoenix: play 30 days in a row.
+  - Eclipse: play after midnight on 25 different nights.
+- Ten more companion outfits to earn in Unlockables: headphones (10 different games), wizard hat (250 achievements), halo (14 days in a row), bow (5 weekends), top hat (5 games finished), party hat (100 sessions), flower (3 early mornings), bandana (2 hours in one go), little horns (10 late nights) and a space visor (500 hours).
+- The companion page shows the outfit's name instead of its id.
+
+## 8.5.36
+
+- Vibration on A and B, on every page: pressing A gives one crisp tap on the light motor, pressing B to go back a softer double thud on the heavy motor, so the two feel different. It follows Settings > Controller > Vibration strength, and Settings > Controller > "Vibrate on A and B" turns it off (on by default).
+
+## 8.5.35
+
+- Fixed X (Details) on a game doing nothing since 8.5.32: the game details page failed while it was being built, as it read the new "Hero background behind the game details card" setting before the page was ready.
+
 ## 8.5.34
 
 - Bluetooth headphone battery: fixed the battery not showing beside the Bluetooth icon for many headsets. SquareDeck now looks for Windows' battery number on all of the headphones' device entries (classic headsets report it on their hands-free or audio entry, which it wasn't checking), falls back to a match by name, and for Bluetooth LE headphones reads their own battery service. While no number is showing it checks every 15 seconds instead of every minute, so it shows soon after the headphones connect.

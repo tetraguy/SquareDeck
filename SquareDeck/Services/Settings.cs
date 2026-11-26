@@ -531,6 +531,7 @@ public sealed class Settings
     public int CapturesPerRow { get; set; } = 3;
     public bool CaptureAlbumIcons { get; set; } = true; // the game's picture next to each album's name
     public bool RumbleOnNotifications { get; set; } = true; // a short buzz when a notification pops up
+    public bool RumbleOnButtons { get; set; } = true;       // A taps, B thuds, on every page
     public bool RumbleInSettings { get; set; } = true;      // a light tick moving from row to row in Settings
     public bool PerformanceBoost { get; set; }              // free memory before a game starts, with an animation
     public string BoostAnimation { get; set; } = "switch2"; // switch2, rings, warp, gauge, orbit, shockwave… or random

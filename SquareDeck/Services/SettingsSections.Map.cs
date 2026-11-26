@@ -17,7 +17,7 @@ public static partial class SettingsSections
         {
             ["Buttons"] = new[] { "GlyphLook", "GlyphStyle" },
             ["Summon"] = new[] { "GuideSummon", "InGameQuickMenu" },
-            ["Vibration and testing"] = new[] { "RumbleInSettings", "RumbleOnNotifications" },
+            ["Vibration and testing"] = new[] { "RumbleOnButtons", "RumbleInSettings", "RumbleOnNotifications" },
             ["Xbox Game Bar widget"] = new[] { "GameBarWidget", "WidgetCloseGame" },
         },
         ["data"] = new()

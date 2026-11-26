@@ -47,6 +47,26 @@ public static class StyleUnlocks
                 have = playtime.Sessions.Where(s => s.Start.Hour < 4).Select(s => s.Start.Date).Distinct().Count();
                 goal = $"Play after midnight on {need:0} different nights"; unit = "nights";
                 break;
+            case "early":
+                have = PlayStats.EarlyMornings(playtime);
+                goal = $"Play before 8 a.m. on {need:0} different days"; unit = "mornings";
+                break;
+            case "games":
+                have = PlayStats.GamesPlayed(playtime);
+                goal = $"Play {need:0} different games with SquareDeck"; unit = "games";
+                break;
+            case "weekends":
+                have = PlayStats.Weekends(playtime);
+                goal = $"Play on {need:0} different weekends"; unit = "weekends";
+                break;
+            case "marathon":
+                have = PlayStats.LongestSessionHours(playtime);
+                goal = $"Play for {need:0} hours in one go"; unit = "hours";
+                break;
+            case "sessions":
+                have = playtime.Sessions.Count;
+                goal = $"Play {need:0} sessions with SquareDeck"; unit = "sessions";
+                break;
             default:
                 return new(0, unlock, "");
         }
@@ -74,4 +94,25 @@ public static class StyleUnlocks
         if (fresh.Count > 0 || first) _settings.Save();
         return first ? new() : fresh;
     }
+}
+
+/// <summary>Counts from your play history, for the unlockable styles and the companion outfits.</summary>
+public static class PlayStats
+{
+    /// <summary>Different days with a session started between 5 and 8 in the morning.</summary>
+    public static int EarlyMornings(PlaytimeStore p) => p.Sessions.Where(s => s.Start.Hour is >= 5 and < 8).Select(s => s.Start.Date).Distinct().Count();
+
+    /// <summary>Different games played with SquareDeck (any time at all).</summary>
+    public static int GamesPlayed(PlaytimeStore p) => p.Seconds.Count(kv => kv.Value.Values.Sum() > 60);
+
+    /// <summary>Different weekends with play on the Saturday or Sunday.</summary>
+    public static int Weekends(PlaytimeStore p) =>
+        p.Sessions.Where(s => s.Start.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+                  .Select(s => s.Start.Date.AddDays(s.Start.DayOfWeek == DayOfWeek.Sunday ? -1 : 0)).Distinct().Count();
+
+    /// <summary>The longest single session, in hours.</summary>
+    public static double LongestSessionHours(PlaytimeStore p) => (p.LongestSession()?.Seconds ?? 0) / 3600;
+
+    /// <summary>Different nights with a session started between midnight and 4 a.m.</summary>
+    public static int LateNights(PlaytimeStore p) => p.Sessions.Where(s => s.Start.Hour < 4).Select(s => s.Start.Date).Distinct().Count();
 }
