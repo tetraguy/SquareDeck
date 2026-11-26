@@ -16,6 +16,7 @@ public static class CloudIntro
 {
     public static readonly (string Id, string Name, string About)[] Styles =
     {
+        ("switch2", "Switch 2", "The service's tile pops in on the page color while the Switch 2 rim draws around it, then a flash as it connects"),
         ("skyrise", "Above the clouds", "Fly up through a layer of clouds and break out into clear sky where the logo waits"),
         ("storm", "Thunder cloud", "A cloud gathers and darkens, and a lightning strike reveals the logo"),
         ("beam", "Beam up", "Glowing game pieces float up and stream into a cloud overhead"),
@@ -24,6 +25,9 @@ public static class CloudIntro
     };
 
     public const int Length = 2500;
+
+    /// <summary>The animation that will play: "Surprise me" picks one of the four.</summary>
+    public static string Resolve(string style) => style == "random" ? Styles[Random.Shared.Next(4)].Id : style;
 
     /// <summary>A soft cartoon cloud: overlapping circles on a flat base.</summary>
     public static Path Cloud(double width, Brush fill, double opacity = 1)
@@ -46,7 +50,7 @@ public static class CloudIntro
     /// </summary>
     public static FrameworkElement Build(string style, CloudService service, FrameworkElement logo)
     {
-        if (style == "random") style = Styles[Random.Shared.Next(3)].Id;
+        style = Resolve(style);
         var brand = service.Brand;
         var root = new Grid { ClipToBounds = true };
         var canvas = new Canvas { IsHitTestVisible = false };
@@ -70,6 +74,9 @@ public static class CloudIntro
 
         switch (style)
         {
+            case "switch2":
+                Switch2(root, middle, logo, scale, service);
+                break;
             case "storm":
             {
                 // Night sky; a cloud swells and darkens, flickers, a bolt strikes and the logo appears in the flash.
@@ -227,5 +234,107 @@ public static class CloudIntro
             }
         }
         return root;
+    }
+
+    /// <summary>
+    /// Switch 2: the page color with a soft glow, the service's tile popping in while the Switch 2 rim (blue into purple
+    /// into pink, or the UI style's own ring) draws itself around it, the name in quiet type, three dots while it
+    /// connects, and the rim flashing out as the page is about to show.
+    /// </summary>
+    private static void Switch2(Grid root, Grid middle, FrameworkElement logo, ScaleTransform scale, CloudService service)
+    {
+        Switch2Settings.Refresh();
+        const double Tile = 180, Gap = 12, Thick = 6;
+        var bg = Switch2Settings.Background;
+        var blue = Switch2Settings.Blue;
+        root.Background = new SolidColorBrush(bg);
+
+        // A soft wash of the service's color and the highlight color behind the tile.
+        var brand = service.Brand;
+        var glow = new Ellipse
+        {
+            Width = 900, Height = 900, IsHitTestVisible = false, Opacity = 0, Margin = new Thickness(0, 0, 0, 160),
+            Fill = new RadialGradientBrush(Color.FromArgb(0x55, brand.R, brand.G, brand.B), Color.FromArgb(0, blue.R, blue.G, blue.B))
+        };
+        root.Children.Insert(1, glow);
+        glow.BeginAnimation(UIElement.OpacityProperty, A(0, 0.9, 900));
+
+        // The tile with its rim.
+        double box = Tile + (Gap + Thick) * 2;
+        double radius = 20 + Gap;
+        var turn = new RotateTransform(0, 0.5, 0.5);
+        var rimBrush = Switch2Settings.RimBrush.Clone();
+        rimBrush.RelativeTransform = turn;
+        double inner = box - Thick;
+        double around = (4 * inner - (8 - 2 * Math.PI) * radius) / Thick;
+        var art = new Grid { Width = box, Height = box, HorizontalAlignment = HorizontalAlignment.Center };
+        var track = new Rectangle { RadiusX = radius, RadiusY = radius, StrokeThickness = Thick, Stroke = new SolidColorBrush(Switch2Settings.Line), Opacity = 0 };
+        var rim = new Rectangle
+        {
+            RadiusX = radius, RadiusY = radius, StrokeThickness = Thick, Stroke = rimBrush, StrokeDashCap = PenLineCap.Round,
+            StrokeDashArray = new DoubleCollection { around, around }, StrokeDashOffset = around,
+            Effect = Perf.Active ? null : new DropShadowEffect { Color = blue, BlurRadius = 22, ShadowDepth = 0, Opacity = 0.7 }
+        };
+        var flash = new Rectangle { RadiusX = radius, RadiusY = radius, StrokeThickness = 4, Stroke = rimBrush, Opacity = 0, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(1, 1) };
+        middle.Children.Remove(logo);
+        logo.HorizontalAlignment = HorizontalAlignment.Center;
+        logo.VerticalAlignment = VerticalAlignment.Center;
+        art.Children.Add(track);
+        art.Children.Add(rim);
+        art.Children.Add(flash);
+        art.Children.Add(logo);
+
+        var column = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+        column.Children.Add(art);
+        var name = new TextBlock { Text = service.Name, FontSize = 32, Foreground = new SolidColorBrush(Switch2Settings.Text), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 28, 0, 0), Opacity = 0, RenderTransform = new TranslateTransform(0, 16) };
+        column.Children.Add(name);
+
+        // "Connecting" with three dots that rise one after another.
+        var connecting = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 12, 0, 0), Opacity = 0 };
+        connecting.Children.Add(new TextBlock { Text = "Connecting", FontSize = 18, Foreground = new SolidColorBrush(Switch2Settings.Subtle), VerticalAlignment = VerticalAlignment.Center });
+        for (int i = 0; i < 3; i++)
+        {
+            var dot = new Ellipse { Width = 7, Height = 7, Fill = new SolidColorBrush(blue), Margin = new Thickness(i == 0 ? 10 : 5, 6, 0, 0), RenderTransform = new TranslateTransform() };
+            connecting.Children.Add(dot);
+            var hop = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, BeginTime = TimeSpan.FromMilliseconds(i * 140) };
+            hop.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+            hop.KeyFrames.Add(new EasingDoubleKeyFrame(-7, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(220)), new SineEase { EasingMode = EasingMode.EaseOut }));
+            hop.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(440)), new SineEase { EasingMode = EasingMode.EaseIn }));
+            hop.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(900))));
+            ((TranslateTransform)dot.RenderTransform).BeginAnimation(TranslateTransform.YProperty, hop);
+        }
+        column.Children.Add(connecting);
+        middle.Children.Add(column);
+
+        var easeOut = new CubicEase { EasingMode = EasingMode.EaseOut };
+        // The tile pops in, the rim draws itself around it and keeps turning its colors.
+        logo.Opacity = 0;
+        logo.BeginAnimation(UIElement.OpacityProperty, A(0, 1, 260, 150));
+        // The tile pops in, holds, and gives a small pulse as it connects (one timeline for the whole thing).
+        var size = new DoubleAnimationUsingKeyFrames();
+        size.KeyFrames.Add(new DiscreteDoubleKeyFrame(0.6, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        size.KeyFrames.Add(new DiscreteDoubleKeyFrame(0.6, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(150))));
+        size.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(670)), new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut }));
+        size.KeyFrames.Add(new DiscreteDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1950))));
+        size.KeyFrames.Add(new EasingDoubleKeyFrame(1.07, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2080)), easeOut));
+        size.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2400)), easeOut));
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, size);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, size);
+        track.BeginAnimation(UIElement.OpacityProperty, A(0, 1, 300, 300));
+        rim.BeginAnimation(Shape.StrokeDashOffsetProperty, A(around, 0, 900, 450, new QuadraticEase { EasingMode = EasingMode.EaseInOut }));
+        turn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromSeconds(2.4)) { RepeatBehavior = RepeatBehavior.Forever });
+        name.BeginAnimation(UIElement.OpacityProperty, A(0, 1, 360, 650));
+        ((TranslateTransform)name.RenderTransform).BeginAnimation(TranslateTransform.YProperty, A(16, 0, 420, 650, easeOut));
+        connecting.BeginAnimation(UIElement.OpacityProperty, A(0, 1, 300, 950));
+
+        // Ready: the rim flashes out from the tile and the tile gives a small pulse.
+        var grow = A(1, 1.35, 520, 1950, easeOut);
+        ((ScaleTransform)flash.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+        ((ScaleTransform)flash.RenderTransform).BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+        var flashFade = new DoubleAnimationUsingKeyFrames();
+        flashFade.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        flashFade.KeyFrames.Add(new DiscreteDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1950))));
+        flashFade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(2470))));
+        flash.BeginAnimation(UIElement.OpacityProperty, flashFade);
     }
 }

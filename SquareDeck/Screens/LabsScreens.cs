@@ -740,6 +740,10 @@ public sealed class StyleScheduleScreen : ListScreen
 
     protected override void Build()
     {
+        // On or off here too, now that the page opens straight from Settings > Themes.
+        bool on = Labs.On("styleschedule");
+        AddRow("Style schedule", on ? "On" : "Off", "\uE823", click: () => { Labs.Set("styleschedule", !on); UiSound.Select(); Rebuild(); },
+            subtitle: "A different style for mornings and nights or weekends, or a random Advanced style each day");
         string mode = Labs.ScheduleMode;
         AddRow("Change", mode switch { "weekend" => "Weekdays and weekends", "random" => "A random Advanced style each day", _ => "Mornings and nights" }, "", click: () => _ = ChooseModeAsync());
         if (mode == "daynight")

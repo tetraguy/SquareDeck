@@ -27,9 +27,13 @@ public sealed class DynamicBackgroundScreen : GridScreen
     public DynamicBackgroundScreen() : base("Moving background", "{Select}  Use this      {Options}  Remove your video      {Back}  Back")
     {
         _preview.MediaEnded += (_, _) => { _preview.Position = TimeSpan.Zero; _preview.Play(); };
+        if (Switch2Pages.ThemePages) UseSwitch2Grid("Moving background", "\uE714"); // the Switch style: video tiles with the rimmed highlight
     }
 
     public override void OnShown() => Build();
+
+    /// <summary>A section title: the bar-and-name kind with the Switch style.</summary>
+    private static UIElement Heading(string text) => Switch2Pages.ThemePages ? Switch2Settings.Header(text) : Ui.Header(text);
 
     public override void OnClosed() => StopPreview();
 
@@ -82,7 +86,7 @@ public sealed class DynamicBackgroundScreen : GridScreen
         Body.Children.Add(offRow);
 
         // Your own videos, and the tile that adds one.
-        Body.Children.Add(Ui.Header("Your videos"));
+        Body.Children.Add(Heading("Your videos"));
         var mine = new WrapPanel();
         var add = AddTile(GlyphFace("\uE710", "Add a video"), "Add your own…", W, () => _ = ImportAsync(), into: mine);
         add.DataContext = "add";
@@ -102,7 +106,7 @@ public sealed class DynamicBackgroundScreen : GridScreen
 
         foreach (var (group, names) in MainWindow.DynamicBackgrounds)
         {
-            Body.Children.Add(Ui.Header(group));
+            Body.Children.Add(Heading(group));
             var row = new WrapPanel();
             foreach (var name in names)
             {

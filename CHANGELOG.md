@@ -3,6 +3,22 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 8.5.34
+
+- Bluetooth headphone battery: fixed the battery not showing beside the Bluetooth icon for many headsets. SquareDeck now looks for Windows' battery number on all of the headphones' device entries (classic headsets report it on their hands-free or audio entry, which it wasn't checking), falls back to a match by name, and for Bluetooth LE headphones reads their own battery service. While no number is showing it checks every 15 seconds instead of every minute, so it shows soon after the headphones connect.
+- Settings > Themes: Style schedule is right under Surprise me now, so it's easy to find. It opens the schedule page, which now has its own on/off switch at the top.
+
+## 8.5.33
+
+- Cloud gaming: a new Switch 2 launch animation, now the default. The service's tile pops in on the page color while the Switch 2 rim draws itself around it, the name rises in quiet type, three dots hop while it connects, and the rim flashes out just before the page shows. The "how to leave" line takes the Switch 2 colors too. "Surprise me" now picks from four animations, and anyone who had "Surprise me" is moved to the Switch 2 one (Settings > Cloud gaming > Launch animation still has the others).
+- With the Switch style in use, its theme pages take the Switch 2 look: My themes, looks and wallpaper; Wallpaper; Color theme; Moving background (the live wallpaper picker, with bar-and-name section titles and rimmed video tiles); and Wallpaper Engine.
+
+## 8.5.32
+
+- Settings > Artwork: new "Hero background behind the game details card". With it on, the card with Play, Favorite and the other buttons shows the game's hero artwork, softly blurred (shrunk first, then a Gaussian blur, so it's smooth and light), with the card color over it so the text stays readable. Off by default.
+- Explorer: the dark blue boxes behind the drive and network tiles on This PC are gone.
+- Explorer: the tabs can be reached with the left thumbstick (up from the top bar). A opens the highlighted tab, X closes it, and the + button opens a new one.
+
 ## 8.5.31
 
 - Game Genie with the companion: while the big companion is in the middle of the page searching, its usual small self in the corner steps away, so there's only one of it. It comes back as soon as the answers are in.

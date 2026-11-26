@@ -155,7 +155,10 @@ public sealed class ColorThemeScreen : GridScreen
 {
     private bool _built;
 
-    public ColorThemeScreen() : base("Color theme") { }
+    public ColorThemeScreen() : base("Color theme")
+    {
+        if (Switch2Pages.ThemePages) UseSwitch2Grid("Color theme", "\uE790"); // swatches with the rimmed highlight
+    }
 
     public override void OnShown()
     {
@@ -211,6 +214,7 @@ public sealed class WallpaperScreen : GridScreen
 
     public WallpaperScreen() : base("Wallpaper")
     {
+        if (Switch2Pages.ThemePages) UseSwitch2Grid("Wallpaper", "\uE7F9");
         Body.Children.Insert(0, _blur);
         BuildBlur();
         AddTile(GlyphBox(208, 117, ""), "None", 208, () => Pick(""));

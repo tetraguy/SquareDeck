@@ -88,8 +88,12 @@ public sealed partial class ExplorerScreen
             face.SetResourceReference(Border.BackgroundProperty, current ? "CircleBrush" : "TileBrush");
             face.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
             if (!current) face.Opacity = 0.8;
-            var header = new Button { Style = Ui.StyleOf("BareButton"), Focusable = false, Content = face, Margin = new Thickness(0, 0, 6, 0), ToolTip = tab.Folder ?? "This PC", AllowDrop = true };
-            header.Click += (_, _) => SwitchTab(index);
+            var header = new Button { Style = Ui.StyleOf("BareButton"), Focusable = true, Content = face, Margin = new Thickness(0, 0, 6, 0), ToolTip = tab.Folder ?? "This PC", AllowDrop = true };
+            // The left stick reaches the tabs too (up from the top bar); A opens the highlighted one, X closes it.
+            var rest = face.BorderThickness;
+            header.GotKeyboardFocus += (_, _) => { face.BorderThickness = new Thickness(2, 2, 2, current ? 3 : 2); face.Opacity = 1; };
+            header.LostKeyboardFocus += (_, _) => { face.BorderThickness = rest; if (!current) face.Opacity = 0.8; };
+            header.Click += (_, _) => { if (index == _tabIndex) FocusDefault(); else SwitchTab(index); };
             header.MouseUp += (_, e) => { if (e.ChangedButton == MouseButton.Middle && _tabs.Count > 1) CloseTab(index); };
             // Dragged files: hovering a tab opens it; dropping on it moves (or copies) them into its folder.
             header.DragEnter += (_, e) => { _hoverTab = tab; _dragHover.Stop(); _dragHover.Start(); DragFeedback(e, tab.Folder); };
@@ -103,11 +107,14 @@ public sealed partial class ExplorerScreen
         {
             var add = new Button
             {
-                Style = Ui.StyleOf("BareButton"), Focusable = false, Width = 40, Height = 40, ToolTip = "New tab (Ctrl+T)",
+                Style = Ui.StyleOf("BareButton"), Focusable = true, Width = 40, Height = 40, ToolTip = "New tab (Ctrl+T)",
                 Content = new TextBlock { Text = "", FontFamily = Ui.IconFont, FontSize = 15, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
             };
             ((TextBlock)add.Content).SetResourceReference(TextBlock.ForegroundProperty, "FgBrush");
             add.Click += (_, _) => NewTab(_folder);
+            var plus = (TextBlock)add.Content;
+            add.GotKeyboardFocus += (_, _) => { plus.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush"); plus.FontSize = 18; };
+            add.LostKeyboardFocus += (_, _) => { plus.SetResourceReference(TextBlock.ForegroundProperty, "FgBrush"); plus.FontSize = 15; };
             _tabStrip.Children.Add(add);
         }
         _tabs[_tabIndex].Header?.BringIntoView();
@@ -195,6 +202,9 @@ public sealed partial class ExplorerScreen
         }
         UiSound.Back();
     }
+
+    /// <summary>The tab whose header has the controller's highlight, if any.</summary>
+    private int FocusedTabIndex() => _tabs.FindIndex(t => t.Header?.IsKeyboardFocused == true);
 
     private void NextTab(int step)
     {

@@ -1,6 +1,7 @@
 using System.Windows.Controls.Primitives;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -757,6 +758,7 @@ public sealed class DetailsScreen : Screen
             var card = new Border { CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), Padding = new Thickness(22, 20, 22, 18), Margin = new Thickness(6, 14, 6, 0), Child = top };
             card.SetResourceReference(Border.BackgroundProperty, "S2Card");
             card.SetResourceReference(Border.BorderBrushProperty, "S2Line");
+            if (Host.Settings.DetailsCardHero) WrapCardInArt(card, top);
             _page.Children.Add(card);
             _page.Children.Add(_stats);
             return;
@@ -765,6 +767,71 @@ public sealed class DetailsScreen : Screen
         _page.Children.Add(_actions);
         _page.Children.Add(_actionLabel);
         _page.Children.Add(_stats);
+    }
+
+    // ---------------------------------------------------------------- the card's artwork (Settings: hero behind the details card)
+
+    private Grid? _cardArt;
+    private Image? _cardArtImage;
+
+    /// <summary>The game's hero artwork behind the top card, softly blurred, with the card color over it so the text stays readable.</summary>
+    private void WrapCardInArt(Border card, UIElement content)
+    {
+        card.Padding = new Thickness(0);
+        card.Child = null;
+        var layers = new Grid();
+        // The rounded corners: the card clips its picture to its own shape.
+        layers.SizeChanged += (_, e) => layers.Clip = new RectangleGeometry(new Rect(0, 0, e.NewSize.Width, e.NewSize.Height), 15, 15);
+
+        _cardArtImage = new Image
+        {
+            Stretch = Stretch.UniformToFill,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(-48), // past the edges, so the blur never shows a soft rim
+            Effect = new BlurEffect { Radius = 34, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Quality }
+        };
+        RenderOptions.SetBitmapScalingMode(_cardArtImage, BitmapScalingMode.HighQuality);
+        _cardArt = new Grid { Opacity = 0, IsHitTestVisible = false };
+        _cardArt.Children.Add(_cardArtImage);
+
+        // The card color over the picture: heavier on the left where the text is, lighter where the logo sits.
+        var c = Switch2Settings.Card;
+        var wash = new LinearGradientBrush { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
+        wash.GradientStops.Add(new GradientStop(Color.FromArgb(0xC8, c.R, c.G, c.B), 0));
+        wash.GradientStops.Add(new GradientStop(Color.FromArgb(0x9C, c.R, c.G, c.B), 0.55));
+        wash.GradientStops.Add(new GradientStop(Color.FromArgb(0x70, c.R, c.G, c.B), 1));
+        _cardArt.Children.Add(new Border { Background = wash });
+        var down = new LinearGradientBrush { StartPoint = new Point(0.5, 0), EndPoint = new Point(0.5, 1) };
+        down.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, c.R, c.G, c.B), 0.45));
+        down.GradientStops.Add(new GradientStop(Color.FromArgb(0x90, c.R, c.G, c.B), 1));
+        _cardArt.Children.Add(new Border { Background = down });
+
+        layers.Children.Add(_cardArt);
+        layers.Children.Add(new Border { Padding = new Thickness(22, 20, 22, 18), Child = content });
+        card.Child = layers;
+        if (_heroImage.Source != null) ShowCardArt(_heroImage.Source);
+    }
+
+    /// <summary>Puts the artwork in the card: shrunk first, so the blur is smooth and cheap, then faded in.</summary>
+    private void ShowCardArt(ImageSource picture)
+    {
+        if (_cardArt == null || _cardArtImage == null || _cardArtImage.Source != null) return;
+        ImageSource small = picture;
+        if (picture is BitmapSource b && b.PixelWidth > 160)
+        {
+            try
+            {
+                double scale = 160.0 / b.PixelWidth;
+                var t = new TransformedBitmap(b, new ScaleTransform(scale, scale));
+                t.Freeze();
+                small = t;
+            }
+            catch (Exception) { small = picture; }
+        }
+        _cardArtImage.Source = small;
+        if (Theme.ReduceMotion) _cardArt.Opacity = 1;
+        else _cardArt.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(450)) { FillBehavior = FillBehavior.Stop });
+        _cardArt.Opacity = 1;
     }
 
     // ---------------------------------------------------------------- Switch 2 style
@@ -1337,6 +1404,7 @@ public sealed class DetailsScreen : Screen
     {
         if (picture == null || _heroImage.Source != null) return;
         _heroImage.Source = picture;
+        ShowCardArt(picture);
         if (_media != null && _media.Source == null) _media.Source = picture;
         double target = Math.Max(0, 1 - _scroll.VerticalOffset / (HeroHeight * 0.9));
         if (Theme.ReduceMotion) _hero.Opacity = target;

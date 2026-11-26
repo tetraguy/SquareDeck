@@ -190,7 +190,15 @@ public sealed class CloudGameScreen : Screen
         {
             _started = true;
             _openedAt = DateTime.UtcNow;
-            _introHost.Children.Add(CloudIntro.Build(Host.Settings.CloudIntro, Service, Service.Face(180, 180, 20)));
+            var intro = CloudIntro.Resolve(Host.Settings.CloudIntro);
+            if (intro == "switch2" && !Theme.ReduceMotion)
+            {
+                // The page's own words (how to leave) take the Switch 2 colors; the animation says "Connecting" itself.
+                Switch2Settings.ApplyColors(this);
+                if (Content is Panel page) page.SetResourceReference(Panel.BackgroundProperty, "BgBrush");
+                _status.Text = "";
+            }
+            _introHost.Children.Add(CloudIntro.Build(intro, Service, Service.Face(180, 180, 20)));
             _ = StartAsync();
         }
         else if (_web.CoreWebView2 != null) _web.Visibility = Visibility.Visible;

@@ -59,7 +59,6 @@ public sealed partial class ExplorerScreen
         names.Children.Add(sub);
         head.Children.Add(names);
         var box = new Border { CornerRadius = new CornerRadius(14), Padding = new Thickness(18), Child = head };
-        box.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
         var button = Ui.Tile(box);
         button.Margin = new Thickness(0, 0, 8, 8);
         Hook(button, entry);

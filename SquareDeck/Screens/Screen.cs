@@ -713,7 +713,7 @@ public abstract class GridScreen : Screen
             Detach(GridScroll); // still in the old layout: let go of it first
             ReplaceBody(Switch2Pages.Shell(nav, GridScroll, underNav));
         }
-        Switch2Pages.AutoRestyle(Tiles);
+        Switch2Pages.AutoRestyle(Body); // the tiles, and any rows of tiles a page adds beside them
     }
 
     protected Button AddTile(UIElement visual, string? caption, double width, Action click, object? tag = null,

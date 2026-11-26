@@ -56,7 +56,7 @@ public static partial class SettingsSections
         },
         ["look"] = new()
         {
-            ["Artwork"] = new[] { "AnimatedCovers", "DetailsGradient", "HeroBackgrounds" },
+            ["Artwork"] = new[] { "AnimatedCovers", "DetailsGradient", "DetailsCardHero", "HeroBackgrounds" },
             ["Colors"] = new[] { "DarkTheme", "GameAccent", "ThemeMode" },
             ["Display"] = new[] { "AspectRatio" },
             ["Font"] = new[] { "UiFont" },

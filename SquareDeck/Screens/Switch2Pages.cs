@@ -41,7 +41,14 @@ public static class Switch2Pages
     public static bool ListPage(Screen screen) => PcPage(screen) || (Labs.On("s2details") && screen is GameProfileScreen or FixGameScreen)
         || (On && screen is AddStoresScreen) // from Stores, with Captures, Multimedia and Stores
         || screen is StyleScheduleScreen     // Settings > Themes > Style schedule
-        || screen is CompanionScreen;        // the companion's character, color, name, outfit and reactions
+        || screen is CompanionScreen         // the companion's character, color, name, outfit and reactions
+        || (ThemePages && screen is ThemeScreen or WallpaperEngineScreen); // with the Switch style: My themes, looks and wallpaper
+
+    /// <summary>
+    /// The Switch style is in use: its theme pages (My themes, Wallpaper, Color theme, Moving background, Wallpaper Engine)
+    /// take the Switch 2 look.
+    /// </summary>
+    public static bool ThemePages => UiStyles.Current.Id == "switch";
 
     /// <summary>The icon beside a PC tool or info page's name in its title.</summary>
     public static string PcGlyph(Screen screen) => screen switch
@@ -61,6 +68,8 @@ public static class Switch2Pages
         AddStoresScreen => "\uE710",
         StyleScheduleScreen => "\uE823",
         CompanionScreen => "\uE899",
+        ThemeScreen => "\uE771",
+        WallpaperEngineScreen => "\uE714",
         AllyControlScreen => Ui.HandheldGlyph,
         DeviceHealthScreen => "\uE95E",
         BatteryInsightScreen or BatteryHealthScreen => "\uE945",
@@ -93,6 +102,7 @@ public static class Switch2Pages
         || (Labs.On("s2genie") && screen is GameGenieScreen)
         || (Labs.On("s2setup") && screen is OnboardingScreen)
         || screen is StyleScheduleScreen or CompanionScreen
+        || (ThemePages && screen is ThemeScreen or WallpaperScreen or ColorThemeScreen or DynamicBackgroundScreen or WallpaperEngineScreen)
         || PcPage(screen);
 
     /// <summary>

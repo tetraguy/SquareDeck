@@ -38,6 +38,7 @@ public sealed class Settings
 
     /// <summary>8.5.29: the hero background set once to off for the Switch style, its default.</summary>
     public bool HeroOff8529 { get; set; }
+    public bool CloudIntro8533 { get; set; }
 
     // Explorer: folders pinned to its sidebar, grid or list, sort order, and hidden files.
     public List<string> ExplorerPins { get; set; } = new();
@@ -101,7 +102,7 @@ public sealed class Settings
     public double CloudLeaveHold { get; set; } = 1.5;
     /// <summary>Keyboard shortcut that leaves a cloud game (an id from CloudGameScreen.LeaveKeys).</summary>
     public string CloudLeaveKey { get; set; } = "ctrl+shift+q";
-    public string CloudIntro { get; set; } = "random";     // skyrise | storm | beam | random | none    // where the little exit button sits during a cloud game
+    public string CloudIntro { get; set; } = "switch2";     // switch2 | skyrise | storm | beam | random | none    // where the little exit button sits during a cloud game
     public string LibraryLayout { get; set; } = "sidebar"; // Game library: sidebar, compact, large, list, shelves or spotlight
     public string LibraryView { get; set; } = "square"; // Game library: square covers, tall "grid" art, or wide "header" capsules
     public string ExplorerSort { get; set; } = "name";
@@ -623,6 +624,9 @@ public sealed class Settings
     /// <summary>Wash the game details page in a soft gradient of the cover's colors.</summary>
     public bool DetailsGradient { get; set; } = true;
 
+    /// <summary>Switch style: the game's hero artwork, blurred, behind the card at the top of the details page (instead of the plain card color).</summary>
+    public bool DetailsCardHero { get; set; }
+
     /// <summary>Show the game's logo artwork instead of its name at the top of the details page.</summary>
     public bool DetailsLogo { get; set; } = true;
 
@@ -714,6 +718,11 @@ public sealed class Settings
                         s.ShowMusicButton = s.ShowBrowserButton = s.ShowExplorerButton = true;
                         s.ShowFriendsButton = s.ShowNewsButton = s.ShowMyDeviceButton = false;
                         s.HomeButtons8515 = true;
+                    }
+                    if (!s.CloudIntro8533)
+                    {
+                        if (s.CloudIntro is null or "random") s.CloudIntro = "switch2"; // the Switch 2 animation is the new default
+                        s.CloudIntro8533 = true;
                     }
                     if (!s.HeroOff8529)
                     {

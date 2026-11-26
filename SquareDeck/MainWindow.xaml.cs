@@ -2789,7 +2789,8 @@ public partial class MainWindow : Window
         (string Name, int Percent)? phones = null;
         if (status.BluetoothOn && Settings.ShowHeadphoneBattery && !AllGames.Any(g => g.IsRunning))
         {
-            if (DateTime.UtcNow - _phonesCheckedAt > TimeSpan.FromSeconds(55))
+            // Every minute once there's a number; every 15 seconds while there isn't (headphones just connected).
+            if (DateTime.UtcNow - _phonesCheckedAt > TimeSpan.FromSeconds(_phones == null ? 15 : 55))
             {
                 _phonesCheckedAt = DateTime.UtcNow;
                 _phones = await NetworkService.GetHeadphoneBatteryAsync();

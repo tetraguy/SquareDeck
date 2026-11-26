@@ -178,32 +178,129 @@ public static class NetworkService
     private const string BatteryProperty = "{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2";
     private const string BluetoothClass = "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}";
 
+    private const string ContainerProperty = "System.Devices.ContainerId";
+    private const string AepContainerProperty = "System.Devices.Aep.ContainerId";
+
     /// <summary>
-    /// The battery of connected Bluetooth headphones or a headset, as Windows reports it (Settings > Bluetooth shows the
-    /// same number), or null when none is connected or it doesn't report one. With several, the lowest.
+    /// The battery of connected Bluetooth headphones or a headset, or null when none is connected or none reports one.
+    /// With several, the lowest. Looked for in three places, as headsets differ:
+    ///  1. Windows' own number (Settings > Bluetooth shows it) on any of the headphones' device entries: classic headsets
+    ///     put it on their hands-free or audio entry, which isn't in the Bluetooth class, so the entries are found by the
+    ///     headphones' container (one physical device, all its entries);
+    ///  2. the same, by name across the Bluetooth class, for a device with no container;
+    ///  3. Bluetooth LE headphones' own battery service (GATT 0x180F), read directly.
     /// </summary>
     public static async Task<(string Name, int Percent)?> GetHeadphoneBatteryAsync()
     {
         try
         {
-            var connected = (await ListBluetoothAsync(paired: true)).Where(d => d.Connected).Select(d => d.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (connected.Count == 0) return null;
-            var nodes = await DeviceInformation.FindAllAsync($"System.Devices.ClassGuid:=\"{BluetoothClass}\"",
-                new[] { BatteryProperty }, DeviceInformationKind.Device);
-            (string, int)? lowest = null;
-            foreach (var node in nodes)
+            var connected = new List<(string Name, string Id, Guid? Container, bool Le)>();
+            foreach (var (selector, le) in new[] { (BluetoothDevice.GetDeviceSelectorFromPairingState(true), false), (BluetoothLEDevice.GetDeviceSelectorFromPairingState(true), true) })
             {
-                if (!node.Properties.TryGetValue(BatteryProperty, out var value) || value == null) continue;
-                int percent = Convert.ToInt32(value);
-                if (percent < 0 || percent > 100) continue;
-                // The device node is named after the headphones, as in the list of paired devices.
-                string? name = connected.FirstOrDefault(n => node.Name.StartsWith(n, StringComparison.OrdinalIgnoreCase) || n.StartsWith(node.Name, StringComparison.OrdinalIgnoreCase));
-                if (name == null) continue;
-                if (lowest == null || percent < lowest.Value.Item2) lowest = (name, percent);
+                try
+                {
+                    var list = await DeviceInformation.FindAllAsync(selector, new[] { IsConnectedProperty, AepContainerProperty });
+                    foreach (var d in list)
+                    {
+                        if (string.IsNullOrWhiteSpace(d.Name)) continue;
+                        if (!(d.Properties.TryGetValue(IsConnectedProperty, out var c) && c is bool on && on)) continue;
+                        Guid? container = d.Properties.TryGetValue(AepContainerProperty, out var g) && g is Guid id && id != Guid.Empty ? id : null;
+                        connected.Add((d.Name, d.Id, container, le));
+                    }
+                }
+                catch (Exception) { }
             }
-            return lowest;
+            if (connected.Count == 0) return null;
+
+            var found = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            void Offer(string name, object? value)
+            {
+                int percent;
+                try { percent = Convert.ToInt32(value); } catch (Exception) { return; }
+                if (percent is < 0 or > 100) return;
+                if (!found.TryGetValue(name, out var had) || percent < had) found[name] = percent;
+            }
+
+            // 1. Windows' number, on any entry of the same physical device.
+            foreach (var device in connected.Where(d => d.Container != null).GroupBy(d => d.Container))
+            {
+                try
+                {
+                    var nodes = await DeviceInformation.FindAllAsync($"{ContainerProperty}:=\"{{{device.Key}}}\"",
+                        new[] { BatteryProperty }, DeviceInformationKind.Device);
+                    foreach (var node in nodes)
+                        if (node.Properties.TryGetValue(BatteryProperty, out var value) && value != null) Offer(device.First().Name, value);
+                }
+                catch (Exception) { }
+            }
+
+            // 2. By name across the Bluetooth class, for those still without a number.
+            var missing = connected.Select(d => d.Name).Where(n => !found.ContainsKey(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (missing.Count > 0)
+            {
+                try
+                {
+                    var nodes = await DeviceInformation.FindAllAsync($"System.Devices.ClassGuid:=\"{BluetoothClass}\"",
+                        new[] { BatteryProperty }, DeviceInformationKind.Device);
+                    foreach (var node in nodes)
+                    {
+                        if (!node.Properties.TryGetValue(BatteryProperty, out var value) || value == null) continue;
+                        // The device entry is named after the headphones ("WH-1000XM4 Hands-Free AG" and the like).
+                        string? name = missing.FirstOrDefault(n => node.Name.StartsWith(n, StringComparison.OrdinalIgnoreCase) || n.StartsWith(node.Name, StringComparison.OrdinalIgnoreCase));
+                        if (name != null) Offer(name, value);
+                    }
+                }
+                catch (Exception) { }
+            }
+
+            // 3. Bluetooth LE: the headphones' own battery service.
+            foreach (var device in connected.Where(d => d.Le && !found.ContainsKey(d.Name)))
+            {
+                var level = await ReadLeBatteryAsync(device.Id);
+                if (level != null) Offer(device.Name, level.Value);
+            }
+
+            if (found.Count == 0) return null;
+            var lowest = found.OrderBy(kv => kv.Value).First();
+            return (lowest.Key, lowest.Value);
         }
         catch (Exception) { return null; }
+    }
+
+    /// <summary>A Bluetooth LE device's battery level from its battery service, or null (none, or no answer within 4 seconds).</summary>
+    private static async Task<int?> ReadLeBatteryAsync(string deviceId)
+    {
+        BluetoothLEDevice? device = null;
+        try
+        {
+            var work = Task.Run(async () =>
+            {
+                device = await BluetoothLEDevice.FromIdAsync(deviceId);
+                if (device == null) return (int?)null;
+                var services = await device.GetGattServicesForUuidAsync(Windows.Devices.Bluetooth.GenericAttributeProfile.GattServiceUuids.Battery, BluetoothCacheMode.Uncached);
+                if (services.Status != Windows.Devices.Bluetooth.GenericAttributeProfile.GattCommunicationStatus.Success) return null;
+                foreach (var service in services.Services)
+                {
+                    using (service)
+                    {
+                        var chars = await service.GetCharacteristicsForUuidAsync(Windows.Devices.Bluetooth.GenericAttributeProfile.GattCharacteristicUuids.BatteryLevel, BluetoothCacheMode.Uncached);
+                        if (chars.Status != Windows.Devices.Bluetooth.GenericAttributeProfile.GattCommunicationStatus.Success) continue;
+                        foreach (var ch in chars.Characteristics)
+                        {
+                            var read = await ch.ReadValueAsync(BluetoothCacheMode.Uncached);
+                            if (read.Status != Windows.Devices.Bluetooth.GenericAttributeProfile.GattCommunicationStatus.Success || read.Value.Length < 1) continue;
+                            using var reader = Windows.Storage.Streams.DataReader.FromBuffer(read.Value);
+                            return (int?)reader.ReadByte();
+                        }
+                    }
+                }
+                return null;
+            });
+            var done = await Task.WhenAny(work, Task.Delay(4000));
+            return done == work ? await work : null;
+        }
+        catch (Exception) { return null; }
+        finally { try { device?.Dispose(); } catch (Exception) { } }
     }
 
     /// <summary>Paired devices, or (paired: false) nearby devices ready to pair. The latter takes several seconds.</summary>

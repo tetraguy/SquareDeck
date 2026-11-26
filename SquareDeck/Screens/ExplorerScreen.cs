@@ -238,6 +238,11 @@ public sealed partial class ExplorerScreen : Screen
         switch (action)
         {
             case NavAction.X:
+                if (FocusedTabIndex() is int tabAt and >= 0)
+                {
+                    if (_tabs.Count > 1) { CloseTab(tabAt); _tabs[Math.Min(tabAt, _tabs.Count - 1)].Header?.Focus(); }
+                    return true;
+                }
                 if (RecycleBin.Is(_folder)) _ = RecycleActionsAsync(focused);
                 else if (focused != null || _checked.Count > 0) _ = ActionsAsync(focused);
                 return true;
@@ -614,7 +619,6 @@ public sealed partial class ExplorerScreen : Screen
             card.Children.Add(UsageBar(used, 300, 8, new Thickness(0, 14, 0, 2)));
 
             var box = new Border { CornerRadius = new CornerRadius(14), Padding = new Thickness(18), Child = card };
-            box.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
             var button = Ui.Tile(box);
             button.Margin = new Thickness(0, 0, 8, 8);
             var entry = new Entry(drive.RootDirectory.FullName, label, true, false, DateTime.MinValue, 0);

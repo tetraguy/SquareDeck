@@ -1090,6 +1090,9 @@ public sealed partial class SettingsScreen : ListScreen
             var others = UiStyles.All.Concat(LegendaryKits).Where(x => x.Id != s.UiStyle).ToList();
             if (others.Count > 0) UseSwitchStyle(others[Random.Shared.Next(others.Count)]);
         });
+        // Right under Surprise me, so it's easy to find: the page with the schedule and its on/off switch.
+        AddRow("Style schedule", Labs.On("styleschedule") ? "On" : "Off", "\uE823", subtitle: "A different style for mornings and nights or weekends, or a random Advanced style each day",
+            click: () => Host.Push(new StyleScheduleScreen()));
 
         // Legendary (8.1.48): the styles once called Basic, then the ones once called Advanced (dressed in UI kits).
         var kits = LegendaryKits.ToList();
@@ -1155,7 +1158,6 @@ public sealed partial class SettingsScreen : ListScreen
         AddRow("Credits", null, "\uE946", subtitle: "The artists behind these kits, sounds and fonts", click: () => Host.Push(new CreditsScreen()));
 
         AddHeader("More");
-        AddFeature("styleschedule");
         AddRow("Colors, wallpaper and more", null, "\uE790", click: () => Show("look", focusContent: true),
             subtitle: "Light or dark, color themes, the highlight color, wallpaper and the moving background");
         AddRow("Sounds and music", null, "\uE767", click: () => Show("sound", focusContent: true),
@@ -1592,6 +1594,9 @@ public sealed partial class SettingsScreen : ListScreen
             Toggle(() => s.AnimatedCovers = !s.AnimatedCovers));
         AddRow("Color the game details page from the cover art", OnOff(s.DetailsGradient), "\uE790", click: () =>
             Toggle(() => s.DetailsGradient = !s.DetailsGradient));
+        AddRow("Hero background behind the game details card", OnOff(s.DetailsCardHero), "\uEB9F", click: () =>
+            Toggle(() => s.DetailsCardHero = !s.DetailsCardHero),
+            subtitle: "The game's artwork, softly blurred, behind the Play and Favorite card instead of plain gray");
 
         AddHeader("Font");
         AddRow("Font", UiFonts.FirstOrDefault(f => f.Id == s.UiFont).Name ?? "Match the style", "\uE8D2",
