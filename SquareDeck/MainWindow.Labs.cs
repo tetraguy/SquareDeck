@@ -90,7 +90,7 @@ public partial class MainWindow
         {
             case "oemfooter": UpdateFooterPad(); break;
             case "tilt": SetTilt(Labs.On("tilt")); break;
-            case "plxcontinue": SetContinueParallax(Labs.On("plxcontinue")); break;
+            case "plxcontinue": SetContinueParallax(Labs.On("plxcontinue") && !_plxGamePaused); break;
             case "coverdim": case "covereffect": ApplyCoverLabs(); break;
             case "dust": RefreshDust(); break;
             case "companion": SetCompanion(Labs.On("companion")); break;

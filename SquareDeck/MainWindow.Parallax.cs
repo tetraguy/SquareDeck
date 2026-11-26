@@ -83,6 +83,27 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>While a game runs, the parallax rests (Settings > Look and feel, on by default).</summary>
+    public static bool ParallaxPausesInGames
+    {
+        get => Labs.Get("plx.pauseingame", "1") == "1";
+        set => Labs.Put("plx.pauseingame", value ? "1" : "0");
+    }
+
+    private bool _plxGamePaused;
+
+    /// <summary>
+    /// A game started or stopped: with the parallax paused in games, its timer and the motion sensors are let go
+    /// while the game runs (nothing reads the sensors or redraws for it), and taken up again when it stops.
+    /// </summary>
+    private void PauseParallaxForGame(bool playing)
+    {
+        bool pause = playing && ParallaxPausesInGames;
+        if (pause == _plxGamePaused) return;
+        _plxGamePaused = pause;
+        if (ContinueParallaxOn) SetContinueParallax(!pause);
+    }
+
     /// <summary>Whether a motion sensor was found (for the experiment's note in Settings).</summary>
     public bool HasParallaxSensor => _plxIncl != null || _plxGyro != null || _plxAccel != null;
 

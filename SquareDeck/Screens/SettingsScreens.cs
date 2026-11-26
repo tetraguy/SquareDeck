@@ -156,6 +156,8 @@ public sealed partial class SettingsScreen : ListScreen
         if (!_switch2) return;
         RefreshSwitch2Colors(); // a UI style just chosen in Themes shows here straight away
         Switch2Settings.Restyle(Rows);
+        // Themes: the style cards take the rimmed highlight card, like the tiles on the other Switch 2 pages.
+        if (_category == "looks") Switch2Pages.RestyleTree(Rows);
     }
 
 
@@ -1031,8 +1033,32 @@ public sealed partial class SettingsScreen : ListScreen
             subtitle: "Off keeps your own theme, wallpaper, sounds, music and highlight color when you change style");
         // Basic: the styles drawn by SquareDeck (and yours). Advanced: styles made from UI kits, with their own
         // panels, buttons, switches, pointer and icons.
+        var tabList = new[] { ("legendary", "Legendary", "\uE734"), ("mythical", "Mythical", "\uE945"), ("mine", "My own style", "\uE70F"), ("unlockable", "Unlockable", "\uE72E") };
+        void GoTab(string tab)
+        {
+            if (_stylesTab == tab) return;
+            _stylesTab = tab;
+            UiSound.Select();
+            Rebuild();
+            FocusLater(Rows.Children.OfType<Panel>().SelectMany(p => p.Children.OfType<Button>()).FirstOrDefault(b => b.Tag as string == "active"));
+        }
+        if (_switch2)
+        {
+            // Switch 2 style: the four kinds as flat rows side by side, the one showing in the highlight color.
+            var line = new System.Windows.Controls.Primitives.UniformGrid { Rows = 1, Columns = tabList.Length, Margin = new Thickness(0, 10, 0, 2) };
+            foreach (var (id, label, _) in tabList)
+            {
+                string tab = id;
+                var row = Switch2Pages.SettingRow(label, null, () => GoTab(tab));
+                row.Tag = _stylesTab == id ? "active" : null;
+                if (_stylesTab == id && row.Content is Grid g && g.Children.OfType<TextBlock>().FirstOrDefault() is { } t)
+                    t.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+                line.Children.Add(row);
+            }
+            Rows.Children.Add(line);
+        }
         var tabs = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 2) };
-        foreach (var (id, label, glyph) in new[] { ("legendary", "Legendary", "\uE734"), ("mythical", "Mythical", "\uE945"), ("mine", "My own style", "\uE70F"), ("unlockable", "Unlockable", "\uE72E") })
+        foreach (var (id, label, glyph) in _switch2 ? Array.Empty<(string, string, string)>() : tabList)
         {
             var chip = new Button
             {
@@ -1049,17 +1075,10 @@ public sealed partial class SettingsScreen : ListScreen
                 }
             };
             string tab = id;
-            chip.Click += (_, _) =>
-            {
-                if (_stylesTab == tab) return;
-                _stylesTab = tab;
-                UiSound.Select();
-                Rebuild();
-                FocusLater(Rows.Children.OfType<StackPanel>().SelectMany(p => p.Children.OfType<Button>()).FirstOrDefault(b => b.Tag as string == "active"));
-            };
+            chip.Click += (_, _) => GoTab(tab);
             tabs.Children.Add(chip);
         }
-        Rows.Children.Add(tabs);
+        if (!_switch2) Rows.Children.Add(tabs);
         const double W = 296;
         if (_stylesTab is not ("mythical" or "unlockable" or "mine")) _stylesTab = "legendary"; // the old Basic and Advanced tabs
         if (_stylesTab == "mythical") { BuildAdvancedStyles(s, W, legendary: false, mythical: true); return; }
@@ -1612,6 +1631,10 @@ public sealed partial class SettingsScreen : ListScreen
         AddHeader("Home touches");
         AddFeature("oemfooter");
         AddFeature("plxcontinue");
+        if (Labs.On("plxcontinue"))
+            AddRow("Pause the parallax while a game runs", OnOff(MainWindow.ParallaxPausesInGames), "\uE769",
+                click: () => { MainWindow.ParallaxPausesInGames = !MainWindow.ParallaxPausesInGames; Rebuild(); },
+                subtitle: "Stops reading the motion sensors and moving the art while you play, so the game gets that power. Back when the game closes");
     }
 
     internal static readonly (string Id, string Name)[] ButtonStyles =

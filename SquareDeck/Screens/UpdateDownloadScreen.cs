@@ -34,6 +34,9 @@ public sealed class UpdateDownloadScreen : Screen
     public UpdateDownloadScreen(ReleaseInfo release)
     {
         _release = release;
+        // The Switch 2 look, as the other pop-ups have it: a floating card in the card color, a regular-weight title,
+        // the bar's track in the line color and Cancel as a flat row with the rimmed highlight.
+        Switch2Settings.ApplyColors(this);
         var panel = new StackPanel();
 
         var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 18) };
@@ -41,7 +44,7 @@ public sealed class UpdateDownloadScreen : Screen
         badge.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
         head.Children.Add(badge);
         var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        titles.Children.Add(Ui.Text("Downloading update", 24, "FgBrush", bold: true));
+        titles.Children.Add(Ui.Text("Downloading update", 22, "FgBrush"));
         titles.Children.Add(Ui.Text($"SquareDeck {release.Tag}  ·  you have {Updater.Current}", 15, "SubtleBrush"));
         head.Children.Add(titles);
         panel.Children.Add(head);
@@ -59,7 +62,7 @@ public sealed class UpdateDownloadScreen : Screen
 
         double radius = Math.Max(Theme.TileCorner > 4 ? 6 : 0, 0);
         _track.CornerRadius = _fill.CornerRadius = new CornerRadius(radius);
-        _track.SetResourceReference(Border.BackgroundProperty, "CircleBrush");
+        _track.SetResourceReference(Border.BackgroundProperty, "S2Line");
         _fill.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
         var bar = new Grid();
         bar.Children.Add(_track);
@@ -69,22 +72,21 @@ public sealed class UpdateDownloadScreen : Screen
         _amount.Margin = new Thickness(0, 10, 0, 0);
         panel.Children.Add(_amount);
 
-        _cancel = Ui.PanelButton("", "Cancel");
-        _cancel.HorizontalAlignment = HorizontalAlignment.Right;
-        _cancel.Margin = new Thickness(0, 24, 0, 0);
-        _cancel.Click += (_, _) => Cancel();
+        var line = new Border { Height = 1, Margin = new Thickness(0, 22, 0, 0) };
+        line.SetResourceReference(Border.BackgroundProperty, "S2Line");
+        panel.Children.Add(line);
+        _cancel = Switch2Pages.SettingRow("Cancel", null, Cancel);
+        _cancel.Margin = new Thickness(0);
         panel.Children.Add(_cancel);
 
         var box = new Border
         {
-            Width = 620, Padding = new Thickness(36, 32, 36, 28), CornerRadius = new CornerRadius(Math.Max(Theme.TileCorner * 2, 8)),
+            Width = 620, Padding = new Thickness(30, 28, 30, 18), CornerRadius = new CornerRadius(16),
+            Background = new SolidColorBrush(Switch2Settings.Card),
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = panel,
             Effect = Perf.Active ? null : new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 40, ShadowDepth = 8, Opacity = 0.45 }
         };
-        box.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
-        box.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
-        box.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
-        var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(0xC0, 0, 0, 0)) };
+        var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(0x55, 0, 0, 0)) };
         backdrop.Children.Add(box);
         Content = backdrop;
     }

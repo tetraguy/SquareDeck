@@ -1332,7 +1332,7 @@ public partial class MainWindow
 
     private void ApplyDuck()
     {
-        try { if (_menuMusic != null && !_musicFading) _menuMusic.Volume = MusicLevel; } catch (Exception) { }
+        try { if (_menuMusic != null && !_musicFading && _pauseFade?.IsEnabled != true && _fadeInTimer?.IsEnabled != true) _menuMusic.Volume = MusicLevel; } catch (Exception) { }
     }
 
     /// <summary>
@@ -1401,7 +1401,8 @@ public partial class MainWindow
                 _menuMusicChoice = choice;
                 if (choice.StartsWith("file:", StringComparison.Ordinal) && !Theme.ReduceMotion) _fadeInNext = true; // Recomp Zone's music rises in
             }
-            _menuMusic!.Volume = MusicLevel;
+            // (Left alone while it's fading in or out: the fade sets it.)
+            if (_pauseFade?.IsEnabled != true && _fadeInTimer?.IsEnabled != true) _menuMusic!.Volume = MusicLevel;
 
             bool busy = (_screens.Count > 0 && _screens[^1] is ViewerScreen or BrowserScreen or MediaScreen or MusicSearchScreen or StreamingScreen) || CloudOpen || LocalMusic.IsPlaying
                         || (Settings.MenuMusicPausesForMedia && (_mediaPlaying || SpotifyPlayer.IsPlaying));
@@ -1410,10 +1411,14 @@ public partial class MainWindow
             _menuMusicPlaying = play;
             if (play)
             {
-                if (_fadeInNext) FadeIn(_menuMusic, _menuMusic.Volume);
+                // Back (a game closed, a video or page closed, SquareDeck in front again): rises in from silence, or
+                // from wherever a fade-out had got to, instead of starting at full volume.
+                bool wasFadingOut = _pauseFade?.IsEnabled == true;
+                _pauseFade?.Stop();
+                if (!Theme.ReduceMotion) FadeIn(_menuMusic, MusicLevel, from: wasFadingOut ? _menuMusic.Volume : 0);
                 _menuMusic.Play();
             }
-            else _menuMusic.Pause();
+            else FadeOutThenPause(_menuMusic); // a game starting, a video, SquareDeck behind something: fades away, not cut off
             _fadeInNext = false;
         }
         catch (Exception)
@@ -1479,17 +1484,45 @@ public partial class MainWindow
         _musicFade.Start();
     }
 
-    /// <summary>Brings a new track up from silence over about a second.</summary>
-    private void FadeIn(MediaPlayer player, double target)
+    private System.Windows.Threading.DispatcherTimer? _pauseFade, _fadeInTimer;
+
+    /// <summary>
+    /// Fades the music down over about two thirds of a second, then pauses it (where it is, so it carries on from the
+    /// same spot). Coming back before it's quiet cancels it and fades back up from there.
+    /// </summary>
+    private void FadeOutThenPause(MediaPlayer player)
     {
-        player.Volume = 0;
+        _pauseFade?.Stop();
+        if (Theme.ReduceMotion) { try { player.Pause(); } catch (Exception) { } return; }
+        double from = player.Volume;
         int step = 0;
+        _pauseFade = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
+        _pauseFade.Tick += (_, _) =>
+        {
+            step++;
+            if (!ReferenceEquals(player, _menuMusic) || _menuMusicPlaying) { _pauseFade?.Stop(); return; } // closed, or playing again
+            try { player.Volume = from * Math.Max(0, 1 - step / 16.0); } catch (Exception) { }
+            if (step < 16) return;
+            _pauseFade?.Stop();
+            try { player.Pause(); player.Volume = MusicLevel; } catch (Exception) { }
+        };
+        _pauseFade.Start();
+    }
+
+    /// <summary>Brings a track up from silence (or from <paramref name="from"/>) over about a second.</summary>
+    private void FadeIn(MediaPlayer player, double target, double from = 0)
+    {
+        player.Volume = from;
+        int step = 0;
+        _fadeInTimer?.Stop();
         var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
+        _fadeInTimer = timer;
         timer.Tick += (_, _) =>
         {
             step++;
             if (!ReferenceEquals(player, _menuMusic)) { timer.Stop(); return; }
-            player.Volume = target * Math.Min(1, step / 25.0);
+            if (!_menuMusicPlaying) { timer.Stop(); return; } // paused again meanwhile: the fade-out has it
+            player.Volume = from + (target - from) * Math.Min(1, step / 25.0);
             if (step >= 25) timer.Stop();
         };
         timer.Start();
@@ -1497,6 +1530,7 @@ public partial class MainWindow
 
     private void StopMenuMusic()
     {
+        _pauseFade?.Stop();
         if (_menuMusic == null) return;
         _menuMusic.Close();
         _menuMusic = null;

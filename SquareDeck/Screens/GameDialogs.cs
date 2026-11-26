@@ -200,6 +200,90 @@ public static class GameCard
         return row;
     }
 
+    // ---------------------------------------------------------------- Switch 2 pop-ups
+
+    /// <summary>
+    /// The Switch's own pop-up: a wide card in the UI style's card color over a dimmed screen. The top holds the
+    /// picture and words; <paramref name="buttons"/>, if any, sit under a thin line as equal flat buttons split by
+    /// thin lines (Cancel | Close), the highlighted one with the rimmed card.
+    /// </summary>
+    public static Grid SwitchPopup(UIElement top, double width, params Button[] buttons)
+    {
+        Switch2Settings.Refresh();
+        var stack = new StackPanel();
+        var upper = new Border { Padding = new Thickness(34, 30, 34, 30), Child = top };
+        stack.Children.Add(upper);
+        if (buttons.Length > 0)
+        {
+            stack.Children.Add(new Rectangle { Height = 1, Fill = new SolidColorBrush(Switch2Settings.Line) });
+            var row = new Grid { Height = 76 };
+            for (int i = 0; i < buttons.Length; i++)
+            {
+                row.ColumnDefinitions.Add(new ColumnDefinition());
+                if (i > 0)
+                {
+                    var split = new Rectangle { Width = 1, HorizontalAlignment = HorizontalAlignment.Left, Fill = new SolidColorBrush(Switch2Settings.Line), Margin = new Thickness(0, 10, 0, 10) };
+                    Grid.SetColumn(split, i);
+                    row.Children.Add(split);
+                }
+                Grid.SetColumn(buttons[i], i);
+                row.Children.Add(buttons[i]);
+            }
+            stack.Children.Add(row);
+        }
+        var card = new Border
+        {
+            Width = width, CornerRadius = new CornerRadius(Round(16)), ClipToBounds = false, Child = stack,
+            Background = new SolidColorBrush(Switch2Settings.Card), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            Effect = Perf.Active ? null : new DropShadowEffect { BlurRadius = 40, ShadowDepth = 6, Opacity = 0.35 }, RenderTransformOrigin = new Point(0.5, 0.5)
+        };
+        var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(0x70, 0, 0, 0)) };
+        backdrop.Children.Add(card);
+        if (!Theme.ReduceMotion)
+        {
+            var scale = new ScaleTransform(0.96, 0.96);
+            card.RenderTransform = scale;
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.96, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.96, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+            card.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160)));
+        }
+        return backdrop;
+    }
+
+    /// <summary>A Switch pop-up button: its label in the highlight color across its half; highlighted, the rimmed card.</summary>
+    public static Button SwitchButton(string label, Action click)
+    {
+        var text = new TextBlock { Text = label, FontSize = 20, Foreground = new SolidColorBrush(Switch2Settings.Blue), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var face = new Border { CornerRadius = new CornerRadius(Round(10)), BorderThickness = new Thickness(3), BorderBrush = Brushes.Transparent, Background = Brushes.Transparent, Margin = new Thickness(6), Child = text };
+        var button = new Button
+        {
+            Content = face, FocusVisualStyle = null, Cursor = Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
+            Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) }
+        };
+        void Highlight(bool on)
+        {
+            face.BorderBrush = on ? Switch2Settings.RimBrush : Brushes.Transparent;
+            face.Background = on ? new SolidColorBrush(Color.FromArgb(0x14, Switch2Settings.Blue.R, Switch2Settings.Blue.G, Switch2Settings.Blue.B)) : Brushes.Transparent;
+            face.Effect = on && !Perf.Active ? new DropShadowEffect { Color = Switch2Settings.Blue, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.45 } : null;
+        }
+        button.GotKeyboardFocus += (_, _) => Highlight(true);
+        button.LostKeyboardFocus += (_, _) => Highlight(false);
+        button.MouseEnter += (_, _) => button.Focus();
+        button.Click += (_, _) => click();
+        return button;
+    }
+
+    /// <summary>The game's cover, small and squarer, for the left of a Switch pop-up.</summary>
+    public static Border SwitchCover(Game game, double size)
+    {
+        var cover = Cover(game, size);
+        cover.CornerRadius = new CornerRadius(Round(8));
+        cover.Effect = null;
+        cover.VerticalAlignment = VerticalAlignment.Center;
+        return cover;
+    }
+
     /// <summary>A ring in the game's color. <paramref name="part"/> is how much of it is drawn (1 = all).</summary>
     public static Ellipse Ring(double size, double thickness, Color color, double part = 1)
     {
@@ -225,6 +309,25 @@ public sealed class GameConfirmScreen : Screen
 
     public GameConfirmScreen(Game game, string title, string message, string confirmLabel, string eyebrow = "Stop game")
     {
+        if (GameCard.S2)
+        {
+            // The Switch's "Close the software?": the cover on the left, the question beside it; Cancel | Close under a line.
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.Children.Add(GameCard.SwitchCover(game, 112));
+            var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(28, 0, 0, 0) };
+            var question = new TextBlock { Text = title, FontSize = 22, TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Switch2Settings.Text) };
+            words.Children.Add(question);
+            if (message.Length > 0)
+                words.Children.Add(new TextBlock { Text = message, FontSize = 16, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0), Foreground = new SolidColorBrush(Switch2Settings.Subtle) });
+            Grid.SetColumn(words, 1);
+            row.Children.Add(words);
+            var cancel = GameCard.SwitchButton("Cancel", () => Host.Pop(this));
+            _confirm = GameCard.SwitchButton(confirmLabel, () => { _yes = true; Host.Pop(this); });
+            Content = GameCard.SwitchPopup(row, 680, cancel, _confirm);
+            return;
+        }
         var p = GameCard.ColorsOf(game);
         var panel = new StackPanel();
         panel.Children.Add(GameCard.Cover(game, 124));
@@ -252,6 +355,39 @@ public sealed class GameBusyScreen : Screen
 
     public GameBusyScreen(Game game, string message)
     {
+        if (GameCard.S2)
+        {
+            // The same Switch card: the cover with a light running round its edge, "Closing software" and the game beside it.
+            Switch2Settings.Refresh();
+            const double s = 96, g = 8, t = 4;
+            double o = s + 2 * (g + t), rr = GameCard.Round(8) + g + t / 2, sd = o - t;
+            double around = (4 * (sd - 2 * rr) + 2 * Math.PI * rr) / t;
+            var pic = new Grid { Width = o, Height = o, VerticalAlignment = VerticalAlignment.Center };
+            pic.Children.Add(new Rectangle { Width = o, Height = o, RadiusX = rr, RadiusY = rr, StrokeThickness = t, Stroke = new SolidColorBrush(Switch2Settings.Line) });
+            var light = new Rectangle
+            {
+                Width = o, Height = o, RadiusX = rr, RadiusY = rr, StrokeThickness = t, Stroke = new SolidColorBrush(Switch2Settings.Blue),
+                StrokeDashArray = new DoubleCollection { around * 0.24, around * 0.76 }, StrokeDashCap = PenLineCap.Round
+            };
+            pic.Children.Add(light);
+            var picture = GameCard.SwitchCover(game, s);
+            picture.HorizontalAlignment = HorizontalAlignment.Center;
+            pic.Children.Add(picture);
+            var line = new Grid();
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            line.ColumnDefinitions.Add(new ColumnDefinition());
+            line.Children.Add(pic);
+            var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(26, 0, 0, 0) };
+            var what = new TextBlock { Text = message + "…", FontSize = 22, Foreground = new SolidColorBrush(Switch2Settings.Text) };
+            words.Children.Add(what);
+            words.Children.Add(new TextBlock { Text = game.Name, FontSize = 16, Margin = new Thickness(0, 6, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis, Foreground = new SolidColorBrush(Switch2Settings.Subtle) });
+            Grid.SetColumn(words, 1);
+            line.Children.Add(words);
+            Content = GameCard.SwitchPopup(line, 600);
+            if (!Theme.ReduceMotion)
+                light.BeginAnimation(Shape.StrokeDashOffsetProperty, new DoubleAnimation(0, -around, TimeSpan.FromSeconds(1.6)) { RepeatBehavior = RepeatBehavior.Forever });
+            return;
+        }
         var p = GameCard.ColorsOf(game);
         var panel = new StackPanel();
         // The game's own square art (as on the home row), with a light running around its edge.

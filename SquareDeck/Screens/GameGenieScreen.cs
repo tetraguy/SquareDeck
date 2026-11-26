@@ -26,6 +26,7 @@ public sealed class GameGenieScreen : Screen
     private CancellationTokenSource _cts = new();
     private GameGenie.Sheet? _sheet;
     private bool _busy;
+    private bool _shownTop; // the page has opened at the top once
 
     /// <summary>
     /// "Switch 2 style Game Genie": "Game Genie" in the title with a line under it; the kinds of question down the left
@@ -406,7 +407,18 @@ public sealed class GameGenieScreen : Screen
         if (focusButton != null) { FocusLater(focusButton); OpenAnswer(focusButton, focusButton.Tag as GameGenie.Answer); }
         else if (keepButton != null) FocusLater(keepButton);
         else if (focusedTool >= 0 && Descendants<Button>(_list).ElementAtOrDefault(focusedTool) is { } sameTool) FocusLater(sameTool);
-        else FocusLater(first ?? ask);
+        else
+        {
+            FocusLater(first ?? ask);
+            // The first time the answers show, the page starts at the top (the game, its summary and facts), not
+            // scrolled down to wherever the highlight landed. After that, it stays where you are.
+            if (!_shownTop)
+            {
+                _shownTop = true;
+                _scroll.ScrollToVerticalOffset(0);
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() => _scroll.ScrollToVerticalOffset(0)));
+            }
+        }
     }
 
     /// <summary>Opens an answer again after a redraw (quietly, as it was: a spoiler you'd already revealed stays revealed).</summary>

@@ -20,6 +20,8 @@ public sealed class ItemOverride
     /// <summary>Steam games started directly (Services/SteamDirect): the program chosen for it, and the one last seen running.</summary>
     public string? SteamExe { get; set; }
     public string? SteamExeSeen { get; set; }
+    /// <summary>This Steam game starts directly from its own program even with "Start Steam games directly" off in Settings.</summary>
+    public bool SteamDirect { get; set; }
 
     /// <summary>The user's own score, 1 to 5 stars. 0 means not rated.</summary>
     public int Rating { get; set; }

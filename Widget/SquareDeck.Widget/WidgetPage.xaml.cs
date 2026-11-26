@@ -402,14 +402,19 @@ namespace SquareDeck.Widget
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            // Two lines: the name and time with the profile switch beside them, then Close game across the whole width
+            // (so "Press again to close" always fits).
+            row.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            row.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var iconFrame = new Border { Width = 60, Height = 60, CornerRadius = new CornerRadius(14), Background = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+            Grid.SetRowSpan(iconFrame, 2);
             _gameIcon = new Image { Stretch = Stretch.UniformToFill };
             iconFrame.Child = _gameIcon;
             row.Children.Add(iconFrame);
             var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             _gameName = new TextBlock { FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis };
             words.Children.Add(_gameName);
-            _gameDetail = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(0, 3, 0, 8), TextTrimming = TextTrimming.CharacterEllipsis };
+            _gameDetail = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(0, 3, 0, 6), TextTrimming = TextTrimming.CharacterEllipsis };
             words.Children.Add(_gameDetail);
             _closeLabel = new TextBlock { Text = "Close game", FontSize = 12, FontWeight = FontWeights.SemiBold };
             var closeRow = new StackPanel { Orientation = Orientation.Horizontal };
@@ -417,13 +422,18 @@ namespace SquareDeck.Widget
             closeRow.Children.Add(_closeLabel);
             _closeGame = new Button { Style = DeckButton, Content = closeRow, HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(11, 5, 12, 6), CornerRadius = new CornerRadius(12), Background = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF)) };
             _closeGame.Click += (s, e) => CloseGamePressed();
-            words.Children.Add(_closeGame);
             Grid.SetColumn(words, 1);
             row.Children.Add(words);
+            Grid.SetColumn(_closeGame, 1);
+            Grid.SetRow(_closeGame, 1);
+            Grid.SetColumnSpan(_closeGame, 2);
+            row.Children.Add(_closeGame);
 
-            var profile = new StackPanel { VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Right };
+            var profile = new StackPanel { VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(10, 0, 0, 0) };
             profile.Children.Add(new TextBlock { Text = "Per-game profile", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Colors.White), HorizontalAlignment = HorizontalAlignment.Right });
-            _gameProfile = new ToggleSwitch { OnContent = "", OffContent = "", MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, -2, -12, 0), FocusVisualPrimaryBrush = _accentBrush };
+            // Just the switch: its template keeps room for words on its right even when there are none, which pushed it
+            // left of the label. At the switch's own width its right edge lines up with the end of "profile".
+            _gameProfile = new ToggleSwitch { OnContent = "", OffContent = "", MinWidth = 0, Width = 40, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 2, 0, 0), FocusVisualPrimaryBrush = _accentBrush };
             _gameProfile.Toggled += (s, e) =>
             {
                 if (_syncingProfile) return;

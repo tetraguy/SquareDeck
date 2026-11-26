@@ -971,7 +971,7 @@ public partial class MainWindow : Window
             {
                 started = ProcessUtil.OpenOutside(Eight.SteamRunLink(item));
             }
-            else if (Settings.SteamDirectLaunch && await Task.Run(() => SteamDirect.SteamIsRunning() ? SteamDirect.FindExe(item, Library.For(item.Key)) : null) is string exe
+            else if ((Settings.SteamDirectLaunch || Library.Find(item.Key)?.SteamDirect == true) && await Task.Run(() => SteamDirect.SteamIsRunning() ? SteamDirect.FindExe(item, Library.For(item.Key)) : null) is string exe
                 && SteamDirect.Start(item, exe))
             {
                 started = true;
@@ -1005,8 +1005,9 @@ public partial class MainWindow : Window
     {
         if (confirm)
         {
-            var ask = new GameConfirmScreen(game, "Stop " + game.Name + "?",
-                "The game will be closed immediately. Any unsaved progress will be lost.", "Stop game");
+            // Asked like the Switch does: "Close the software you are currently using?", Cancel | Close.
+            var ask = new GameConfirmScreen(game, "Close the software you are currently using?",
+                "Any unsaved progress in " + game.Name + " will be lost.", "Close");
             Push(ask);
             if (!await ask.Result) return false;
         }
@@ -1097,21 +1098,27 @@ public partial class MainWindow : Window
         catch (Exception) { }
     }
 
-    /// <summary>Game options > "Program to start directly": pick the game's .exe, or go back to automatic.</summary>
+    /// <summary>
+    /// Game options > "Start directly" (shown while "Start Steam games directly" is off in Settings): this game alone
+    /// starts from its own program, found automatically or the one you choose; or back to starting through Steam.
+    /// </summary>
     private async Task ChooseSteamProgramAsync(Game game)
     {
         var entry = Library.For(game.Key);
-        int choice = await AskAsync("Program to start directly",
-            "Used when \"Start Steam games directly\" is on in Settings.\n\nNow: " + SteamDirect.Describe(game, entry) +
+        string now = entry.SteamDirect ? "On  \u00B7  " + SteamDirect.Describe(game, entry) : "Off (it starts through Steam)";
+        int choice = await AskAsync("Start directly",
+            "Starts this game from its own program instead of through Steam (no Steam \"Launching…\" pop-up). Steam still has to be running.\n\nNow: " + now +
             (string.IsNullOrEmpty(game.InstallDir) ? "" : "\nGame folder: " + game.InstallDir),
-            "Choose a program…", "Automatic", "Cancel");
-        if (choice == 0)
+            "On (find the program automatically)", "On, and choose the program…", "Off", "Cancel");
+        if (choice == 0) { entry.SteamDirect = true; entry.SteamExe = null; entry.SteamExeSeen = null; }
+        else if (choice == 1)
         {
             var picked = await PickFileAsync("Choose the game's program", new[] { ".exe" });
             if (picked == null) return;
+            entry.SteamDirect = true;
             entry.SteamExe = picked;
         }
-        else if (choice == 1) { entry.SteamExe = null; entry.SteamExeSeen = null; }
+        else if (choice == 2) entry.SteamDirect = false;
         else return;
         Library.Save();
     }
@@ -1492,6 +1499,7 @@ public partial class MainWindow : Window
         var running = AllGames.FirstOrDefault(g => g.IsRunning);
         RunningPanel.Visibility = running == null ? Visibility.Collapsed : Visibility.Visible;
         CompanionGameState(running != null);
+        PauseParallaxForGame(running != null); // the parallax rests while a game runs
         // Checked every second while a game runs, so SquareDeck is back quickly once it closes.
         var interval = TimeSpan.FromSeconds(running == null ? 2 : 1);
         if (_runningTimer.Interval != interval) _runningTimer.Interval = interval;
@@ -1655,24 +1663,28 @@ public partial class MainWindow : Window
         {
             Add(Steam, "Achievements", "\uE7C1", () => Push(new GameAchievementsScreen(item)));
             Add(Steam, "Store page", "\uE719", () => ProcessUtil.Open($"steam://store/{item.AppId}"));
-            if (Settings.SteamDirectLaunch && item.IsInstalled) AddAsync(Steam, "Program to start directly", "\uE756", () => ChooseSteamProgramAsync(item));
+            // With "Start Steam games directly" on in Settings, every game already does (and finds its program itself):
+            // nothing to show. With it off, this game can start directly on its own.
+            if (!Settings.SteamDirectLaunch && item.IsInstalled)
+                AddAsync(Steam, "Start directly" + (Library.Find(item.Key)?.SteamDirect == true ? "  ·  On" : ""), "\uE756", () => ChooseSteamProgramAsync(item));
         }
 
         if (item.IsCustom)
         {
-            if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => ProcessUtil.Open("explorer.exe", "/select,\"" + item.LaunchPath + "\""));
+            // In SquareDeck's own file explorer, in the folder the game's program is in.
+            if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => Push(new SquareDeck.Screens.ExplorerScreen(System.IO.Path.GetDirectoryName(item.LaunchPath) ?? item.InstallDir)));
             if (hasFolder) Add(Manage, "Fix this game", "\uE90F", () => Push(new FixGameScreen(item)));
             Add(Manage, "Remove from library", "\uE711", () => RemoveCustomGame(item), danger: true);
         }
         else if (item.IsExternal)
         {
-            if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
+            if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => Push(new SquareDeck.Screens.ExplorerScreen(item.InstallDir))); // SquareDeck's own file explorer
             if (hasFolder) Add(Manage, "Fix this game", "\uE90F", () => Push(new FixGameScreen(item)));
             Add(Manage, "Remove from list", "\uE711", Hide, danger: true);
         }
         else if (item.IsSteam)
         {
-            if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => ProcessUtil.Open("explorer.exe", "\"" + item.InstallDir + "\""));
+            if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => Push(new SquareDeck.Screens.ExplorerScreen(item.InstallDir))); // SquareDeck's own file explorer
             Add(Manage, "Fix this game", "\uE90F", () => Push(new FixGameScreen(item)));
             Add(Manage, "Move to another drive", "\uE8DE", () => Push(new MoveGameScreen(item)));
             AddAsync(Manage, "Uninstall", "\uE74D", () => UninstallAsync(item), danger: true);

@@ -33,12 +33,12 @@ public static class Switch2Pages
     public static bool PcPage(Screen screen) => PcOn && screen is PcSettingsScreen or BatteryScreen or DeviceInfoScreen
         or WifiScreen or BluetoothScreen or SpeedTestScreen or NetworkToolsScreen or DiskCleanupScreen or StorageSpeedScreen
         or DriveSpeedScreen or StorageScreen or DriverCheckScreen or StorageAdvisorScreen or CleanupScreen or AdrenalineHookScreen
-        or TerminalScreen or HomeAppScreen or WhatsNewScreen or ChangelogScreen or CreditsScreen or MoveGameScreen
+        or TerminalScreen or HomeAppScreen or WhatsNewScreen or ChangelogScreen or CreditsScreen or MoveGameScreen or UpdateScreen
         or AllyControlScreen or DeviceHealthScreen or BatteryInsightScreen or BatteryHealthScreen or VisualModesScreen or CpuCoresScreen
         or CustomFanScreen or ControllerTesterScreen or ControllerTestScreen or LedColorScreen;
 
     /// <summary>List pages drawn the Switch 2 way by ListScreen: the PC tools and info pages, and a game's profile (with the game pages).</summary>
-    public static bool ListPage(Screen screen) => PcPage(screen) || (Labs.On("s2details") && screen is GameProfileScreen)
+    public static bool ListPage(Screen screen) => PcPage(screen) || (Labs.On("s2details") && screen is GameProfileScreen or FixGameScreen)
         || (On && screen is AddStoresScreen); // from Stores, with Captures, Multimedia and Stores
 
     /// <summary>The icon beside a PC tool or info page's name in its title.</summary>
@@ -55,6 +55,7 @@ public static class Switch2Pages
         StorageScreen => "\uE88E",
         MoveGameScreen => "\uE8DE",
         GameProfileScreen => "\uE7FC",
+        FixGameScreen => "\uE90F",
         AddStoresScreen => "\uE710",
         AllyControlScreen => Ui.HandheldGlyph,
         DeviceHealthScreen => "\uE95E",
@@ -69,6 +70,7 @@ public static class Switch2Pages
         TerminalScreen => "\uE756",
         HomeAppScreen => "\uE7FC",
         WhatsNewScreen => "\uE734",
+        UpdateScreen => "\uE896",
         ChangelogScreen => "\uE81C",
         _ => "\uE713",
     };
@@ -83,7 +85,7 @@ public static class Switch2Pages
         || screen is S2PlayScreen
         || (Labs.On("s2apps") && screen is InstalledAppsScreen or AppOptionsScreen)
         || (Labs.On("s2device") && screen is MyDeviceScreen)
-        || (Labs.On("s2details") && screen is DetailsScreen or GameNotesScreen or ArtPickerScreen or CoverPickerScreen or GameProfileScreen)
+        || (Labs.On("s2details") && screen is DetailsScreen or GameNotesScreen or ArtPickerScreen or CoverPickerScreen or GameProfileScreen or FixGameScreen)
         || (Labs.On("s2genie") && screen is GameGenieScreen)
         || (Labs.On("s2setup") && screen is OnboardingScreen)
         || PcPage(screen);

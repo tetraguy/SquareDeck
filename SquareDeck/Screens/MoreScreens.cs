@@ -1708,13 +1708,42 @@ public sealed class LaunchSplashScreen : Screen
     /// </summary>
     private void AddSwitchBootExtras(Grid root)
     {
-        // The logo, top left: SteamGridDB's logo when there is one, else the name.
-        FrameworkElement mark;
-        if (_game.ContinueLogo is { } logo)
-            mark = new Image { Source = logo, MaxHeight = 90, MaxWidth = 340, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left,
-                               Effect = new DropShadowEffect { BlurRadius = 16, ShadowDepth = 0, Opacity = 0.7 } };
+        // The logo, top left: the game's SteamGridDB logo (your own pick, the one already saved, or fetched now). The
+        // name shows only when the game has no logo at all.
+        var mark = new Grid();
+        FrameworkElement LogoImage(ImageSource source) => new Image
+        {
+            Source = source, MaxHeight = 90, MaxWidth = 340, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left,
+            Effect = new DropShadowEffect { BlurRadius = 16, ShadowDepth = 0, Opacity = 0.7 }
+        };
+        FrameworkElement NameText() => new TextBlock { Text = _game.Name, FontSize = 30, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, MaxWidth = 560, TextTrimming = TextTrimming.CharacterEllipsis };
+        if (_game.ContinueLogo is { } known) mark.Children.Add(LogoImage(known));
         else
-            mark = new TextBlock { Text = _game.Name, FontSize = 30, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, MaxWidth = 560, TextTrimming = TextTrimming.CharacterEllipsis };
+        {
+            bool asked = false;
+            Loaded += async (_, _) =>
+            {
+                if (asked) return;
+                asked = true;
+                string apiKey = Host.Settings.SteamGridDbApiKey;
+                var game = _game;
+                ImageSource? found = null;
+                try
+                {
+                    found = await Task.Run(async () =>
+                    {
+                        using var client = new SteamGridDbClient(apiKey);
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                        var path = await client.GetLogoAsync(game, cts.Token);
+                        return path == null ? null : ImageLoader.FromFile(path, 720);
+                    });
+                }
+                catch (Exception) { }
+                var shown = found != null ? LogoImage(found) : NameText();
+                mark.Children.Add(shown);
+                if (!Theme.ReduceMotion) shown.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(350)));
+            };
+        }
         mark.HorizontalAlignment = HorizontalAlignment.Left;
         mark.VerticalAlignment = VerticalAlignment.Top;
         mark.Margin = new Thickness(56, 46, 0, 0);
