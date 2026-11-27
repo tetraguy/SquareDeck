@@ -63,7 +63,7 @@ public sealed class PriceWatch
 
     public void Save()
     {
-        try { File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true })); }
+        try { SafeFile.WriteAllText(FilePath, JsonSerializer.Serialize(this, SafeFile.Indented)); }
         catch (Exception) { }
     }
 

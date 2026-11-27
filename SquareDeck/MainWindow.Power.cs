@@ -114,6 +114,16 @@ public partial class MainWindow
     /// "Closing software" pop-up. (Without this, stepping aside for the game hid them, and in Windows' Xbox full
     /// screen experience they ended up behind the shell.)
     /// </summary>
+    /// <summary>A hold that outlived its reason (see RestTick): SquareDeck stops staying in front and drawing.</summary>
+    private void ReleaseHold()
+    {
+        _holdVisible = 0;
+        Topmost = false;
+        WindowActivator.ClearOnTop(this);
+        foreach (var splash in _screens.OfType<SquareDeck.Screens.LaunchSplashScreen>().ToList()) RemoveBelow(splash);
+        UpdateBackgroundMode();
+    }
+
     public void HoldVisible(bool on)
     {
         _holdVisible = Math.Max(0, _holdVisible + (on ? 1 : -1));
@@ -352,6 +362,7 @@ public partial class MainWindow
             if (gameRunning) foreach (var screen in _screens) screen.PauseTimers(); // every open page, the one on top too
             SquareDeck.Screens.BrowserScreen.SleepKept();
             SquareDeck.Screens.StreamingScreen.SleepKept();
+            SleepWebViews(true);
             Motion.StopPulse(RingOf(GameList.SelectedItem));
             try { Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.BelowNormal; } catch (Exception) { }
             ProcessUtil.TrimWorkingSet();
@@ -365,10 +376,57 @@ public partial class MainWindow
             _connectionTimer.Interval = TimeSpan.FromSeconds(10);
             _musicTimer.Interval = TimeSpan.FromSeconds(3);
             if (_screens.Count > 0) _screens[^1].ResumeTimers(); // the pages underneath wait until they're back on top
+            SleepWebViews(false);
             _clockTimer.Start();
             UpdateClock();
             try { Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.Normal; } catch (Exception) { }
             if (!Theme.ReduceMotion) Motion.StartPulse(RingOf(GameList.SelectedItem));
+        }
+    }
+}
+
+public partial class MainWindow
+{
+    private readonly List<Microsoft.Web.WebView2.Wpf.WebView2> _sleepingWebViews = new();
+
+    /// <summary>
+    /// Out of sight: every web view on an open page (a trailer, YouTube, a store page, the browser) is suspended, so its
+    /// page uses neither the processor nor the graphics chip. Not a cloud game (that's what's in front) or a music
+    /// service (it keeps playing). Back in front: they wake again.
+    /// </summary>
+    private async void SleepWebViews(bool sleep)
+    {
+        if (!sleep)
+        {
+            foreach (var web in _sleepingWebViews.ToList())
+            {
+                try { if (web.CoreWebView2 is { IsSuspended: true } core) core.Resume(); } catch (Exception) { }
+            }
+            _sleepingWebViews.Clear();
+            return;
+        }
+        foreach (var screen in _screens.ToList())
+        {
+            if (screen is SquareDeck.Screens.CloudGameScreen) continue;
+            if (screen is SquareDeck.Screens.StreamingScreen { Service.Music: true }) continue;
+            foreach (var web in WebViewsIn(screen))
+            {
+                try
+                {
+                    if (web.CoreWebView2 is not { IsSuspended: false } core) continue;
+                    if (await core.TrySuspendAsync()) _sleepingWebViews.Add(web);
+                }
+                catch (Exception) { } // still showing, or already gone: left as it is
+            }
+        }
+    }
+
+    private static IEnumerable<Microsoft.Web.WebView2.Wpf.WebView2> WebViewsIn(DependencyObject root)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is Microsoft.Web.WebView2.Wpf.WebView2 web) yield return web;
+            foreach (var deeper in WebViewsIn(child)) yield return deeper;
         }
     }
 }

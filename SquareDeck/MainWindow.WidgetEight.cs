@@ -209,6 +209,10 @@ public partial class MainWindow
         }
         else
         {
+            // Only for a game: set with no game running, nothing would ever lift it, and AMD's driver would keep it
+            // for everything after.
+            if (!AllGames.Any(g => g.IsRunning)) { WidgetNote("Start a game first"); WidgetBridge.Nudge(); return; }
+            fps = Math.Max(LowestCap, fps);
             var before = await Task.Run(() => AmdAdlx.ApplyCap(fps));
             if (before == null) { WidgetNote("No AMD frame limiter on this PC"); return; }
             _capBefore ??= before; // keep what was there before the first cap, to put back
@@ -225,6 +229,7 @@ public partial class MainWindow
     private int _autoTdpTarget = 40;
     private string _autoTdpStatus = "";
     private DateTime _autoTdpAt;
+    private int _autoTdpSteady; // three-second checks in a row on target at the same power
 
     /// <summary>
     /// Every 3 seconds while it's on and a game runs: one watt up when the frame rate falls short of the target, one
@@ -236,7 +241,21 @@ public partial class MainWindow
         if (running == null) { _autoTdpStatus = "Waiting for a game"; return; }
         if (!TdpControl.Ready || TdpControl.Chip is not { } chip) { _autoTdpStatus = "Needs TDP control (Settings > Power)"; return; }
         if (!FrameCounter.Available) { _autoTdpStatus = "Needs the frame counter (Settings > Performance overlay)"; return; }
-        if (!_autoTdpCounting) { _autoTdpCounting = true; _ = Task.Run(FrameCounter.Start); }
+        if (!_autoTdpCounting)
+        {
+            _autoTdpCounting = true;
+            _ = Task.Run(FrameCounter.Start);
+            _autoTdpSteady = 0;
+            // Remembered from last time (Settings > Power > Auto TDP learns each game): start where it held the frame rate.
+            if (Settings.AutoTdpLearn && int.TryParse(Labs.Get("autotdp.w:" + running.Key + ":" + _autoTdpTarget), out int learned) && learned > 0)
+            {
+                TdpControl.SetSessionWatts(Math.Clamp(learned, Math.Max(chip.Min, 8), chip.Max));
+                _autoTdpAt = DateTime.UtcNow; // give it a moment before judging
+            }
+        }
+        FrameCounter.Retry(); // PresentMon quit or wasn't allowed at first: try again now and then
+        // Paused by SquareDeck: no frames to judge, so leave the power where it is.
+        if (IsSuspended(running)) { _autoTdpSteady = 0; _autoTdpAt = DateTime.UtcNow; return; }
         var (pid, _) = PerfOverlay.ForegroundApp();
         if (pid != 0 && pid != Environment.ProcessId) FrameCounter.TargetPid = pid;
         if (DateTime.UtcNow - _autoTdpAt < TimeSpan.FromSeconds(3)) return;
@@ -249,6 +268,18 @@ public partial class MainWindow
         next = Math.Clamp(next, Math.Max(chip.Min, 8), chip.Max);
         if (next != watts) TdpControl.SetSessionWatts(next);
         _autoTdpStatus = $"{fps:0} FPS at {next} W";
+        // Learning: a full minute holding the target at the same power is remembered for this game and target.
+        if (Settings.AutoTdpLearn)
+        {
+            bool onTarget = fps >= _autoTdpTarget - 2 && fps <= _autoTdpTarget + 4 && next == watts;
+            _autoTdpSteady = onTarget ? _autoTdpSteady + 1 : 0;
+            if (_autoTdpSteady == 20)
+            {
+                string key = "autotdp.w:" + running.Key + ":" + _autoTdpTarget;
+                if (Labs.Get(key) != watts.ToString()) Labs.Put(key, watts.ToString());
+                _autoTdpStatus = $"{fps:0} FPS at {next} W  \u00B7  remembered";
+            }
+        }
     }
 
     private void StopAutoTdp()

@@ -69,6 +69,7 @@ public static class RetroDownloads
             Updates.Remove(d.Emulator.Id);
             host.ShowToast("Retro Lounge", d.Emulator.Name + (d.Update ? " is updated" : " is ready"),
                 d.Update ? "Now on " + d.Release.Version + ". Its settings and saves stayed." : "Its games play straight from Retro Lounge now.", "", "info");
+            AllyControl.React("download");
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { host.ShowToast("Retro Lounge", "Couldn't install " + d.Emulator.Name, ex.Message, "", "warning"); }

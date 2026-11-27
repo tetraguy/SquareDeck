@@ -135,6 +135,18 @@ public abstract class Screen : UserControl
         catch (Exception) { }
     }
 
+    /// <summary>
+    /// The page has closed: any of its own timers still running are stopped, so a timer a page forgot to stop doesn't
+    /// keep ticking (and keep the page in memory) after it's gone. Pages whose timers must outlive them say so
+    /// (<see cref="KeepsTimers"/>).
+    /// </summary>
+    public void StopTimers()
+    {
+        _pausedTimers = null;
+        if (KeepsTimers) return;
+        try { foreach (var timer in OwnTimers()) timer.Stop(); } catch (Exception) { }
+    }
+
     /// <summary>Back in sight: the timers <see cref="PauseTimers"/> stopped start again.</summary>
     public void ResumeTimers()
     {

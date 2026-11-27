@@ -1,7 +1,111 @@
 # Changelog
 
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
-version newer than the one installed (each section starts at its "## version" heading).
+version newer than the one installed (each section starts at its "## 8.5.55
+- New Mythical style: **E-Day**, inspired by the Gears of War games.
+  - Battle-worn gunmetal rows and cards held by hex bolts, chipped and scratched, with a crimson paint tab.
+  - Pop-ups under a crimson steel header with black hazard stripes.
+  - Octagonal armored home buttons ringed in red, and lever switches that light up crimson.
+  - Stencil icons (a bunker, ammo crates, dog tags, a field radio, a supply crate) and a crimson arrowhead pointer.
+  - The Black Ops One stencil font, a red highlight ring and the war-torn red live background.
+  - The E-Day theme as its music and its own sound pack (E-Day), made from the Gears sound scheme.
+  - The artwork is new, drawn for SquareDeck, with no emblems or characters. The music, sounds and live background are the owner's own files.
+
+## 8.5.54
+- Performance overlay, FPS: it was blank because PresentMon isn't allowed to read frame rates while SquareDeck runs as a standard user, and after that first failure it never tried again. Now it tries again every 15 seconds. When Windows is what's stopping it, Settings shows **Allow the FPS reading**, which adds your account to Windows' "Performance Log Users" group (one administrator prompt; sign out and back in once). Otherwise Settings shows what went wrong. FPS is counted over two seconds so it doesn't flicker to blank at low frame rates. Auto TDP gets the same retry.
+- Performance overlay, more ways to make it yours:
+  - **Readings look**: Numbers, Bars (a meter under each value), Rings (a gauge per reading) or Blocks (five segments, like a signal meter).
+  - **Details > Custom** with a **Readings** picker: FPS, frame time, CPU use and speed, GPU, memory (% and GB), TDP, battery and time left, clock, frame-time graph.
+  - **Big FPS** layout: the frame rate large, the rest small underneath.
+  - **Shape**: rounded rectangle, rectangle or pill.
+  - **Colors by load** on or off.
+  - Three more positions: middle left, middle right, bottom middle.
+- Nexus Mods (and Buy Steam Keys) get a download manager instead of Edge's pop-up:
+  - Files save to Downloads\Nexus Mods (or Downloads\Loaded), never overwriting a file with the same name.
+  - The bottom bar shows how far along downloads are, and a message comes up when one finishes.
+  - **Y > Downloads** lists this session's downloads (pause, resume, cancel) and the files already in the folder.
+  - Opening a finished file shows it in SquareDeck's own File Explorer, with the file selected. **Y > Open the downloads folder** opens the folder there.
+  - Leaving the page mid-download keeps it downloading in the background. Opening the store again comes back to it, and it closes itself when the downloads are done.
+- Themes: every Mythical style moved to Legendary, and Axiom is now the one Mythical style. Legendary is shuffled: a new order each time SquareDeck starts, kept steady while it runs.
+
+## 8.5.53
+- New: **Nexus Mods** on the Store page, under Add more stores, with its own icon. It opens nexusmods.com on a page of its own, the same way as Buy Steam Keys: signed in once and kept, pop-ups in the same page, View / B / Y / the Close button to leave, and nothing left running afterwards.
+- "Mod manager download" links (nxm://) go to the mod manager you have installed (Vortex, Mod Organizer 2), with a note saying so, or a note to install one if there's none. Manual downloads save to the Downloads folder.
+
+## 8.5.52
+- New: **Buy Steam Keys** on the Store page, in Deals and releases between Free games and Wishlist. It opens Loaded (loaded.com) on a page of its own in WebView2. You sign in once and stay signed in, in SquareDeck's own folder, apart from Edge and the built-in browser. Pop-ups (PayPal, card checks, sign-ins) open in the same page instead of a second window.
+- Easy to leave: View closes it straight away, B goes back a page and closes it from the first one, Y opens a menu with Close at the top (also home, reload, open in the web browser), and there's a Close button in the top corner for touch. The d-pad moves between links, A chooses, the right stick is a pointer, X types, LT / RT scroll, LB / RB go back and forward. It isn't kept running after you leave.
+
+## 8.5.51
+- New: **Sound when it turns on** (Settings > your handheld > Starting up, and on the Ally's own page). Turns the ASUS startup chime on or off, the same firmware setting as the BIOS and Armoury Crate SE. It's kept by the firmware, so it stays as set without SquareDeck running. The row only shows when the firmware offers the switch.
+
+## 8.5.50
+- ROG Ally lights and buttons without ASUS Optimization: when ASUS's service isn't running, SquareDeck introduces itself to the controller (the ASUS handshake, and taking it out of its out-of-the-box mode), so the stick lights take changes and the Armoury Crate / Command Center / Library buttons send their codes for remapping. It's done at start, after sleep and whenever the controller is found again. When ASUS Optimization is running, it's left to it.
+- The "ASUS Optimization is off" rows now say SquareDeck works without it, with "Switch on anyway" if the lights or buttons still don't respond. Device health shows it as a warning instead of a problem.
+
+## 8.5.49
+- ROG Ally buttons (the page where you remap the buttons) now has the Switch 2 look: the title with its icon, bar headings, flat rows with the rimmed highlight, and Switch-style pop-ups when you pick an action.
+- Settings: the big banner at the top of each section (icon and name) is gone. Only its hint line stays, since the section is already picked on the left.
+- New, off by default: **Lights react to achievements and downloads** (Settings > your handheld > Lights). A gold sweep when you unlock an achievement, a green pulse when a download or update finishes (Steam, Retro Lounge, Recomp Zone).
+- New, off by default: **Battery estimate for each game** (Settings > Gaming > While playing). A game's page shows about how long the battery lasts in it, from your own unplugged sessions.
+- New, off by default: **Pause the game while you're in SquareDeck** (Settings > Gaming > While playing). Three seconds after SquareDeck comes up over a game, the game is frozen so it stops using power. It carries on as soon as you go back. The game is let go before it's closed, when SquareDeck closes, and on the next start if SquareDeck crashed. Protected games (anti-cheat, Store apps) just keep running.
+- New, off by default: **Auto TDP learns each game** (Settings > Gaming > Performance Boost). After a minute holding the target frame rate, Auto TDP remembers that power for the game and that target, and starts there next time.
+
+## version" heading).
+
+## 8.5.48
+
+A review of the whole project for errors and leaks, with nothing removed and nothing changed in how it looks or works:
+- Your files are saved safely: settings, library, play time, achievements, sessions, price watch, game notebooks, Retro Lounge and Recomp Zone installs, and the widget's cards are written to a temporary file first, which then takes the real one's place in one step. If the battery runs out or SquareDeck is closed mid-save, the old file is still whole, instead of a half-written settings.json putting every setting back to the default.
+- Saving is quicker: the JSON options are made once instead of on every save.
+- A page's own timers are stopped when it closes, so one a page forgot to stop can't keep ticking (and keep the page in memory) afterwards.
+- Cloud gaming: the leave panel's timers stop when the cloud game ends while it's showing (they kept running against the closed panel).
+- Programs SquareDeck starts (games' launchers, tools, the touch keyboard, shutdown, updates) no longer leave a Windows handle open each time, and checking whether Steam, AMD Software or the ASUS service is running lets go of what it finds.
+- The news feeds share one connection instead of opening a new one for every feed on every refresh.
+- The crash log keeps its newest quarter when it gets big (instead of starting over), and the same error repeated within 30 seconds is written once, not over and over.
+- Tidied: two settings fields nothing read, five fire-and-forget calls marked as such, and two names that hid WPF's own (a sticker page's Drop, the hint bar's Template).
+
+## 8.5.47
+
+ROG Ally lights:
+- A new effect picker. The effects are on the left; on the right, the front of the Ally with its two stick rings plays the one that's highlighted, in your colors and at your speed, so you see how it will look before choosing it. In the Switch 2 style it's a Switch 2 pop-up, with a round blue mark on the effect in use. It's used for Lights, Settings > ROG Ally and a game's light effect while playing.
+- Ten new effects, played by SquareDeck on the four zones of the rings (the outer and inner half of each stick), about ten times a second and without saving anything to the controller:
+  - Strobe: quick flashes of your color.
+  - Heartbeat: a double beat of your color, then a rest.
+  - Candlelight: a warm flickering glow, a little different on each side.
+  - Police lights: red flashes on the left, blue on the right.
+  - Ocean: blues and teals drifting like water.
+  - Aurora: greens, cyan and purple moving slowly across the sticks.
+  - Sunset: orange, pink and purple, glowing gently.
+  - Comet: a bright point of your color running round both sticks.
+  - Color swap: your two colors trade sticks, back and forth.
+  - Processor temperature: blue when cool through green and amber to red when hot, flashing above 88 °C.
+- Each effect shows the color, second color and speed rows it uses. Brightness, "Off while playing" and game lights work with all of them.
+
+## 8.5.46
+
+- The TDP limit slider (Settings > Power, and a game's profile) moves 1 W for each press of left or right instead of 5, so any limit can be set exactly. In the Switch 2 style it's a Switch 2 pop-up: a light card, the watts large in the middle, a track with the blue fill and a round white knob, the lowest and highest at its ends, and Done.
+- Game profile: "CPU cores in use" while the game runs (all, 75%, 50% or 25% of the cores, or Settings' default), put back when it closes.
+- Settings: the "Reset …  N changed" row at the bottom of sections, and the "● N changed" on group cards, are gone.
+
+## 8.5.45
+
+- Your profile: a "Your play time" button under Steam profile, to the page with your week, streaks, when you play and the games you've played most.
+
+## 8.5.44
+
+A frame cap can no longer be left behind in AMD's driver (it was found at 15 FPS, slowing every game):
+- The widget's frame cap only applies while a game is running. Set with no game running, nothing ever lifted it, and AMD's driver kept it for everything after.
+- Once no game is running, any cap SquareDeck set is lifted, back to how AMD Software had it.
+- What the driver had before is kept on disk: if SquareDeck closes or crashes mid-game, the cap is lifted when it closes, or the next time it starts.
+- SquareDeck never applies a cap under 30 FPS.
+
+## 8.5.43
+
+SquareDeck using the graphics chip behind a game:
+- It now stops drawing whenever another app's window covers at least half of its screen. Before, the window had to cover the whole work area, so a game in a window, letterboxed, or in exclusive full screen at another resolution could leave SquareDeck drawing behind it the whole time. (Games SquareDeck knows are running already stopped it straight away.)
+- If something asked SquareDeck to stay in front over a game (the launch splash, "Closing software") and never let go, that's released after 20 seconds with something else in front, instead of keeping SquareDeck drawing until the game closed.
+- While a game runs, every web view on an open page is suspended: trailers, YouTube, store pages and the browser. They're SquareDeck's own Edge processes, which Task Manager counts under SquareDeck, and they use neither the processor nor the graphics chip while asleep. A cloud game (it's what's in front) and a music service (it keeps playing) are left alone. They wake when you're back.
 
 ## 8.5.42
 

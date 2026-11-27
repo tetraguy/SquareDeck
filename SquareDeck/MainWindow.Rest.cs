@@ -48,8 +48,14 @@ public partial class MainWindow
     private void RestTick()
     {
         if (IsActive) { _restWatch.Stop(); return; }
-        // Something SquareDeck must keep showing over another app (the launch splash, "Closing software").
-        if (_holdVisible > 0) { _coveredSeconds = 0; SetCovered(false); SetResting(false); return; }
+        // Something SquareDeck must keep showing over another app (the launch splash, "Closing software"). If that's
+        // gone on for 20 seconds with something else in front, it's let go: a hold left behind by mistake would
+        // otherwise keep SquareDeck drawing behind the game the whole time it's played.
+        if (_holdVisible > 0)
+        {
+            if (DateTime.UtcNow - _inactiveSince < TimeSpan.FromSeconds(20)) { _coveredSeconds = 0; SetCovered(false); SetResting(false); return; }
+            ReleaseHold();
+        }
         if (DateTime.UtcNow - _inactiveSince >= TimeSpan.FromSeconds(4) || WindowState == WindowState.Minimized) SetResting(true);
         bool covered = WindowState == WindowState.Minimized || WindowActivator.FrontCovers(this);
         _coveredSeconds = covered ? _coveredSeconds + 1 : 0;

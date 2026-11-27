@@ -23,6 +23,17 @@ public static class AllyControl
         ("accent", "SquareDeck's accent color", "Follows the theme, and the game's color when that's on"),
         ("battery", "Battery level", "Green when full through amber to red; breathes while charging"),
         ("game", "The selected game's colors", "Picked from the cover of the game you're on"),
+        // 8.5.47: played by SquareDeck on the four zones of the rings.
+        ("strobe", "Strobe", "Quick flashes of your color"),
+        ("heartbeat", "Heartbeat", "A double beat of your color, then a rest"),
+        ("candle", "Candlelight", "A warm, flickering glow, a little different on each side"),
+        ("police", "Police lights", "Red flashes on the left, blue on the right"),
+        ("ocean", "Ocean", "Blues and teals drifting like water"),
+        ("aurora", "Aurora", "Greens, cyan and purple moving slowly across the sticks"),
+        ("sunset", "Sunset", "Orange, pink and purple, glowing gently"),
+        ("comet", "Comet", "A bright point of your color running round both sticks"),
+        ("swap", "Color swap", "Your two colors trade sticks, back and forth"),
+        ("temperature", "Processor temperature", "Blue when cool through green and amber to red when hot"),
     };
 
     public static readonly (string Hex, string Name)[] Palette =
@@ -118,7 +129,7 @@ public static class AllyControl
         // Off the window's thread: opening the drivers can take a moment.
         Task.Run(() =>
         {
-            try { ApplyPower(); ApplyBattery(); ApplyController(); } catch (Exception) { }
+            try { AllyHid.EnsureAwake(); ApplyPower(); ApplyBattery(); ApplyController(); } catch (Exception) { }
         });
         ApplyLights(force: true);
     }
@@ -244,6 +255,67 @@ public static class AllyControl
         return Color.FromRgb((byte)Math.Min(255, c.R * scale), (byte)Math.Min(255, c.G * scale), (byte)Math.Min(255, c.B * scale));
     }
 
+    private static int _reacting;
+
+    /// <summary>
+    /// The lights react to something for a moment, then go back to their effect: "achievement" is a gold sweep round
+    /// both sticks and a flash, "download" a green double pulse (a download, install or update has finished). Only with
+    /// "Lights react" on, and while SquareDeck has the lights (not "leave as it is", off, or dark while idle).
+    /// </summary>
+    public static void React(string kind)
+    {
+        var s = _settings;
+        if (s == null || !IsAlly || !s.AllyLightReactions || s.AllyLights is "" or "off" || _idleDark || _lowFlash) return;
+        if (_playing && s.AllyLightsOffPlaying && !s.AllyGameLights) return; // kept dark while playing
+        if (Interlocked.Exchange(ref _reacting, 1) == 1) return;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                LightFx.Stop();
+                AllyHid.SetBrightness(3);
+                var dark = Color.FromRgb(0, 0, 0);
+                if (kind == "achievement")
+                {
+                    var gold = Color.FromRgb(0xFF, 0xC4, 0x20);
+                    var dim = Color.FromRgb(0x40, 0x30, 0x08);
+                    for (int lap = 0; lap < 2; lap++)
+                        for (int z = 0; z < 4; z++)
+                        {
+                            var zones = new[] { dim, dim, dim, dim };
+                            zones[z] = gold;
+                            AllyHid.SetZonesLive(zones);
+                            await Task.Delay(90);
+                        }
+                    for (int i = 0; i < 2; i++) { AllyHid.SetLive(gold); await Task.Delay(160); AllyHid.SetLive(dark); await Task.Delay(110); }
+                    AllyHid.SetLive(gold);
+                    await Task.Delay(500);
+                }
+                else
+                {
+                    var green = Color.FromRgb(0x20, 0xFF, 0x60);
+                    for (int i = 0; i < 2; i++) { AllyHid.SetLive(green); await Task.Delay(380); AllyHid.SetLive(dark); await Task.Delay(220); }
+                }
+            }
+            catch (Exception) { }
+            finally
+            {
+                Interlocked.Exchange(ref _reacting, 0);
+                _lastLights = "";
+                ApplyLights(force: true); // back to the effect
+            }
+        });
+    }
+
+    /// <summary>The battery level's color (for the effect picker's preview).</summary>
+    public static Color BatteryColorFor(int percent) => BatteryColor(percent);
+
+    /// <summary>What an effect needs to be drawn (for the effect picker's preview, and SquareDeck's own effects).</summary>
+    public static LightFx.Inputs FxInputs(Settings s, Color? one = null, Color? two = null, Color? game = null) => new(
+        one ?? Parse(s.AllyLightColor, Color.FromRgb(255, 0, 51)), two ?? Parse(s.AllyLightColor2, Color.FromRgb(0, 160, 255)),
+        LightFx.SpeedFactor(s.AllyLightSpeed), Vivid(CurrentAccent() ?? Color.FromRgb(0, 160, 255)), game ?? _gameColor ?? Color.FromRgb(255, 0, 51),
+        Battery.GetPercent() ?? 100, Battery.IsPluggedIn(), AsusAcpi.Temperature(AsusAcpi.CpuTemp));
+
     private static Color BatteryColor(int percent)
     {
         // Red (0%) → amber (50%) → green (100%).
@@ -297,7 +369,7 @@ public static class AllyControl
             key = "idle";
             apply = () => AllyHid.SetBrightness(0);
         }
-        else if (mode.Length == 0) { _lastLights = ""; return Task.FromResult(true); } // leave them alone
+        else if (mode.Length == 0) { _lastLights = ""; LightFx.Stop(); return Task.FromResult(true); } // leave them alone
         else if (mode == "off" || (_playing && s.AllyLightsOffPlaying && !gameLights))
         {
             key = "off";
@@ -334,15 +406,23 @@ public static class AllyControl
                     key = $"game{game}{pct}";
                     apply = () => Lights(3, AllyHid.AuraMode.Solid, D(game), D(game), speed);
                     break;
+                case var fx when LightFx.IsSoftware(fx):
+                    // Played by SquareDeck, frame by frame (the rings at full, the colors dimmed to the percentage).
+                    var inputs = FxInputs(s, one, two, gameColor) with { Speed = LightFx.SpeedFactor(s.AllyLightSpeed) };
+                    key = $"fx{fx}{one}{two}{s.AllyLightSpeed}{pct}";
+                    apply = () => { bool ok = AllyHid.SetBrightness(3); LightFx.Play(fx, inputs, pct); return ok; };
+                    break;
                 default: return Task.FromResult(false);
             }
         }
         if (!force && key == _lastLights) return Task.FromResult(true);
         _lastLights = key;
+        if (!key.StartsWith("fx", StringComparison.Ordinal)) LightFx.Stop(); // the Ally's own effect (or dark) takes over
         return Task.Run(async () =>
         {
             try
             {
+                AllyHid.EnsureAwake(); // without ASUS Optimization, the lights only listen after an introduction
                 if (apply()) { if (force) LightLog(key, "ok"); return true; }
                 // The light device may have been missed (or reconnected): look again and try once more.
                 AllyHid.Rescan();
@@ -433,7 +513,7 @@ public static class AllyControl
             var info = new System.IO.FileInfo(path);
             if (info.Exists && info.Length > 64 * 1024) info.Delete();
             string extra = (DynamicLightingOn ? "  (Windows Dynamic Lighting is on)" : "")
-                + (AsusOptimization.Installed && !AsusOptimization.Enabled ? "  (ASUS Optimization is off: the lights don't take changes)" : "");
+                + (AsusOptimization.Installed && !AsusOptimization.Enabled ? "  (ASUS Optimization is off: SquareDeck introduces itself to the lights)" : "");
             System.IO.File.AppendAllText(path, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {key}  {result}{extra}{Environment.NewLine}");
         }
         catch (Exception) { }
@@ -690,6 +770,7 @@ public static class AllyControl
             // Give the controller a moment to start: a report sent too early is taken and then overwritten.
             await Task.Delay(TimeSpan.FromSeconds(3));
             AllyHid.Rescan();
+            AllyHid.EnsureAwake(); // the controller forgets the introduction while asleep
             ApplyLightPower(force: true);
             ApplyXboxLight(force: true);
             await Task.Delay(TimeSpan.FromSeconds(5));

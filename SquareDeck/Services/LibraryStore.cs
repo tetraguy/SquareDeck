@@ -53,9 +53,11 @@ public sealed class GameProfile
     public int TdpPluggedWatts { get; set; }
     public bool? CpuBoost { get; set; }
     public int MaxCpu { get; set; }
+    /// <summary>The share of the CPU's cores Windows may use while the game runs (25–100%; 0 = the default from Settings).</summary>
+    public int CpuCores { get; set; }
     public string? PowerMode { get; set; }
 
-    public bool HasPower => TdpWatts > 0 || TdpPluggedWatts > 0 || CpuBoost != null || MaxCpu > 0 || PowerMode != null;
+    public bool HasPower => TdpWatts > 0 || TdpPluggedWatts > 0 || CpuBoost != null || MaxCpu > 0 || CpuCores > 0 || PowerMode != null;
 
     // The ROG Ally's lights while this game runs (with game lights on in Settings > ROG Ally controls).
     // Null = the game's own color (from its cover); "everyday" = the same as outside games; else an effect id
@@ -159,8 +161,8 @@ public sealed class LibraryStore
         try
         {
             Directory.CreateDirectory(Settings.DataDir);
-            File.WriteAllText(FilePath,
-                JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            SafeFile.WriteAllText(FilePath,
+                JsonSerializer.Serialize(this, SafeFile.Indented));
         }
         catch
         {

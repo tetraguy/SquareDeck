@@ -83,7 +83,7 @@ public static class SilentUpdate
             $"-NoProfile -ExecutionPolicy Bypass -Sta -WindowStyle Hidden -File \"{path}\"")
         {
             UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = folder
-        });
+        })?.Dispose();
         return ready;
     }
 

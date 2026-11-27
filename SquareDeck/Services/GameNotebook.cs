@@ -66,7 +66,7 @@ public static class GameNotebook
         try
         {
             Directory.CreateDirectory(Folder(game));
-            File.WriteAllText(Path.Combine(Folder(game), "index.json"), JsonSerializer.Serialize(notes, new JsonSerializerOptions { WriteIndented = true }));
+            SafeFile.WriteAllText(Path.Combine(Folder(game), "index.json"), JsonSerializer.Serialize(notes, SafeFile.Indented));
         }
         catch (Exception) { }
     }

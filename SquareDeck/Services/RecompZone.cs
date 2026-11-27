@@ -401,7 +401,7 @@ public static class RecompZone
     private static void SaveInstalled(List<RecompInstall> list)
     {
         Directory.CreateDirectory(Folder);
-        File.WriteAllText(InstalledFile, JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true }));
+        SafeFile.WriteAllText(InstalledFile, JsonSerializer.Serialize(list, SafeFile.Indented));
     }
 
     public static RecompInstall? InstalledFor(string id) => Installed().FirstOrDefault(i => i.Id == id && File.Exists(i.Program));
@@ -525,7 +525,7 @@ public static class RecompZone
     public static void Play(RecompInstall install)
     {
         var start = new System.Diagnostics.ProcessStartInfo(install.Program) { WorkingDirectory = Path.GetDirectoryName(install.Program)!, UseShellExecute = true };
-        System.Diagnostics.Process.Start(start);
+        System.Diagnostics.Process.Start(start)?.Dispose();
         try
         {
             var list = Installed();

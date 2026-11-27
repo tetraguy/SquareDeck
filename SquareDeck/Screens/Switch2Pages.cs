@@ -43,6 +43,7 @@ public static class Switch2Pages
         || screen is StyleScheduleScreen     // Settings > Themes > Style schedule
         || screen is CompanionScreen         // the companion's character, color, name, outfit and reactions
         || screen is PlaytimeScreen          // Your play time: the week, the charts and the games, on Switch 2 cards
+        || screen is AllyButtonsScreen       // ROG Ally buttons: remapping and the button test
         || (ThemePages && screen is ThemeScreen or WallpaperEngineScreen); // with the Switch style: My themes, looks and wallpaper
 
     /// <summary>
@@ -58,6 +59,7 @@ public static class Switch2Pages
         BatteryScreen => "\uE945",
         DeviceInfoScreen or CreditsScreen => "\uE946",
         WifiScreen => "\uE701",
+        AllyButtonsScreen => "\uE7FC",
         BluetoothScreen => "\uE702",
         SpeedTestScreen or StorageSpeedScreen or DriveSpeedScreen => "\uEC4A",
         NetworkToolsScreen => "\uE968",
@@ -103,7 +105,7 @@ public static class Switch2Pages
         || (Labs.On("s2details") && screen is DetailsScreen or GameNotesScreen or ArtPickerScreen or CoverPickerScreen or GameProfileScreen or FixGameScreen)
         || (Labs.On("s2genie") && screen is GameGenieScreen)
         || (Labs.On("s2setup") && screen is OnboardingScreen)
-        || screen is StyleScheduleScreen or CompanionScreen or PlaytimeScreen
+        || screen is StyleScheduleScreen or CompanionScreen or PlaytimeScreen or AllyButtonsScreen
         || (ThemePages && screen is ThemeScreen or WallpaperScreen or ColorThemeScreen or DynamicBackgroundScreen or WallpaperEngineScreen)
         || PcPage(screen);
 

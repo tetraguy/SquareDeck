@@ -17,11 +17,19 @@ public static class RssFeed
     public const string NintendoLife = "https://www.nintendolife.com/feeds/latest";
     public const string XboxWire = "https://news.xbox.com/en-us/feed/";
 
+    // One connection for every feed and refresh (a new one each time left sockets waiting to close).
+    private static readonly HttpClient Http = MakeClient();
+
+    private static HttpClient MakeClient()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("SquareDeck/1.0 (+https://github.com/tetraguy/SquareDeck)");
+        return http;
+    }
+
     public static async Task<List<NewsItem>> ReadAsync(string url, string feedName, CancellationToken ct)
     {
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("SquareDeck/1.0 (+https://github.com/tetraguy/SquareDeck)");
-        var xml = await http.GetStringAsync(url, ct).ConfigureAwait(false);
+        var xml = await Http.GetStringAsync(url, ct).ConfigureAwait(false);
         var doc = XDocument.Parse(xml);
         XNamespace media = "http://search.yahoo.com/mrss/", content = "http://purl.org/rss/1.0/modules/content/";
         var posts = new List<NewsItem>();

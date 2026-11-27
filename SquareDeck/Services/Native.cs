@@ -101,7 +101,7 @@ public static class Power
             {
                 UseShellExecute = false,
                 CreateNoWindow = true
-            });
+            })?.Dispose();
         }
         catch (Exception)
         {
@@ -498,13 +498,33 @@ public static class CrashLog
 {
     public static string Path => System.IO.Path.Combine(Settings.DataDir, "crash.log");
 
+    private static readonly object Gate = new();
+    private static string _lastKey = "";
+    private static DateTime _lastAt;
+
     public static void Write(string where, Exception ex)
     {
         try
         {
-            Directory.CreateDirectory(Settings.DataDir);
-            if (File.Exists(Path) && new FileInfo(Path).Length > 512 * 1024) File.Delete(Path);
-            File.AppendAllText(Path, $"==== {DateTime.Now:yyyy-MM-dd HH:mm:ss}  {where}  (SquareDeck {Updater.Current})\r\n{ex}\r\n\r\n");
+            lock (Gate)
+            {
+                // The same error from the same place again within a few seconds is one problem, not a new one: it isn't
+                // written over and over (a repeating failure used to fill the log).
+                string key = where + "|" + ex.GetType().FullName + "|" + ex.Message;
+                if (key == _lastKey && DateTime.UtcNow - _lastAt < TimeSpan.FromSeconds(30)) return;
+                _lastKey = key;
+                _lastAt = DateTime.UtcNow;
+
+                Directory.CreateDirectory(Settings.DataDir);
+                // Past 512 KB, the newest quarter is kept (instead of losing everything).
+                if (File.Exists(Path) && new FileInfo(Path).Length > 512 * 1024)
+                {
+                    string text = File.ReadAllText(Path);
+                    int from = text.IndexOf("\r\n==== ", text.Length - 128 * 1024, StringComparison.Ordinal);
+                    File.WriteAllText(Path, from > 0 ? text[(from + 2)..] : "");
+                }
+                File.AppendAllText(Path, $"==== {DateTime.Now:yyyy-MM-dd HH:mm:ss}  {where}  (SquareDeck {Updater.Current})\r\n{ex}\r\n\r\n");
+            }
         }
         catch (Exception) { }
     }

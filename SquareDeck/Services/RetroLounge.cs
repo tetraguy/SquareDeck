@@ -364,7 +364,7 @@ public static class RetroLounge
         try
         {
             Directory.CreateDirectory(Folder);
-            File.WriteAllText(ConfigFile, JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true }));
+            SafeFile.WriteAllText(ConfigFile, JsonSerializer.Serialize(Config, SafeFile.Indented));
         }
         catch (Exception) { }
     }
@@ -394,7 +394,7 @@ public static class RetroLounge
     private static void SaveInstalled(List<RetroEmuInstall> list)
     {
         Directory.CreateDirectory(Folder);
-        File.WriteAllText(InstalledFile, JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true }));
+        SafeFile.WriteAllText(InstalledFile, JsonSerializer.Serialize(list, SafeFile.Indented));
     }
 
     public static RetroEmuInstall? InstalledFor(string id) => Installed().FirstOrDefault(i => i.Id == id && File.Exists(i.Program));
@@ -662,7 +662,7 @@ public static class RetroLounge
 
     /// <summary>Opens the emulator on its own (to set it up: controls, graphics, firmware).</summary>
     public static void OpenEmulator(RetroEmuInstall install) =>
-        Process.Start(new ProcessStartInfo(install.Program) { WorkingDirectory = install.Folder, UseShellExecute = true });
+        Process.Start(new ProcessStartInfo(install.Program) { WorkingDirectory = install.Folder, UseShellExecute = true })?.Dispose();
 
     // ---------------------------------------------------------------- RetroArch cores
 

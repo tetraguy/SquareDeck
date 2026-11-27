@@ -101,7 +101,7 @@ public partial class MainWindow
         try
         {
             if (Environment.ProcessPath is string exe)
-                Process.Start(new ProcessStartInfo(exe, App.RestartArgument) { UseShellExecute = true }); // waits for this copy to close
+                Process.Start(new ProcessStartInfo(exe, App.RestartArgument) { UseShellExecute = true })?.Dispose(); // waits for this copy to close
         }
         catch (Exception) { }
         Close();
@@ -299,6 +299,7 @@ public partial class MainWindow
         if (handle == IntPtr.Zero) return;
         if (_hotkeySource == null) ApplySummonKey(); // sets up the message hook
         bool want = Settings.AllyRemap || Settings.ExperimentAllyQuickMenu.Length > 0;
+        if (want) _ = Task.Run(AllyHid.EnsureAwake); // without ASUS Optimization the extra buttons only send codes after it
         ApplyBackKeys(handle);
         if (want == _allyListening) return;
         _allyListening = AllyButtons.Listen(handle, want) && want;
@@ -1420,6 +1421,7 @@ public partial class MainWindow
         {
             if (!SteamLibrary.IsFullyInstalled(_installing.AppId)) return;
             ShowToast("DOWNLOAD", _installing.Name, "has finished installing", "", "download", game: _installing);
+            AllyControl.React("download");
             _installing = null;
             _ = ReloadAsync(waitForArt: false);
         }

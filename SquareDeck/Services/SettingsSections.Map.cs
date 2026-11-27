@@ -31,7 +31,7 @@ public static partial class SettingsSections
             ["Launching games"] = new[] { "AskAboutUpdates", "LaunchCountdown", "LaunchCountdownSeconds", "LaunchCountdownLook", "LaunchSplash", "SteamDirectLaunch" },
             ["Library and stores"] = new[] { "DisabledStores", "LibraryView", "OtherStores", "ReleaseAlerts", "SaleAlertMin", "SaleAlerts", "ShowHowLongToBeat", "ShowPlayerStats" },
             ["Service keys"] = new[] { "GeniePrepare" },
-            ["While playing"] = new[] { "ClosePagesWhilePlaying", "DoNotDisturb", "FreeGpuDuringGames", "LeanInBackground", "LeanWhilePlaying", "ReturnToLauncher", "SessionSummary" },
+            ["While playing"] = new[] { "BatteryEstimate", "SuspendGames", "ClosePagesWhilePlaying", "DoNotDisturb", "FreeGpuDuringGames", "LeanInBackground", "LeanWhilePlaying", "ReturnToLauncher", "SessionSummary" },
         },
         ["handheld"] = new()
         {
@@ -41,7 +41,7 @@ public static partial class SettingsSections
             ["Battery care"] = new[] { "AllyChargeLimit" },
             ["Controller"] = new[] { "AllyStickInner", "AllyStickOuter", "AllyTriggerInner", "AllyTriggerOuter", "AllyVibration" },
             ["Fans and temperature"] = new[] { "AllyFan" },
-            ["Lights"] = new[] { "AllyGameLights", "AllyLightColor", "AllyLightColor2", "AllyLightPercent", "AllyLightSpeed", "AllyLightsOffPlaying", "AllyLowBatteryFlash" },
+            ["Lights"] = new[] { "AllyGameLights", "AllyLightColor", "AllyLightColor2", "AllyLightPercent", "AllyLightSpeed", "AllyLightReactions", "AllyLightsOffPlaying", "AllyLowBatteryFlash" },
             ["This device"] = new[] { "ShowMyDeviceButton" },
             ["When the lights are on"] = new[] { "AllyLightAwakeBattery", "AllyLightAwakePlugged", "AllyLightBatteryIdleOff", "AllyLightBootShutdown", "AllyLightPowerSet", "AllyLightSleep" },
             ["Xbox button light"] = new[] { "AllyXboxLight", "AllyXboxLightBreathe", "AllyXboxLightLevel", "AllyXboxLightLowBattery", "AllyXboxLightOffPlaying" },
@@ -72,8 +72,8 @@ public static partial class SettingsSections
         },
         ["power"] = new()
         {
-            ["Performance Boost"] = new[] { "BoostRumble", "PerformanceBoost", "PerformanceMode" },
-            ["Performance overlay"] = new[] { "CpuBoost", "CpuCores", "CpuEpp", "MaxCpu", "OsdDetail", "OsdEnabled", "OsdLayout", "OsdOpacity", "OsdPosition", "OsdSize", "OsdStyle", "OsdWhen", "RyzenProfile", "TdpBoostWindow", "TdpEnabled", "TdpPluggedWatts", "TdpReapply", "TdpTempLimit", "TdpWatts", "WindowsPowerMode" },
+            ["Performance Boost"] = new[] { "AutoTdpLearn", "BoostRumble", "PerformanceBoost", "PerformanceMode" },
+            ["Performance overlay"] = new[] { "CpuBoost", "CpuCores", "CpuEpp", "MaxCpu", "OsdDetail", "OsdEnabled", "OsdColors", "OsdItems", "OsdLayout", "OsdMeters", "OsdOpacity", "OsdPosition", "OsdShape", "OsdSize", "OsdStyle", "OsdWhen", "RyzenProfile", "TdpBoostWindow", "TdpEnabled", "TdpPluggedWatts", "TdpReapply", "TdpTempLimit", "TdpWatts", "WindowsPowerMode" },
         },
         ["sound"] = new()
         {

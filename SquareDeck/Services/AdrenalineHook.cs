@@ -57,7 +57,7 @@ public static class AdrenalineHook
         }
     }
 
-    public static bool SoftwareRunning => Process.GetProcessesByName("RadeonSoftware").Length > 0;
+    public static bool SoftwareRunning => ProcessUtil.IsNamedRunning("RadeonSoftware");
 
     public static bool OpenSoftware()
     {

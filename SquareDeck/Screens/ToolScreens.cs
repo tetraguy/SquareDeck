@@ -172,16 +172,22 @@ public sealed class SliderDialog : Screen
 {
     private readonly TaskCompletionSource<int> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Slider _slider;
+    private readonly string _title, _message;
+    private readonly int _min, _max;
+    private readonly Func<int, string> _format;
+    private readonly Grid _backdrop;
 
     public override bool IsDialog => true;
 
     /// <summary>The value when the dialog closed.</summary>
     public Task<int> Result => _done.Task;
 
+    /// <param name="step">How far one press of left or right moves it (5 unless given; 1 for watts).</param>
     public SliderDialog(string title, string message, string label, string glyph, int value, Action<int>? changed = null,
-                        int min = 0, int max = 100, Func<int, string>? format = null)
+                        int min = 0, int max = 100, Func<int, string>? format = null, int step = 5)
     {
         format ??= v => v == 0 ? "Off" : v + "%";
+        _title = title; _message = message; _min = min; _max = max; _format = format;
         var panel = new StackPanel();
         panel.Children.Add(Ui.Text(title, 26));
         var note = Ui.Text(message, 18, "SubtleBrush");
@@ -193,6 +199,9 @@ public sealed class SliderDialog : Screen
         panel.Children.Add(Ui.SliderRow(label, glyph, out _slider, out var text));
         _slider.Minimum = min;
         _slider.Maximum = max;
+        _slider.SmallChange = _slider.LargeChange = Math.Max(1, step);
+        _slider.TickFrequency = Math.Max(1, step);
+        _slider.IsSnapToTickEnabled = step == 1; // whole numbers when it moves one at a time
         _slider.Value = value;
         text.Text = format(value);
         _slider.ValueChanged += (_, e) =>
@@ -214,9 +223,94 @@ public sealed class SliderDialog : Screen
         box.SetResourceReference(Border.BackgroundProperty, "DialogBrush");
         box.SetResourceReference(Border.BorderBrushProperty, "PanelStroke");
         box.SetResourceReference(Border.BorderThicknessProperty, "PanelStrokeThickness");
-        var backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(0xA0, 0, 0, 0)) };
-        backdrop.Children.Add(box);
-        Content = backdrop;
+        _backdrop = new Grid { Background = new SolidColorBrush(Color.FromArgb(0xA0, 0, 0, 0)) };
+        _backdrop.Children.Add(box);
+        Content = _backdrop;
+    }
+
+    /// <summary>
+    /// Drawn like the Switch 2's pop-ups: a light card, the value large in the middle, a track with the blue fill and a
+    /// round white knob, the lowest and highest at its ends, and a Done row. The real slider sits on the track
+    /// (invisible), so touch, a drag and left / right all work as before.
+    /// </summary>
+    public void UseSwitch2Look()
+    {
+        Switch2Settings.ApplyColors(this);
+        var textColor = new SolidColorBrush(Switch2Settings.Text);
+        var subtle = new SolidColorBrush(Switch2Settings.Subtle);
+        var blue = new SolidColorBrush(Switch2Settings.Blue);
+
+        var panel = new StackPanel();
+        panel.Children.Add(new TextBlock { Text = _title, FontSize = 22, Foreground = textColor });
+        var note = new TextBlock { Text = _message, FontSize = 16, Foreground = subtle, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 18) };
+        panel.Children.Add(note);
+
+        var value = new TextBlock { Text = _format((int)Math.Round(_slider.Value)), FontSize = 46, FontWeight = FontWeights.SemiBold, Foreground = textColor, HorizontalAlignment = HorizontalAlignment.Center };
+        panel.Children.Add(value);
+        var how = new TextBlock { Text = "\u25C0  \u25B6   to change", FontSize = 14, Foreground = subtle, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 16) };
+        panel.Children.Add(how);
+
+        // The track: grey, the blue part up to the value, and the knob.
+        const double Knob = 30;
+        var track = new Grid { Height = 44 };
+        var rail = new Border { Height = 8, CornerRadius = new CornerRadius(4), Background = new SolidColorBrush(Switch2Settings.Line), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(Knob / 2, 0, Knob / 2, 0) };
+        var fill = new Border { Height = 8, CornerRadius = new CornerRadius(4), Background = blue, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(Knob / 2, 0, 0, 0) };
+        var knobRing = new Ellipse { Width = Knob + 8, Height = Knob + 8, StrokeThickness = 3, Stroke = blue, Opacity = 0, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+        var knob = new Ellipse
+        {
+            Width = Knob, Height = Knob, Fill = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center,
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 8, ShadowDepth = 1, Opacity = 0.35 }
+        };
+        track.Children.Add(rail);
+        track.Children.Add(fill);
+        track.Children.Add(knobRing);
+        track.Children.Add(knob);
+
+        // The real slider, on top and invisible: it takes the controller, touch and the mouse.
+        if (_slider.Parent is Panel old) old.Children.Remove(_slider);
+        Grid.SetColumn(_slider, 0);
+        _slider.Opacity = 0.01;
+        _slider.Margin = new Thickness(0);
+        _slider.VerticalAlignment = VerticalAlignment.Stretch;
+        track.Children.Add(_slider);
+
+        void Place()
+        {
+            double width = track.ActualWidth - Knob;
+            if (width <= 0) return;
+            double t = _max > _min ? (_slider.Value - _min) / (_max - _min) : 0;
+            double x = width * Math.Clamp(t, 0, 1);
+            fill.Width = Math.Max(0, x);
+            knob.Margin = new Thickness(x, 0, 0, 0);
+            knobRing.Margin = new Thickness(x - 4, 0, 0, 0);
+            value.Text = _format((int)Math.Round(_slider.Value));
+        }
+        track.SizeChanged += (_, _) => Place();
+        _slider.ValueChanged += (_, _) => Place();
+        _slider.GotKeyboardFocus += (_, _) => knobRing.Opacity = 1;
+        _slider.LostKeyboardFocus += (_, _) => knobRing.Opacity = 0;
+        panel.Children.Add(track);
+
+        var ends = new Grid { Margin = new Thickness(0, 4, 0, 18) };
+        ends.Children.Add(new TextBlock { Text = _format(_min), FontSize = 14, Foreground = subtle, HorizontalAlignment = HorizontalAlignment.Left });
+        ends.Children.Add(new TextBlock { Text = _format(_max), FontSize = 14, Foreground = subtle, HorizontalAlignment = HorizontalAlignment.Right });
+        panel.Children.Add(ends);
+
+        var done = Ui.Row("Done");
+        done.Style = Switch2Settings.RowStyle;
+        done.Click += (_, _) => Host.Pop(this);
+        panel.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Switch2Settings.Line) });
+        panel.Children.Add(done);
+
+        var box = new Border
+        {
+            Width = 620, Padding = new Thickness(30, 26, 30, 20), CornerRadius = new CornerRadius(16),
+            Background = new SolidColorBrush(Switch2Settings.Card),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Child = panel
+        };
+        _backdrop.Background = new SolidColorBrush(Color.FromArgb(0x55, 0, 0, 0));
+        _backdrop.Children.Clear();
+        _backdrop.Children.Add(box);
     }
 
     public override void FocusDefault() => _slider.Focus();
@@ -264,6 +358,9 @@ public sealed partial class GameProfileScreen : ListScreen
                 "\uEBB5", click: () => TdpChoice(plugged: true));
             AddRow("CPU boost", p.CpuBoost switch { true => "On", false => "Off", _ => "Default" }, "\uE9F5", click: BoostChoice);
             AddRow("Maximum CPU speed", p.MaxCpu > 0 ? (p.MaxCpu >= 100 ? "No limit" : p.MaxCpu + "%") : "Default", "\uEC48", click: CpuChoice);
+            AddRow("CPU cores in use", p.CpuCores > 0 ? (p.CpuCores >= 100 ? "All cores" : p.CpuCores + "% of the cores")
+                    : "Default (" + (Host.Settings.CpuCores >= 100 ? "all" : Host.Settings.CpuCores + "%") + ")", "\uE964", click: CoresChoice,
+                subtitle: "Windows parks the rest while it runs. Half is plenty for older and indie games and saves battery");
             AddRow("Windows power mode", p.PowerMode == null ? "Default" : TdpControl.PowerModeName(p.PowerMode), "\uE83F", click: PowerModeChoice);
         }
         // The ROG Ally's lights while this game runs.
@@ -280,12 +377,12 @@ public sealed partial class GameProfileScreen : ListScreen
                 subtitle: Host.Settings.AllyGameLights ? (p.Lights == null ? "The main color of the game's cover" : null)
                                                        : "Game lights are off in Settings > ROG Ally controls, so this isn't used");
             string mode = p.Lights ?? "game";
-            if (mode is "solid" or "breathing" or "sticks")
+            if (LightFx.UsesColor(mode) && mode.Length > 0)
             {
                 string one = p.LightColor ?? Host.Settings.AllyLightColor, two = p.LightColor2 ?? Host.Settings.AllyLightColor2;
                 AddRow(mode == "sticks" ? "Left stick color" : "Color", AllyControlScreen.ColorName(one), "\uE790",
                     click: () => Host.Push(new LedColorScreen("Light color – " + _game.Name, one, hex => { Profile.LightColor = hex; Saved(); })));
-                if (mode is "breathing" or "sticks")
+                if (LightFx.UsesSecondColor(mode))
                     AddRow(mode == "sticks" ? "Right stick color" : "Second color", AllyControlScreen.ColorName(two), "\uE790",
                         click: () => Host.Push(new LedColorScreen("Second light color – " + _game.Name, two, hex => { Profile.LightColor2 = hex; Saved(); })));
             }
@@ -514,13 +611,21 @@ public sealed partial class GameProfileScreen : ListScreen
     private async void LightsChoice()
     {
         // The game's color first (the default), then the same as outside games, then every effect.
-        var options = new List<(string? Id, string Name)> { (null, "Game color (default)"), ("everyday", "Same as outside games") };
-        options.AddRange(AllyControl.LightModes.Where(m => m.Id is not ("" or "game")).Select(m => ((string?)m.Id, m.Name)));
-        int choice = await Host.AskAsync("Light effect while playing", "Used while " + _game.Name + " runs, with game lights on.",
-            options.Select(o => o.Name).ToArray());
+        var s = Host.Settings;
+        var options = new List<(string? Id, string Preview, string Name, string About)>
+        {
+            (null, "game", "Game color (default)", "The main color of the game's cover"),
+            ("everyday", s.AllyLights, "Same as outside games", "Whatever the lights do outside games"),
+        };
+        options.AddRange(AllyControl.LightModes.Where(m => m.Id is not ("" or "game")).Select(m => ((string?)m.Id, m.Id, m.Name, m.About)));
+        int current = options.FindIndex(o => o.Id == Profile.Lights);
+        Color Hex(string hex, Color fallback) { try { return (Color)ColorConverter.ConvertFromString(hex); } catch (Exception) { return fallback; } }
+        var inputs = AllyControl.FxInputs(s, Hex(Profile.LightColor ?? s.AllyLightColor, Colors.Red), Hex(Profile.LightColor2 ?? s.AllyLightColor2, Colors.DodgerBlue));
+        int choice = await LightEffectPicker.AskAsync(this, "Light effect while playing", "Used while " + _game.Name + " runs, with game lights on.",
+            options.ToArray(), Math.Max(0, current), inputs);
         if (choice < 0 || choice >= options.Count) return;
         Profile.Lights = options[choice].Id;
-        if (options[choice].Id is not ("solid" or "breathing" or "sticks")) { Profile.LightColor = null; Profile.LightColor2 = null; }
+        if (options[choice].Id is not { } id || !LightFx.UsesColor(id)) { Profile.LightColor = null; Profile.LightColor2 = null; }
         Saved();
     }
 
@@ -585,7 +690,8 @@ public sealed partial class GameProfileScreen : ListScreen
         int start = plugged ? (Profile.TdpPluggedWatts > 0 ? Profile.TdpPluggedWatts : s.TdpPluggedWatts > 0 ? s.TdpPluggedWatts : chip.Max)
                             : (Profile.TdpWatts > 0 ? Profile.TdpWatts : s.TdpWatts);
         var dialog = new SliderDialog("TDP " + when + " – " + _game.Name, "Applied while the game runs and put back when it closes.",
-            "Watts", "\uE945", TdpControl.Clamp(start), null, chip.Min, chip.Max, v => v + " W");
+            "Watts", "\uE945", TdpControl.Clamp(start), null, chip.Min, chip.Max, v => v + " W", step: 1);
+        if (Switch2Pages.Applies(this)) dialog.UseSwitch2Look();
         Host.Push(dialog);
         int watts = TdpControl.Clamp(await dialog.Result);
         if (plugged) Profile.TdpPluggedWatts = watts; else Profile.TdpWatts = watts;
@@ -606,6 +712,17 @@ public sealed partial class GameProfileScreen : ListScreen
         int choice = await Host.AskAsync("Maximum CPU speed while playing", null, caps.Select(c => c == 0 ? "Default" : c >= 100 ? "No limit" : c + "%").ToArray());
         if (choice < 0) return;
         Profile.MaxCpu = caps[choice];
+        Saved();
+    }
+
+    private async void CoresChoice()
+    {
+        int[] shares = { 0, 100, 75, 50, 25 };
+        int choice = await Host.AskAsync("CPU cores in use while playing",
+            "Windows parks the rest while the game runs, and your usual setting comes back when it closes. Demanding games want all of them.",
+            shares.Select(c => (c == Profile.CpuCores ? "\u2713 " : "") + (c == 0 ? "Default (Settings')" : c >= 100 ? "All cores" : c + "% of the cores")).ToArray());
+        if (choice < 0) return;
+        Profile.CpuCores = shares[choice];
         Saved();
     }
 
@@ -1013,10 +1130,13 @@ public sealed class StoresScreen : GridScreen
         double small = _cine ? 110 : TileSize;
         if (Labs.On("freegames"))
             AddTile(GlyphBox(small, small, "\uE719"), _cine ? null : "Free games", small, () => Host.Push(PlayPages.FreeGames()), "Free games", _deals);
+        // Buy Steam Keys: a key store on a page of its own (StoreWebScreen), signed in and easy to leave.
+        AddTile(GlyphBox(small, small, StoreWebScreen.Loaded.Glyph), _cine ? null : "Buy Steam Keys", small, () => Host.Push(StoreWebScreen.Open(StoreWebScreen.Loaded)), "Buy Steam Keys", _deals);
         string wish = onSale > 0 ? $"Wishlist · {onSale} on sale" : "Wishlist and sales";
         AddTile(GlyphBox(small, small, "\uE8EC"), _cine ? null : wish, small, () => Host.Push(new WishlistScreen()), wish, _deals);
         AddTile(GlyphBox(small, small, "\uE787"), _cine ? null : "Release calendar", small, () => Host.Push(new ReleaseCalendarScreen()), "Release calendar", _deals);
         AddTile(GlyphBox(small, small, "\uE710"), _cine ? null : "Add more stores", small, () => Host.Push(new AddStoresScreen()), "Add more stores", extras);
+        AddTile(GlyphBox(small, small, StoreWebScreen.NexusMods.Glyph), _cine ? null : "Nexus Mods", small, () => Host.Push(StoreWebScreen.Open(StoreWebScreen.NexusMods)), "Nexus Mods", extras);
         int hiddenInstalled = _all.Count(s => s.Installed && hidden.Contains(s.Name));
         if (hiddenInstalled > 0)
             AddTile(GlyphBox(small, small, "\uE7B3"), _cine ? null : $"Hidden stores ({hiddenInstalled})", small, () => _ = ShowHiddenAsync(), $"Hidden stores ({hiddenInstalled})", extras);
@@ -1137,7 +1257,9 @@ public sealed class StoresScreen : GridScreen
         string s when s.StartsWith("Wishlist") => "Prices and release days of the games you want",
         "Release calendar" => "What's coming out, day by day",
         "Free games" => "Games you can keep for free right now",
+        "Buy Steam Keys" => "Cheaper Steam keys from Loaded, signed in on its own page",
         "Add more stores" => "Install another game store or launcher",
+        "Nexus Mods" => "Mods for your games, signed in on its own page",
         "Recomp Zone" => "Native PC versions of classic console games, rebuilt by fans",
         "Retro Lounge" => "Emulators and your own classic games in one place",
         string s when s.StartsWith("Hidden") => "Stores you've hidden from this page",
@@ -1240,7 +1362,9 @@ public sealed class StoresScreen : GridScreen
             string s when s.StartsWith("Wishlist") => s.Contains("on sale") ? s.Split(" · ")[1] + " from your wishlist. Prices and release days of the games you want." : "Prices and release days of the games you want.",
             "Release calendar" => "What's coming out, day by day.",
             "Free games" => "Games you can keep for free right now, from the stores' giveaways.",
+            "Buy Steam Keys" => "Steam keys for less from Loaded, on a page of its own. Sign in once and stay signed in; View or B closes it.",
             "Add more stores" => "Install another game store or launcher.",
+            "Nexus Mods" => "Mods for your games from Nexus Mods, on a page of its own. Sign in once and stay signed in; View or B closes it.",
             "Recomp Zone" => "Native PC versions of classic console games, rebuilt by fans. Bring your own copy of the game.",
             "Retro Lounge" => "Emulators and your own classic games in one place: get the emulators your consoles need and play.",
             string s when s.StartsWith("Hidden") => "Stores you've hidden from this page. Pick one to show it again.",

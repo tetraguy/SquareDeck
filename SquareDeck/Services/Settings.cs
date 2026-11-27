@@ -94,6 +94,10 @@ public sealed class Settings
     public string OsdDetail { get; set; } = "standard";    // minimal | standard | full
     public string OsdStyle { get; set; } = "dark";         // dark | glass | text | neon | accent | retro
     public string OsdSize { get; set; } = "medium";
+    public string OsdItems { get; set; } = "";            // Details > Custom: the readings, comma-separated (PerfOverlay.Readings)
+    public string OsdMeters { get; set; } = "numbers";    // numbers | bars | rings | blocks
+    public string OsdShape { get; set; } = "rounded";     // rounded | square | pill
+    public bool OsdColors { get; set; } = true;           // green / amber / red by how hard something works
     public int OsdOpacity { get; set; } = 90;          // "Good morning, Richy" by the profile picture at startup
     public List<string> CloudServices { get; set; } = new(); // cloud gaming services shown on the Stores page (xcloud, geforcenow, luna, antstream)
     public string CloudCorner { get; set; } = "top-right";
@@ -461,6 +465,14 @@ public sealed class Settings
     public int AllyLightPercent { get; set; } = 100;
     /// <summary>The lights pulse red when the battery is low (whatever they're set to).</summary>
     public bool AllyLowBatteryFlash { get; set; } = true;
+    /// <summary>The lights react: a gold sweep for an achievement, a green double pulse when a download or update finishes (8.5.49, off).</summary>
+    public bool AllyLightReactions { get; set; }
+    /// <summary>A game's details show how long the battery should last in it, from its own past sessions (8.5.49, off).</summary>
+    public bool BatteryEstimate { get; set; }
+    /// <summary>The running game is paused (frozen) while SquareDeck is in front, and carries on when you go back (8.5.49, off).</summary>
+    public bool SuspendGames { get; set; }
+    /// <summary>Auto TDP remembers, per game, the lowest power that held the frame rate, and starts there next time (8.5.49, off).</summary>
+    public bool AutoTdpLearn { get; set; }
     /// <summary>Game lights: while a game runs, the lights use its game profile's effect (its cover's colors by default).</summary>
     public bool AllyGameLights { get; set; } = true;
     /// <summary>The lights go off while a game is running, and come back after.</summary>
@@ -851,8 +863,8 @@ public sealed class Settings
         try
         {
             Directory.CreateDirectory(DataDir);
-            File.WriteAllText(FilePath,
-                JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            SafeFile.WriteAllText(FilePath,
+                JsonSerializer.Serialize(this, SafeFile.Indented));
         }
         catch
         {

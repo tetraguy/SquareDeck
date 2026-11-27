@@ -972,7 +972,7 @@ public static class UiStyles
             Font = "file:Marcellus-Regular.ttf#Marcellus", TileCorner = 8, RowCorner = 12, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#E8C27A", "#FFF1C9", "#C9973F", "#FFE3A3", "#E8C27A" },
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#0B1638", "#060B1E" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("meridian"), TileAnimation = "float"
+            Skin = new AdvancedSkin("meridian"), TileAnimation = "float"
         },
         new()
         {
@@ -981,7 +981,7 @@ public static class UiStyles
             Light = new[] { "#EFE6D2", "#3B3328", "#7A6E5C", "#F7F0E2", "#E6DAC2", "#B8734A" }, ForceLight = true,
             Font = "file:Philosopher-Regular.ttf#Philosopher", TileCorner = 10, RowCorner = 12, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#EFE6D2", "#E3D5B8" }, PageScrim = 0.35,
-            Mythical = true, Skin = new AdvancedSkin("atelier"), TileAnimation = "breathe"
+            Skin = new AdvancedSkin("atelier"), TileAnimation = "breathe"
         },
         new()
         {
@@ -990,7 +990,7 @@ public static class UiStyles
             Dark = new[] { "#020B10", "#E6FFFC", "#8FC9C4", "#0B2A36", "#08202A", "#4DF5E3" }, Mode = "dark",
             Font = "file:Play-Regular.ttf#Play", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "float", Backdrop = new[] { "#07323E", "#010508" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("abyss"), TileAnimation = "float"
+            Skin = new AdvancedSkin("abyss"), TileAnimation = "float"
         },
         new()
         {
@@ -999,7 +999,7 @@ public static class UiStyles
             Light = new[] { "#E4EDE2", "#1E2B22", "#5C6E60", "#F3F7F1", "#D7E3D5", "#3E7B4F" }, ForceLight = true,
             Font = "file:CrimsonText-Regular.ttf#Crimson Text", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#DCEBD9", "#A9C9A5" }, PageScrim = 0.35,
-            Mythical = true, Skin = new AdvancedSkin("greenhouse"), TileAnimation = "lift"
+            Skin = new AdvancedSkin("greenhouse"), TileAnimation = "lift"
         },
         new()
         {
@@ -1008,7 +1008,7 @@ public static class UiStyles
             Light = new[] { "#F3EDE4", "#2E3447", "#7A7F8F", "#FFFFFF", "#E9E1D6", "#F27D72" }, ForceLight = true,
             Font = "file:VarelaRound-Regular.ttf#Varela Round", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#FBEFE6", "#F2E2D8" }, PageScrim = 0.3,
-            Mythical = true, Skin = new AdvancedSkin("origami"), TileAnimation = "lift"
+            Skin = new AdvancedSkin("origami"), TileAnimation = "lift"
         },
         new()
         {
@@ -1017,7 +1017,7 @@ public static class UiStyles
             Light = new[] { "#EFE9DD", "#1C1A17", "#6E675C", "#F7F3EA", "#E2DBCC", "#C0392B" }, ForceLight = true,
             Font = "file:Spectral-Regular.ttf#Spectral", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "none", Backdrop = new[] { "#F6F1E6", "#ECE4D3" }, PageScrim = 0.3,
-            Mythical = true, Skin = new AdvancedSkin("sumie"), TileAnimation = "steady"
+            Skin = new AdvancedSkin("sumie"), TileAnimation = "steady"
         },
         new()
         {
@@ -1026,7 +1026,7 @@ public static class UiStyles
             Dark = new[] { "#141110", "#F4E6D8", "#A8968A", "#241F1C", "#1E1A18", "#FF7A1A" }, Mode = "dark",
             Font = "file:SairaCondensed-Regular.ttf#Saira Condensed", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "hard", Backdrop = new[] { "#0E0A09", "#1A0F0A" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("forge"), TileAnimation = "lockon"
+            Skin = new AdvancedSkin("forge"), TileAnimation = "lockon"
         },
         new()
         {
@@ -1035,7 +1035,7 @@ public static class UiStyles
             Dark = new[] { "#0A1626", "#EAF6FF", "#9DB5C9", "#14273D", "#102034", "#7FE7D6" }, Mode = "dark",
             Font = "file:DidactGothic-Regular.ttf#Didact Gothic", TileCorner = 12, RowCorner = 10, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#050B18", "#0E2238" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("glacier"), TileAnimation = "float"
+            Skin = new AdvancedSkin("glacier"), TileAnimation = "float"
         },
         new()
         {
@@ -1044,7 +1044,7 @@ public static class UiStyles
             Light = new[] { "#E6D3AD", "#3A2A18", "#7A6346", "#F1E4C6", "#DCC79D", "#A83A2A" }, ForceLight = true,
             Font = "file:IMFeENrm28P.ttf#IM FELL English", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#E6D3AD", "#D4BC8A" }, PageScrim = 0.35,
-            Mythical = true, Skin = new AdvancedSkin("cartographer"), TileAnimation = "breathe"
+            Skin = new AdvancedSkin("cartographer"), TileAnimation = "breathe"
         },
         new()
         {
@@ -1055,7 +1055,21 @@ public static class UiStyles
             RingColors = new[] { "#E8456A", "#FF86A8", "#5E489A", "#36D8C4", "#E8456A" },
             HeroOpacity = 0, Glow = true, Footer = "bar", Shadow = "hard", Ambient = "glitch", Overlay = "scanlines", Glyphs = "pixel",
             Backdrop = new[] { "#140A22", "#05030A" }, PageScrim = 0.5,
-            Skin = new AdvancedSkin("axiom"), TileAnimation = "lockon"
+            Mythical = true, Skin = new AdvancedSkin("axiom"), TileAnimation = "lockon" // 8.5.54: the one Mythical style (the others moved to Legendary)
+        },
+        // 8.5.55: E-Day, Mythical, inspired by the Gears of War games. The artwork is drawn by Claude (battle-worn
+        // gunmetal, crimson paint, bolts and stencil icons; no emblems or characters). The music, sounds and the live
+        // background are the owner's own files: like Axiom's, they're kept out of the public repository.
+        new()
+        {
+            Id = "myth-eday", Name = "E-Day", Sounds = "pack:E-Day", Music = "track:E-Day", Moving = "E-Day", Wallpaper = "image:EDay.jpg",
+            Description = "Inspired by Gears of War: battle-worn gunmetal plates held by hex bolts, chipped and scratched, with a crimson paint tab on every row; pop-ups under a crimson steel header with black hazard stripes; octagonal armored home buttons ringed in red; lever switches that light up crimson; stencil icons (a bunker, ammo crates, dog tags, a field radio); a crimson arrowhead pointer; a stencil military font; the war-torn red live background; the E-Day theme playing; and the franchise's own interface sounds.",
+            Dark = new[] { "#0A0606", "#F0E8DA", "#A89C8C", "#1E1A18", "#161312", "#D21E26" }, Mode = "dark",
+            Font = "file:BlackOpsOne-Regular.ttf#Black Ops One", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#D21E26", "#FF5A4A", "#7A0A10", "#FF5A4A", "#D21E26" },
+            HeroOpacity = 0, Glow = true, Footer = "bar", Shadow = "hard", Ambient = "sparkle", Overlay = "vignette",
+            Backdrop = new[] { "#1A0606", "#050202" }, PageScrim = 0.55,
+            Mythical = true, Skin = new AdvancedSkin("eday"), TileAnimation = "lockon"
         },
         new()
         {
@@ -1064,7 +1078,7 @@ public static class UiStyles
             Light = new[] { "#FFEFF5", "#5A2E3E", "#A36F82", "#FFFFFF", "#FFE0EC", "#FF5C9A" }, ForceLight = true,
             Font = "file:Sniglet-Regular.ttf#Sniglet", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "pill", Shadow = "soft", Backdrop = new[] { "#FFE9F2", "#E6F7FF" }, PageScrim = 0.3,
-            Mythical = true, Skin = new AdvancedSkin("sweetshop"), TileAnimation = "jelly"
+            Skin = new AdvancedSkin("sweetshop"), TileAnimation = "jelly"
         },
         new()
         {
@@ -1073,7 +1087,7 @@ public static class UiStyles
             Dark = new[] { "#0B0B0C", "#F3E6C4", "#B8A57A", "#17161A", "#121114", "#D4AF37" }, Mode = "dark",
             Font = "file:PoiretOne-Regular.ttf#Poiret One", TileCorner = 2, RowCorner = 2, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Backdrop = new[] { "#0D0C0F", "#050506" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("gatsby"), TileAnimation = "glow"
+            Skin = new AdvancedSkin("gatsby"), TileAnimation = "glow"
         },
         // 7.0: ten more drawn by Claude for the Legendary tab.
         new()
@@ -1084,7 +1098,7 @@ public static class UiStyles
             Font = "file:Cinzel-Regular.ttf#Cinzel", TileCorner = 6, RowCorner = 8, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#C2183A", "#E3A21A", "#1E8C4E", "#1F4FB8", "#7A2BA8", "#C2183A" },
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Backdrop = new[] { "#120E18", "#0A0810" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("stainedglass"), TileAnimation = "glow"
+            Skin = new AdvancedSkin("stainedglass"), TileAnimation = "glow"
         },
         new()
         {
@@ -1093,7 +1107,7 @@ public static class UiStyles
             Dark = new[] { "#06201E", "#EAF7EE", "#9CC2B4", "#0D2F2B", "#0B2925", "#FF8A3D" }, Mode = "dark",
             Font = "file:Comfortaa-Regular.ttf#Comfortaa", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "float", Backdrop = new[] { "#0D3B35", "#05201C" }, PageScrim = 0.45,
-            Mythical = true, Skin = new AdvancedSkin("koipond"), TileAnimation = "float"
+            Skin = new AdvancedSkin("koipond"), TileAnimation = "float"
         },
         new()
         {
@@ -1102,7 +1116,7 @@ public static class UiStyles
             Dark = new[] { "#0B2A55", "#F2F7FF", "#A8C1E3", "#11366A", "#0F3163", "#FFD34D" }, Mode = "dark",
             Font = "file:ShareTechMono-Regular.ttf#Share Tech Mono", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "none", Backdrop = new[] { "#164384", "#0B2C5A" }, PageScrim = 0.45,
-            Mythical = true, Skin = new AdvancedSkin("blueprint"), TileAnimation = "lockon"
+            Skin = new AdvancedSkin("blueprint"), TileAnimation = "lockon"
         },
         new()
         {
@@ -1111,7 +1125,7 @@ public static class UiStyles
             Dark = new[] { "#04140C", "#E8FFF0", "#8DBFA3", "#0A2618", "#082014", "#F2C14E" }, Mode = "dark",
             Font = "file:ChakraPetch-Regular.ttf#Chakra Petch", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "hard", Backdrop = new[] { "#0E3B22", "#062413" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("circuit"), TileAnimation = "lockon"
+            Skin = new AdvancedSkin("circuit"), TileAnimation = "lockon"
         },
         new()
         {
@@ -1120,7 +1134,7 @@ public static class UiStyles
             Dark = new[] { "#140D0A", "#F2E3C6", "#B39A7A", "#24170F", "#1E130D", "#B48CFF" }, Mode = "dark",
             Font = "file:Almendra-Regular.ttf#Almendra", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#1C110B", "#120B08" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("grimoire"), TileAnimation = "breathe"
+            Skin = new AdvancedSkin("grimoire"), TileAnimation = "breathe"
         },
         new()
         {
@@ -1129,7 +1143,7 @@ public static class UiStyles
             Light = new[] { "#F2EDE3", "#1A1A1A", "#5E5A52", "#FBF8F2", "#ECE5D8", "#D7263D" }, ForceLight = true,
             Font = "file:JosefinSans-Regular.ttf#Josefin Sans", TileCorner = 0, RowCorner = 2, RingThickness = 4, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "hard", Backdrop = new[] { "#F4EEE2", "#EBE2D1" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("bauhaus"), TileAnimation = "steady"
+            Skin = new AdvancedSkin("bauhaus"), TileAnimation = "steady"
         },
         new()
         {
@@ -1138,7 +1152,7 @@ public static class UiStyles
             Light = new[] { "#F3E3C8", "#3D2A1C", "#8A6B52", "#FBF1E1", "#EED9BA", "#D9733B" }, ForceLight = true,
             Font = "file:TenorSans-Regular.ttf#Tenor Sans", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#F6E2C4", "#E6866A" }, PageScrim = 0.35,
-            Mythical = true, Skin = new AdvancedSkin("mirage"), TileAnimation = "breathe"
+            Skin = new AdvancedSkin("mirage"), TileAnimation = "breathe"
         },
         new()
         {
@@ -1147,7 +1161,7 @@ public static class UiStyles
             Light = new[] { "#F4EEE4", "#1F2E3A", "#66727C", "#FFFFFF", "#EEE5D6", "#1F7A8C" }, ForceLight = true,
             Font = "file:ElMessiri-Regular.ttf#El Messiri", TileCorner = 8, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#FFFDF8", "#F1E9DC" }, PageScrim = 0.4,
-            Mythical = true, Skin = new AdvancedSkin("riad"), TileAnimation = "lift"
+            Skin = new AdvancedSkin("riad"), TileAnimation = "lift"
         },
         new()
         {
@@ -1156,7 +1170,7 @@ public static class UiStyles
             Light = new[] { "#F5EAD7", "#3A2618", "#84664C", "#FDF6EA", "#F0E0C6", "#D4572A" }, ForceLight = true,
             Font = "file:Merienda-Regular.ttf#Merienda", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Ambient = "float", Backdrop = new[] { "#FBE7C6", "#E59A5E" }, PageScrim = 0.4,
-            Mythical = true, Skin = new AdvancedSkin("autumn"), TileAnimation = "float"
+            Skin = new AdvancedSkin("autumn"), TileAnimation = "float"
         },
         new()
         {
@@ -1165,7 +1179,7 @@ public static class UiStyles
             Light = new[] { "#FFF6D6", "#111111", "#4A4A4A", "#FFFFFF", "#FFF0B8", "#E52521" }, ForceLight = true,
             Font = "file:Bangers-Regular.ttf#Bangers", TileCorner = 4, RowCorner = 4, RingThickness = 4, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "hard", Backdrop = new[] { "#FFF6D6", "#FFE58A" }, PageScrim = 0.55,
-            Mythical = true, Skin = new AdvancedSkin("halftone"), TileAnimation = "jelly"
+            Skin = new AdvancedSkin("halftone"), TileAnimation = "jelly"
         },
         // 7.3.46: the Mythical tier, drawn by Claude: each a world of its own, down to the switches and the pointer.
         new()
@@ -1176,7 +1190,7 @@ public static class UiStyles
             Font = "file:Forum-Regular.ttf#Forum", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#C9A24A", "#FFF1C2", "#2A55A0", "#FFF1C2", "#C9A24A" },
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "bokeh", Backdrop = new[] { "#FBE9D4", "#C9B6DA" }, PageScrim = 0.35,
-            Mythical = true, Skin = new AdvancedSkin("olympus"), TileAnimation = "breathe"
+            Skin = new AdvancedSkin("olympus"), TileAnimation = "breathe"
         },
         new()
         {
@@ -1186,7 +1200,7 @@ public static class UiStyles
             Font = "file:UncialAntiqua-Regular.ttf#Uncial Antiqua", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#F2C760", "#FF5A3C", "#FFE7A8", "#C2380E", "#F2C760" },
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#1C0A08", "#080303" }, PageScrim = 0.55,
-            Mythical = true, Skin = new AdvancedSkin("hoard"), TileAnimation = "glow"
+            Skin = new AdvancedSkin("hoard"), TileAnimation = "glow"
         },
         new()
         {
@@ -1196,7 +1210,7 @@ public static class UiStyles
             Font = "file:JuliusSansOne-Regular.ttf#Julius Sans One", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#5CF2B0", "#2ED3C6", "#6A7CFF", "#B36BFF", "#5CF2B0" },
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#0B2034", "#050B1C" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("aurora"), TileAnimation = "breathe"
+            Skin = new AdvancedSkin("aurora"), TileAnimation = "breathe"
         },
         new()
         {
@@ -1206,7 +1220,7 @@ public static class UiStyles
             Font = "file:CormorantSC-Regular.ttf#Cormorant SC", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#E8B08C", "#FFE6D6", "#2E5FD0", "#FFE6D6", "#E8B08C" },
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#FBF6EA", "#E8DCC2" }, PageScrim = 0.35,
-            Mythical = true, Skin = new AdvancedSkin("chronos"), TileAnimation = "lockon"
+            Skin = new AdvancedSkin("chronos"), TileAnimation = "lockon"
         },
         new()
         {
@@ -1216,7 +1230,7 @@ public static class UiStyles
             Font = "file:Shojumaru-Regular.ttf#Shojumaru", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#E8432B", "#FFC2D1", "#7FE0FF", "#FFC2D1", "#E8432B" },
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "float", Backdrop = new[] { "#1A1238", "#0A0814" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("kitsune"), TileAnimation = "float"
+            Skin = new AdvancedSkin("kitsune"), TileAnimation = "float"
         },
         new()
         {
@@ -1226,7 +1240,7 @@ public static class UiStyles
             Font = "file:CinzelDecorative-Regular.ttf#Cinzel Decorative", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#F2C760", "#2EC4B6", "#FFF4C8", "#123A8C", "#F2C760" },
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#0A1240", "#2A1A3A" }, PageScrim = 0.5,
-            Mythical = true, Skin = new AdvancedSkin("pharaoh"), TileAnimation = "glow"
+            Skin = new AdvancedSkin("pharaoh"), TileAnimation = "glow"
         },
         // 7.2: Unlockable styles, earned by playing (Themes > Unlockable). Drawn by Claude.
         new()

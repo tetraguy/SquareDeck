@@ -437,7 +437,7 @@ public sealed class FixGameScreen : ListScreen
         if (programs.Count == 0) { await Host.AskAsync("No program found", "No program was found in the game's folder.", "OK"); return; }
         int c = programs.Count == 1 ? 0 : await Host.AskAsync("Which program is the game?", "The biggest programs in its folder:", programs.Select(Path.GetFileName).Cast<string>().ToArray());
         if (c < 0) return;
-        try { Process.Start(new ProcessStartInfo(programs[c]) { UseShellExecute = true, Verb = "runas", WorkingDirectory = Path.GetDirectoryName(programs[c]) }); }
+        try { Process.Start(new ProcessStartInfo(programs[c]) { UseShellExecute = true, Verb = "runas", WorkingDirectory = Path.GetDirectoryName(programs[c]) })?.Dispose(); }
         catch (Exception) { }
     }
 }
@@ -1235,14 +1235,14 @@ public sealed class StickerBookScreen : Screen
 
     private void Toggle(Button sticker)
     {
-        if (_held == sticker) { Drop(); return; }
-        if (_held != null) Drop();
+        if (_held == sticker) { DropSticker(); return; }
+        if (_held != null) DropSticker();
         _held = sticker;
         Scale(sticker, 1.2);
         UiSound.Select();
     }
 
-    private void Drop()
+    private void DropSticker()
     {
         if (_held == null) return;
         var s = _held;
@@ -1265,7 +1265,7 @@ public sealed class StickerBookScreen : Screen
             case NavAction.Down: Canvas.SetTop(_held, Math.Min(_board.Height - Size, Canvas.GetTop(_held) + step)); return true;
             case NavAction.X: Turn(_held).Angle += 15; return true;
             case NavAction.Y: Turn(_held).Angle -= 15; return true;
-            case NavAction.Back: Drop(); return true;
+            case NavAction.Back: DropSticker(); return true;
         }
         return false;
     }
@@ -1399,8 +1399,8 @@ public sealed class ChangelogScreen : ListScreen
         Rebuild();
         // Start at the top, at the newest version: the only button (Show older versions) is at the bottom, and the
         // highlight going to it would otherwise carry the page down there.
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () => RowsScroll.ScrollToTop());
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => RowsScroll.ScrollToTop());
+        _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () => RowsScroll.ScrollToTop());
+        _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => RowsScroll.ScrollToTop());
     }
 
     /// <summary>Markdown's emphasis and code marks taken out, for plain reading.</summary>

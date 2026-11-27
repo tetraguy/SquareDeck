@@ -318,6 +318,13 @@ public sealed class ProfileScreen : Screen
         open.Click += (_, _) => ProcessUtil.Open(steam?.ProfileUrl != null ? "steam://openurl/" + steam.ProfileUrl : "steam://open/main");
         Track(open);
         buttons.Children.Add(open);
+        // Your play time: the week, your streaks, when you play and the games you've played most.
+        var playtime = Ui.PanelButton("Your play time");
+        playtime.DataContext = "banner:playtime";
+        playtime.Margin = new Thickness(0, 10, 0, 0);
+        playtime.Click += (_, _) => Host.Push(new PlaytimeScreen());
+        Track(playtime);
+        buttons.Children.Add(playtime);
         DockPanel.SetDock(buttons, Dock.Right);
         row.Children.Add(buttons);
 

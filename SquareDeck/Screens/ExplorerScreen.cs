@@ -57,6 +57,9 @@ public sealed partial class ExplorerScreen : Screen
     private FileSystemWatcher? _watcher;
     private readonly DispatcherTimer _refreshSoon = new() { Interval = TimeSpan.FromMilliseconds(400) };
 
+    /// <summary>A file to land on when it opens (a download just finished, say).</summary>
+    public string? SelectPath { init => _focusPath = value; }
+
     public ExplorerScreen(string? startFolder = null)
     {
         _folder = startFolder;

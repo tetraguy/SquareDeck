@@ -57,7 +57,7 @@ public static class AsusOptimization
     {
         get
         {
-            try { return Process.GetProcessesByName("AsusOptimization").Length > 0; }
+            try { return ProcessUtil.IsNamedRunning("AsusOptimization"); }
             catch (Exception) { return false; }
         }
     }

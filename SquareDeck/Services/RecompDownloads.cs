@@ -64,6 +64,7 @@ public static class RecompDownloads
             Updates.Remove(d.Game.Id);
             host.ShowToast("Recomp Zone", d.Game.Name + (d.Update ? " is updated" : " is installed"),
                 d.Update ? "Now on " + d.Release.Tag + ". Your saves and settings stayed." : "Press Play to start it. It asks for your copy of the game the first time.", "", "info");
+            AllyControl.React("download");
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)

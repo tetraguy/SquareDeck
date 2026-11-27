@@ -1320,7 +1320,7 @@ public partial class MainWindow
         return null;
     }
 
-    private bool _musicFading, _fadeInNext;
+    private bool _musicFading;
     private System.Windows.Threading.DispatcherTimer? _musicFade;
 
     private int _musicHolds;
@@ -1418,7 +1418,6 @@ public partial class MainWindow
                     try { _resumeAt = _menuMusic.Position; } catch (Exception) { _resumeAt = TimeSpan.Zero; }
                 }
                 StopMenuMusic();
-                _fadeInNext = true;
                 UpdateMenuMusic();
             });
             return;
@@ -1436,7 +1435,6 @@ public partial class MainWindow
                 if (file == null) { StopMenuMusic(); return; }
                 OpenMenuMusic(file, at);
                 _menuMusicChoice = choice;
-                if (choice.StartsWith("file:", StringComparison.Ordinal) && !Theme.ReduceMotion) _fadeInNext = true; // Recomp Zone's music rises in
             }
             // (Left alone while it's fading in or out: the fade sets it.)
             if (_pauseFade?.IsEnabled != true && _fadeInTimer?.IsEnabled != true) _menuMusic!.Volume = MusicLevel;
@@ -1456,7 +1454,6 @@ public partial class MainWindow
                 _menuMusic.Play();
             }
             else FadeOutThenPause(_menuMusic); // a game starting, a video, SquareDeck behind something: fades away, not cut off
-            _fadeInNext = false;
         }
         catch (Exception)
         {

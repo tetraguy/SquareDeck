@@ -78,7 +78,7 @@ public static class Startup
         try
         {
             if (wasReplacing) ReplacesDesktop = false;
-            Process.Start(new ProcessStartInfo("explorer.exe") { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo("explorer.exe") { UseShellExecute = true })?.Dispose();
             await Task.Delay(4000);
         }
         catch (Exception) { }
@@ -184,8 +184,13 @@ public static class WindowActivator
             if (MonitorFromWindow(front, 2) != monitor) return false;
             var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
             if (!GetMonitorInfo(monitor, ref info)) return false;
-            // Its whole work area at least (a maximized window leaves the taskbar showing; SquareDeck is behind it all the same).
-            return r.Left <= info.Work.Left + 8 && r.Top <= info.Work.Top + 8 && r.Right >= info.Work.Right - 8 && r.Bottom >= info.Work.Bottom - 8;
+            // At least half of the screen. A game doesn't always fill the work area exactly: windowed, letterboxed, or in
+            // exclusive full screen at another resolution. Whatever covers that much, SquareDeck is out of sight behind it.
+            long screen = (long)(info.Monitor.Right - info.Monitor.Left) * (info.Monitor.Bottom - info.Monitor.Top);
+            int left = Math.Max(r.Left, info.Monitor.Left), top = Math.Max(r.Top, info.Monitor.Top);
+            int right = Math.Min(r.Right, info.Monitor.Right), bottom = Math.Min(r.Bottom, info.Monitor.Bottom);
+            long covered = right > left && bottom > top ? (long)(right - left) * (bottom - top) : 0;
+            return screen > 0 && covered * 2 >= screen;
         }
         catch (Exception) { return false; }
     }

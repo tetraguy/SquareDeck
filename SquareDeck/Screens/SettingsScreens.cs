@@ -535,10 +535,11 @@ public sealed partial class SettingsScreen : ListScreen
         var cat = VisibleCategories.FirstOrDefault(c => c.Id == _category);
         if (cat.Id == null) { _category = "overview"; cat = Categories[0]; }
 
-        // The section's banner: its icon, name and what's in it (and where you are, inside a group).
-        // Settings home has no banner: the page is already titled "Settings".
+        // The top of a section is just its hint (what's in it); the section's name is already selected on the left.
+        // Inside a group there's nothing up here: the group's own title is below. Organize keeps this first element.
+        // Settings home has none: the page is already titled "Settings".
         if (_category == "overview") { Rows.Children.Add(new Border { Height = 6 }); AddUndoRow(); BuildOverview(s); return; }
-        Rows.Children.Add(Banner(cat.Glyph, cat.Name, _group == null ? cat.About : null));
+        Rows.Children.Add(SectionHint(_group == null ? cat.About : null));
 
         if (_panes) goto sections; // the sections are on the left; no way back needed
         var back = Ui.Row("Settings", null, "\uE72B", subtitle: "Back to all settings");
@@ -571,7 +572,7 @@ public sealed partial class SettingsScreen : ListScreen
             if (groups != null) KeepGroups(start, groups);
         }
         Organize(cat.Name);
-        if (!_indexing) { AddUndoRow(at: 1); AddResetRow(cat.Name); }
+        if (!_indexing) AddUndoRow(at: 1);
     }
 
     /// <summary>This version's changes, from the changelog that comes with SquareDeck (GitHub's if it's missing).</summary>
@@ -591,12 +592,7 @@ public sealed partial class SettingsScreen : ListScreen
         Host.Push(new WhatsNewScreen(previous, current, notes));
     }
 
-    // ---------------------------------------------------------------- changed from the default, reset, undo
-
-    /// <summary>The settings this section (or the group open in it) changes, from SettingsSections' map.</summary>
-    private List<string> SectionProps(string? group) =>
-        SettingsSections.Properties(Sections[_category].Select(p => (p.Part,
-            group == null ? p.Groups : (p.Groups == null || p.Groups.Contains(group) ? new[] { group } : Array.Empty<string>()))));
+    // ---------------------------------------------------------------- undo
 
     /// <summary>"Undo …" for a minute after a big change (a new theme, a section reset).</summary>
     private void AddUndoRow(int at = -1)
@@ -607,28 +603,6 @@ public sealed partial class SettingsScreen : ListScreen
         row.Margin = new Thickness(0, 6, 0, 4);
         if (at >= 0 && at <= Rows.Children.Count) Rows.Children.Insert(at, row);
         else Rows.Children.Add(row);
-    }
-
-    /// <summary>At the bottom: how many settings here differ from the default, and a way to put them back.</summary>
-    private void AddResetRow(string sectionName)
-    {
-        var props = SectionProps(_group);
-        var changed = SettingsSections.Changed(Host.Settings, props);
-        if (changed.Count == 0) return;
-        string where = _group ?? sectionName;
-        var row = Ui.Row("Reset " + where, $"{changed.Count} changed", "\uE777",
-            subtitle: $"Puts the {changed.Count} {(changed.Count == 1 ? "setting" : "settings")} you changed here back to the default. You can undo it for a minute");
-        row.Click += async (_, _) =>
-        {
-            if (await Host.AskAsync("Reset " + where + "?", $"{changed.Count} {(changed.Count == 1 ? "setting goes" : "settings go")} back to the default. Undo is at the top of Settings for a minute afterwards.", "Reset", "Cancel") != 0) return;
-            var s = Host.Settings;
-            var snapshot = SettingsSections.Reset(s, changed);
-            Host.ApplyAfterReset();
-            Host.OfferUndo("Reset " + where, () => { SettingsSections.Undo(s, snapshot); Host.ApplyAfterReset(); });
-            Rebuild();
-        };
-        row.Margin = new Thickness(0, 14, 0, 4);
-        Rows.Children.Add(row);
     }
 
     /// <summary>Of the rows added since <paramref name="start"/>, keeps only the named groups (in the order they were built).</summary>
@@ -829,8 +803,7 @@ public sealed partial class SettingsScreen : ListScreen
             card.Children.Add(badge);
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             text.Children.Add(Ui.Text(name, 20, "FgBrush", bold: true));
-            int changedHere = SettingsSections.Changed(Host.Settings, SectionProps(name)).Count;
-            var sub = Ui.Text((changedHere > 0 ? $"\u25CF {changedHere} changed  \u00B7  " : "") + $"{buttons.Count} {(buttons.Count == 1 ? "setting" : "settings")}  \u00B7  {string.Join(", ", labels)}", 14, "SubtleBrush");
+            var sub = Ui.Text($"{buttons.Count} {(buttons.Count == 1 ? "setting" : "settings")}  \u00B7  {string.Join(", ", labels)}", 14, "SubtleBrush");
             sub.TextTrimming = TextTrimming.CharacterEllipsis;
             sub.Margin = new Thickness(0, 3, 0, 0);
             text.Children.Add(sub);
@@ -897,35 +870,15 @@ public sealed partial class SettingsScreen : ListScreen
     }
 
     /// <summary>The section's banner: a big icon in a highlight-colored badge, its name, and what it covers.</summary>
-    private static UIElement Banner(string glyph, string name, string? about)
+    /// <summary>The line at the top of a section saying what's in it (an empty spacer inside a group).</summary>
+    private static UIElement SectionHint(string? about)
     {
-        if (LookChrome.Design.Banner != "badge") return LookChrome.Banner(glyph, name, about);
-        var a = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Colors.DeepSkyBlue;
-        var panel = new Border
-        {
-            CornerRadius = new CornerRadius(20), Padding = new Thickness(22, 18, 22, 18), Margin = new Thickness(0, 0, 0, 4),
-            Background = new LinearGradientBrush(Color.FromArgb(0x48, a.R, a.G, a.B), Color.FromArgb(0x08, a.R, a.G, a.B), 0)
-        };
-        var row = new DockPanel();
-        var badge = new Border { Width = 60, Height = 60, CornerRadius = new CornerRadius(18), Margin = new Thickness(0, 0, 18, 0), Background = new SolidColorBrush(a) };
-        var icon = Ui.Glyph(glyph, 28, "BgBrush");
-        icon.HorizontalAlignment = HorizontalAlignment.Center;
-        icon.VerticalAlignment = VerticalAlignment.Center;
-        badge.Child = icon;
-        DockPanel.SetDock(badge, Dock.Left);
-        row.Children.Add(badge);
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(Ui.Text(name, 30, "FgBrush", bold: true));
-        if (about != null)
-        {
-            var sub = Ui.Text(about, 15, "SubtleBrush");
-            sub.TextWrapping = TextWrapping.Wrap;
-            sub.TextTrimming = TextTrimming.None;
-            text.Children.Add(sub);
-        }
-        row.Children.Add(text);
-        panel.Child = row;
-        return panel;
+        if (about == null) return new Border { Height = 2 };
+        var hint = Ui.Text(about, 15, "SubtleBrush");
+        hint.TextWrapping = TextWrapping.Wrap;
+        hint.TextTrimming = TextTrimming.None;
+        hint.Margin = new Thickness(8, 2, 8, 8);
+        return hint;
     }
 
     private static readonly int[] TextSizes = { 100, 115, 130, 150 };
@@ -1205,12 +1158,25 @@ public sealed partial class SettingsScreen : ListScreen
     /// <summary>The Legendary styles dressed in UI kits (once the Advanced tab).</summary>
     private static IEnumerable<UiStyle> LegendaryKits => UiStyles.Advanced.Where(x => !x.Mythical && x.Unlock == null);
 
+    // Legendary is shuffled: a new order each time SquareDeck starts, the same while it runs (so the page doesn't jump about).
+    private static readonly int ShuffleSeed = Environment.TickCount;
+    private static int ShuffleKey(string id)
+    {
+        unchecked
+        {
+            int h = ShuffleSeed;
+            foreach (char c in id) h = h * 31 + c;
+            h ^= h >> 15; h *= (int)0x2C1B3C6D; h ^= h >> 12;
+            return h;
+        }
+    }
+
     private void BuildAdvancedStyles(Settings s, double W, bool legendary, bool unlockable = false, bool mythical = false)
     {
         var current = UiStyles.Current;
         var list = unlockable ? UiStyles.Advanced.Where(x => x.Unlock != null).ToList()
                               : mythical ? UiStyles.Advanced.Where(x => x.Mythical).ToList()
-                              : UiStyles.Advanced.Where(x => x.Legendary == legendary && !x.Mythical && x.Unlock == null).ToList();
+                              : UiStyles.Advanced.Where(x => x.Legendary == legendary && !x.Mythical && x.Unlock == null).OrderBy(x => ShuffleKey(x.Id)).ToList();
         if (unlockable)
         {
             foreach (var st in StyleUnlocks.Update(Host.AllGames, Host.Playtime, Host.Achievements, Host.Library))
@@ -1965,6 +1931,12 @@ public sealed partial class SettingsScreen : ListScreen
             subtitle: s.RumbleStrength > 0 ? "Each animation has its own pattern, timed to it" : "Turn on vibration in Controller settings to feel it");
         AddRow("Try it", glyph: "\uE768", click: () => Host.Push(new BoostScreen(null, s.BoostAnimation, s.BoostRumble, preview: true)),
             subtitle: "Plays the animation without freeing anything");
+        AddRow("Auto TDP learns each game", OnOff(s.AutoTdpLearn), "\uE945", click: () =>
+        {
+            s.AutoTdpLearn = !s.AutoTdpLearn;
+            s.Save();
+            Rebuild();
+        }, subtitle: "Auto TDP remembers the power that held each game's frame rate, and starts there next time");
         // SquareDeck's own lighter mode (it was in Power and performance, now gone).
         AddRow("SquareDeck performance mode", Perf.Label(s.PerformanceMode), "\uEC4A", click: () =>
         {
@@ -1990,16 +1962,41 @@ public sealed partial class SettingsScreen : ListScreen
             AddRow("Details", Name(PerfOverlay.Details, d => d.Id, d => d.Name, s.OsdDetail), "\uE8FD",
                 click: () => Pick("Overlay details", PerfOverlay.Details.Select(d => (d.Id, d.Name, d.About)).ToArray(), id => s.OsdDetail = id),
                 subtitle: PerfOverlay.Details.FirstOrDefault(d => d.Id == s.OsdDetail).About ?? "");
+            if (s.OsdDetail == "custom")
+            {
+                var chosen = (s.OsdItems ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+                if (chosen.Count == 0) chosen = new() { "fps", "cpu", "gpu", "battery" };
+                AddRow("Readings", chosen.Count + " of " + PerfOverlay.Readings.Length, "\uE762", click: () => _ = PickReadingsAsync(),
+                    subtitle: string.Join(", ", PerfOverlay.Readings.Where(x => chosen.Contains(x.Id)).Select(x => x.Name)));
+            }
+            AddRow("Readings look", Name(PerfOverlay.Meters, d => d.Id, d => d.Name, s.OsdMeters), "\uE9D2",
+                click: () => Pick("How readings look", PerfOverlay.Meters.Select(d => (d.Id, d.Name, d.About)).ToArray(), id => s.OsdMeters = id),
+                subtitle: PerfOverlay.Meters.FirstOrDefault(d => d.Id == s.OsdMeters).About ?? "Just the values");
             AddRow("Layout", Name(PerfOverlay.Layouts, d => d.Id, d => d.Name, s.OsdLayout), "\uE8A9",
                 click: () => Pick("Overlay layout", PerfOverlay.Layouts.Select(d => (d.Id, d.Name, d.About)).ToArray(), id => s.OsdLayout = id));
             AddRow("Style", Name(PerfOverlay.Looks, d => d.Id, d => d.Name, s.OsdStyle), "\uE790",
                 click: () => Pick("Overlay style", PerfOverlay.Looks.Select(d => (d.Id, d.Name, "")).ToArray(), id => s.OsdStyle = id));
+            AddRow("Shape", Name(PerfOverlay.Shapes, d => d.Id, d => d.Name, s.OsdShape), "\uE7C9",
+                click: () => Pick("Overlay shape", PerfOverlay.Shapes.Select(d => (d.Id, d.Name, "")).ToArray(), id => s.OsdShape = id));
+            AddRow("Colors by load", OnOff(s.OsdColors), "\uE7E6", click: () => Toggle(() => s.OsdColors = !s.OsdColors),
+                subtitle: "Green, amber and red as the frame rate drops or the chip works harder");
             AddRow("Position", Name(PerfOverlay.Positions, d => d.Id, d => d.Name, s.OsdPosition), "\uE8A0",
                 click: () => Pick("Overlay position", PerfOverlay.Positions.Select(d => (d.Id, d.Name, "")).ToArray(), id => s.OsdPosition = id));
             AddRow("Size", Name(PerfOverlay.Sizes, d => d.Id, d => d.Name, s.OsdSize), "\uE8E8",
                 click: () => Toggle(() => s.OsdSize = s.OsdSize switch { "small" => "medium", "medium" => "large", _ => "small" }));
             AddRow("Opacity", $"{Math.Clamp(s.OsdOpacity, 30, 100)}%", "\uE706",
                 click: () => Toggle(() => s.OsdOpacity = s.OsdOpacity >= 100 ? 40 : Math.Min(100, s.OsdOpacity + 10)));
+            if (FrameCounter.Available && !FrameCounter.Permitted)
+                AddRow("Allow the FPS reading", "Allow", "\uE7EF", click: async () =>
+                {
+                    var error = await FrameCounter.AllowAsync();
+                    await Host.AskAsync("FPS reading", error == null
+                        ? "Done. Sign out of Windows and back in (or restart) once, and the overlay shows FPS from then on."
+                        : "It didn't work: " + error, "OK");
+                    Rebuild();
+                }, subtitle: "FPS is blank because Windows doesn't let PresentMon read frame rates for your account. This adds it to Windows' \"Performance Log Users\" group (asks for administrator permission once)");
+            else if (FrameCounter.Problem is string problem)
+                AddNote("FPS isn't showing: " + problem + ". SquareDeck tries again every 15 seconds.");
             AddNote(FrameCounter.Available
                 ? "FPS comes from PresentMon in SquareDeck's Tools folder. It needs SquareDeck to run as administrator, or your account in Windows' \"Performance Log Users\" group."
                 : "To show FPS, put Intel's PresentMon (free, github.com/GameTechDev/PresentMon) in SquareDeck's Tools\\PresentMon folder. Everything else works without it.");
@@ -2531,13 +2528,13 @@ public sealed partial class SettingsScreen : ListScreen
         AddHeader("Lights");
         if (!lights) AddNote("SquareDeck couldn't find the Ally's light controller. These settings apply once it's found.");
         if (AsusOptimization.Installed && !AsusOptimization.Enabled)
-            AddRow("ASUS Optimization is off", "Switch on", "\uE7BA", click: async () =>
+            AddRow("ASUS Optimization is off", "Switch on anyway", "\uE7BA", click: async () =>
             {
                 var error = await AsusOptimization.SetEnabledAsync(true);
                 if (error != null) await Host.AskAsync("ASUS Optimization", error, "OK");
                 else { AllyControl.ApplyLights(force: true); AllyControl.ApplyXboxLight(force: true); }
                 Rebuild();
-            }, subtitle: "While ASUS's service is off, the lights don't take changes. Windows asks for permission");
+            }, subtitle: "SquareDeck now introduces itself to the lights and buttons without it. If they still don't change, switch it back on. Windows asks for permission");
         if (s.AllyLights is not ("" or "off") && AllyControl.AwakeOff(s))
             AddNote("The lights are dark: \"Awake\" is off under When the lights are on (" + (Battery.IsPluggedIn() ? "plugged in" : "on battery") + "). Turn it on there, or choose the effect again.");
         if (AllyControl.DynamicLightingOn)
@@ -2547,18 +2544,18 @@ public sealed partial class SettingsScreen : ListScreen
         var mode = AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights);
         AddRow("Effect", mode.Name ?? "Leave as it is", "\uE781", click: () => _ = ChooseLightEffectAsync(),
             subtitle: string.IsNullOrEmpty(mode.About) ? "The rings around the sticks" : mode.About);
-        if (s.AllyLights is "solid" or "breathing" or "sticks")
+        if (LightFx.UsesColor(s.AllyLights) && s.AllyLights.Length > 0)
         {
             bool sticks = s.AllyLights == "sticks";
             AddRow(sticks ? "Left stick color" : "Color", AllyControlScreen.ColorName(s.AllyLightColor), "\uE790",
                 click: () => Host.Push(new LedColorScreen(sticks ? "Left stick color" : "Light color", s.AllyLightColor,
                     hex => { s.AllyLightColor = hex; s.Save(); AllyControl.ApplyLights(force: true); })));
-            if (s.AllyLights is "breathing" or "sticks")
+            if (LightFx.UsesSecondColor(s.AllyLights))
                 AddRow(sticks ? "Right stick color" : "Second color", AllyControlScreen.ColorName(s.AllyLightColor2), "\uE790",
                     click: () => Host.Push(new LedColorScreen(sticks ? "Right stick color" : "Second light color", s.AllyLightColor2,
                         hex => { s.AllyLightColor2 = hex; s.Save(); AllyControl.ApplyLights(force: true); })));
         }
-        if (s.AllyLights is "breathing" or "rainbow" or "wheel")
+        if (LightFx.UsesSpeed(s.AllyLights))
             AddRow("Speed", AllyControl.Speeds.FirstOrDefault(x => x.Id == s.AllyLightSpeed).Name ?? "Medium", "\uE916",
                 click: () => AllySave(() => s.AllyLightSpeed = s.AllyLightSpeed switch { "slow" => "medium", "medium" => "fast", _ => "slow" }, () => AllyControl.ApplyLights(force: true)));
         if (s.AllyLights is not ("" or "off"))
@@ -2575,6 +2572,9 @@ public sealed partial class SettingsScreen : ListScreen
         AddRow("Pulse red when the battery is low", OnOff(s.AllyLowBatteryFlash), "\uEBA0",
             click: () => AllySave(() => s.AllyLowBatteryFlash = !s.AllyLowBatteryFlash, () => AllyControl.ApplyLights(force: true)),
             subtitle: "At 15% or less, until you plug in");
+        AddRow("Lights react to achievements and downloads", OnOff(s.AllyLightReactions), "\uE7E8",
+            click: () => AllySave(() => s.AllyLightReactions = !s.AllyLightReactions, () => AllyControl.ApplyLights(force: true)),
+            subtitle: "A gold sweep when you unlock an achievement, a green pulse when a download or update finishes");
 
         // ---- When the lights may light (Armoury Crate SE's power states)
         AddHeader("When the lights are on");
@@ -2684,6 +2684,18 @@ public sealed partial class SettingsScreen : ListScreen
                 click: () => { AllyControl.ChargeFullOnce(); Rebuild(); },
                 subtitle: "For a long trip: charges fully now; the limit comes back next time SquareDeck starts");
         AddRow("Battery health", null, "\uE83F", click: () => Host.Push(new BatteryScreen()), subtitle: "Wear, charge cycles and how long a charge lasts");
+
+        // ---- The startup sound (kept by the firmware, like the BIOS setting and Armoury Crate SE's)
+        if (AsusAcpi.BootSound is bool chime)
+        {
+            AddHeader("Starting up");
+            AddRow("Sound when it turns on", chime ? "On" : "Off", "\uE767", click: async () =>
+            {
+                bool ok = await Task.Run(() => AsusAcpi.SetBootSound(!chime));
+                if (!ok) await Host.AskAsync("Sound when it turns on", "The firmware didn't take the change. You can still change it in the BIOS or Armoury Crate SE.", "OK");
+                Rebuild();
+            }, subtitle: "The chime when the Ally starts. The same setting as in the BIOS and Armoury Crate SE");
+        }
 
         // ---- ASUS software: Armoury Crate SE (install or remove it with ASUS's own tools), and the ASUS Optimization service
         AddHeader("ASUS software");
@@ -2857,7 +2869,8 @@ public sealed partial class SettingsScreen : ListScreen
     {
         var s = Host.Settings;
         var modes = AllyControl.LightModes;
-        int choice = await Host.AskAsync("Light effect", null, modes.Select(m => m.Name).ToArray());
+        int current = Array.FindIndex(modes, m => m.Id == s.AllyLights);
+        int choice = await LightEffectPicker.AskAsync(this, "Light effect", null, LightEffectPicker.AllEffects(), current, AllyControl.FxInputs(s));
         if (choice < 0 || choice >= modes.Length) return;
         s.AllyLights = modes[choice].Id;
         bool woke = s.AllyLights is not ("" or "off") && AllyControl.WakeLights(s);
@@ -2922,7 +2935,9 @@ public sealed partial class SettingsScreen : ListScreen
     {
         var chip = TdpControl.Chip;
         if (chip == null) return;
-        var dialog = new SliderDialog(title, message, "Watts", "\uE945", TdpControl.Clamp(watts), null, chip.Min, chip.Max, v => v + " W");
+        // One watt for each press of left or right, so any limit can be set exactly.
+        var dialog = new SliderDialog(title, message, "Watts", "\uE945", TdpControl.Clamp(watts), null, chip.Min, chip.Max, v => v + " W", step: 1);
+        if (Switch2Pages.Applies(this)) dialog.UseSwitch2Look();
         Host.Push(dialog);
         chosen(TdpControl.Clamp(await dialog.Result));
     }
@@ -3015,6 +3030,13 @@ public sealed partial class SettingsScreen : ListScreen
                 "launcher or copy protection) still restart themselves through Steam.");
 
         AddHeader("While playing");
+        AddRow("Battery estimate for each game", OnOff(s.BatteryEstimate), "\uEBA7", click: () =>
+            Toggle(() => s.BatteryEstimate = !s.BatteryEstimate),
+            subtitle: "A game's page shows about how long the battery lasts in it, learned from your time playing it unplugged");
+        AddRow("Pause the game while you're in SquareDeck", OnOff(s.SuspendGames), "\uE769", click: () =>
+            Toggle(() => { s.SuspendGames = !s.SuspendGames; if (!s.SuspendGames) Host.ResumeGame(); }),
+            subtitle: "Freezes the game a few seconds after you open SquareDeck over it, so it stops using power. It carries on when you go back");
+        if (s.SuspendGames) AddNote("Online games and games with anti-cheat can disconnect or refuse to be paused. Those just keep running.");
         AddRow("Free graphics memory for the game", OnOff(s.FreeGpuDuringGames), "\uE7F4", click: () =>
             Toggle(() => s.FreeGpuDuringGames = !s.FreeGpuDuringGames));
         AddRow("Use as little memory as possible while playing", OnOff(s.LeanWhilePlaying), "\uE964", click: () =>
@@ -3965,6 +3987,26 @@ public sealed partial class SettingsScreen : ListScreen
     };
 
     /// <summary>A list of choices for a setting; the chosen id is stored and applied straight away.</summary>
+    /// <summary>Performance overlay > Readings: tick readings on and off until Done.</summary>
+    private async Task PickReadingsAsync()
+    {
+        var s = Host.Settings;
+        var chosen = (s.OsdItems ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+        if (chosen.Count == 0) chosen = new() { "fps", "cpu", "gpu", "battery" };
+        while (true)
+        {
+            var labels = PerfOverlay.Readings.Select(x => (chosen.Contains(x.Id) ? "\u2714  " : "      ") + x.Name).Append("Done").ToArray();
+            int choice = await Host.AskAsync("Overlay readings", "Choose a reading to show or hide it.", labels);
+            if (choice < 0 || choice >= PerfOverlay.Readings.Length) break;
+            string id = PerfOverlay.Readings[choice].Id;
+            if (!chosen.Remove(id)) chosen.Add(id);
+            s.OsdItems = string.Join(",", PerfOverlay.Readings.Select(x => x.Id).Where(chosen.Contains));
+            s.Save();
+            Host.ApplySettings(); // the overlay changes while you choose
+        }
+        Rebuild();
+    }
+
     private async void Pick(string title, (string Id, string Name, string About)[] options, Action<string> store)
     {
         // Just the names: a line of description for each made long lists too tall to use.

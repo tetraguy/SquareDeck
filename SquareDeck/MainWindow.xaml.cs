@@ -117,6 +117,7 @@ public partial class MainWindow : Window
         InitMore();
         InitFullscreenGuard();
         InitPower();
+        InitSuspend();
         ApplyUiStyle();
         InitDynamicBackground();
         InitLeanMode();
@@ -201,11 +202,14 @@ public partial class MainWindow : Window
                 await RunSetupAsync();
             }
             await loading;
+            LiftCapFromLastTime(); // a frame cap left behind by a SquareDeck that closed mid-game
             if (Settings.AutoUpdateCheck) _ = CheckForUpdatesAsync(manual: false);
             StartUpdateChecks(); // and every 12 hours after that
         };
         Closed += (_, _) =>
         {
+            // SquareDeck closing: its frame cap goes with it (straight away: the app is about to end).
+            if (_capBefore is { } capBefore) { try { AmdAdlx.RestoreCap(capBefore); _capBefore = null; } catch (Exception) { } }
             Screens.PerfOverlay.CloseAll();
             _loadCts?.Cancel();
             OnClosedExtras();
@@ -1033,6 +1037,7 @@ public partial class MainWindow : Window
 
         // Like a console: a "Closing software" pop-up, with the game's picture, that stays until the game has really
         // gone. Shown in front of the game, even when it's closed from the in-game menu.
+        ResumeGame(); // a paused game closes cleanly (and can save) only once it's running again
         var busy = new GameBusyScreen(game, "Closing software");
         HoldVisible(true);
         Push(busy);
@@ -1506,6 +1511,7 @@ public partial class MainWindow : Window
                 if (!states.TryGetValue(g.AppId, out var text)) continue;
                 if (g.UpdateText.StartsWith("Updating") && text.Length == 0)
                     ShowToast("DOWNLOAD", g.Name, "has finished updating", "", "download", game: g);
+                    AllyControl.React("download");
                 g.UpdateText = text;
             }
             if (GameList.SelectedItem is Game selected) InfoText.Text = selected.InfoLine;
@@ -1539,6 +1545,8 @@ public partial class MainWindow : Window
             if (_stopFocused) SetStopFocus(false); // the game closed while Stop was highlighted
             // Back to the everyday limit once the game has closed.
             if (TdpControl.GameProfile != null || TdpControl.SessionWatts != null) TdpControl.SetGame(null);
+            // And no frame cap left in AMD's driver.
+            LiftStrayCap();
         }
     }
 
@@ -1821,6 +1829,7 @@ public partial class MainWindow : Window
         if (!_screens.Remove(screen)) return;
         ScreenLayer.Children.Remove(screen);
         screen.OnClosed();
+        screen.StopTimers();
     }
 
     /// <summary>Closes a screen (and anything opened on top of it).</summary>
@@ -1837,6 +1846,7 @@ public partial class MainWindow : Window
             _screens.RemoveAt(i);
             ScreenLayer.Children.Remove(closing);
             closing.OnClosed();
+            closing.StopTimers(); // anything it forgot to stop
         }
 
         if (closedConnectionPage) UpdateConnections();

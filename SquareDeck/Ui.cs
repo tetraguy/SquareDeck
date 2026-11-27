@@ -517,7 +517,7 @@ public sealed class HintBar : ContentControl
         Rebuild();
     }
 
-    public string Template
+    public new string Template
     {
         get => _template;
         set { if (_template == value) return; _template = value; Rebuild(); }

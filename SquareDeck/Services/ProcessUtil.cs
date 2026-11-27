@@ -33,6 +33,14 @@ public static class ProcessUtil
         }
     }
 
+    /// <summary>Whether a program with this name (no ".exe") is running. What it finds is let go straight away.</summary>
+    public static bool IsNamedRunning(string name)
+    {
+        var found = Process.GetProcessesByName(name);
+        foreach (var p in found) p.Dispose();
+        return found.Length > 0;
+    }
+
     /// <summary>Ends every process whose executable lives under <paramref name="directory"/>.</summary>
     /// <returns>How many processes were ended.</returns>
     public static int KillProcessesUnder(string directory)
@@ -180,6 +188,26 @@ public static class ProcessUtil
         return paths;
     }
 
+    /// <summary>Process ids of the program at <paramref name="exePath"/>, or of every program under <paramref name="directory"/>.</summary>
+    public static List<int> PidsFor(string? exePath, string? directory)
+    {
+        var pids = new List<int>();
+        string? prefix = string.IsNullOrEmpty(directory) ? null : System.IO.Path.GetFullPath(directory).TrimEnd('\\') + "\\";
+        foreach (var p in Process.GetProcesses())
+        {
+            try
+            {
+                var path = GetImagePath(p.Id);
+                if (path == null) continue;
+                if (exePath != null ? string.Equals(path, exePath, StringComparison.OrdinalIgnoreCase)
+                                    : prefix != null && path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) pids.Add(p.Id);
+            }
+            catch (Exception) { }
+            finally { p.Dispose(); }
+        }
+        return pids;
+    }
+
     /// <summary>Ends every running copy of one program.</summary>
     public static int KillByPath(string exePath)
     {
@@ -246,7 +274,7 @@ public static class ProcessUtil
             var psi = arguments == null
                 ? new ProcessStartInfo(target) { UseShellExecute = true }
                 : new ProcessStartInfo(target, arguments) { UseShellExecute = true };
-            Process.Start(psi);
+            Process.Start(psi)?.Dispose();
             return true;
         }
         catch (Exception)
@@ -264,7 +292,7 @@ public static class ProcessUtil
             if (!string.IsNullOrEmpty(arguments)) psi.Arguments = arguments;
             var dir = System.IO.Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir)) psi.WorkingDirectory = dir;
-            Process.Start(psi);
+            Process.Start(psi)?.Dispose();
             return true;
         }
         catch (Exception)

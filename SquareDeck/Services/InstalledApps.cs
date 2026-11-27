@@ -49,7 +49,7 @@ public static class InstalledApps
         {
             try
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(appId) { UseShellExecute = true, WorkingDirectory = System.IO.Path.GetDirectoryName(appId) ?? "" });
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(appId) { UseShellExecute = true, WorkingDirectory = System.IO.Path.GetDirectoryName(appId) ?? "" })?.Dispose();
                 return true;
             }
             catch (Exception) { return false; }

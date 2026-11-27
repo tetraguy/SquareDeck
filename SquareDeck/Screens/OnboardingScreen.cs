@@ -38,7 +38,7 @@ public sealed class OnboardingScreen : Screen
     private readonly Button _back, _next, _skip;
     private readonly Canvas _sky = new() { IsHitTestVisible = false };
     private readonly System.Windows.Threading.DispatcherTimer _helloTimer = new() { Interval = TimeSpan.FromMilliseconds(1500) };
-    private int _step, _styleIndex = -1, _helloIndex;
+    private int _step, _helloIndex;
     private bool _startOtherStores;
     private Button? _carousel;
 

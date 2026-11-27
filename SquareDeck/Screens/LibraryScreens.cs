@@ -1700,6 +1700,17 @@ public sealed class DetailsScreen : Screen
         long size = _game.SizeOnDisk > 0 ? _game.SizeOnDisk : Math.Abs(_folderSize);
         if (size > 0) Stat("\uEDA2", (_folderSize < 0 ? "≥ " : "") + (size >= 1L << 30 ? $"{size / 1024d / 1024d / 1024d:0.0} GB" : $"{size / 1024d / 1024d:0} MB"), "Size on disk");
         if (_game.HasUpdate) Stat("", "Update", _game.UpdateText);
+        // How long the battery should last in this game, from its own sessions on battery (Settings > Games > While playing).
+        if (Host.Settings.BatteryEstimate && SessionLog.Insight(_game.Key) is { PercentPerHour: double perHour } && perHour > 0)
+        {
+            bool plugged = Battery.IsPluggedIn();
+            int now = Battery.GetPercent() ?? 100;
+            double hours = Math.Min(24, (plugged ? 100 : now) / perHour);
+            int h = (int)hours, m = (int)Math.Round((hours - h) * 60 / 5) * 5;
+            if (m == 60) { h++; m = 0; }
+            string time = h > 0 ? $"{h} h" + (m > 0 ? $" {m} m" : "") : $"{Math.Max(5, m)} m";
+            Stat("\uEBA7", "\u2248 " + time, plugged ? "On a full battery in this game" : $"Battery left in this game  \u00B7  {now}%");
+        }
         _stats.Visibility = _stats.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 

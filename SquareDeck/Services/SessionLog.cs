@@ -68,7 +68,7 @@ public static class SessionLog
         {
             List<PlaySession> copy;
             lock (Gate) copy = All.ToList();
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(copy));
+            SafeFile.WriteAllText(FilePath, JsonSerializer.Serialize(copy));
         }
         catch (Exception) { }
     }

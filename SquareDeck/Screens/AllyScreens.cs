@@ -68,7 +68,8 @@ public sealed class AllyControlScreen : ListScreen
     {
         var s = Host.Settings;
         var modes = AllyControl.LightModes;
-        int choice = await Host.AskAsync("Light effect", null, modes.Select(m => m.Name).ToArray());
+        int current = Array.FindIndex(modes, m => m.Id == s.AllyLights);
+        int choice = await LightEffectPicker.AskAsync(this, "Light effect", null, LightEffectPicker.AllEffects(), current, AllyControl.FxInputs(s));
         if (choice < 0 || choice >= modes.Length) return;
         s.AllyLights = modes[choice].Id;
         bool woke = s.AllyLights is not ("" or "off") && AllyControl.WakeLights(s);
@@ -101,13 +102,13 @@ public sealed class AllyControlScreen : ListScreen
         AddHeader("Lights");
         if (!lights) AddNote("SquareDeck couldn't find the Ally's light controller. These settings apply once it's found.");
         if (AsusOptimization.Installed && !AsusOptimization.Enabled)
-            AddRow("ASUS Optimization is off", "Switch on", "", click: async () =>
+            AddRow("ASUS Optimization is off", "Switch on anyway", "", click: async () =>
             {
                 var error = await AsusOptimization.SetEnabledAsync(true);
                 if (error != null) await Host.AskAsync("ASUS Optimization", error, "OK");
                 else { AllyControl.ApplyLights(force: true); AllyControl.ApplyXboxLight(force: true); }
                 Rebuild();
-            }, subtitle: "While ASUS's service is off, the lights don't take changes. Windows asks for permission");
+            }, subtitle: "SquareDeck now introduces itself to the lights and buttons without it. If they still don't change, switch it back on. Windows asks for permission");
         if (s.AllyLights is not ("" or "off") && AllyControl.AwakeOff(s))
             AddNote("The lights are dark: \"Awake\" is off under When the lights are on (" + (Battery.IsPluggedIn() ? "plugged in" : "on battery") + "). Turn it on there, or choose the effect again.");
         if (AllyControl.DynamicLightingOn) AddDynamicLightingNote();
@@ -116,17 +117,17 @@ public sealed class AllyControlScreen : ListScreen
         AddRow("Effect", mode.Name ?? "Leave as it is", "",
             click: () => _ = ChooseEffectAsync(),
             subtitle: string.IsNullOrEmpty(mode.About) ? null : mode.About);
-        if (s.AllyLights is "solid" or "breathing" or "sticks" or "")
+        if (LightFx.UsesColor(s.AllyLights))
         {
             AddRow(s.AllyLights == "sticks" ? "Left stick color" : "Color", ColorName(s.AllyLightColor), "",
                 click: () => Host.Push(new LedColorScreen(s.AllyLights == "sticks" ? "Left stick color" : "Light color", s.AllyLightColor,
                     hex => { s.AllyLightColor = hex; if (s.AllyLights.Length == 0) s.AllyLights = "solid"; s.Save(); AllyControl.ApplyLights(force: true); Rebuild(); })));
-            if (s.AllyLights is "breathing" or "sticks")
+            if (LightFx.UsesSecondColor(s.AllyLights))
                 AddRow(s.AllyLights == "sticks" ? "Right stick color" : "Second color", ColorName(s.AllyLightColor2), "",
                     click: () => Host.Push(new LedColorScreen(s.AllyLights == "sticks" ? "Right stick color" : "Second light color", s.AllyLightColor2,
                         hex => { s.AllyLightColor2 = hex; s.Save(); AllyControl.ApplyLights(force: true); })));
         }
-        if (s.AllyLights is "breathing" or "rainbow" or "wheel")
+        if (LightFx.UsesSpeed(s.AllyLights))
             AddRow("Speed", AllyControl.Speeds.FirstOrDefault(x => x.Id == s.AllyLightSpeed).Name ?? "Medium", "",
                 click: () => Save(() => s.AllyLightSpeed = s.AllyLightSpeed switch { "slow" => "medium", "medium" => "fast", _ => "slow" }, () => AllyControl.ApplyLights(force: true)));
         if (s.AllyLights is not ("" or "off"))
@@ -144,6 +145,9 @@ public sealed class AllyControlScreen : ListScreen
         AddRow("Pulse red when the battery is low", OnOff(s.AllyLowBatteryFlash), "",
             click: () => Save(() => s.AllyLowBatteryFlash = !s.AllyLowBatteryFlash, () => AllyControl.ApplyLights(force: true)),
             subtitle: "At 15% or less, over whatever the lights are doing, until you plug in");
+        AddRow("Lights react to achievements and downloads", OnOff(s.AllyLightReactions), "\uE7E8",
+            click: () => Save(() => s.AllyLightReactions = !s.AllyLightReactions, () => AllyControl.ApplyLights(force: true)),
+            subtitle: "A gold sweep when you unlock an achievement, a green pulse when a download or update finishes");
 
         // ---- When the lights may light (Armoury Crate SE's power states)
         AddHeader("When the lights are on");
@@ -221,6 +225,18 @@ public sealed class AllyControlScreen : ListScreen
             AddRow("Charge to 100% this once", AllyControl.ChargingFullOnce ? "Until SquareDeck restarts" : null, "",
                 click: () => { AllyControl.ChargeFullOnce(); Rebuild(); },
                 subtitle: "For a long trip: charges fully now; the limit comes back next time SquareDeck starts");
+
+        // ---- The startup sound (kept by the firmware, like the BIOS setting and Armoury Crate SE's)
+        if (AsusAcpi.BootSound is bool chime)
+        {
+            AddHeader("Starting up");
+            AddRow("Sound when it turns on", chime ? "On" : "Off", "\uE767", click: async () =>
+            {
+                bool ok = await Task.Run(() => AsusAcpi.SetBootSound(!chime));
+                if (!ok) await Host.AskAsync("Sound when it turns on", "The firmware didn't take the change. You can still change it in the BIOS or Armoury Crate SE.", "OK");
+                Rebuild();
+            }, subtitle: "The chime when the Ally starts. The same setting as in the BIOS and Armoury Crate SE");
+        }
 
         // ---------------------------------------------------------------- controller
         AddHeader("Controller");

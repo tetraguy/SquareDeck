@@ -24,7 +24,7 @@ public static class DeviceHealth
         try
         {
             foreach (var name in new[] { "ArmouryCrateSE", "ArmouryCrate", "ArmouryCrateSE.Service", "ArmourySocketServer" })
-                if (Process.GetProcessesByName(name).Length > 0) return true;
+                if (ProcessUtil.IsNamedRunning(name)) return true;
         }
         catch (Exception) { }
         return false;
@@ -49,7 +49,7 @@ public static class DeviceHealth
         {
             string lights, lightsDetail;
             if (AllyControl.DynamicLightingOn) { lights = "Windows Dynamic Lighting"; lightsDetail = "Windows holds the lights, so SquareDeck's and Armoury Crate's changes don't show"; }
-            else if (AsusOptimization.Installed && !AsusOptimization.Enabled) { lights = "Nobody (ASUS Optimization is off)"; lightsDetail = "The lights don't take changes while ASUS's service is off"; }
+            else if (AsusOptimization.Installed && !AsusOptimization.Enabled) { lights = s.AllyLights.Length == 0 ? "Left as they are" : "SquareDeck"; lightsDetail = "ASUS Optimization is off, so SquareDeck introduces itself to the lights" + (AllyHid.WokeItself ? " (done)" : ""); }
             else if (s.AllyLights.Length == 0) { lights = ArmouryCrateRunning() ? "Armoury Crate SE" : "Left as they are"; lightsDetail = "SquareDeck leaves them alone. Choose an effect to take them over"; }
             else { lights = "SquareDeck"; lightsDetail = (AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights).Name ?? s.AllyLights) + ", " + AllyControl.BrightnessPercent(s) + "%"; }
             list.Add(new Owner("Lights", "\uE781", lights, lightsDetail));
@@ -92,8 +92,8 @@ public static class DeviceHealth
                     "Look again", () => { AllyHid.Rescan(); return Task.FromResult<string?>(AllyHid.HasController ? null : "Still not found. Restart the Ally and look again."); }));
 
             if (AsusOptimization.Installed && !AsusOptimization.Enabled)
-                checks.Add(new Check("asusopt-off", Level.Problem, "Lights", "ASUS Optimization is off",
-                    "With ASUS's service off, the lights (the sticks and the Xbox button) don't take changes from SquareDeck or Armoury Crate SE. Windows asks for permission to switch it on.",
+                checks.Add(new Check("asusopt-off", Level.Warning, "Lights", "ASUS Optimization is off",
+                    "SquareDeck introduces itself to the lights and the extra buttons without ASUS's service. If the lights or buttons still don't respond, switch it back on. Windows asks for permission.",
                     "Switch it on", async () =>
                     {
                         var error = await AsusOptimization.SetEnabledAsync(true);

@@ -146,7 +146,7 @@ public static class CoverEffects
                 waiting = entry.Waiters.ToList();
                 entry.Waiters.Clear();
             }
-            dispatcher.BeginInvoke(DispatcherPriority.Background, () => { foreach (var w in waiting) w(); });
+            _ = dispatcher.BeginInvoke(DispatcherPriority.Background, () => { foreach (var w in waiting) w(); });
         });
         return entry.Previous ?? source;
     }

@@ -92,7 +92,7 @@ public static class Eight
             var dir = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir)) psi.WorkingDirectory = dir;
             if (Admin(g.Key)) psi.Verb = "runas";
-            Process.Start(psi);
+            Process.Start(psi)?.Dispose();
             return true;
         }
         catch (Exception) { return false; }
@@ -407,7 +407,7 @@ public static class Eight
         try
         {
             var o = _cards.ToDictionary(c => c.Key, c => new { label = c.Value.Label, games = c.Value.Games });
-            File.WriteAllText(CardsFile, JsonSerializer.Serialize(o));
+            SafeFile.WriteAllText(CardsFile, JsonSerializer.Serialize(o));
         }
         catch (Exception) { }
     }

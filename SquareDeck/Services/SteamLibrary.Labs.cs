@@ -45,5 +45,5 @@ public static partial class SteamLibrary
     }
 
     /// <summary>Whether the Steam client is running.</summary>
-    public static bool ClientRunning() => System.Diagnostics.Process.GetProcessesByName("steam").Length > 0;
+    public static bool ClientRunning() => ProcessUtil.IsNamedRunning("steam");
 }

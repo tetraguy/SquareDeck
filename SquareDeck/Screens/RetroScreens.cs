@@ -1541,7 +1541,7 @@ public sealed partial class RetroGameScreen : ListScreen
                 _ = Task.Run(async () =>
                 {
                     var p = await RetroExtras.ProgressAsync(_game, settings);
-                    Dispatcher.BeginInvoke(new Action(() => { _ra = p; _raLoaded = true; _raLoading = false; Rebuild(); }));
+                    _ = Dispatcher.BeginInvoke(new Action(() => { _ra = p; _raLoaded = true; _raLoading = false; Rebuild(); }));
                 });
             }
         }
@@ -1693,7 +1693,7 @@ public sealed class RetroEmulatorScreen : ListScreen
         catch (Exception ex) { _error = ex.Message.Contains("403") ? "GitHub is limiting requests right now. Try again in a few minutes." : "Couldn't check for the newest version: " + ex.Message; }
         _checked = true;
         Rebuild();
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() => Rows.Children.OfType<Button>().FirstOrDefault()?.Focus()));
+        _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() => Rows.Children.OfType<Button>().FirstOrDefault()?.Focus()));
     }
 
     public override void OnClosed()

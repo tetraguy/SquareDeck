@@ -73,7 +73,7 @@ public sealed class AchievementStore
         try
         {
             Directory.CreateDirectory(Settings.DataDir);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this));
+            SafeFile.WriteAllText(FilePath, JsonSerializer.Serialize(this));
         }
         catch
         {

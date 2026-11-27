@@ -443,7 +443,7 @@ public static class Updater
         string extension = Path.GetExtension(file).ToLowerInvariant();
         if (extension is ".exe" or ".msi")
         {
-            Process.Start(new ProcessStartInfo(file) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(file) { UseShellExecute = true })?.Dispose();
             return;
         }
         if (extension != ".zip") throw new InvalidOperationException("Don't know how to install " + Path.GetFileName(file) + ".");
@@ -482,6 +482,6 @@ public static class Updater
         Process.Start(new ProcessStartInfo("cmd.exe", "/c \"" + script + "\"")
         {
             UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetTempPath()
-        });
+        })?.Dispose();
     }
 }

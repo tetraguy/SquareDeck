@@ -146,6 +146,24 @@ public static class AsusAcpi
     /// <summary>Silent, Performance or Turbo, the same as Armoury Crate's operating modes.</summary>
     public static bool SetMode(int mode) => Available && Set(PerformanceMode, mode) >= 0;
 
+    // The startup chime ("POST sound"), the same switch as the BIOS's and Armoury Crate SE's. It's kept by the firmware,
+    // so it stays as set across restarts and needs no reapplying. Device id as documented by Linux's asus-armoury driver.
+    public const uint BootSoundDevice = 0x00130022;
+
+    /// <summary>Whether the Ally plays its sound when it turns on; null when the firmware doesn't offer the switch.</summary>
+    public static bool? BootSound
+    {
+        get
+        {
+            if (!Available) return null;
+            int v = Get(BootSoundDevice); // presence bit taken off: 0 or 1 when it's there
+            return v is 0 or 1 ? v == 1 : null;
+        }
+    }
+
+    /// <summary>Turns the startup sound on or off. True when the firmware took it.</summary>
+    public static bool SetBootSound(bool on) => Available && Set(BootSoundDevice, on ? 1 : 0) >= 0 && BootSound == on;
+
     /// <summary>Stops charging at this percentage (100 = charge fully).</summary>
     public static bool SetChargeLimit(int percent) => Available && percent is >= 20 and <= 100 && Set(BatteryLimit, percent) >= 0;
 
@@ -287,7 +305,61 @@ public static class AllyHid
     /// <summary>Looks for the collections again on the next call (one went missing or a write failed).</summary>
     public static void Rescan()
     {
-        lock (Lock) { _lastScan = DateTime.MinValue; }
+        lock (Lock) { _lastScan = DateTime.MinValue; _inputAwake = _auraAwake = false; }
+    }
+
+    // ---------------------------------------------------------------- waking the controller without ASUS's service
+
+    // The Ally's controller chip starts out ignoring light commands and keeping its extra-button codes to itself until
+    // the PC introduces itself. ASUS Optimization does that when it starts; without it, SquareDeck does. The messages
+    // are the ASUS keyboard handshake ("ASUS Tech.Inc." after the report id, then "which functions do you have"), and
+    // for the controller collection the two commands that take it out of its out-of-the-box mode. Byte values as
+    // documented by the Linux hid-asus driver and asusctl; HandheldCompanion and G-Helper talk to the same reports.
+    private static bool _inputAwake, _auraAwake;
+
+    /// <summary>SquareDeck did the introduction itself (ASUS Optimization wasn't running), for the light log.</summary>
+    public static bool WokeItself { get; private set; }
+
+    private static byte[] Hello(byte id)
+    {
+        var text = System.Text.Encoding.ASCII.GetBytes("ASUS Tech.Inc.");
+        var m = new byte[text.Length + 2];
+        m[0] = id;
+        text.CopyTo(m, 1);
+        return m;
+    }
+
+    /// <summary>
+    /// Introduces SquareDeck to the controller and lights once (again after sleep or a rescan), when ASUS
+    /// Optimization isn't running to do it, so the stick lights take changes and the extra buttons send their codes.
+    /// </summary>
+    public static void EnsureAwake()
+    {
+        lock (Lock)
+        {
+            Scan();
+            if ((_input == null || _inputAwake) && (_aura == null || _auraAwake)) return;
+            bool asus = false;
+            try { asus = AsusOptimization.Running; } catch (Exception) { }
+            if (asus) { _inputAwake = _input != null; _auraAwake = _aura != null; return; } // ASUS's service has done it
+            if (_input != null && !_inputAwake)
+            {
+                Feature(_input, Hello(InputId));
+                Feature(_input, new byte[] { InputId, 0x05, 0x20, 0x31, 0x00, 0x08 });
+                Feature(_input, new byte[] { InputId, 0xBA, 0xC5, 0xC4 });
+                Feature(_input, new byte[] { InputId, 0xD0, 0x8F, 0x01 }); // out-of-the-box mode off
+                Feature(_input, new byte[] { InputId, 0xD0, 0x85, 0xFF });
+                _inputAwake = true;
+            }
+            if (_aura != null && !_auraAwake)
+            {
+                Feature(_aura, new byte[] { AuraId, 0xB9 });
+                Feature(_aura, Hello(AuraId));
+                Feature(_aura, new byte[] { AuraId, 0x05, 0x20, 0x31, 0x00, 0x08 });
+                _auraAwake = true;
+            }
+            WokeItself = true;
+        }
     }
 
     public static bool HasLights { get { lock (Lock) { Scan(); return _aura != null; } } }
@@ -300,7 +372,7 @@ public static class AllyHid
             Scan();
             int paths = AllyButtons.AsusHidPaths().Count;
             string Of(Device? d) => d == null ? "not found" : $"found (feature {d.FeatureLength}, output {d.OutputLength})";
-            return $"{paths} ASUS HID paths, controller {Of(_input)}, lights {Of(_aura)}";
+            return $"{paths} ASUS HID paths, controller {Of(_input)}, lights {Of(_aura)}" + (WokeItself ? ", woken by SquareDeck" : "");
         }
     }
     public static bool HasController { get { lock (Lock) { Scan(); return _input != null; } } }
@@ -332,6 +404,8 @@ public static class AllyHid
     {
         try { d?.Handle.Dispose(); } catch (Exception) { }
         d = null;
+        _inputAwake = _input != null && _inputAwake;
+        _auraAwake = _aura != null && _auraAwake;
     }
 
     // ---------------------------------------------------------------- lights
@@ -383,6 +457,39 @@ public static class AllyHid
                 }
                 ok &= Output(_aura, Commit);
             }
+            if (!ok) Drop(ref _aura);
+            return ok;
+        }
+    }
+
+    /// <summary>
+    /// One color on the whole ring, shown straight away but not saved to the controller (no "set"): for effects
+    /// SquareDeck animates itself, which change many times a second.
+    /// </summary>
+    public static bool SetLive(Color color)
+    {
+        lock (Lock)
+        {
+            Scan();
+            if (_aura == null) return false;
+            bool ok = Output(_aura, AuraMessage(AuraMode.Solid, color, color, AuraSpeed.Slow, Zone.All)) && Output(_aura, Apply);
+            if (!ok) Drop(ref _aura);
+            return ok;
+        }
+    }
+
+    /// <summary>A color per zone (left outer, left inner, right inner, right outer), shown straight away, not saved.</summary>
+    public static bool SetZonesLive(IReadOnlyList<Color> zones)
+    {
+        if (zones.Count < 4) return false;
+        lock (Lock)
+        {
+            Scan();
+            if (_aura == null) return false;
+            bool ok = true;
+            var order = new[] { Zone.LeftOuter, Zone.LeftInner, Zone.RightInner, Zone.RightOuter };
+            for (int z = 0; z < 4 && ok; z++)
+                ok = Output(_aura, AuraMessage(AuraMode.Solid, zones[z], zones[z], AuraSpeed.Slow, order[z])) && Output(_aura, Apply);
             if (!ok) Drop(ref _aura);
             return ok;
         }

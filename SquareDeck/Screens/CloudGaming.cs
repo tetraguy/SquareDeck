@@ -596,6 +596,8 @@ public sealed class CloudLeavePanel : Window
 
         _hide.Tick += (_, _) => HidePanel();
         _onTop.Tick += (_, _) => WindowActivator.KeepOnTop(this);
+        // Closed (the cloud game ended) while it was showing: its timers stop with it.
+        Closed += (_, _) => { _hide.Stop(); _onTop.Stop(); };
         SourceInitialized += (_, _) => NoActivate(this);
         SizeChanged += (_, _) => Place();
         Select(_selected);

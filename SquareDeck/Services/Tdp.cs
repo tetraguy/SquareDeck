@@ -266,6 +266,8 @@ public static class TdpControl
 
     public static bool EffectiveBoost => GameProfile?.CpuBoost ?? _settings!.CpuBoost;
     public static int EffectiveMaxCpu => GameProfile is { MaxCpu: > 0 } g ? g.MaxCpu : _settings!.MaxCpu;
+    /// <summary>The share of cores in use: the running game's own, or the everyday one.</summary>
+    public static int EffectiveCores => GameProfile is { CpuCores: > 0 } g ? g.CpuCores : _settings!.CpuCores;
     public static string EffectivePowerMode => GameProfile?.PowerMode ?? _settings!.WindowsPowerMode;
 
     /// <summary>A game started (its profile, may be null) or closed (null).</summary>
@@ -320,7 +322,7 @@ public static class TdpControl
             {
                 // Windows' CPU settings (boost, top speed, energy preference, cores): only written when they change, so
                 // re-applying the limit doesn't start powercfg over and over.
-                string cpu = $"{EffectiveBoost}|{EffectiveMaxCpu}|{s.CpuEpp}|{s.CpuCores}";
+                string cpu = $"{EffectiveBoost}|{EffectiveMaxCpu}|{s.CpuEpp}|{EffectiveCores}";
                 if (!quiet || cpu != _cpuApplied)
                 {
                     await SetCpuWithoutHelperAsync(EffectiveBoost, EffectiveMaxCpu);
@@ -435,14 +437,14 @@ public static class TdpControl
                     await ProcessUtil.RunAsync("powercfg.exe", $"{which} SCHEME_CURRENT SUB_PROCESSOR PERFEPP {s.CpuEpp}");
                     any = true;
                 }
-                int cores = Math.Clamp(s.CpuCores, 25, 100);
+                int cores = Math.Clamp(EffectiveCores, 25, 100);
                 if (cores < 100 || _coresChanged)
                 {
                     await ProcessUtil.RunAsync("powercfg.exe", $"{which} SCHEME_CURRENT SUB_PROCESSOR CPMAXCORES {cores}");
                     any = true;
                 }
             }
-            _coresChanged = s.CpuCores < 100;
+            _coresChanged = EffectiveCores < 100;
             if (any) await ProcessUtil.RunAsync("powercfg.exe", "/setactive SCHEME_CURRENT");
         }
         catch (Exception) { }

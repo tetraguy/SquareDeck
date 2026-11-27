@@ -77,8 +77,58 @@ public partial class MainWindow
 
     // ================================================================ around a game: frame cap, scripts, timer
 
-    private AmdAdlx.CapState? _capBefore;
+    private AmdAdlx.CapState? _capBeforeValue;
     private string? _capGame;
+
+    /// <summary>
+    /// What AMD's frame limiter was set to before SquareDeck capped it. Kept on disk too, so the cap is lifted even
+    /// after SquareDeck closes or crashes mid-game (the driver itself would keep it for every game, indefinitely).
+    /// </summary>
+    private AmdAdlx.CapState? _capBefore
+    {
+        get => _capBeforeValue;
+        set
+        {
+            if (value != null && _capBeforeValue == null) _capAppliedAt = DateTime.UtcNow;
+            _capBeforeValue = value;
+            Labs.Put("capbefore", value is { } c ? $"{c.Method}|{(c.Enabled ? 1 : 0)}|{c.First}|{c.Second}" : "");
+        }
+    }
+
+    /// <summary>The lowest cap SquareDeck ever applies: under that, games crawl.</summary>
+    private const int LowestCap = 30;
+
+    /// <summary>
+    /// No game running any more, but a cap SquareDeck set is still in the driver (it was set with no game, or the game
+    /// closed in a way that wasn't noticed): lifted, back to how AMD Software had it.
+    /// </summary>
+    private DateTime _capAppliedAt;
+
+    private void LiftStrayCap()
+    {
+        if (_capBefore is not { } before) return;
+        // A game's cap goes on just before it starts: give it time to show up, and leave a launch that's under way.
+        if (DateTime.UtcNow - _capAppliedAt < TimeSpan.FromSeconds(90)) return;
+        if (_activeLaunch is { SeenRunning: false } && DateTime.UtcNow - _capAppliedAt < TimeSpan.FromMinutes(10)) return;
+        _capBefore = null;
+        _capGame = null;
+        _widgetCap = 0;
+        _ = Task.Run(() => AmdAdlx.RestoreCap(before));
+    }
+
+    /// <summary>At start: a cap left behind by a SquareDeck that closed mid-game (saved on disk) is lifted.</summary>
+    private void LiftCapFromLastTime()
+    {
+        string saved = Labs.Get("capbefore");
+        if (saved.Length == 0 || AllGames.Any(g => g.IsRunning)) return;
+        var parts = saved.Split('|');
+        Labs.Put("capbefore", "");
+        if (parts.Length == 4 && int.TryParse(parts[2], out int first) && int.TryParse(parts[3], out int second))
+        {
+            var before = new AmdAdlx.CapState(parts[0], parts[1] == "1", first, second);
+            _ = Task.Run(() => AmdAdlx.RestoreCap(before));
+        }
+    }
     private Game? _lastLaunched;
 
     /// <summary>Just before a game starts (after its profile): its script, its frame cap, and the session timer.</summary>
@@ -89,8 +139,9 @@ public partial class MainWindow
         {
             if (Labs.On("scripts") && Eight.PreScript(game.Key) is { Length: > 0 } pre)
                 await Eight.RunScriptAsync(pre, Eight.WaitForPre(game.Key) ? 60 : 0);
-            if (Labs.On("fpscap") && Eight.FpsCap(game.Key) is int fps and > 0)
+            if (Labs.On("fpscap") && Eight.FpsCap(game.Key) is int choice and > 0)
             {
+                int fps = Math.Max(LowestCap, choice);
                 if (_capBefore != null) await Task.Run(() => AmdAdlx.RestoreCap(_capBefore));
                 _capBefore = await Task.Run(() => AmdAdlx.ApplyCap(fps));
                 _capGame = _capBefore != null ? game.Key : null;
@@ -406,6 +457,7 @@ public partial class MainWindow
                 if (_toastSeen.TryGetValue(running.AppId, out var before))
                     foreach (var a in list.Where(a => a.Unlocked && !before.Contains(a.Api)).Take(3))
                         AchievementToast.Show(a.Name, a.Description, a.Icon, running.Name, "Steam");
+                        AllyControl.React("achievement");
                 _toastSeen[running.AppId] = unlocked;
             }
         }
@@ -418,6 +470,7 @@ public partial class MainWindow
                 if (_raSeen.TryGetValue(retro.Key, out var before))
                     foreach (var a in progress.Achievements.Where(a => a.Earned != null && !before.Contains(a.Title)).Take(3))
                         AchievementToast.Show(a.Title, a.Description + $"  ·  {a.Points} points", a.Badge, retro.Title, "RetroAchievements");
+                        AllyControl.React("achievement");
                 _raSeen[retro.Key] = earned;
             }
         }

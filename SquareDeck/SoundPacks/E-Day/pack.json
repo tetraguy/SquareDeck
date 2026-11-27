@@ -1,0 +1,9 @@
+{
+  "name": "E-Day",
+  "author": "Gears of War sound scheme (the owner's own files)",
+  "version": "v1.0",
+  "manifest_version": 2,
+  "music": false,
+  "mappings": {},
+  "ignore": []
+}

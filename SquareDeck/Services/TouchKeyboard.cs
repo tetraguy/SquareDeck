@@ -55,7 +55,7 @@ public static class TouchKeyboard
             if (IsOpen) return;
             if (Process.GetProcessesByName("TabTip").Length == 0 && File.Exists(TabTipPath))
             {
-                Process.Start(new ProcessStartInfo(TabTipPath) { UseShellExecute = true });
+                Process.Start(new ProcessStartInfo(TabTipPath) { UseShellExecute = true })?.Dispose();
                 await Task.Delay(500);
                 if (IsOpen) return;
             }
@@ -66,7 +66,7 @@ public static class TouchKeyboard
         catch (Exception)
         {
             // Older Windows: starting TabTip shows the keyboard by itself.
-            try { if (File.Exists(TabTipPath)) Process.Start(new ProcessStartInfo(TabTipPath) { UseShellExecute = true }); }
+            try { if (File.Exists(TabTipPath)) Process.Start(new ProcessStartInfo(TabTipPath) { UseShellExecute = true })?.Dispose(); }
             catch (Exception) { }
         }
     }
