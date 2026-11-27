@@ -444,6 +444,8 @@ public sealed class Settings
 
     /// <summary>Ally button id ("ac", "mode-cc", ...) to action id (see AllyButtons.Actions).</summary>
     public Dictionary<string, string> AllyBindings { get; set; } = AllyButtons.DefaultBindings();
+    /// <summary>Buttons set up by pressing them: raw code ("147", "m166" with Mode held) to action. These come first.</summary>
+    public Dictionary<string, string> AllyCodeBindings { get; set; } = new();
     /// <summary>The Ally button (an id from AllyButtons.Buttons) that opens the in-game quick menu; "" = off. (Was experimental; the name is kept so the setting carries over.)</summary>
     public string ExperimentAllyQuickMenu { get; set; } = "";
     /// <summary>Which ROG Ally this is, when it isn't found by itself ("" = find out by itself).</summary>

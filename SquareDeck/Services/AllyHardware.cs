@@ -305,7 +305,7 @@ public static class AllyHid
     /// <summary>Looks for the collections again on the next call (one went missing or a write failed).</summary>
     public static void Rescan()
     {
-        lock (Lock) { _lastScan = DateTime.MinValue; _inputAwake = _auraAwake = false; }
+        lock (Lock) { _lastScan = DateTime.MinValue; _inputAwake = _auraAwake = false; _x20Primed = false; }
     }
 
     // ---------------------------------------------------------------- waking the controller without ASUS's service
@@ -362,7 +362,7 @@ public static class AllyHid
         }
     }
 
-    public static bool HasLights { get { lock (Lock) { Scan(); return _aura != null; } } }
+    public static bool HasLights { get { lock (Lock) { Scan(); return _aura != null || (IsX20 && _input != null); } } }
 
     /// <summary>Which collections were found, for the light log.</summary>
     public static string Describe()
@@ -372,7 +372,7 @@ public static class AllyHid
             Scan();
             int paths = AllyButtons.AsusHidPaths().Count;
             string Of(Device? d) => d == null ? "not found" : $"found (feature {d.FeatureLength}, output {d.OutputLength})";
-            return $"{paths} ASUS HID paths, controller {Of(_input)}, lights {Of(_aura)}" + (WokeItself ? ", woken by SquareDeck" : "");
+            return $"{paths} ASUS HID paths, controller {Of(_input)}, lights {Of(_aura)}" + (WokeItself ? ", woken by SquareDeck" : "") + (IsX20 ? ", X20 lights through the controller" : "");
         }
     }
     public static bool HasController { get { lock (Lock) { Scan(); return _input != null; } } }
@@ -423,12 +423,61 @@ public static class AllyHid
     private static readonly byte[] Apply = { AuraId, 0xB4 };
     private static readonly byte[] Commit = { AuraId, 0xB5, 0, 0, 0 };
 
+    // ---------------------------------------------------------------- the ROG Xbox Ally X20's lights
+
+    // On the X20 the light commands go to the controller's own collection, with report id 0x5A, in one batch: the
+    // effect for each zone, then "set" (B5) and "apply" (B4) once, after the ASUS hello (Handheld Daemon drives the
+    // X20 this way, by the protocol it documents; SquareDeck's own code). Sent through the lights collection (0x5D)
+    // with an apply after each zone, as on the other Allys, the X20 took the whole ring but not a color per stick or
+    // per half ring. Each stick has two zones (left and right half, two LEDs each): 1 and 2 on the left stick, 3 and 4
+    // on the right. Live frames (effects SquareDeck animates) send just the zone colors, as Handheld Daemon does.
+
+    /// <summary>The ROG Xbox Ally X20 is in use (found, or chosen in Settings > ROG Ally buttons).</summary>
+    public static bool IsX20 => AllyButtons.Model == "ROG Xbox Ally X20";
+
+    private static bool _x20Primed;
+
+    private static byte[] X20Zone(AuraMode mode, Color one, Color two, AuraSpeed speed, Zone zone) => new byte[]
+    {
+        InputId, 0xB3, (byte)zone, (byte)mode, one.R, one.G, one.B, mode == AuraMode.Solid ? (byte)0 : (byte)speed, 0,
+        mode == AuraMode.Breathing ? (byte)1 : (byte)0, two.R, two.G, two.B
+    };
+
+    /// <summary>Sends an X20 batch: the hello and brightness first when <paramref name="full"/>, then the zones, then set and apply.</summary>
+    private static bool X20Send(IEnumerable<byte[]> zones, bool full, int brightness = 3)
+    {
+        if (_input == null) return false;
+        bool ok = true;
+        if (full)
+        {
+            Output(_input, Hello(InputId));
+            ok &= Output(_input, new byte[] { InputId, 0xBA, 0xC5, 0xC4, (byte)Math.Clamp(brightness, 0, 3) });
+        }
+        foreach (var z in zones) ok &= Output(_input, z);
+        if (full || !_x20Primed)
+        {
+            ok &= Output(_input, new byte[] { InputId, 0xB5 });
+            ok &= Output(_input, new byte[] { InputId, 0xB4 });
+            _x20Primed = ok;
+        }
+        return ok;
+    }
+
+    private static readonly Zone[] X20Zones = { Zone.LeftOuter, Zone.LeftInner, Zone.RightInner, Zone.RightOuter };
+
     /// <summary>One effect on both rings. Breathing alternates between the two colors.</summary>
     public static bool SetLights(AuraMode mode, Color one, Color two, AuraSpeed speed)
     {
         lock (Lock)
         {
             Scan();
+            if (IsX20 && _input != null)
+            {
+                // Every zone gets the effect (the whole-ring zone alone left halves behind on the X20).
+                var all = new List<byte[]> { X20Zone(mode, one, two, speed, Zone.All) };
+                all.AddRange(X20Zones.Select(z => X20Zone(mode, one, two, speed, z)));
+                if (X20Send(all, full: true)) return true;
+            }
             if (_aura == null) return false;
             bool ok = Output(_aura, AuraMessage(mode, one, two, speed, Zone.All)) && Output(_aura, Apply) && Output(_aura, Commit);
             if (!ok) Drop(ref _aura);
@@ -446,6 +495,12 @@ public static class AllyHid
         lock (Lock)
         {
             Scan();
+            if (IsX20 && _input != null)
+            {
+                var zones = new[] { (Zone.LeftOuter, left), (Zone.LeftInner, left), (Zone.RightInner, right), (Zone.RightOuter, right) }
+                    .Select(z => X20Zone(AuraMode.Solid, z.Item2, z.Item2, AuraSpeed.Slow, z.Item1));
+                if (X20Send(zones, full: true)) return true;
+            }
             if (_aura == null) return false;
             bool ok = Output(_aura, AuraMessage(AuraMode.Solid, left, left, AuraSpeed.Slow, Zone.All)) && Output(_aura, Apply);
             if (ok)
@@ -471,6 +526,7 @@ public static class AllyHid
         lock (Lock)
         {
             Scan();
+            if (IsX20 && _input != null && X20Send(X20Zones.Select(z => X20Zone(AuraMode.Solid, color, color, AuraSpeed.Slow, z)), full: false)) return true;
             if (_aura == null) return false;
             bool ok = Output(_aura, AuraMessage(AuraMode.Solid, color, color, AuraSpeed.Slow, Zone.All)) && Output(_aura, Apply);
             if (!ok) Drop(ref _aura);
@@ -485,6 +541,7 @@ public static class AllyHid
         lock (Lock)
         {
             Scan();
+            if (IsX20 && _input != null && X20Send(X20Zones.Select((z, i) => X20Zone(AuraMode.Solid, zones[i], zones[i], AuraSpeed.Slow, z)), full: false)) return true;
             if (_aura == null) return false;
             bool ok = true;
             var order = new[] { Zone.LeftOuter, Zone.LeftInner, Zone.RightInner, Zone.RightOuter };
@@ -501,6 +558,13 @@ public static class AllyHid
         lock (Lock)
         {
             Scan();
+            if (IsX20 && _input != null)
+            {
+                // The X20 takes the brightness through the controller collection (sent to the lights one too, harmless).
+                bool x = Output(_input, new byte[] { InputId, 0xBA, 0xC5, 0xC4, (byte)Math.Clamp(level, 0, 3) });
+                Feature(_aura, new byte[] { AuraId, 0xBA, 0xC5, 0xC4, (byte)Math.Clamp(level, 0, 3) });
+                return x;
+            }
             return Feature(_aura, new byte[] { AuraId, 0xBA, 0xC5, 0xC4, (byte)Math.Clamp(level, 0, 3) });
         }
     }

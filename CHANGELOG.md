@@ -1,7 +1,30 @@
 # Changelog
 
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
-version newer than the one installed (each section starts at its "## 8.5.55
+version newer than the one installed (each section starts at its "## 8.5.58
+- Eleven new stick light effects (ideas from the Colores plugin, written for SquareDeck), in the effect picker with their preview:
+  - **Gradient**: your two colors blended across both sticks.
+  - **Wave**: your two colors rolling across.
+  - **Color cycle**: your colors and the accent moving round the zones.
+  - **Spiral**: each ring spins, the sticks turning opposite ways.
+  - **Lava** and **Galaxy**: drifting palettes; Galaxy has the odd star flare.
+  - **Sparkle**: twinkles of your second color.
+  - **Ripple**: light spreading from the middle of each stick.
+  - **Processor load**: green to red, breathing faster as the processor works harder.
+  - **Time of day**: night blue, sunrise, daylight, sunset and dusk.
+  - **Ambilight**: the sticks take the screen's colors beside them as you play, read cheaply about eight times a second.
+- **Surprise me** on the lights settings: a random effect with two colors that go together.
+- They play on all four zones, through the X20 path on the ROG Xbox Ally X20 and the usual one on the other Allys.
+
+## 8.5.57
+- ROG Xbox Ally X20 lights: a color per stick, different colors on each half of a ring, and per-zone effects didn't show. Only whole-ring effects did. On the X20 (found, or chosen in Settings > ROG Ally buttons > Which Ally is this), SquareDeck now sends the light commands the way the X20 takes them: to the controller's own collection (report 0x5A) in one batch, as the ASUS hello, brightness, every zone's color, then set and apply once, instead of an apply after each zone through the lights collection. Each stick has two zones (its left and right half, two LEDs each). Animated effects send just the zone colors each frame. The other Allys keep the way that works for them. The light log notes when the X20 path is used.
+
+## 8.5.56
+- ROG Ally buttons, reworked for the Xbox Allys (the X20 too), after comparing with HandheldCompanion:
+  - The **Command Center button** row was hidden on the Xbox Allys, but that's their right-hand button (ASUS calls it Command Center from the ROG Xbox Ally on). It's listed again, and the Armoury Crate rows are hidden on the X20, which has no such button. HandheldCompanion reads the same codes on every Ally: 147 Library, 166 Command Center, 56 Armoury Crate, 167/168 hold. SquareDeck now does the same on the X20.
+  - New: **Press a button to set it up**. Press the Library, Command Center or Armoury Crate button (or Mode + one) and choose what it does. It's stored under the exact code that button sends, so it works whatever the model calls it, and it comes before the named rows. Set-up buttons are listed with their code, to change or forget.
+
+## 8.5.55
 - New Mythical style: **E-Day**, inspired by the Gears of War games.
   - Battle-worn gunmetal rows and cards held by hex bolts, chipped and scratched, with a crimson paint tab.
   - Pop-ups under a crimson steel header with black hazard stripes.

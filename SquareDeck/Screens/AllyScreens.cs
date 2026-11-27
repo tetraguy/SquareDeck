@@ -117,6 +117,11 @@ public sealed class AllyControlScreen : ListScreen
         AddRow("Effect", mode.Name ?? "Leave as it is", "",
             click: () => _ = ChooseEffectAsync(),
             subtitle: string.IsNullOrEmpty(mode.About) ? null : mode.About);
+        AddRow("Surprise me", null, "\uE8B1", click: () => Save(() =>
+        {
+            var (fx, one, two) = AllyControl.Surprise();
+            s.AllyLights = fx; s.AllyLightColor = one; s.AllyLightColor2 = two;
+        }, () => AllyControl.ApplyLights(force: true)), subtitle: "A random effect with two colors that go together. Press again for another");
         if (LightFx.UsesColor(s.AllyLights))
         {
             AddRow(s.AllyLights == "sticks" ? "Left stick color" : "Color", ColorName(s.AllyLightColor), "",

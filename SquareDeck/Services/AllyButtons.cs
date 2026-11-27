@@ -106,6 +106,25 @@ public static class AllyButtons
     public static byte LastCode { get; private set; }
     public static DateTime LastCodeAt { get; private set; }
 
+    /// <summary>
+    /// The last button press as its raw code, with "m" in front while Mode is held ("147", "m166"): what a button set
+    /// up by pressing it is stored under (Settings > ROG Ally buttons), so it works whatever the model calls it.
+    /// </summary>
+    public static string? LastPressKey { get; private set; }
+
+    /// <summary>A code that is a button being pressed (not a release, Mode itself or the end of a hold).</summary>
+    public static bool IsPressCode(byte code) => code is not (Release or ModePress or ACHoldRelease);
+
+    /// <summary>"Xbox Library button (code 147)", "Mode + Command Center button (code 166)": a learned button's name.</summary>
+    public static string DescribeKey(string key)
+    {
+        bool mode = key.StartsWith('m');
+        if (!byte.TryParse(mode ? key[1..] : key, out byte code)) return key;
+        string name = NameOf(code);
+        if (name == "Unknown button") name = "Button";
+        return (mode ? "Mode + " : "") + name + $" (code {code})";
+    }
+
     /// <summary>Raised for every report from the buttons, with its code (on the window's thread).</summary>
     public static event Action<byte>? Heard;
 
@@ -330,8 +349,11 @@ public static class AllyButtons
                 byte code = Marshal.ReadByte(buffer, headerSize + 8 + 1);
                 LastCode = code;
                 LastCodeAt = DateTime.Now;
+                // Before Interpret, which tracks Mode: the raw code of a press, for buttons set up by pressing them.
+                LastPressKey = IsPressCode(code) ? (_modeHeld ? "m" : "") + code : null;
                 try { Heard?.Invoke(code); } catch (Exception) { }
-                return Interpret(code);
+                // A press with no name of its own still counts ("code"): it may be a button set up by pressing it.
+                return Interpret(code) ?? (LastPressKey != null ? "code" : null);
             }
             finally { Marshal.FreeHGlobal(buffer); }
         }

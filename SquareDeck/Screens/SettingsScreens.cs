@@ -2544,6 +2544,11 @@ public sealed partial class SettingsScreen : ListScreen
         var mode = AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights);
         AddRow("Effect", mode.Name ?? "Leave as it is", "\uE781", click: () => _ = ChooseLightEffectAsync(),
             subtitle: string.IsNullOrEmpty(mode.About) ? "The rings around the sticks" : mode.About);
+        AddRow("Surprise me", null, "\uE8B1", click: () => AllySave(() =>
+        {
+            var (fx, one, two) = AllyControl.Surprise();
+            s.AllyLights = fx; s.AllyLightColor = one; s.AllyLightColor2 = two;
+        }, () => AllyControl.ApplyLights(force: true)), subtitle: "A random effect with two colors that go together. Press again for another");
         if (LightFx.UsesColor(s.AllyLights) && s.AllyLights.Length > 0)
         {
             bool sticks = s.AllyLights == "sticks";

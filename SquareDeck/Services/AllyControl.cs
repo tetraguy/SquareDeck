@@ -34,7 +34,29 @@ public static class AllyControl
         ("comet", "Comet", "A bright point of your color running round both sticks"),
         ("swap", "Color swap", "Your two colors trade sticks, back and forth"),
         ("temperature", "Processor temperature", "Blue when cool through green and amber to red when hot"),
+        // 8.5.58: ideas from the Colores plugin, written for SquareDeck.
+        ("gradient", "Gradient", "Your two colors blended across both sticks, left to right"),
+        ("wave", "Wave", "Your two colors rolling across the sticks like a wave"),
+        ("cycle", "Color cycle", "Your colors and the accent moving round the zones together"),
+        ("spiral", "Spiral", "Each ring spins with shifting colors, the sticks turning opposite ways"),
+        ("lava", "Lava", "Molten reds, oranges and gold bubbling slowly"),
+        ("galaxy", "Galaxy", "Deep purples and blues, with a star flaring now and then"),
+        ("sparkle", "Sparkle", "Your color, with quick twinkles of your second color"),
+        ("ripple", "Ripple", "A ring of your color spreading out from the middle of each stick"),
+        ("cpu", "Processor load", "Green when idle through amber to red when busy, breathing faster as it works"),
+        ("clock", "Time of day", "Night blue, sunrise orange, daylight, sunset red and dusk purple, through the day"),
+        ("ambilight", "Ambilight", "The sticks take the colors on screen beside them, as you play"),
     };
+
+    /// <summary>"Surprise me": a random gradient-style effect with two colors that go together.</summary>
+    public static (string Mode, string One, string Two) Surprise()
+    {
+        var rnd = new Random();
+        string[] modes = { "gradient", "wave", "cycle", "sparkle", "ripple", "breathing", "swap" };
+        double h = rnd.NextDouble() * 360, gap = 90 + rnd.NextDouble() * 120; // two hues far enough apart to read
+        string Hex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+        return (modes[rnd.Next(modes.Length)], Hex(LightFx.Hue(h)), Hex(LightFx.Hue(h + gap)));
+    }
 
     public static readonly (string Hex, string Name)[] Palette =
     {

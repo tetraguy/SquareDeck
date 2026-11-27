@@ -265,7 +265,7 @@ public partial class MainWindow
         }
         else if (message == AllyButtons.WmInput && _allyListening && AllyButtons.Read(lParam) is string press)
         {
-            OnAllyButton(press);
+            OnAllyButton(press, AllyButtons.LastPressKey);
         }
         return IntPtr.Zero;
     }
@@ -361,8 +361,16 @@ public partial class MainWindow
         _backKeysRegistered = false;
     }
 
-    private void OnAllyButton(string press)
+    private void OnAllyButton(string press, string? codeKey = null)
     {
+        // A button set up by pressing it (by its raw code) comes first: it works whatever the model calls the button.
+        if (Settings.AllyRemap && codeKey != null && (Settings.AllyCodeBindings ??= new()).TryGetValue(codeKey, out var learned) && !string.IsNullOrEmpty(learned)
+            && !(Settings.ExperimentAllyQuickMenu.Length > 0 && press == Settings.ExperimentAllyQuickMenu && WidgetWanted()))
+        {
+            RunAllyAction(learned);
+            return;
+        }
+        if (press == "code") return; // a code with no name and nothing set up for it
         // One Ally button opens SquareDeck's Game Bar widget while a game is in front.
         if (Settings.ExperimentAllyQuickMenu.Length > 0 && press == Settings.ExperimentAllyQuickMenu)
         {

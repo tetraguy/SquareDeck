@@ -510,12 +510,23 @@ public sealed class AllyButtonsScreen : ListScreen
 
         if (s.AllyRemap)
         {
+            // Set up by pressing it: the binding goes to the exact code the button sends, so it works on any model.
+            AddHeader("Set up by pressing the button");
+            AddRow("Press a button to set it up", null, "\uE7C8", click: () => _ = LearnAsync(),
+                subtitle: "Press the Library, Command Center or Armoury Crate button (or Mode + one), then choose what it does. The surest way on the ROG Xbox Ally X20");
+            foreach (var (key, act) in (s.AllyCodeBindings ??= new()).OrderBy(k => k.Key))
+            {
+                string k = key;
+                AddRow(AllyButtons.DescribeKey(k), AllyButtons.Actions.FirstOrDefault(a => a.Id == act).Name ?? "Nothing", "\uE765",
+                    click: () => _ = ChooseLearnedAsync(k));
+            }
             AddHeader("Buttons");
             foreach (var (id, name) in AllyButtons.Buttons)
             {
-                // The Xbox Allys have the Xbox Library button in place of Command Center. It's always listed, so it can be set
-                // up even when the model isn't recognized (choose it above).
-                if (id.EndsWith("cc") && AllyButtons.IsXboxAlly) continue;
+                // Every button is listed whatever the model: the Xbox Allys (the X20 too) have Command Center on the right and
+                // the Library button on the left (HandheldCompanion reads the same codes on every Ally). The Armoury Crate
+                // button is only on the first two Allys.
+                if (id is "ac" or "mode-ac" && AllyButtons.IsXboxAlly && !AllyButtons.SwapsCodes) continue;
                 // M1 / M2 only send something once they're turned on in ROG Ally controls.
                 if (id is "m1" or "m2" && !s.AllyBackKeys) continue;
                 string button = id;
@@ -563,6 +574,54 @@ public sealed class AllyButtonsScreen : ListScreen
                 "doesn't, because that needs code injected into another program.");
         AddNote("Remapping works while SquareDeck is running. Hold Mode (the back button) and press another button for the Mode + actions. " +
                 "This part of SquareDeck is based on AnyFSE by Artem Shpynov (MIT licence).");
+    }
+
+    /// <summary>Waits for the next Ally button press, then asks what it should do.</summary>
+    private async Task LearnAsync()
+    {
+        var s = Host.Settings;
+        Host.ApplyAllyButtons(); // make sure SquareDeck is listening
+        var heard = new TaskCompletionSource<string?>();
+        BusyScreen? wait = null;
+        void OnCode(byte code)
+        {
+            if (!AllyButtons.IsPressCode(code) || AllyButtons.LastPressKey is not { } key) return;
+            heard.TrySetResult(key);
+        }
+        AllyButtons.Heard += OnCode;
+        wait = new BusyScreen("Press the Ally button you want to set up.\nHold Mode (the back button) first for a Mode + combination.", cancel: () => heard.TrySetResult(null));
+        Host.Push(wait);
+        var timeout = Task.Delay(TimeSpan.FromSeconds(20));
+        var done = await Task.WhenAny(heard.Task, timeout);
+        AllyButtons.Heard -= OnCode;
+        if (Host.IsTop(wait)) Host.Pop(wait);
+        string? learnedKey = done == heard.Task ? heard.Task.Result : null;
+        if (learnedKey == null)
+        {
+            if (done == timeout)
+                await Host.AskAsync("No button heard", AllyButtons.IsSupported
+                    ? "SquareDeck didn't hear an Ally button. Try again, and check the button test on this page shows a code when you press it."
+                    : "SquareDeck couldn't find the Ally's button device.", "OK");
+            Rebuild();
+            return;
+        }
+        await ChooseLearnedAsync(learnedKey);
+    }
+
+    private async Task ChooseLearnedAsync(string key)
+    {
+        var s = Host.Settings;
+        s.AllyCodeBindings ??= new();
+        bool known = s.AllyCodeBindings.ContainsKey(key);
+        var labels = AllyButtons.Actions.Select(a => a.Name).ToList();
+        if (known) labels.Add("Forget this button");
+        int choice = await Host.AskAsync(AllyButtons.DescribeKey(key), "What should this button do?", labels.ToArray());
+        if (choice < 0) { Rebuild(); return; }
+        if (choice >= AllyButtons.Actions.Length) s.AllyCodeBindings.Remove(key);
+        else s.AllyCodeBindings[key] = AllyButtons.Actions[choice].Id;
+        s.Save();
+        Host.ApplyAllyButtons();
+        Rebuild();
     }
 
     private async Task ChooseAsync(string button, string name)
