@@ -17,15 +17,15 @@ public sealed class LightEffectPicker : Screen
 {
     private readonly TaskCompletionSource<int> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly (string? Id, string Preview, string Name, string About)[] _options;
-    private readonly int _current;
+    private int _current;
     private readonly string _title;
     private readonly string? _message;
     private readonly LightFx.Inputs _inputs;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(33) };
     private readonly DateTime _started = DateTime.UtcNow;
     private readonly List<Button> _rows = new();
-    private readonly Path[] _zones = new Path[4];
-    private readonly Path[] _glows = new Path[4];
+    private readonly Path[] _zones = new Path[8];
+    private readonly Path[] _glows = new Path[8];
     private TextBlock? _name, _about;
     private string _preview = "";
     private bool _s2;
@@ -49,9 +49,10 @@ public sealed class LightEffectPicker : Screen
 
     /// <summary>Opens the picker over <paramref name="owner"/> (in the Switch 2 look where that page has it) and waits for a choice.</summary>
     public static async Task<int> AskAsync(Screen owner, string title, string? message,
-        (string? Id, string Preview, string Name, string About)[] options, int current, LightFx.Inputs inputs)
+        (string? Id, string Preview, string Name, string About)[] options, int current, LightFx.Inputs inputs, Func<int, Task>? onPick = null)
     {
-        var picker = new LightEffectPicker(title, message, options, current, inputs);
+        // With onPick, choosing an effect applies it straight away and the list stays open (B closes it).
+        var picker = new LightEffectPicker(title, message, options, current, inputs) { _onPick = onPick };
         if (Switch2Pages.Applies(owner)) picker.UseSwitch2Look();
         owner.Host.Push(picker);
         return await picker.Result;
@@ -169,33 +170,29 @@ public sealed class LightEffectPicker : Screen
         const double R = 34, Thick = 9;
         var cap = new Ellipse { Width = 50, Height = 50, Fill = new RadialGradientBrush(Color.FromRgb(0x3A, 0x3E, 0x47), Color.FromRgb(0x18, 0x1A, 0x1F)) };
         Canvas.SetLeft(cap, cx - 25); Canvas.SetTop(cap, cy - 25);
-        // The outer half faces away from the screen: left on the left stick, right on the right stick.
-        bool leftStick = firstZone == 0;
-        for (int half = 0; half < 2; half++)
+        // Four LEDs a ring (as on the X20), clockwise from the lower left: lower left, upper left, upper right, lower
+        // right. Zones 0-3 the left stick, 4-7 the right. On four-zone Allys each half ring shows its pair's colors.
+        int first = firstZone == 0 ? 0 : 4;
+        double[] centers = { 135, 225, 315, 45 }; // degrees, y pointing down
+        for (int k = 0; k < 4; k++)
         {
-            bool outerHalf = half == 0;
-            bool leftHalf = leftStick ? outerHalf : !outerHalf;
-            var arc = Arc(cx, cy, R, leftHalf);
-            int zone = firstZone + (leftStick ? half : 1 - half); // left stick: 0 outer, 1 inner; right stick: 2 inner, 3 outer
+            var arc = Quarter(cx, cy, R, centers[k]);
             var glow = new Path { Data = arc, StrokeThickness = Thick + 10, Opacity = 0.55, Effect = new BlurEffect { Radius = 14 }, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
             var line = new Path { Data = arc, StrokeThickness = Thick, StrokeStartLineCap = PenLineCap.Flat, StrokeEndLineCap = PenLineCap.Flat };
             canvas.Children.Add(glow);
             canvas.Children.Add(line);
-            _zones[zone] = line;
-            _glows[zone] = glow;
+            _zones[first + k] = line;
+            _glows[first + k] = glow;
         }
         canvas.Children.Add(cap);
     }
 
-    /// <summary>Half a ring: the left half or the right half, with a small gap at the top and bottom.</summary>
-    private static Geometry Arc(double cx, double cy, double r, bool leftHalf)
+    /// <summary>A quarter of a ring centred on <paramref name="centerDeg"/>, with small gaps between quarters.</summary>
+    private static Geometry Quarter(double cx, double cy, double r, double centerDeg)
     {
-        double gap = 6 * Math.PI / 180;
-        double a0 = leftHalf ? Math.PI / 2 + gap : -Math.PI / 2 + gap, a1 = leftHalf ? 3 * Math.PI / 2 - gap : Math.PI / 2 - gap;
-        var start = new Point(cx + r * Math.Cos(a0), cy + r * Math.Sin(a0));
-        var end = new Point(cx + r * Math.Cos(a1), cy + r * Math.Sin(a1));
-        var figure = new PathFigure { StartPoint = start, IsClosed = false };
-        figure.Segments.Add(new ArcSegment(end, new Size(r, r), 0, false, SweepDirection.Clockwise, true));
+        double gap = 5, a0 = (centerDeg - 45 + gap) * Math.PI / 180, a1 = (centerDeg + 45 - gap) * Math.PI / 180;
+        var figure = new PathFigure { StartPoint = new Point(cx + r * Math.Cos(a0), cy + r * Math.Sin(a0)), IsClosed = false };
+        figure.Segments.Add(new ArcSegment(new Point(cx + r * Math.Cos(a1), cy + r * Math.Sin(a1)), new Size(r, r), 0, false, SweepDirection.Clockwise, true));
         var g = new PathGeometry();
         g.Figures.Add(figure);
         g.Freeze();
@@ -214,8 +211,8 @@ public sealed class LightEffectPicker : Screen
     private void Draw()
     {
         double t = (DateTime.UtcNow - _started).TotalSeconds;
-        var frame = LightFx.Frame(_preview, t, _inputs);
-        for (int z = 0; z < 4; z++)
+        var frame = LightFx.Frame8(_preview, t, _inputs);
+        for (int z = 0; z < 8; z++)
         {
             if (_zones[z] == null) continue;
             var c = frame[z];
@@ -226,8 +223,20 @@ public sealed class LightEffectPicker : Screen
         }
     }
 
+    private Func<int, Task>? _onPick;
+
     private void Choose(int index)
     {
+        if (_onPick != null)
+        {
+            // Stays open: the choice is applied, the mark moves to it, and the highlight stays where it was.
+            _current = index;
+            Build();
+            Show(index);
+            if (index >= 0 && index < _rows.Count) Dispatcher.BeginInvoke(new Action(() => _rows[index].Focus()), System.Windows.Threading.DispatcherPriority.Input);
+            try { _ = _onPick(index); } catch (Exception) { }
+            return;
+        }
         _done.TrySetResult(index);
         Host.Pop(this);
     }

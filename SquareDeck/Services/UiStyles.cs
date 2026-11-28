@@ -501,7 +501,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "pixel-woods", Name = "Pixel Woods", Sounds = "retro", Music = "track:Ripples", Moving = "Pixel Forest", Wallpaper = "",
+            Id = "pixel-woods", Mythical = true, /* moved from Legendary (8.5.101) */ Name = "Pixel Woods", Sounds = "retro", Music = "track:Ripples", Moving = "Pixel Forest", Wallpaper = "",
             Description = "Deep in a pixel forest: mossy greens and bark browns, a fern-green highlight, pixel lettering and button pictures, soft retro blips and gentle rippling music.",
             Dark = new[] { "#0C140C", "#EAF3E2", "#9DB28E", "#CC172416", "#CC121D12", "#8CD65A" },
             Font = "file:pixel-it-5x4.ttf#Pixel It! 5x4", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
@@ -966,7 +966,7 @@ public static class UiStyles
     {
         new()
         {
-            Id = "adv-meridian", Name = "Meridian", Sounds = "chime", NavSounds = "glass", Music = "track:Meditation", Moving = "", Wallpaper = "image:Meridian.jpg",
+            Id = "adv-meridian", Mythical = true, /* moved from Legendary (8.5.101) */ Name = "Meridian", Sounds = "chime", NavSounds = "glass", Music = "track:Meditation", Moving = "", Wallpaper = "image:Meridian.jpg",
             Description = "A celestial atlas: midnight-blue cards framed in engraved gold, pop-ups with a ruled header and astrolabe corners, astrolabe rings for the Home buttons, switches that turn a new moon full, check boxes that light a star, gold line icons, a compass-needle pointer, and a hand-plotted star chart with constellations behind it all.",
             Dark = new[] { "#070D1F", "#F3E9D2", "#A9B3CF", "#101A36", "#0E1730", "#E8C27A" }, Mode = "dark",
             Font = "file:Marcellus-Regular.ttf#Marcellus", TileCorner = 8, RowCorner = 12, RingThickness = 3, Buttons = "circle",
@@ -990,7 +990,7 @@ public static class UiStyles
             Dark = new[] { "#020B10", "#E6FFFC", "#8FC9C4", "#0B2A36", "#08202A", "#4DF5E3" }, Mode = "dark",
             Font = "file:Play-Regular.ttf#Play", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "float", Backdrop = new[] { "#07323E", "#010508" }, PageScrim = 0.5,
-            Skin = new AdvancedSkin("abyss"), TileAnimation = "float"
+            Mythical = true, Skin = new AdvancedSkin("abyss"), TileAnimation = "float"
         },
         new()
         {
@@ -999,7 +999,7 @@ public static class UiStyles
             Light = new[] { "#E4EDE2", "#1E2B22", "#5C6E60", "#F3F7F1", "#D7E3D5", "#3E7B4F" }, ForceLight = true,
             Font = "file:CrimsonText-Regular.ttf#Crimson Text", TileCorner = 8, RowCorner = 8, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#DCEBD9", "#A9C9A5" }, PageScrim = 0.35,
-            Skin = new AdvancedSkin("greenhouse"), TileAnimation = "lift"
+            Mythical = true, Skin = new AdvancedSkin("greenhouse"), TileAnimation = "lift"
         },
         new()
         {
@@ -1008,7 +1008,7 @@ public static class UiStyles
             Light = new[] { "#F3EDE4", "#2E3447", "#7A7F8F", "#FFFFFF", "#E9E1D6", "#F27D72" }, ForceLight = true,
             Font = "file:VarelaRound-Regular.ttf#Varela Round", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#FBEFE6", "#F2E2D8" }, PageScrim = 0.3,
-            Skin = new AdvancedSkin("origami"), TileAnimation = "lift"
+            Mythical = true, Skin = new AdvancedSkin("origami"), TileAnimation = "lift"
         },
         new()
         {
@@ -1026,7 +1026,7 @@ public static class UiStyles
             Dark = new[] { "#141110", "#F4E6D8", "#A8968A", "#241F1C", "#1E1A18", "#FF7A1A" }, Mode = "dark",
             Font = "file:SairaCondensed-Regular.ttf#Saira Condensed", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "hard", Backdrop = new[] { "#0E0A09", "#1A0F0A" }, PageScrim = 0.5,
-            Skin = new AdvancedSkin("forge"), TileAnimation = "lockon"
+            Mythical = true, Skin = new AdvancedSkin("forge"), TileAnimation = "lockon"
         },
         new()
         {
@@ -1035,7 +1035,7 @@ public static class UiStyles
             Dark = new[] { "#0A1626", "#EAF6FF", "#9DB5C9", "#14273D", "#102034", "#7FE7D6" }, Mode = "dark",
             Font = "file:DidactGothic-Regular.ttf#Didact Gothic", TileCorner = 12, RowCorner = 10, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#050B18", "#0E2238" }, PageScrim = 0.5,
-            Skin = new AdvancedSkin("glacier"), TileAnimation = "float"
+            Mythical = true, Skin = new AdvancedSkin("glacier"), TileAnimation = "float"
         },
         new()
         {
@@ -1044,7 +1044,7 @@ public static class UiStyles
             Light = new[] { "#E6D3AD", "#3A2A18", "#7A6346", "#F1E4C6", "#DCC79D", "#A83A2A" }, ForceLight = true,
             Font = "file:IMFeENrm28P.ttf#IM FELL English", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#E6D3AD", "#D4BC8A" }, PageScrim = 0.35,
-            Skin = new AdvancedSkin("cartographer"), TileAnimation = "breathe"
+            Mythical = true, Skin = new AdvancedSkin("cartographer"), TileAnimation = "breathe"
         },
         new()
         {
@@ -1057,19 +1057,452 @@ public static class UiStyles
             Backdrop = new[] { "#140A22", "#05030A" }, PageScrim = 0.5,
             Mythical = true, Skin = new AdvancedSkin("axiom"), TileAnimation = "lockon" // 8.5.54: the one Mythical style (the others moved to Legendary)
         },
-        // 8.5.55: E-Day, Mythical, inspired by the Gears of War games. The artwork is drawn by Claude (battle-worn
-        // gunmetal, crimson paint, bolts and stencil icons; no emblems or characters). The music, sounds and the live
-        // background are the owner's own files: like Axiom's, they're kept out of the public repository.
+        // 8.5.66+: Mythical styles made from the owner's UI kits (Illustrator files): each kit's own pieces, cut out and
+        // emptied, with the few it doesn't have drawn to match. Like Axiom's art, the kits' pieces stay out of the public
+        // repository (stock assets). Soft Touch and Blurred Tint were removed in 8.5.72.
         new()
         {
-            Id = "myth-eday", Name = "E-Day", Sounds = "pack:E-Day", Music = "track:E-Day", Moving = "E-Day", Wallpaper = "image:EDay.jpg",
-            Description = "Inspired by Gears of War: battle-worn gunmetal plates held by hex bolts, chipped and scratched, with a crimson paint tab on every row; pop-ups under a crimson steel header with black hazard stripes; octagonal armored home buttons ringed in red; lever switches that light up crimson; stencil icons (a bunker, ammo crates, dog tags, a field radio); a crimson arrowhead pointer; a stencil military font; the war-torn red live background; the E-Day theme playing; and the franchise's own interface sounds.",
-            Dark = new[] { "#0A0606", "#F0E8DA", "#A89C8C", "#1E1A18", "#161312", "#D21E26" }, Mode = "dark",
-            Font = "file:BlackOpsOne-Regular.ttf#Black Ops One", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
-            RingColors = new[] { "#D21E26", "#FF5A4A", "#7A0A10", "#FF5A4A", "#D21E26" },
-            HeroOpacity = 0, Glow = true, Footer = "bar", Shadow = "hard", Ambient = "sparkle", Overlay = "vignette",
-            Backdrop = new[] { "#1A0606", "#050202" }, PageScrim = 0.55,
-            Mythical = true, Skin = new AdvancedSkin("eday"), TileAnimation = "lockon"
+            Id = "myth-amberglow", Name = "Amber Glow", Mode = "dark", Sounds = "soft", NavSounds = "tick", Music = "track:Gaming Vibes", Moving = "",
+            Wallpaper = "image:AmberGlow.jpg",
+            Description = "Dark and soft, from a dark UI kit: the kit's raised charcoal tiles for rows and home cards, its raised buttons and card for pop-ups, its round knobs for home buttons, its own switches with the orange track, orange check squares, and thin orange line icons, on charcoal with a faint amber glow.",
+            Light = new[] { "#212329", "#E4E5EA", "#7D808C", "#2A2C33", "#2E3038", "#F89A1C" },
+            Dark = new[] { "#212329", "#E4E5EA", "#7D808C", "#2A2C33", "#2E3038", "#F89A1C" },
+            Font = "file:Overpass-Regular.ttf#Overpass", TileCorner = 22, RowCorner = 20, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#F89A1C", "#FFB64D", "#E07A00", "#FFB64D", "#F89A1C" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#2A2C33", "#1B1C21" }, PageScrim = 0.4,
+            Mythical = true, Skin = new AdvancedSkin("amberglow"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-coralnight", Name = "Coral Night", Mode = "dark", Sounds = "glass", NavSounds = "tick", Music = "track:Sun Rays", Moving = "",
+            Wallpaper = "image:CoralNight.jpg",
+            Description = "Deep navy and coral, from a dark gradient UI kit: the kit's inset navy card for rows, cards and pop-ups, its coral-to-red pill for buttons, its orange-to-red sun for home buttons, gradient switches, the kit's check squares, and solid white icons, over navy with blurred coral glows.",
+            Light = new[] { "#131826", "#FFFFFF", "#9AA0B4", "#1B2135", "#20273D", "#FF4A3D" },
+            Dark = new[] { "#131826", "#FFFFFF", "#9AA0B4", "#1B2135", "#20273D", "#FF4A3D" },
+            Font = "file:Montserrat-Regular.ttf#Montserrat", TileCorner = 22, RowCorner = 20, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#FF9630", "#FF5A3C", "#F01E3A", "#FF5A3C", "#FF9630" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#1A2034", "#0D101C" }, PageScrim = 0.4,
+            Mythical = true, Skin = new AdvancedSkin("coralnight"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-neontide", Name = "Neon Tide", Mode = "dark", Sounds = "glass", NavSounds = "droplet", Music = "track:Waves", Moving = "",
+            Wallpaper = "image:NeonTide.jpg",
+            Description = "Glassy navy with teal and violet, from a dark UI kit: the kit's glass card with its thin light border for rows, cards and pop-ups, its teal gradient button, its dial for home buttons, its own pill switches (teal on, violet off), its glass and violet check squares, and clean white line icons over a navy-to-midnight gradient.",
+            Light = new[] { "#0B1530", "#FFFFFF", "#8F9BC4", "#26345A", "#2C3A62", "#00C2B2" },
+            Dark = new[] { "#0B1530", "#FFFFFF", "#8F9BC4", "#26345A", "#2C3A62", "#00C2B2" },
+            Font = "file:Roboto-Regular.ttf#Roboto", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#00C2B2", "#00A3D6", "#7B5CFF", "#00A3D6", "#00C2B2" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#1C2A4E", "#060E22" }, PageScrim = 0.4,
+            Mythical = true, Skin = new AdvancedSkin("neontide"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-violetpulse", Name = "Violet Pulse", Mode = "dark", Sounds = "glass", NavSounds = "tick", Music = "track:Es Vapour", Moving = "",
+            Wallpaper = "image:VioletPulse.jpg",
+            Description = "Charcoal with an electric blue-to-violet gradient, from a dark UI kit: the kit's inset charcoal box for rows and cards, its blue-to-pink gradient for pop-ups and buttons, its gradient circles for home buttons, its own sunken switches with the grey and gradient knobs, its gradient check squares, and thin white line icons.",
+            Light = new[] { "#1F2125", "#FFFFFF", "#9A9CA8", "#2A2C33", "#303239", "#A84BF5" },
+            Dark = new[] { "#1F2125", "#FFFFFF", "#9A9CA8", "#2A2C33", "#303239", "#A84BF5" },
+            Font = "file:Montserrat-Regular.ttf#Montserrat", TileCorner = 22, RowCorner = 20, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#1E46FF", "#6A3CFF", "#A84BF5", "#D246F0", "#1E46FF" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#2A2C31", "#141519" }, PageScrim = 0.4,
+            Mythical = true, Skin = new AdvancedSkin("violetpulse"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-plumember", Name = "Plum Ember", Mode = "dark", Sounds = "soft", NavSounds = "tick", Music = "track:Dreamcore", Moving = "",
+            Wallpaper = "image:PlumEmber.jpg",
+            Description = "Soft plum with an ember glow, from a neumorphic remote-control UI kit: the kit's sunken plum pills for rows, cards and pop-ups, its search bar for buttons, its VOL dial with the glowing amber ring for home buttons, its upright OFF / ON sliders turned on their side, glowing ring check buttons, and amber line icons with a warm glow.",
+            Light = new[] { "#3A2A4C", "#EDE4F5", "#9C8DB0", "#33253F", "#3A2B48", "#F6AC56" },
+            Dark = new[] { "#3A2A4C", "#EDE4F5", "#9C8DB0", "#33253F", "#3A2B48", "#F6AC56" },
+            Font = "file:Montserrat-Regular.ttf#Montserrat", TileCorner = 24, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#F6AC56", "#F07850", "#E8645A", "#F07850", "#F6AC56" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#4A3660", "#261A32" }, PageScrim = 0.4,
+            Mythical = true, Skin = new AdvancedSkin("plumember"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-goldenhour", Name = "Golden Hour", Mode = "dark", Sounds = "chime", NavSounds = "tick", Music = "track:Daybreak", Moving = "",
+            Wallpaper = "image:GoldenHour.jpg",
+            Description = "Soft navy with a gold-to-blue sky, from a neumorphic UI kit: the kit's raised navy pills for rows and cards, its dropdown box for pop-ups, its gold pill for buttons, its raised round buttons for home buttons, its own gold-to-blue switches, its glowing dot buttons for check boxes, and clean white line icons.",
+            Light = new[] { "#1E2136", "#FFFFFF", "#9AA0BC", "#252A42", "#2A2F49", "#F5A623" },
+            Dark = new[] { "#1E2136", "#FFFFFF", "#9AA0BC", "#252A42", "#2A2F49", "#F5A623" },
+            Font = "file:OpenSans-Regular.ttf#Open Sans", TileCorner = 24, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#F5A623", "#C9A85A", "#8FA4A0", "#5E9BDF", "#F5A623" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#2A2E48", "#161828" }, PageScrim = 0.4,
+            Mythical = true, Skin = new AdvancedSkin("goldenhour"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-clouddoodle", Name = "Cloud Doodle", Mode = "light", Sounds = "bubble", NavSounds = "bubble", Music = "track:Sweetness", Moving = "",
+            Wallpaper = "image:CloudDoodle.jpg",
+            Description = "A hand-drawn sketchbook in mint and lavender, from a doodled UI kit: the kit's inked lavender cards for rows, its mint picture frame for pop-ups, its puffy lavender cloud for buttons, its mint clouds for home buttons, its cloud-knob candy-stripe switches, a star for checked and a pebble for unchecked, inked lavender icons, a doodled pointer, Patrick Hand lettering, and ruled notebook paper with the kit's clouds and stars stuck around the edges.",
+            Light = new[] { "#EEFCF4", "#1E2A30", "#5E6B7A", "#C4D2EA", "#D3DEF0", "#3FB89A" },
+            Dark = new[] { "#EEFCF4", "#1E2A30", "#5E6B7A", "#C4D2EA", "#D3DEF0", "#3FB89A" },
+            Font = "file:PatrickHand-Regular.ttf#Patrick Hand", TileCorner = 6, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#3FB89A", "#7CCEBA", "#B4A4D8", "#7CCEBA", "#3FB89A" },
+            HeroOpacity = 0, Glow = false, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#F2FDF6", "#E2F5EA" }, PageScrim = 0.3,
+            Mythical = true, Skin = new AdvancedSkin("clouddoodle"), TileAnimation = "jelly"
+        },
+        new()
+        {
+            Id = "myth-rivetedsky", Name = "Riveted Sky", Mode = "light", Sounds = "arcade", NavSounds = "tick", Music = "track:Jumps", Moving = "",
+            Wallpaper = "image:RivetedSky.jpg",
+            Description = "A cartoon game menu, from a bolted-plate game UI kit: the kit's white plates with four bolts and a glossy top for rows, cards and buttons, its sky-to-violet MENU panel with the navy title banner for pop-ups, its white disc for home buttons, switches built from its resource bar (navy-rimmed track, white disc knob), its blue close button as the check box, chunky navy icons, and a riveted sky-blue wallpaper with sparkles.",
+            Light = new[] { "#E9ECFF", "#211E4D", "#5A5F99", "#FFFFFF", "#E6E6EC", "#6461FF" },
+            Dark = new[] { "#E9ECFF", "#211E4D", "#5A5F99", "#FFFFFF", "#E6E6EC", "#6461FF" },
+            Font = "file:PatrickHand-Regular.ttf#Patrick Hand", TileCorner = 20, RowCorner = 16, RingThickness = 4, Buttons = "circle",
+            RingColors = new[] { "#211E4D", "#6461FF", "#80C4FF", "#6461FF", "#211E4D" },
+            HeroOpacity = 0, Glow = false, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#9CCBFF", "#7472FF" }, PageScrim = 0.25,
+            Mythical = true, Skin = new AdvancedSkin("rivetedsky"), TileAnimation = "jelly"
+        },
+        new()
+        {
+            Id = "myth-petalglass", Name = "Petal Glass", Mode = "light", Sounds = "glass", NavSounds = "droplet", Music = "track:Aero", Moving = "",
+            Wallpaper = "image:PetalGlass.jpg",
+            Description = "Frosted glass over pink petals, from a glassmorphism app kit: milky glass tiles with a bright rim for rows and cards, glass pop-ups with the kit's blue-to-lavender header band, its blue chip for buttons, glass bubbles for home buttons, the kit's milky switch with its blue knob, and the kit's own nav icons in its blue-to-lavender, over a soft pink wallpaper of glossy blobs and paper flecks.",
+            Light = new[] { "#F6ECF7", "#5A3C6E", "#9A7FAE", "#FBF3FA", "#F3E6F2", "#60A5DA" },
+            Dark = new[] { "#F6ECF7", "#5A3C6E", "#9A7FAE", "#FBF3FA", "#F3E6F2", "#60A5DA" },
+            Font = "file:OpenSans-Regular.ttf#Open Sans", TileCorner = 22, RowCorner = 20, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#60A5DA", "#8AAAE0", "#C0ACD5", "#E890B8", "#60A5DA" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#F4E6F6", "#ECB0CC" }, PageScrim = 0.2,
+            Mythical = true, Skin = new AdvancedSkin("petalglass"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "myth-dialupdream", Name = "Dial-Up Dream", Mode = "light", Sounds = "retro", NavSounds = "tick", Music = "track:Windows XP Installation", Moving = "",
+            Wallpaper = "image:DialUpDream.jpg",
+            Description = "A kawaii retro desktop in pink, purple and aqua, from a Y2K inbox sticker kit: the kit's white rating bar for rows, its media-player window (purple title bar, little X and all) for pop-ups, pink offset-shadow buttons, the aqua smiley for home buttons, window-control boxes for check boxes (an X when checked, like the old desktops), pink-and-aqua switches, the kit's stickers as icons, and a pink grid desktop with sparkles, a planet, a cloud and smileys.",
+            Light = new[] { "#FFD7F9", "#6E3FC1", "#A27BD8", "#FFFFFF", "#FFE6FB", "#9447ED" },
+            Dark = new[] { "#FFD7F9", "#6E3FC1", "#A27BD8", "#FFFFFF", "#FFE6FB", "#9447ED" },
+            Font = "file:Montserrat-Regular.ttf#Montserrat", TileCorner = 18, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#9447ED", "#FF9CEE", "#48E7EB", "#FF9CEE", "#9447ED" },
+            HeroOpacity = 0, Glow = false, Footer = "pill", Shadow = "hard",
+            Backdrop = new[] { "#FFD7F9", "#FFC4F3" }, PageScrim = 0.15,
+            Mythical = true, Skin = new AdvancedSkin("dialupdream"), TileAnimation = "jelly"
+        },
+        new()
+        {
+            Id = "myth-goodnotes", Name = "Good Notes", Mode = "light", Sounds = "soft", NavSounds = "tick", Music = "track:Coffee Shop", Moving = "",
+            Wallpaper = "image:GoodNotes.jpg",
+            Description = "Clean editorial paper on warm mustard, from a landing-page template: beige paper cards with a thin ink edge and a soft shadow, a pop-up page with the template's black year tab clipped to its edge, black block buttons, the template's own smiley (face wiped) for home buttons, its outlined mustard bar with a black tab as the switch, ink-X check boxes, thin black line icons, and a mustard wallpaper washed with the template's own marble.",
+            Light = new[] { "#FAC656", "#221F1F", "#6B5A3A", "#E2DBCE", "#EFE8DC", "#221F1F" },
+            Dark = new[] { "#FAC656", "#221F1F", "#6B5A3A", "#E2DBCE", "#EFE8DC", "#221F1F" },
+            Font = "file:Roboto-Regular.ttf#Roboto", TileCorner = 0, RowCorner = 0, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#221F1F", "#EFBE53", "#221F1F", "#EFBE53", "#221F1F" },
+            HeroOpacity = 0, Glow = false, Footer = "line", Shadow = "soft",
+            Backdrop = new[] { "#FAC656", "#F2B947" }, PageScrim = 0.15,
+            Mythical = true, Skin = new AdvancedSkin("goodnotes"), TileAnimation = "lockon"
+        },
+        // 8.5.78: seventeen more, drawn from the owner's reference images (style studies, redrawn sharp in code).
+        new()
+        {
+            Id = "myth-atomic", Name = "Atomic Cream", Mode = "light", Sounds = "marimba", NavSounds = "tick", Music = "track:Coffee Shop", Moving = "",
+            Wallpaper = "image:AtomicCream.jpg",
+            Description = "Mid-century flat: cream cards with a teal rim, teal buttons with the little divider and number slot, navy discs for home buttons, a navy switch with an orange knob, navy DONE ticks for check boxes, white glyphs on teal, navy and orange tiles, and a cream wallpaper with halftone dots, retro stripes and starbursts.",
+            Light = new[] { "#F6EED3", "#14284B", "#5C6F8A", "#FBF5E2", "#F1E6C6", "#E8730C" },
+            Dark = new[] { "#F6EED3", "#14284B", "#5C6F8A", "#FBF5E2", "#F1E6C6", "#E8730C" },
+            Font = "file:Poppins-Regular.ttf#Poppins", TileCorner = 16, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#E8730C", "#2F8597", "#14284B", "#2F8597", "#E8730C" },
+            HeroOpacity = 0, Glow = false, Footer = "line", Shadow = "soft",
+            Backdrop = new[] { "#F8F1DA", "#EFE3BE" }, PageScrim = 0.2,
+            Mythical = true, Skin = new AdvancedSkin("atomic"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-ledger", Name = "Night Ledger", Mode = "dark", Sounds = "glass", NavSounds = "tick", Music = "track:Es Vapour", Moving = "",
+            Wallpaper = "image:NightLedger.jpg",
+            Description = "A night-mode wallet: deep charcoal cards with soft round corners, a salmon underline on pop-ups, salmon-gradient buttons with a glow, salmon tiles for home buttons, a dark switch with a periwinkle-to-aqua knob, periwinkle check boxes, white glyphs, and a slate wallpaper with the reference's diagonal fold.",
+            Light = new[] { "#2B2C36", "#F2F2F7", "#8A8CA2", "#22222B", "#2C2D39", "#F5A3A0" },
+            Dark = new[] { "#2B2C36", "#F2F2F7", "#8A8CA2", "#22222B", "#2C2D39", "#F5A3A0" },
+            Font = "file:Mulish-Regular.ttf#Mulish", TileCorner = 26, RowCorner = 24, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#F5A3A0", "#8EA4FF", "#7EE3F2", "#8EA4FF", "#F5A3A0" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#3A3B48", "#24252E" }, PageScrim = 0.4,
+            Mythical = true, Skin = new AdvancedSkin("ledger"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "myth-indigo", Name = "Indigo Pulse", Mode = "dark", Sounds = "glass", NavSounds = "droplet", Music = "track:Waves", Moving = "",
+            Wallpaper = "image:IndigoPulse.jpg",
+            Description = "Deep indigo glow: soft indigo cards with a top sheen, an orange-to-pink LOGIN gradient for buttons, indigo tiles for home buttons, a slider-style switch with an orange fill and a white knob, gradient check boxes, white glyphs, and a midnight wallpaper with the chart's two glowing waves.",
+            Light = new[] { "#1E1B5E", "#FFFFFF", "#A9A7E6", "#3431A0", "#3A37AE", "#F59A6B" },
+            Dark = new[] { "#1E1B5E", "#FFFFFF", "#A9A7E6", "#3431A0", "#3A37AE", "#F59A6B" },
+            Font = "file:Nunito-Regular.ttf#Nunito", TileCorner = 28, RowCorner = 26, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#F7B267", "#F06B8A", "#6FC3FF", "#F06B8A", "#F7B267" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#2A2690", "#14114A" }, PageScrim = 0.35,
+            Mythical = true, Skin = new AdvancedSkin("indigo"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "myth-uvslate", Name = "Ultraviolet Slate", Mode = "dark", Sounds = "glass", NavSounds = "tick", Music = "track:Dreamcore", Moving = "",
+            Wallpaper = "image:UltravioletSlate.jpg",
+            Description = "Dark neumorphic slate with an ultraviolet gradient: raised slate cards, pop-ups with the blue-to-purple header band, gradient pill buttons, slate discs with a gradient gauge ring for home buttons, a sunken track with a gradient fill, gradient-rim check boxes, gradient line icons, and a slate wallpaper with the reference's equaliser bars.",
+            Light = new[] { "#2A2B2F", "#EDEDF2", "#8C8D96", "#2F3034", "#34353A", "#8A5CF6" },
+            Dark = new[] { "#2A2B2F", "#EDEDF2", "#8C8D96", "#2F3034", "#34353A", "#8A5CF6" },
+            Font = "file:Raleway-Regular.ttf#Raleway", TileCorner = 24, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#4F6BFF", "#8A5CF6", "#C25CF0", "#8A5CF6", "#4F6BFF" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#303136", "#222326" }, PageScrim = 0.35,
+            Mythical = true, Skin = new AdvancedSkin("uvslate"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "myth-sunset", Name = "Sunset Noir", Mode = "dark", Sounds = "soft", NavSounds = "tick", Music = "track:Sun Rays", Moving = "",
+            Wallpaper = "image:SunsetNoir.jpg",
+            Description = "Charcoal neumorphism with a sunset: raised charcoal cards, sunset-gradient pill buttons, charcoal rounded tiles for home buttons, a sunken track that fills with the orange-pink-purple gradient, the reference's stop-button square for checked boxes, sunset line icons, and a charcoal wallpaper with soft sunset glows.",
+            Light = new[] { "#2B2B2B", "#F4F4F4", "#8E8E8E", "#2E2E2E", "#333333", "#F1557A" },
+            Dark = new[] { "#2B2B2B", "#F4F4F4", "#8E8E8E", "#2E2E2E", "#333333", "#F1557A" },
+            Font = "file:Montserrat-Regular.ttf#Montserrat", TileCorner = 26, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#FFA45B", "#F0487F", "#8E3FD1", "#F0487F", "#FFA45B" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#303030", "#202020" }, PageScrim = 0.35,
+            Mythical = true, Skin = new AdvancedSkin("sunset"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "myth-tealsketch", Name = "Teal Sketchbook", Mode = "light", Sounds = "bubble", NavSounds = "tick", Music = "track:Thinking of You", Moving = "",
+            Wallpaper = "image:TealSketchbook.jpg",
+            Description = "A teal sketchbook: inked aqua cards with corner hatching and the lavender offset shadow, a hand-drawn grey-lavender window with a teal title bar for pop-ups, inked teal buttons, a teal button-globe for home buttons, the ON/OFF block switch, inked check boxes, teal doodle icons with a darker half, and white paper with pencil dashes and stuck-on doodles.",
+            Light = new[] { "#F4FBFB", "#1E2A2A", "#5E7676", "#BFF3EC", "#D7F7F2", "#3E9C92" },
+            Dark = new[] { "#F4FBFB", "#1E2A2A", "#5E7676", "#BFF3EC", "#D7F7F2", "#3E9C92" },
+            Font = "file:ArchitectsDaughter-Regular.ttf#Architects Daughter", TileCorner = 6, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#3E9C92", "#5EC4B6", "#8ED9CF", "#5EC4B6", "#3E9C92" },
+            HeroOpacity = 0, Glow = false, Footer = "line", Shadow = "hard",
+            Backdrop = new[] { "#F7FCFC", "#E6F5F3" }, PageScrim = 0.2,
+            Mythical = true, Skin = new AdvancedSkin("tealsketch"), TileAnimation = "jelly"
+        },
+        new()
+        {
+            Id = "myth-magentanoir", Name = "Magenta Noir", Mode = "dark", Sounds = "deep", NavSounds = "tick", Music = "track:Fraxsu", Moving = "",
+            Wallpaper = "image:MagentaNoir.jpg",
+            Description = "Black neumorphism with hot magenta: raised black cards, magenta gradient pill buttons, black discs with a magenta ring for home buttons, a sunken switch with a magenta knob, magenta radio dots for check boxes, magenta line icons, and a charcoal wallpaper with a faint magenta waveform.",
+            Light = new[] { "#2A2A2A", "#F2F2F2", "#8A8A8A", "#262626", "#303030", "#E5149A" },
+            Dark = new[] { "#2A2A2A", "#F2F2F2", "#8A8A8A", "#262626", "#303030", "#E5149A" },
+            Font = "file:JosefinSans-Regular.ttf#Josefin Sans", TileCorner = 26, RowCorner = 24, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#FF3CC8", "#E5149A", "#C2007F", "#E5149A", "#FF3CC8" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#2E2E2E", "#1E1E1E" }, PageScrim = 0.35,
+            Mythical = true, Skin = new AdvancedSkin("magentanoir"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "myth-embersnow", Name = "Ember Snow", Mode = "light", Sounds = "soft", NavSounds = "tick", Music = "track:Daybreak", Moving = "",
+            Wallpaper = "image:EmberSnow.jpg",
+            Description = "Snow-white neumorphism with an ember glow: soft raised white cards, orange-to-red gradient pill buttons, white discs with a thin red ring for home buttons, a sunken white switch that fills with the ember gradient, CH+ style gradient check boxes, thin red line icons, and a pale wallpaper with an embossed dial.",
+            Light = new[] { "#EFEFEF", "#3A3A3A", "#9A9A9A", "#F2F2F2", "#EAEAEA", "#EF4136" },
+            Dark = new[] { "#EFEFEF", "#3A3A3A", "#9A9A9A", "#F2F2F2", "#EAEAEA", "#EF4136" },
+            Font = "file:Rubik-Regular.ttf#Rubik", TileCorner = 26, RowCorner = 24, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#F7A21B", "#F46A2B", "#EF3A3A", "#F46A2B", "#F7A21B" },
+            HeroOpacity = 0, Glow = false, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#F4F4F4", "#E4E4E4" }, PageScrim = 0.2,
+            Mythical = true, Skin = new AdvancedSkin("embersnow"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-pastelpop", Name = "Pastel Pop OS", Mode = "light", Sounds = "retro", NavSounds = "tick", Music = "track:Jewels", Moving = "",
+            Wallpaper = "image:PastelPopOS.jpg",
+            Description = "A pastel Y2K desktop: white cards with thick black outlines and hard black shadows, a yellow-to-mint window with a periwinkle title bar for pop-ups, mint pill buttons, magenta play discs for home buttons, the magenta eyeball switch, magenta tick boxes, black-outlined pastel sticker icons, and a cyan-to-lavender wallpaper with white grids and windows.",
+            Light = new[] { "#BFE3F8", "#1D1D1D", "#4B4B6A", "#FFFFFF", "#FFF6C6", "#D23BD8" },
+            Dark = new[] { "#BFE3F8", "#1D1D1D", "#4B4B6A", "#FFFFFF", "#FFF6C6", "#D23BD8" },
+            Font = "file:SpaceGrotesk-Regular.ttf#Space Grotesk", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#D23BD8", "#6EE8D0", "#FFF19A", "#8E8CF0", "#D23BD8" },
+            HeroOpacity = 0, Glow = false, Footer = "pill", Shadow = "hard",
+            Backdrop = new[] { "#A6EEF6", "#C6B9F5" }, PageScrim = 0.12,
+            Mythical = true, Skin = new AdvancedSkin("pastelpop"), TileAnimation = "jelly"
+        },
+        new()
+        {
+            Id = "myth-skybubble", Name = "Sky Bubble", Mode = "light", Sounds = "bubble", NavSounds = "droplet", Music = "track:Relaxing", Moving = "",
+            Wallpaper = "image:SkyBubble.jpg",
+            Description = "Soft sky-blue UI: white cards floating on a pale sky with soft blue shadows, blue gradient pill buttons with a glow, white bubble buttons for home buttons, a blue pill switch, blue tick boxes, blue gradient solid icons, and a pale sky wallpaper of soft bubbles and a chart line.",
+            Light = new[] { "#EAF4FD", "#1F3B5C", "#6F8BA8", "#FFFFFF", "#F2F8FE", "#2F86D9" },
+            Dark = new[] { "#EAF4FD", "#1F3B5C", "#6F8BA8", "#FFFFFF", "#F2F8FE", "#2F86D9" },
+            Font = "file:Barlow-Regular.ttf#Barlow", TileCorner = 24, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#56B1F2", "#2F86D9", "#1F6FD0", "#2F86D9", "#56B1F2" },
+            HeroOpacity = 0, Glow = false, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#F0F7FF", "#DCEBFA" }, PageScrim = 0.15,
+            Mythical = true, Skin = new AdvancedSkin("skybubble"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-icecap", Name = "Ice Cap", Mode = "light", Sounds = "glass", NavSounds = "tick", Music = "track:Meditation", Moving = "",
+            Wallpaper = "image:IceCap.jpg",
+            Description = "Pale grey neumorphism with ice blue: raised grey cards, blue gradient ON/SHARE pill buttons, raised grey discs for home buttons, the reference's OFF/ON switch (sunken grey, then blue), blue radio dots for check boxes, blue outline icons, and a pale wallpaper of embossed rings.",
+            Light = new[] { "#E4E6EA", "#3C4048", "#9399A3", "#EDEFF2", "#E8EAEE", "#1E88E5" },
+            Dark = new[] { "#E4E6EA", "#3C4048", "#9399A3", "#EDEFF2", "#E8EAEE", "#1E88E5" },
+            Font = "file:Lato-Regular.ttf#Lato", TileCorner = 24, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#41A5F5", "#1E88E5", "#1565D8", "#1E88E5", "#41A5F5" },
+            HeroOpacity = 0, Glow = false, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#ECEEF2", "#DCDFE5" }, PageScrim = 0.15,
+            Mythical = true, Skin = new AdvancedSkin("icecap"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-lilacsketch", Name = "Lilac Sketch", Mode = "light", Sounds = "kalimba", NavSounds = "tick", Music = "track:Sweetness", Moving = "",
+            Wallpaper = "image:LilacSketch.jpg",
+            Description = "A lilac sketchbook: inked lilac cards with the reference's black corner tabs and hatching, a hand-drawn window with a title bar for pop-ups, inked lilac buttons with corner tabs, lilac doodle tiles for home buttons, the ON/OFF block switch, inked check boxes, lilac doodle icons, and lilac paper with outlined stars.",
+            Light = new[] { "#F6F0FF", "#2A1E3A", "#6E5C8A", "#DCC8FF", "#E8DCFF", "#9479D6" },
+            Dark = new[] { "#F6F0FF", "#2A1E3A", "#6E5C8A", "#DCC8FF", "#E8DCFF", "#9479D6" },
+            Font = "file:GochiHand-Regular.ttf#Gochi Hand", TileCorner = 6, RowCorner = 4, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#9479D6", "#B497F0", "#DCC8FF", "#B497F0", "#9479D6" },
+            HeroOpacity = 0, Glow = false, Footer = "line", Shadow = "hard",
+            Backdrop = new[] { "#F6F0FF", "#EBDFFF" }, PageScrim = 0.2,
+            Mythical = true, Skin = new AdvancedSkin("lilacsketch"), TileAnimation = "jelly"
+        },
+        new()
+        {
+            Id = "myth-sagematerial", Name = "Sage Material", Mode = "light", Sounds = "tick", NavSounds = "tick", Music = "track:At Rest", Moving = "",
+            Wallpaper = "image:SageMaterial.jpg",
+            Description = "Flat material in sage, purple, teal and plum: flat sage cards with square corners, a sage pop-up with the purple Selected header, flat purple Register buttons, sage discs with a teal progress ring for home buttons, the reference's sage and teal switches, sage tick boxes, solid purple icons, and an off-white wallpaper of flat rings and progress bars.",
+            Light = new[] { "#F5F7F4", "#2E2E38", "#7A7E85", "#E6EBE5", "#EEF1ED", "#7F5FA6" },
+            Dark = new[] { "#F5F7F4", "#2E2E38", "#7A7E85", "#E6EBE5", "#EEF1ED", "#7F5FA6" },
+            Font = "file:Roboto-Regular.ttf#Roboto", TileCorner = 0, RowCorner = 0, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#4DB6A0", "#7F5FA6", "#A0305E", "#7F5FA6", "#4DB6A0" },
+            HeroOpacity = 0, Glow = false, Footer = "line", Shadow = "none",
+            Backdrop = new[] { "#F5F7F4", "#E9EDE8" }, PageScrim = 0.1,
+            Mythical = true, Skin = new AdvancedSkin("sagematerial"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-prismpulse", Name = "Prism Pulse", Mode = "dark", Sounds = "marimba", NavSounds = "tick", Music = "track:Gaming Vibes", Moving = "",
+            Wallpaper = "image:PrismPulse.jpg",
+            Description = "Pastel prisms on dusk: near-black cards, a pop-up topped with the reference's four-colour slanted menu stripe, coral gradient buttons with a dark rim, a lilac-to-blue knob for home buttons, mint and blue switches with a white knob and coral pupil, lilac tick boxes, icons that cycle through mint, coral, blue and lilac gradients, and a dusk wallpaper with the equaliser and slanted stripes.",
+            Light = new[] { "#2A2630", "#F3F0F7", "#8D8796", "#1E1B22", "#262229", "#E86A8E" },
+            Dark = new[] { "#2A2630", "#F3F0F7", "#8D8796", "#1E1B22", "#262229", "#E86A8E" },
+            Font = "file:Quicksand-Regular.ttf#Quicksand", TileCorner = 20, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#3FB8A0", "#E5577F", "#4569A8", "#7F64B4", "#3FB8A0" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#2E2A35", "#1E1B22" }, PageScrim = 0.35,
+            Mythical = true, Skin = new AdvancedSkin("prismpulse"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "myth-infograph", Name = "Infograph", Mode = "dark", Sounds = "tick", NavSounds = "tick", Music = "track:Recuerdos", Moving = "",
+            Wallpaper = "image:Infograph.jpg",
+            Description = "Infographic black: deep black cards, a pop-up with a coral and periwinkle half-ring in its corner, coral pill buttons, white A-B-C-D discs with a coral and periwinkle ring for home buttons, periwinkle switches with a white knob, coral dots for check boxes, periwinkle outline icons, and a black wallpaper with dotted spirals, a dot grid and a little bar chart.",
+            Light = new[] { "#111111", "#F2F2F2", "#8B8B95", "#1B1B1E", "#222226", "#F26B6B" },
+            Dark = new[] { "#111111", "#F2F2F2", "#8B8B95", "#1B1B1E", "#222226", "#F26B6B" },
+            Font = "file:Comfortaa-Regular.ttf#Comfortaa", TileCorner = 20, RowCorner = 18, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#F26B6B", "#7B79D6", "#F5F5F5", "#7B79D6", "#F26B6B" },
+            HeroOpacity = 0, Glow = false, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#141414", "#0B0B0B" }, PageScrim = 0.3,
+            Mythical = true, Skin = new AdvancedSkin("infograph"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-chromecyan", Name = "Chrome Cyan", Mode = "dark", Sounds = "laser", NavSounds = "tick", Music = "track:The Axiom", Moving = "",
+            Wallpaper = "image:ChromeCyan.jpg",
+            Description = "Brushed steel and cyan light: dark brushed-metal cards with a bright rim, a pop-up with a cyan light line, dark capsules with a glowing cyan edge for buttons, spun-metal knobs in a dark socket with a cyan glow for home buttons, a steel switch over a glowing cyan slot, cyan-lit check boxes, glowing cyan icons, and a brushed-steel wallpaper with cyan equaliser sliders.",
+            Light = new[] { "#2B2B2D", "#E8EEF0", "#8A9396", "#262628", "#2E2E30", "#3CD6D8" },
+            Dark = new[] { "#2B2B2D", "#E8EEF0", "#8A9396", "#262628", "#2E2E30", "#3CD6D8" },
+            Font = "file:ChakraPetch-Regular.ttf#Chakra Petch", TileCorner = 16, RowCorner = 14, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#3CD6D8", "#9AF3F4", "#1FA8AA", "#9AF3F4", "#3CD6D8" },
+            HeroOpacity = 0, Glow = true, Footer = "bar", Shadow = "soft",
+            Backdrop = new[] { "#303032", "#1C1C1E" }, PageScrim = 0.35,
+            Mythical = true, Skin = new AdvancedSkin("chromecyan"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "myth-copythat", Name = "Copy That 95", Mode = "light", Sounds = "retro", NavSounds = "tick", Music = "track:Windows XP Installation", Moving = "",
+            Wallpaper = "image:CopyThat95.jpg",
+            Description = "A 90s desktop in tan and orange: beige cards with black outlines and hard black shadows, beige windows with the orange title bar and its minimise, maximise and close buttons for pop-ups, white Enter/Ok buttons, white radio discs for home buttons, a progress-block switch, the reference's purple radio for check boxes, black-outlined sticker icons (yellow folder, teal floppy, purple music), and a dithered tan desktop with windows and icons.",
+            Light = new[] { "#D4A88E", "#1E1A18", "#5E4A3E", "#F2D2B0", "#F7E0C4", "#EE7A05" },
+            Dark = new[] { "#D4A88E", "#1E1A18", "#5E4A3E", "#F2D2B0", "#F7E0C4", "#EE7A05" },
+            Font = "file:SpaceMono-Regular.ttf#Space Mono", TileCorner = 10, RowCorner = 8, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#EE7A05", "#8C80D6", "#F6C21A", "#8C80D6", "#EE7A05" },
+            HeroOpacity = 0, Glow = false, Footer = "bar", Shadow = "hard",
+            Backdrop = new[] { "#D4A88E", "#C69A80" }, PageScrim = 0.12,
+            Mythical = true, Skin = new AdvancedSkin("copythat"), TileAnimation = "jelly"
+        },
+        // 8.5.80: six more from the owner's reference images.
+        new()
+        {
+            Id = "myth-violetconsole", Name = "Violet Console", Mode = "dark", Sounds = "glass", NavSounds = "tick", Music = "track:Gaming Vibes", Moving = "",
+            Wallpaper = "image:VioletConsole.jpg",
+            Description = "A night-time media console in navy, graphite and electric violet: raised graphite cards, a pop-up with a violet track, violet BUY buttons with a glow, raised white discs with violet glyphs for home buttons, a graphite switch with a violet knob, violet rounded check squares, violet icons, and a navy wallpaper with the two D-pads and violet progress bars.",
+            Light = new[] { "#262838", "#F3F2F8", "#9A9CB0", "#3A3C48", "#40424F", "#A64DF5" },
+            Dark = new[] { "#262838", "#F3F2F8", "#9A9CB0", "#3A3C48", "#40424F", "#A64DF5" },
+            Font = "file:PlusJakartaSans-Regular.ttf#Plus Jakarta Sans", TileCorner = 26, RowCorner = 24, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#A64DF5", "#C68BFF", "#8A2FE0", "#C68BFF", "#A64DF5" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#2A2C3E", "#1A1C28" }, PageScrim = 0.35,
+            Mythical = true, Skin = new AdvancedSkin("violetconsole"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "myth-lavendermist", Name = "Lavender Mist", Mode = "light", Sounds = "soft", NavSounds = "tick", Music = "track:Meditation", Moving = "",
+            Wallpaper = "image:LavenderMist.jpg",
+            Description = "Soft lavender-white neumorphism with violet and charcoal: raised mist cards, violet Sign Up pills, charcoal discs with white glyphs for home buttons, the charcoal On/Off switch with its ringed knob, violet-ringed check badges, violet icons, and a mist wallpaper with the violet progress bars and ringed badges.",
+            Light = new[] { "#ECEBF5", "#2E2F38", "#8D8BA0", "#F2F1F8", "#E9E8F3", "#A33BF2" },
+            Dark = new[] { "#ECEBF5", "#2E2F38", "#8D8BA0", "#F2F1F8", "#E9E8F3", "#A33BF2" },
+            Font = "file:Montserrat-Regular.ttf#Montserrat", TileCorner = 26, RowCorner = 24, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#A33BF2", "#C27BFF", "#36373F", "#C27BFF", "#A33BF2" },
+            HeroOpacity = 0, Glow = false, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#F1F0F8", "#E1DFEE" }, PageScrim = 0.15,
+            Mythical = true, Skin = new AdvancedSkin("lavendermist"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-midnightamber", Name = "Midnight Amber", Mode = "dark", Sounds = "marimba", NavSounds = "tick", Music = "track:Coffee Shop", Moving = "",
+            Wallpaper = "image:MidnightAmber.jpg",
+            Description = "Midnight-navy tiles on warm peach with amber light: soft navy gradient cards with a thin rule, amber-rimmed navy pills for buttons, navy discs with an amber ring for home buttons, navy switches with an amber knob, amber dot check boxes, amber icons, and a peach wallpaper with the navy play tile, chart and number keys.",
+            Light = new[] { "#2C2F48", "#FBF3E8", "#AEB0C8", "#383B58", "#40446A", "#F7B23B" },
+            Dark = new[] { "#2C2F48", "#FBF3E8", "#AEB0C8", "#383B58", "#40446A", "#F7B23B" },
+            Font = "file:Outfit-Regular.ttf#Outfit", TileCorner = 24, RowCorner = 22, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#F7B23B", "#FFD27A", "#E09A20", "#FFD27A", "#F7B23B" },
+            HeroOpacity = 0, Glow = true, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#3A3D5C", "#25283E" }, PageScrim = 0.45,
+            Mythical = true, Skin = new AdvancedSkin("midnightamber"), TileAnimation = "lockon"
+        },
+        new()
+        {
+            Id = "myth-blueprintsun", Name = "Blueprint Sun", Mode = "dark", Sounds = "bubble", NavSounds = "tick", Music = "track:Daybreak", Moving = "",
+            Wallpaper = "image:BlueprintSun.jpg",
+            Description = "Bold flat sky-blue, navy and sunshine yellow: rounded navy cards on bright blue, yellow pill buttons, navy rounded tiles for home buttons, a yellow switch with a navy check knob, yellow-ringed radio check boxes, white icons, and a blue wallpaper with the navy chart card, yellow progress ring and white clouds.",
+            Light = new[] { "#5F9CF5", "#FFFFFF", "#CFE0FF", "#34508A", "#3D5A96", "#F5B323" },
+            Dark = new[] { "#5F9CF5", "#FFFFFF", "#CFE0FF", "#34508A", "#3D5A96", "#F5B323" },
+            Font = "file:DmSans-Regular.ttf#DM Sans", TileCorner = 30, RowCorner = 26, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#F5B323", "#FFFFFF", "#FFD86B", "#FFFFFF", "#F5B323" },
+            HeroOpacity = 0, Glow = false, Footer = "pill", Shadow = "none",
+            Backdrop = new[] { "#78B2FF", "#5A96F0" }, PageScrim = 0.12,
+            Mythical = true, Skin = new AdvancedSkin("blueprintsun"), TileAnimation = "jelly"
+        },
+        new()
+        {
+            Id = "myth-cyanvoid", Name = "Cyan Void", Mode = "dark", Sounds = "laser", NavSounds = "tick", Music = "track:The Axiom", Moving = "",
+            Wallpaper = "image:CyanVoid.jpg",
+            Description = "Near-black neumorphism traced in cyan light: raised void cards, pop-ups with a cyan hairline frame and a little cyan triangle, sunken pills with a glowing cyan bar for buttons, void discs with a cyan rim for home buttons, a sunken switch with the cyan pill, cyan-square check boxes, cyan icons, and a void wallpaper of cyan outlines and triangles.",
+            Light = new[] { "#1E1F22", "#E9F6FB", "#7E868C", "#222326", "#26272B", "#3FC8F5" },
+            Dark = new[] { "#1E1F22", "#E9F6FB", "#7E868C", "#222326", "#26272B", "#3FC8F5" },
+            Font = "file:Exo2-Regular.ttf#Exo 2", TileCorner = 26, RowCorner = 24, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#3FC8F5", "#8FE2FF", "#1A9FD0", "#8FE2FF", "#3FC8F5" },
+            HeroOpacity = 0, Glow = true, Footer = "bar", Shadow = "soft",
+            Backdrop = new[] { "#232427", "#141517" }, PageScrim = 0.35,
+            Mythical = true, Skin = new AdvancedSkin("cyanvoid"), TileAnimation = "glow"
+        },
+        new()
+        {
+            Id = "myth-indigohaze", Name = "Indigo Haze", Mode = "dark", Sounds = "soft", NavSounds = "tick", Music = "track:Relaxing", Moving = "",
+            Wallpaper = "image:IndigoHaze.jpg",
+            Description = "Monochrome indigo neumorphism: cards raised from the indigo itself, square-edged indigo-violet progress buttons, raised indigo discs for home buttons, the reference's violet switch with a white knob, a raised-to-violet check square, soft white line icons, and an indigo wallpaper of raised panels with a violet bar and switch.",
+            Light = new[] { "#2E2B52", "#ECEAF8", "#9C98C8", "#2E2B52", "#34315C", "#5B4FD0" },
+            Dark = new[] { "#2E2B52", "#ECEAF8", "#9C98C8", "#2E2B52", "#34315C", "#5B4FD0" },
+            Font = "file:Manrope-Regular.ttf#Manrope", TileCorner = 26, RowCorner = 24, RingThickness = 3, Buttons = "circle",
+            RingColors = new[] { "#5B4FD0", "#8C82F0", "#3E33A8", "#8C82F0", "#5B4FD0" },
+            HeroOpacity = 0, Glow = false, Footer = "pill", Shadow = "soft",
+            Backdrop = new[] { "#34315C", "#221F44" }, PageScrim = 0.3,
+            Mythical = true, Skin = new AdvancedSkin("indigohaze"), TileAnimation = "lockon"
         },
         new()
         {
@@ -1078,7 +1511,7 @@ public static class UiStyles
             Light = new[] { "#FFEFF5", "#5A2E3E", "#A36F82", "#FFFFFF", "#FFE0EC", "#FF5C9A" }, ForceLight = true,
             Font = "file:Sniglet-Regular.ttf#Sniglet", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "pill", Shadow = "soft", Backdrop = new[] { "#FFE9F2", "#E6F7FF" }, PageScrim = 0.3,
-            Skin = new AdvancedSkin("sweetshop"), TileAnimation = "jelly"
+            Mythical = true, Skin = new AdvancedSkin("sweetshop"), TileAnimation = "jelly"
         },
         new()
         {
@@ -1087,7 +1520,7 @@ public static class UiStyles
             Dark = new[] { "#0B0B0C", "#F3E6C4", "#B8A57A", "#17161A", "#121114", "#D4AF37" }, Mode = "dark",
             Font = "file:PoiretOne-Regular.ttf#Poiret One", TileCorner = 2, RowCorner = 2, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Backdrop = new[] { "#0D0C0F", "#050506" }, PageScrim = 0.5,
-            Skin = new AdvancedSkin("gatsby"), TileAnimation = "glow"
+            Mythical = true, Skin = new AdvancedSkin("gatsby"), TileAnimation = "glow"
         },
         // 7.0: ten more drawn by Claude for the Legendary tab.
         new()
@@ -1098,7 +1531,7 @@ public static class UiStyles
             Font = "file:Cinzel-Regular.ttf#Cinzel", TileCorner = 6, RowCorner = 8, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#C2183A", "#E3A21A", "#1E8C4E", "#1F4FB8", "#7A2BA8", "#C2183A" },
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Backdrop = new[] { "#120E18", "#0A0810" }, PageScrim = 0.5,
-            Skin = new AdvancedSkin("stainedglass"), TileAnimation = "glow"
+            Mythical = true, Skin = new AdvancedSkin("stainedglass"), TileAnimation = "glow"
         },
         new()
         {
@@ -1107,7 +1540,7 @@ public static class UiStyles
             Dark = new[] { "#06201E", "#EAF7EE", "#9CC2B4", "#0D2F2B", "#0B2925", "#FF8A3D" }, Mode = "dark",
             Font = "file:Comfortaa-Regular.ttf#Comfortaa", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "float", Backdrop = new[] { "#0D3B35", "#05201C" }, PageScrim = 0.45,
-            Skin = new AdvancedSkin("koipond"), TileAnimation = "float"
+            Mythical = true, Skin = new AdvancedSkin("koipond"), TileAnimation = "float"
         },
         new()
         {
@@ -1116,7 +1549,7 @@ public static class UiStyles
             Dark = new[] { "#0B2A55", "#F2F7FF", "#A8C1E3", "#11366A", "#0F3163", "#FFD34D" }, Mode = "dark",
             Font = "file:ShareTechMono-Regular.ttf#Share Tech Mono", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "none", Backdrop = new[] { "#164384", "#0B2C5A" }, PageScrim = 0.45,
-            Skin = new AdvancedSkin("blueprint"), TileAnimation = "lockon"
+            Mythical = true, Skin = new AdvancedSkin("blueprint"), TileAnimation = "lockon"
         },
         new()
         {
@@ -1125,7 +1558,7 @@ public static class UiStyles
             Dark = new[] { "#04140C", "#E8FFF0", "#8DBFA3", "#0A2618", "#082014", "#F2C14E" }, Mode = "dark",
             Font = "file:ChakraPetch-Regular.ttf#Chakra Petch", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "hard", Backdrop = new[] { "#0E3B22", "#062413" }, PageScrim = 0.5,
-            Skin = new AdvancedSkin("circuit"), TileAnimation = "lockon"
+            Mythical = true, Skin = new AdvancedSkin("circuit"), TileAnimation = "lockon"
         },
         new()
         {
@@ -1134,7 +1567,7 @@ public static class UiStyles
             Dark = new[] { "#140D0A", "#F2E3C6", "#B39A7A", "#24170F", "#1E130D", "#B48CFF" }, Mode = "dark",
             Font = "file:Almendra-Regular.ttf#Almendra", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#1C110B", "#120B08" }, PageScrim = 0.5,
-            Skin = new AdvancedSkin("grimoire"), TileAnimation = "breathe"
+            Mythical = true, Skin = new AdvancedSkin("grimoire"), TileAnimation = "breathe"
         },
         new()
         {
@@ -1152,7 +1585,7 @@ public static class UiStyles
             Light = new[] { "#F3E3C8", "#3D2A1C", "#8A6B52", "#FBF1E1", "#EED9BA", "#D9733B" }, ForceLight = true,
             Font = "file:TenorSans-Regular.ttf#Tenor Sans", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#F6E2C4", "#E6866A" }, PageScrim = 0.35,
-            Skin = new AdvancedSkin("mirage"), TileAnimation = "breathe"
+            Mythical = true, Skin = new AdvancedSkin("mirage"), TileAnimation = "breathe"
         },
         new()
         {
@@ -1161,7 +1594,7 @@ public static class UiStyles
             Light = new[] { "#F4EEE4", "#1F2E3A", "#66727C", "#FFFFFF", "#EEE5D6", "#1F7A8C" }, ForceLight = true,
             Font = "file:ElMessiri-Regular.ttf#El Messiri", TileCorner = 8, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#FFFDF8", "#F1E9DC" }, PageScrim = 0.4,
-            Skin = new AdvancedSkin("riad"), TileAnimation = "lift"
+            Mythical = true, Skin = new AdvancedSkin("riad"), TileAnimation = "lift"
         },
         new()
         {
@@ -1170,7 +1603,7 @@ public static class UiStyles
             Light = new[] { "#F5EAD7", "#3A2618", "#84664C", "#FDF6EA", "#F0E0C6", "#D4572A" }, ForceLight = true,
             Font = "file:Merienda-Regular.ttf#Merienda", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Ambient = "float", Backdrop = new[] { "#FBE7C6", "#E59A5E" }, PageScrim = 0.4,
-            Skin = new AdvancedSkin("autumn"), TileAnimation = "float"
+            Mythical = true, Skin = new AdvancedSkin("autumn"), TileAnimation = "float"
         },
         new()
         {
@@ -1179,7 +1612,7 @@ public static class UiStyles
             Light = new[] { "#FFF6D6", "#111111", "#4A4A4A", "#FFFFFF", "#FFF0B8", "#E52521" }, ForceLight = true,
             Font = "file:Bangers-Regular.ttf#Bangers", TileCorner = 4, RowCorner = 4, RingThickness = 4, Buttons = "circle",
             HeroOpacity = 0, Footer = "line", Shadow = "hard", Backdrop = new[] { "#FFF6D6", "#FFE58A" }, PageScrim = 0.55,
-            Skin = new AdvancedSkin("halftone"), TileAnimation = "jelly"
+            Mythical = true, Skin = new AdvancedSkin("halftone"), TileAnimation = "jelly"
         },
         // 7.3.46: the Mythical tier, drawn by Claude: each a world of its own, down to the switches and the pointer.
         new()
@@ -1190,7 +1623,7 @@ public static class UiStyles
             Font = "file:Forum-Regular.ttf#Forum", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#C9A24A", "#FFF1C2", "#2A55A0", "#FFF1C2", "#C9A24A" },
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "bokeh", Backdrop = new[] { "#FBE9D4", "#C9B6DA" }, PageScrim = 0.35,
-            Skin = new AdvancedSkin("olympus"), TileAnimation = "breathe"
+            Mythical = true, Skin = new AdvancedSkin("olympus"), TileAnimation = "breathe"
         },
         new()
         {
@@ -1220,7 +1653,7 @@ public static class UiStyles
             Font = "file:CormorantSC-Regular.ttf#Cormorant SC", TileCorner = 10, RowCorner = 10, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#E8B08C", "#FFE6D6", "#2E5FD0", "#FFE6D6", "#E8B08C" },
             HeroOpacity = 0, Footer = "line", Shadow = "soft", Backdrop = new[] { "#FBF6EA", "#E8DCC2" }, PageScrim = 0.35,
-            Skin = new AdvancedSkin("chronos"), TileAnimation = "lockon"
+            Mythical = true, Skin = new AdvancedSkin("chronos"), TileAnimation = "lockon"
         },
         new()
         {
@@ -1240,7 +1673,7 @@ public static class UiStyles
             Font = "file:CinzelDecorative-Regular.ttf#Cinzel Decorative", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             RingColors = new[] { "#F2C760", "#2EC4B6", "#FFF4C8", "#123A8C", "#F2C760" },
             HeroOpacity = 0, Glow = true, Footer = "line", Shadow = "soft", Ambient = "sparkle", Backdrop = new[] { "#0A1240", "#2A1A3A" }, PageScrim = 0.5,
-            Skin = new AdvancedSkin("pharaoh"), TileAnimation = "glow"
+            Mythical = true, Skin = new AdvancedSkin("pharaoh"), TileAnimation = "glow"
         },
         // 7.2: Unlockable styles, earned by playing (Themes > Unlockable). Drawn by Claude.
         new()
@@ -1423,7 +1856,7 @@ public static class UiStyles
             Light = new[] { "#FBF1DE", "#4A2E1F", "#8A6A55", "#FFF8EC", "#F3E2C4", "#C8734A" }, ForceLight = true,
             Font = "file:PixelOperator16-Regular.ttf#Pixel Operator", TileCorner = 6, RowCorner = 6, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "pill", Shadow = "hard", Backdrop = new[] { "#FCE9C8", "#F6D7A8" }, PageScrim = 0.4, Glyphs = "pixel",
-            Skin = new AdvancedSkin("cozy", new[] { ("cream", "Cream", "#C8734A"), ("blue", "Blue", "#3B9BE0"), ("green", "Green", "#5FA834"), ("pink", "Pink", "#E85A92"), ("purple", "Purple", "#8B6BD6") }),
+            Mythical = true, Skin = new AdvancedSkin("cozy", new[] { ("cream", "Cream", "#C8734A"), ("blue", "Blue", "#3B9BE0"), ("green", "Green", "#5FA834"), ("pink", "Pink", "#E85A92"), ("purple", "Purple", "#8B6BD6") }),
             TileAnimation = "jelly", NavSounds = "pack:Northleaf UI"
         },
         new()
@@ -1433,7 +1866,7 @@ public static class UiStyles
             Dark = new[] { "#0B120E", "#F2E6C4", "#A9B39A", "#13201A", "#101A15", "#E2B653" },
             Font = "file:Jersey10-Regular.ttf#Jersey 10", TileCorner = 4, RowCorner = 6, RingThickness = 2, Buttons = "circle",
             HeroOpacity = 0, Ambient = "leaves", Overlay = "vignette", Footer = "line", Backdrop = new[] { "#0F1C16", "#060B08" },
-            Skin = new AdvancedSkin("tropical"), TileAnimation = "steady"
+            Mythical = true, Skin = new AdvancedSkin("tropical"), TileAnimation = "steady"
         },
         new()
         {
@@ -1443,7 +1876,7 @@ public static class UiStyles
             Font = "file:Windows2000XP.otf#windows 2000 and xp", TileCorner = 0, RowCorner = 0, RingThickness = 2, Buttons = "circle",
             HeroOpacity = 0, Footer = "taskbar", Shadow = "none", Backdrop = new[] { "#008080", "#008080" }, PageScrim = 0.2,
             Ambient = "vhs", Overlay = "scanlines",
-            Skin = new AdvancedSkin("retrowin"), TileAnimation = "steady", NavSounds = "pack:Windows XP"
+            Mythical = true, Skin = new AdvancedSkin("retrowin"), TileAnimation = "steady", NavSounds = "pack:Windows XP"
         },
         new()
         {
@@ -1467,7 +1900,7 @@ public static class UiStyles
         },
         new()
         {
-            Id = "adv-fern-brass", Name = "Fern & Brass", Sounds = "pack:Essential UI Soft", Music = "track:Recuerdos", Moving = "", Wallpaper = "",
+            Id = "adv-fern-brass", Mythical = true, /* moved from Legendary (8.5.101) */ Name = "Fern & Brass", Sounds = "pack:Essential UI Soft", Music = "track:Recuerdos", Moving = "", Wallpaper = "",
             Description = "A cosy shop counter: cream card panels with brass rims, pine-green ink, brass checkboxes and a paper grain, in a bookish serif.",
             Light = new[] { "#F6EDD6", "#173C35", "#5E6F62", "#FAF4E4", "#EFE2C2", "#355D4F" }, ForceLight = true,
             Font = "Constantia, Georgia, Segoe UI", TileCorner = 12, RowCorner = 14, RingThickness = 3, Buttons = "circle",
@@ -1490,7 +1923,7 @@ public static class UiStyles
             Light = new[] { "#ECE9D8", "#000000", "#3D3D3D", "#FFFFFF", "#D6DFF7", "#316AC5" }, ForceLight = true,
             Font = "file:WindowsXPLike.otf#WindowsXPlike A", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "bar", Shadow = "soft", Backdrop = new[] { "#5A8DE8", "#2E63C9" }, PageScrim = 0.35,
-            Skin = new AdvancedSkin("luna"), TileAnimation = "steady", NavSounds = "pack:Windows XP"
+            Mythical = true, Skin = new AdvancedSkin("luna"), TileAnimation = "steady", NavSounds = "pack:Windows XP"
         },
         new()
         {
@@ -1499,11 +1932,11 @@ public static class UiStyles
             Light = new[] { "#F6E3C4", "#432828", "#7A5A4A", "#FFE7C2", "#E8B778", "#B55C60" }, ForceLight = true,
             Font = "file:PixelOperator16-Regular.ttf#Pixel Operator", TileCorner = 4, RowCorner = 4, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "bar", Shadow = "hard", Backdrop = new[] { "#B55C60", "#8E3F45" }, PageScrim = 0.35, Glyphs = "pixel",
-            Overlay = "paper", Skin = new AdvancedSkin("cozyplace"), TileAnimation = "jelly", NavSounds = "pack:Essential UI Soft"
+            Overlay = "paper", Mythical = true, Skin = new AdvancedSkin("cozyplace"), TileAnimation = "jelly", NavSounds = "pack:Essential UI Soft"
         },
         new()
         {
-            Id = "adv-ubuntu", Name = "Ubuntu", Sounds = "soft", Music = "track:At Rest", Moving = "", Wallpaper = "image:Ubuntu.jpg",
+            Id = "adv-ubuntu", Mythical = true, /* moved from Legendary (8.5.101) */ Name = "Ubuntu", Sounds = "soft", Music = "track:At Rest", Moving = "", Wallpaper = "image:Ubuntu.jpg",
             Description = "A Linux desktop in the Ubuntu spirit: dark grey GNOME-style cards and buttons, pop-ups with a header bar and window buttons, orange switches and check boxes, the Ubuntu font, over an aubergine and orange wallpaper.",
             Dark = new[] { "#2C2C2C", "#F2F2F2", "#A8A8A8", "#383838", "#424242", "#E95420" }, Mode = "dark",
             Font = "file:Ubuntu-Regular.ttf#Ubuntu", TileCorner = 12, RowCorner = 10, RingThickness = 3, Buttons = "circle",
@@ -1526,7 +1959,7 @@ public static class UiStyles
             Light = new[] { "#F4F2FA", "#1E1B2E", "#6B6880", "#FFFFFF", "#ECE8F6", "#5C22D0" }, ForceLight = true,
             Font = "Segoe UI Variable Text, Segoe UI", TileCorner = 12, RowCorner = 12, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "bar", Shadow = "soft", Backdrop = new[] { "#F6F4FB", "#E7E3F2" }, PageScrim = 0.25,
-            Skin = new AdvancedSkin("spectrum", new[] { ("violet", "Violet", "#5C22D0"), ("red", "Red", "#D02230"), ("purple", "Purple", "#A722D0"), ("gold", "Gold", "#D09C22"), ("blue", "Blue", "#2578CC") }) { AskColor = true },
+            Mythical = true, Skin = new AdvancedSkin("spectrum", new[] { ("violet", "Violet", "#5C22D0"), ("red", "Red", "#D02230"), ("purple", "Purple", "#A722D0"), ("gold", "Gold", "#D09C22"), ("blue", "Blue", "#2578CC") }) { AskColor = true },
             TileAnimation = "lift", NavSounds = "glass"
         },
         new()
@@ -1536,7 +1969,7 @@ public static class UiStyles
             Light = new[] { "#F6F3FA", "#2A2238", "#6F6680", "#FFFFFF", "#EFEAF6", "#D64FD0" }, ForceLight = true,
             Font = "file:BarlowCondensed-SemiBold.ttf#Barlow Condensed SemiBold#Barlow Condensed", TileCorner = 16, RowCorner = 16, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "bar", Shadow = "soft", Backdrop = new[] { "#FAF7FD", "#EEE8F6" }, PageScrim = 0.25,
-            Skin = new AdvancedSkin("sapphire", new[] { ("green", "Green", "#5DB82E"), ("orange", "Orange", "#F26B4F"), ("pink", "Pink", "#D64FD0") }) { AskColor = true },
+            Mythical = true, Skin = new AdvancedSkin("sapphire", new[] { ("green", "Green", "#5DB82E"), ("orange", "Orange", "#F26B4F"), ("pink", "Pink", "#D64FD0") }) { AskColor = true },
             TileAnimation = "float", NavSounds = "bubble"
         },
         new()
@@ -1546,7 +1979,7 @@ public static class UiStyles
             Light = new[] { "#F4F1EA", "#22252B", "#666B73", "#FFFFFF", "#E9E5DC", "#2F5DA8" }, ForceLight = true,
             Font = "file:AfacadFlux-Regular.ttf#Afacad Flux", TileCorner = 14, RowCorner = 14, RingThickness = 3, Buttons = "circle",
             HeroOpacity = 0, Footer = "bar", Shadow = "soft", Backdrop = new[] { "#F7F4EE", "#ECE7DC" }, PageScrim = 0.25,
-            Overlay = "notebook", Skin = new AdvancedSkin("scholar"), TileAnimation = "lift", NavSounds = "pack:Purple Lavender Switches"
+            Overlay = "notebook", Mythical = true, Skin = new AdvancedSkin("scholar"), TileAnimation = "lift", NavSounds = "pack:Purple Lavender Switches"
         },
         new()
         {
@@ -1580,7 +2013,24 @@ public static class UiStyles
     public static bool IsAdvanced(string? id) => Advanced.Any(s => s.Id == id);
 
     /// <summary>Whether a style is one of the Mythical ones (the top tier, drawn by Claude: Settings > Themes > Mythical).</summary>
-    public static bool IsMythical(string? id) => Advanced.Any(s => s.Id == id && s.Mythical);
+    public static bool IsMythical(string? id) => All.Any(s => s.Id == id && s.Mythical) || Advanced.Any(s => s.Id == id && s.Mythical);
+
+    /// <summary>The plain (non-kit) styles that are still Legendary (Pixel Woods moved to Mythical in 8.5.101).</summary>
+    public static IEnumerable<UiStyle> LegendaryBasics => All.Where(s => !s.Mythical);
+
+    // The Mythical order everywhere they're listed (8.5.100): these first, in this order, then the rest as they're
+    // declared, and the first six Mythical styles at the end.
+    private static readonly string[] MythicalFirst = { "adv-axiom", "pixel-woods", "adv-meridian", "myth-tealsketch", "myth-plumember", "myth-amberglow", "adv-ubuntu", "adv-fern-brass" };
+    private static readonly string[] MythicalLast = { "adv-abyss", "adv-greenhouse", "adv-origami", "adv-forge", "adv-glacier", "adv-cartographer" };
+
+    /// <summary>The Mythical styles in the order they're shown.</summary>
+    public static List<UiStyle> MythicalInOrder() => All.Concat(Advanced).Where(s => s.Mythical).OrderBy(s =>
+    {
+        int first = Array.IndexOf(MythicalFirst, s.Id);
+        if (first >= 0) return first;
+        int last = Array.IndexOf(MythicalLast, s.Id);
+        return last >= 0 ? 10_000 + last : 100; // OrderBy keeps the declared order among the rest
+    }).ToList();
 
     /// <summary>
     /// How many styles come with SquareDeck (Basic plus Advanced), counted from the lists themselves, so text that

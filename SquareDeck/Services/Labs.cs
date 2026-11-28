@@ -55,6 +55,11 @@ public static partial class Labs
         new("wallpaperengine", "Wallpaper Engine import", "Use a Wallpaper Engine video wallpaper you own as the moving background", "\uE91B", Looks),
         new("coverdim", "Darken covers that aren't highlighted", "Covers other than the highlighted one are dimmed, so it stands out. Brightness and contrast can be set", "\uE706", Looks),
         new("covereffect", "Cover art effect", "Redraws the Home covers in another look: pixel art, toy bricks, comic, pencil sketch, blueprint, neon, VHS, stained glass and more", "\uE7B8", Looks),
+        new("stylelights", "Lights match the UI style", "The rings round the sticks play an effect picked for each UI style, in its own colors, and change the moment you switch styles. Your own light settings come back when it's off", "\uE781", Looks),
+        new("stylegallery", "Style gallery", "Try the UI styles on the home screen itself: they're in a row along the bottom, A previews one for real, A again keeps it, and B puts yours back. Replaces the style list in Settings > Themes while it's on", "\uE771", Looks),
+        new("streamfx", "Streaming service filters", "Watch Netflix, Pluto TV, Hulu, DeckTube and the other streaming services like it's an old TV: a CRT with scanlines and curved glass, a worn VHS tape with PLAY on screen, black and white, old film or late-night cable, and the set switching on as it opens", "\uE7F4", Looks),
+        new("squareeq", "SquareDeck EQ", "SquareDeck's own equalizer: 22 presets for games, music and films, your own curves, a preset for the speakers, headphones and TV that switches by itself, speaker guard, loudness at low volume, and an EQ for each game. Uses the free Equalizer APO", "\uE9E9", Looks),
+        new("coverstyle", "Cover styles", "Shape the covers on Home and in the library: cut them into shapes, tilt or fan them out, frame them like a Polaroid, a cartridge or a gallery picture, and shape the game icons", "\uE7B8", Looks),
         new("genresound", "Sound that follows the genre", "Home music changes with the highlighted game's genre", "\uE8D6", Looks),
         new("tilt", "Covers that tilt", "Tilting the handheld shifts the highlighted cover in 3D", "\uE8B4", Looks),
         new("dust", "Dusty tiles", "Games you haven't played in months gather dust on the home row", "\uE91C", Looks),
@@ -74,7 +79,7 @@ public static partial class Labs
         new("sessiontimer", "Session timer and break reminder", "A gentle reminder after the time you choose, or when the battery gets low, shown over the game", "\uE916", Playing),
         new("launchopts", "Launch options per game", "Command-line options, environment variables and \u201CRun as administrator\u201D, in each game's profile", "\uE756", Playing),
         new("scripts", "Scripts before and after a game", "Run a program or command before a game starts and after it closes (a mod manager, closing an app, mounting a drive). In each game's profile", "\uE943", Playing),
-        new("s2game", "Switch 2 style launch, stop and return", "The launch countdown, the Stop game confirmation (and Stopping…), the update-before-playing card and \"is still running\" in your UI style's colors and the Switch 2 manner: a plain card, quiet text, flat buttons with the soft rimmed highlight. And when a game closes, the Switch way back: the game's cover large on the page color, flying down into its tile on Home as the screen fades back", "\uE768", Playing),
+        new("s2game", "Switch 2 style launch, stop and return", "The launch countdown, the Stop game confirmation (and Stopping…), the update-before-playing card and \"is still running\" in your UI style's colors and the Switch 2 manner: a plain card, quiet text, flat buttons with the soft rimmed highlight. When a game closes, Home is back straight away with that game selected", "\uE768", Playing),
         new("charger", "Charger check", "Tells you when the charger can't keep up: plugged in, but the battery is still going down", "\uE83E", Playing),
         new("aboutgame", "About This Game", "A game's \u201CAbout This Game\u201D as on its Steam store page, with its artwork, moving images and screenshots, from a \u201CLearn more\u201D button in the About section of the game's page", "\uE946", LibraryGroup),
         new("visualmodes", "Visual modes", "ASUS GameVisual screen modes (Racing, Scenery, RTS/RPG, FPS, Cinema, Vivid, Eyecare\u2026) and color temperature, as Armoury Crate offers them, with AMD\u2019s OLED Power Optimization handled for the X20\u2019s OLED screen", "\uE790", SystemGroup),
@@ -101,7 +106,7 @@ public static partial class Labs
         new("wgameaware", "Widget: layout per game", "Each game remembers the widget's card order, hidden cards and Live tiles from the last time you played it", "\uE8A9", WidgetGroup),
         new("wpresets", "Widget: presets per game", "\u201CSave this setup to the game\u201D in the card editor: card order, hidden cards, Live tiles and Quick tiles", "\uE74E", WidgetGroup),
         new("wtheme", "Widget: match my style", "The widget takes on the current SquareDeck style: its colors, font and wallpaper (Mythical styles too)", "\uE790", WidgetGroup),
-        new("wpowerlook", "Widget: wattage look", "A smaller look for the TDP in the widget's Power card: slim bar, mini dial beside the presets, the number alone (select it for the full dial) or preset chips. Select to choose", "\uE945", WidgetGroup),
+        new("wpowerlook", "Widget: wattage look", "How the TDP shows in the widget's Power card: slim bar, mini dial, number only, preset chips, gauge, battery cells, big buttons, slider or ruler. Select to choose", "\uE945", WidgetGroup),
         new("newsettings", "Switch 2 style Settings", "Settings drawn like the Nintendo Switch 2\u2019s System Settings: flat rows on thin lines, values in blue, pill switches, sections listed on the left with a blue bar, and the soft blue-to-pink highlight. Light or dark, following your theme", "\uE713", Looks),
         new("newlibrary", "Switch 2 style Library", "The game library laid out like the Switch 2\u2019s System Settings: sections on the left with a blue bar and a storage gauge, games as flat rows with small covers, play time in blue, grouped under Today, This week or A, B, C, and the soft highlight. Follows your UI style", "\uE8F1", Looks),
         new("switchboot", "Switch-style game boot", "Starting a game plays the Switch's own boot: the cover rushes toward you as the screen fades to black, then the game's icon waits in the middle with the ring of dots turning in the corner until the game is up. Plays even with the launch splash off", "\uE7FC", Play),
@@ -147,9 +152,20 @@ public static partial class Labs
         "wpresets", "wpowerlook",
         // 8.1.20
         "wfpscap",
+        // 8.5.87: the widget's Favorites card (hide it in the widget's card editor)
+        "wfavorites",
         // 8.1.21: Retro Lounge (all but Surprise me)
         "rascraper", "rashaders", "rastates",
+        // 8.5.101: the style gallery is how styles are chosen in Settings > Themes (the pictures list is a row away)
+        "stylegallery",
+        // 8.5.102: SquareDeck EQ is part of Settings > Sound (it only acts once Equalizer APO is set up)
+        "squareeq",
     };
+
+    /// <summary>On for everyone once (when updating to 8.5.102), each with a switch in its new place in Settings:
+    /// cover styles (Looks), the companion on the update screens (Looks, with the companion) and the streaming service
+    /// filters (Pages and services). Lights match the UI style moved out of Experimental too, but stays off.</summary>
+    public static readonly HashSet<string> DefaultOn85102 = new() { "coverstyle", "updatecompanion", "streamfx" };
 
     /// <summary>On for everyone once (when updating to 8.1.19), with a switch in their new place in Settings.</summary>
     public static readonly HashSet<string> DefaultOn819 = new() { "charger", "wtheme", "wcompanion" };
@@ -186,6 +202,8 @@ public static partial class Labs
         "s2details",
         // 8.5.3
         "s2genie", "s2pctools",
+        // 8.5.102
+        "coverstyle", "updatecompanion", "streamfx", "stylelights",
     }));
 
     public static LabFeature? Feature(string id) => Features.FirstOrDefault(f => f.Id == id);
@@ -248,6 +266,12 @@ public static partial class Labs
             settings.LabsGraduatedPcTools = true;
             settings.Save();
         }
+        if (!settings.LabsGraduated85102)
+        {
+            foreach (var id in DefaultOn85102) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
+            settings.LabsGraduated85102 = true;
+            settings.Save();
+        }
         // 8.5.41: the Switch-style game boot is off by default: off once, then it's yours to turn on (Settings > Games).
         if (!settings.SwitchBootOff8541)
         {
@@ -301,6 +325,54 @@ public static partial class Labs
 
     /// <summary>A feature was turned on or off.</summary>
     public static event Action<string>? Changed;
+
+    /// <summary>Tells everything a feature changed (after its setting was put back from elsewhere, e.g. the style gallery).</summary>
+    public static void Refire(string id) => Changed?.Invoke(id);
+
+    // ---------------------------------------------------------------- with one UI style only (8.5.81)
+
+    /// <summary>
+    /// The cover and tile effects that can be kept to the UI styles they were turned on with: turning one on asks
+    /// "this style only" or "every style". Kept to some styles, it turns itself off on the others and back on (with
+    /// the same settings) when one of them is chosen again.
+    /// </summary>
+    public static readonly string[] Scoped = { "coverstyle", "covereffect", "coverdim", "tilt", "dust" };
+
+    public static bool IsScoped(string id) => Array.IndexOf(Scoped, id) >= 0;
+
+    /// <summary>The styles a feature is kept to, or null for every style.</summary>
+    public static string[]? ScopeStyles(string id) =>
+        Get("scope." + id) is { Length: > 0 } list ? list.Split(',', StringSplitOptions.RemoveEmptyEntries) : null;
+
+    /// <summary>Keeps a feature to one more style (null: every style again).</summary>
+    public static void SetScope(string id, string? styleId)
+    {
+        if (styleId == null) { _settings?.LabValues.Remove("scope." + id); _settings?.Save(); return; }
+        var list = (ScopeStyles(id) ?? Array.Empty<string>()).Where(x => x != styleId).Append(styleId);
+        Put("scope." + id, string.Join(",", list));
+    }
+
+    /// <summary>Turned off by you: it's no longer kept to any style either.</summary>
+    public static void TurnOff(string id)
+    {
+        if (IsScoped(id)) _settings?.LabValues.Remove("scope." + id);
+        Set(id, false);
+    }
+
+    /// <summary>A UI style was chosen: the features kept to some styles turn on or off to match.</summary>
+    public static void StyleChanged(string styleId)
+    {
+        if (_settings == null) return;
+        foreach (var id in Scoped)
+        {
+            if (ScopeStyles(id) is not { } styles) continue;
+            bool want = styles.Contains(styleId);
+            if (want == On(id)) continue;
+            // Never pushes the other motion-sensor effect off by itself: that one stays, and this waits.
+            if (want && MotionRival(id) is { } rival && On(rival)) continue;
+            Set(id, want);
+        }
+    }
 
     public static string Get(string key, string fallback = "") =>
         _settings != null && _settings.LabValues.TryGetValue(key, out var v) ? v : fallback;

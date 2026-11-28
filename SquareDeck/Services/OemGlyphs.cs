@@ -7,8 +7,8 @@ namespace SquareDeck.Services;
 /// <summary>
 /// The handheld's own button pictures and a drawing of the device (Glyphs\oem\&lt;device&gt;\), from victor-borges'
 /// "Handheld Controller Glyphs" (MIT License), drawn to PNG for SquareDeck. Face buttons, bumpers and triggers look the
-/// way they're printed on the device (the ROG Xbox Ally's colored ABXY, MSI's and Lenovo's own...), and the controller
-/// tester shows the device itself.
+/// way they're printed on the device (the ROG Xbox Ally's colored ABXY), and the controller tester shows the device
+/// itself. Only the ROG Ally family's sets ship (8.5.81: SquareDeck is made for ASUS's handhelds).
 /// </summary>
 public static class OemGlyphs
 {
@@ -34,36 +34,12 @@ public static class OemGlyphs
         }
     }
 
-    /// <summary>The set that fits a brand and model name, or "" (the sets cover the families, not every variant).</summary>
+    /// <summary>The set that fits a brand and model name, or "" (the ROG Ally and ROG Xbox Ally families).</summary>
     internal static string Match(string brand, string name)
     {
         string n = name.ToUpperInvariant(), b = brand.ToUpperInvariant();
         bool Has(string s) => n.Contains(s, StringComparison.Ordinal);
         if (b == "ASUS" || Has("ROG")) return Has("XBOX") ? "asus-rog-xbox-ally" : "asus-rog-ally";
-        if (b == "LENOVO" || Has("LEGION"))
-            return Has("GO S") ? "lenovo-legion-go-s" : Has("GO 2") ? "lenovo-legion-go-2" : Has("LEGION GO") ? "lenovo-legion-go" : "";
-        if (b == "MSI" || Has("CLAW")) return Has("A8") ? "msi-claw-a8" : Has("CLAW") ? "msi-claw" : "";
-        if (b == "AYANEO" || Has("AYANEO"))
-        {
-            if (Has("AYANEO 3")) return "ayaneo-3";
-            if (Has("AYANEO 2") && !Has("2021") || Has("GEEK")) return "ayaneo-2";
-            if (Has("AIR")) return "ayaneo-air";
-            if (Has("KUN")) return "ayaneo-kun";
-            if (Has("SLIDE")) return "ayaneo-slide";
-            if (Has("NEXT")) return "ayaneo-next";
-            if (Has("NEO") || Has("2021")) return "ayaneo-neo";
-            return "";
-        }
-        if (b == "GPD")
-            return Has("MAX 2") ? "gpd-win-max-2" : Has("MINI") ? "gpd-win-mini" : Has("WIN 4") ? "gpd-win-4" : Has("WIN 3") ? "gpd-win-3" : "";
-        if (b == "ONEXPLAYER" || Has("ONEX"))
-            return Has("F1") ? "onexplayer-f1" : Has("G1") ? "onexplayer-g1" : Has("X1") ? "onexplayer-x1" : Has("ONEXPLAYER 2") ? "onexplayer-2" : "";
-        if (b == "AOKZOE" || Has("AOKZOE")) return "aokzoe-a1";
-        if (b == "AYN" || Has("LOKI")) return "ayn-loki";
-        if (b == "ZOTAC" || Has("ZOTAC")) return "zotac-zone";
-        if (b == "ANBERNIC" || Has("WIN600")) return "anbernic-win600";
-        if (b == "TECNO" || Has("POCKET GO")) return "tecno-pocket-go";
-        if (b == "TECTOY" || Has("ZEENIX")) return "tectoy-zeenix";
         return "";
     }
 

@@ -161,6 +161,17 @@ public sealed class StyleBuilderScreen : ListScreen
             click: () => _ = ChooseFromAsync("Opening pages", "How pages and pop-ups appear.", SettingsScreen.PageStyles, v => d.PageAnimation = v, DemoPage));
         AddRow("Selected game", NameIn(Motion.TileHighlights, d.TileAnimation), "\uE7FC",
             click: () => _ = ChooseFromAsync("Selected game", "How the highlighted game stands out on the home row.", Motion.TileHighlights, v => d.TileAnimation = v, DemoTile));
+        if (Labs.On(StyleLights.Lab))
+        {
+            // Experimental "Lights match the UI style": this style's effect on the rings round the sticks.
+            var lights = new[] { ("", "Picked for its colors") }.Concat(AllyControl.LightModes
+                .Where(m => m.Id is not ("" or "off" or "accent" or "game" or "battery" or "ambilight")).Select(m => (m.Id, m.Name))).ToArray();
+            AddRow("Lights", NameIn(lights, d.Lights), "\uE781", click: () => _ = ChooseLightsAsync(),
+                subtitle: "Lights match the UI style (Experimental)");
+            var speeds = new[] { ("", "The effect's own"), ("slow", "Slow"), ("medium", "Medium"), ("fast", "Fast") };
+            if (d.Lights.Length > 0 && LightFx.UsesSpeed(d.Lights))
+                AddRow("Lights speed", NameIn(speeds, d.LightSpeed), "\uE916", click: () => _ = ChooseFromAsync("Lights speed", null, speeds, v => d.LightSpeed = v));
+        }
         var boots = MainWindow.BootAnimations.Concat(MainWindow.MoreBootAnimations.Where(m => MainWindow.BootAnimations.All(b => b.Id != m.Id))).ToArray();
         AddRow("Startup", NameIn(boots, d.BootAnimation), "\uE7E8",
             click: () => _ = ChooseFromAsync("Startup animation", "Plays when SquareDeck opens.", boots, v => d.BootAnimation = v, id => Host.PreviewIntro(id)));
@@ -668,6 +679,23 @@ public sealed class StyleBuilderScreen : ListScreen
             if (all) break;
         }
         Rebuild();
+    }
+
+    /// <summary>Experimental "Lights match the UI style": this style's effect, previewed in its highlight colors.</summary>
+    private async Task ChooseLightsAsync()
+    {
+        var d = _draft;
+        var options = new List<(string? Id, string Preview, string Name, string About)> { ("", "gradientring", "Picked for its colors", "An effect chosen to suit the style") };
+        options.AddRange(AllyControl.LightModes.Where(m => m.Id is not ("" or "off" or "accent" or "game" or "battery" or "ambilight"))
+            .Select(m => ((string?)m.Id, m.Id, m.Name, m.About)));
+        var style = d.ToStyle();
+        var accent = (Application.Current.Resources["AccentBrush"] as System.Windows.Media.SolidColorBrush)?.Color ?? System.Windows.Media.Colors.DodgerBlue;
+        var inputs = AllyControl.FxInputs(Host.Settings, accent, StyleLights.SecondColor(style, accent, Theme.CurrentIsDark));
+        int choice = await LightEffectPicker.AskAsync(this, "Lights", "The effect the rings round the sticks play with this style.",
+            options.ToArray(), Math.Max(0, options.FindIndex(o => o.Id == d.Lights)), inputs);
+        if (choice < 0 || choice >= options.Count) return;
+        d.Lights = options[choice].Id ?? "";
+        Changed();
     }
 
     private async Task ChooseFromAsync(string title, string? message, (string Id, string Name)[] options, Action<string> set, Action<string>? play = null)

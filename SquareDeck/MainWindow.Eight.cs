@@ -91,7 +91,7 @@ public partial class MainWindow
         {
             if (value != null && _capBeforeValue == null) _capAppliedAt = DateTime.UtcNow;
             _capBeforeValue = value;
-            Labs.Put("capbefore", value is { } c ? $"{c.Method}|{(c.Enabled ? 1 : 0)}|{c.First}|{c.Second}" : "");
+            Labs.Put("capbefore", value is { } c ? $"{c.Method}|{(c.Enabled ? 1 : 0)}|{c.First}|{c.Second}|{c.Applied}" : "");
         }
     }
 
@@ -123,9 +123,11 @@ public partial class MainWindow
         if (saved.Length == 0 || AllGames.Any(g => g.IsRunning)) return;
         var parts = saved.Split('|');
         Labs.Put("capbefore", "");
-        if (parts.Length == 4 && int.TryParse(parts[2], out int first) && int.TryParse(parts[3], out int second))
+        if (parts.Length is 4 or 5 && int.TryParse(parts[2], out int first) && int.TryParse(parts[3], out int second))
         {
-            var before = new AmdAdlx.CapState(parts[0], parts[1] == "1", first, second);
+            // The cap SquareDeck set (from 8.5.86): put back only while the driver still has it.
+            int applied = parts.Length == 5 && int.TryParse(parts[4], out var a) ? a : 0;
+            var before = new AmdAdlx.CapState(parts[0], parts[1] == "1", first, second, applied);
             _ = Task.Run(() => AmdAdlx.RestoreCap(before));
         }
     }
@@ -207,7 +209,10 @@ public partial class MainWindow
 
     // ---- smooth return
 
-    /// <summary>When a game closes: back on the game you launched, the Switch 2 way (when that's on).</summary>
+    /// <summary>
+    /// When a game closes: Home is simply there, with the game you launched selected. (8.5.59: the cover no longer
+    /// fades in large and flies down into its tile; it looked sluggish and got in the way.)
+    /// </summary>
     private void ReturnAnimationEight()
     {
         if (!GameCard.S2 || _lastLaunched == null) return;
@@ -218,80 +223,6 @@ public partial class MainWindow
             GameList.SelectedItem = item;
             GameList.ScrollIntoView(item);
         }
-        if (Theme.ReduceMotion) return;
-        SwitchReturn(item);
-    }
-
-    /// <summary>
-    /// Experimental "Switch 2 style launch and return": the game closing the Switch way. The screen is the UI style's
-    /// page color with the game's cover large in the middle; a moment later the cover flies back down into its tile on
-    /// Home, shrinking as it goes, while the page color fades away to Home and the tile settles with a small bounce.
-    /// </summary>
-    private void SwitchReturn(Game? item)
-    {
-        var game = item?.Actual ?? _lastLaunched;
-        if (game == null) return;
-        Switch2Settings.Refresh();
-        const double size = 260;
-        var veil = new Grid { Background = new SolidColorBrush(Switch2Settings.Background), IsHitTestVisible = false };
-        var cover = GameCard.Cover(game, size);
-        cover.HorizontalAlignment = HorizontalAlignment.Left;
-        cover.VerticalAlignment = VerticalAlignment.Top;
-        var move = new TranslateTransform();
-        var scale = new ScaleTransform(1, 1);
-        var group = new TransformGroup();
-        group.Children.Add(scale);
-        group.Children.Add(move);
-        cover.RenderTransformOrigin = new Point(0.5, 0.5);
-        cover.RenderTransform = group;
-        var layer = new Grid { IsHitTestVisible = false };
-        layer.Children.Add(veil);
-        layer.Children.Add(cover);
-        IntroLayer.Children.Add(layer);
-        double w = IntroLayer.ActualWidth > 0 ? IntroLayer.ActualWidth : ActualWidth, h = IntroLayer.ActualHeight > 0 ? IntroLayer.ActualHeight : ActualHeight;
-        move.X = w / 2 - size / 2;
-        move.Y = h / 2 - size / 2;
-        cover.Opacity = 0;
-        cover.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
-
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
-        {
-            // Where the game's tile is on Home (or the middle of the row if it can't be seen).
-            var tile = item != null ? GameList.ItemContainerGenerator.ContainerFromItem(item) as FrameworkElement : null;
-            Point target = new(w / 2, h / 2);
-            double toScale = 0.5;
-            try
-            {
-                if (tile != null && tile.IsVisible)
-                {
-                    target = tile.TranslatePoint(new Point(tile.ActualWidth / 2, tile.ActualHeight / 2), IntroLayer);
-                    toScale = Math.Max(0.2, Math.Min(tile.ActualWidth, tile.ActualHeight) / size * 0.85);
-                }
-            }
-            catch (Exception) { }
-            var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
-            var begin = TimeSpan.FromMilliseconds(420);
-            move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(target.X - size / 2, TimeSpan.FromMilliseconds(480)) { BeginTime = begin, EasingFunction = ease });
-            move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(target.Y - size / 2, TimeSpan.FromMilliseconds(480)) { BeginTime = begin, EasingFunction = ease });
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(toScale, TimeSpan.FromMilliseconds(480)) { BeginTime = begin, EasingFunction = ease });
-            scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(toScale, TimeSpan.FromMilliseconds(480)) { BeginTime = begin, EasingFunction = ease });
-            veil.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(420)) { BeginTime = TimeSpan.FromMilliseconds(500) });
-            var done = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(140)) { BeginTime = TimeSpan.FromMilliseconds(880) };
-            done.Completed += (_, _) =>
-            {
-                IntroLayer.Children.Remove(layer);
-                if (tile == null) return;
-                // The tile takes the cover's place with a small settle.
-                var pop = new ScaleTransform(1.08, 1.08);
-                tile.RenderTransformOrigin = new Point(0.5, 0.5);
-                tile.RenderTransform = pop;
-                var settle = new DoubleAnimation(1.08, 1.0, TimeSpan.FromMilliseconds(320)) { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.4 } };
-                settle.Completed += (_, _) => tile.RenderTransform = Transform.Identity;
-                pop.BeginAnimation(ScaleTransform.ScaleXProperty, settle);
-                pop.BeginAnimation(ScaleTransform.ScaleYProperty, settle);
-            };
-            cover.BeginAnimation(OpacityProperty, done);
-        }));
     }
 
     // ================================================================ docked / TV mode

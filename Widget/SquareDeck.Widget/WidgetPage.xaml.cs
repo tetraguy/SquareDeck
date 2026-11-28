@@ -1187,7 +1187,7 @@ namespace SquareDeck.Widget
                 try { ApplyEight(m); } catch (Exception ex) { ReportOnce("experimental", ex); }
             }
             else if (type == "art") ApplyArt(m);
-            else if (type == "apps" || type == "theme" || type == "companion") ApplyEightMessage(type, m);
+            else if (type == "apps" || type == "favorites" || type == "theme" || type == "companion") ApplyEightMessage(type, m);
             else if (type == "avatar") ApplyAvatar(m);
             else if (type == "mediaart") ApplyMediaArt(m);
             else if (type == "wifi") ApplyWifi(m);

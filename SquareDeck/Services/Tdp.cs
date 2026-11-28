@@ -64,9 +64,7 @@ public static class TdpControl
     public static bool UsesAsus => Method == "asus";
 
     /// <summary>
-    /// The ways this PC can set the power limit, best first: the handheld's own firmware (ROG Ally: ASUS's driver;
-    /// Legion Go and MSI Claw: their WMI methods, through the device helper), then KX.exe for Intel processors
-    /// (through the device helper), then RyzenAdj for AMD processors.
+    /// The ways this PC can set the power limit, best first: the ROG Ally's own firmware (ASUS's driver), then RyzenAdj.
     /// </summary>
     public static List<string> AvailableMethods
     {
@@ -94,15 +92,12 @@ public static class TdpControl
             var list = new List<string>();
             var vendor = Handheld.Vendor;
             if (vendor == HandheldVendor.Asus && AllyControl.IsAlly && AsusAcpi.Available) list.Add("asus");
-            if (vendor == HandheldVendor.Lenovo && DeviceHelper.Installed) list.Add("lenovo");
-            if (vendor == HandheldVendor.Msi && DeviceHelper.Installed) list.Add("msi");
-            if (IsIntel && DeviceHelper.Installed && DeviceHelper.HasKx) list.Add("kx");
             if (!IsIntel && Installed) list.Add("ryzenadj");
             return list;
         }
     }
 
-    /// <summary>How the limit is set right now: "asus", "lenovo", "msi", "kx", "ryzenadj", or "" (not set up).</summary>
+    /// <summary>How the limit is set right now: "asus", "ryzenadj", or "" (not set up).</summary>
     public static string Method
     {
         get
@@ -120,9 +115,6 @@ public static class TdpControl
     public static string MethodName(string method) => method switch
     {
         "asus" => "ASUS firmware",
-        "lenovo" => "Lenovo firmware",
-        "msi" => "MSI firmware",
-        "kx" => "Intel (KX)",
         "ryzenadj" => "RyzenAdj",
         _ => "Not set up"
     };
@@ -130,7 +122,7 @@ public static class TdpControl
     /// <summary>An Intel processor (its limits are PL1 / PL2).</summary>
     public static bool IsIntel => CpuName.Contains("Intel", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>There's a way to apply limits: the handheld's firmware, KX.exe (Intel) or RyzenAdj (AMD).</summary>
+    /// <summary>There's a way to apply limits: the ROG Ally's firmware or RyzenAdj.</summary>
     public static bool CanApply => Method.Length > 0;
 
     /// <summary>Set up, switched on, and on a supported chip.</summary>
@@ -318,7 +310,7 @@ public static class TdpControl
             ApplyPowerMode(EffectivePowerMode);
 
             string method = Method;
-            if (method is "asus" or "lenovo" or "msi" or "kx")
+            if (method == "asus")
             {
                 // Windows' CPU settings (boost, top speed, energy preference, cores): only written when they change, so
                 // re-applying the limit doesn't start powercfg over and over.
@@ -331,27 +323,8 @@ public static class TdpControl
                 }
                 if (!s.TdpEnabled || watts <= 0) { LastResult = ""; return true; }
                 var (slowW, fastW) = BoostLimits(watts);
-                bool done;
-                string why;
-                switch (method)
-                {
-                    case "asus":
-                        done = await Task.Run(() => AsusAcpi.SetPowerLimits(watts, slowW, fastW));
-                        why = AsusAcpi.Available ? "The ASUS firmware refused the limit" : "Couldn't reach the ASUS firmware";
-                        break;
-                    case "lenovo":
-                        done = (await DeviceHelper.RunAsync($"legion-tdp {watts} {fastW}")).Ok;
-                        why = DeviceHelper.LastResult;
-                        break;
-                    case "msi":
-                        done = (await DeviceHelper.RunAsync(IsIntel ? $"claw-tdp {watts} {fastW}" : $"claw-tdp {watts} {slowW} {fastW}")).Ok;
-                        why = DeviceHelper.LastResult;
-                        break;
-                    default:
-                        done = (await DeviceHelper.RunAsync($"intel-tdp {watts} {fastW}")).Ok;
-                        why = DeviceHelper.LastResult;
-                        break;
-                }
+                bool done = await Task.Run(() => AsusAcpi.SetPowerLimits(watts, slowW, fastW));
+                string why = AsusAcpi.Available ? "The ASUS firmware refused the limit" : "Couldn't reach the ASUS firmware";
                 if (done) AppliedWatts = watts;
                 LastResult = done
                     ? (fastW > watts ? $"Applied {watts} W, bursts to {fastW} W ({MethodName(method)})" : $"Applied {watts} W ({MethodName(method)})")

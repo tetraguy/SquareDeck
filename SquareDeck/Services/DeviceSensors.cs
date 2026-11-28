@@ -4,7 +4,7 @@ namespace SquareDeck.Services;
 
 /// <summary>
 /// Live readings for My Device: temperatures and fans from the handheld's firmware where it has them (ROG Ally:
-/// ASUS's driver; Legion Go: Lenovo's, through the device helper), else Windows' thermal zone; battery charge,
+/// ASUS's driver), else Windows' thermal zone; battery charge,
 /// power draw and health from Windows; and how fast the battery has been going down.
 /// </summary>
 public static class DeviceSensors
@@ -63,20 +63,6 @@ public static class DeviceSensors
         catch (Exception) { return null; }
     }
 
-    private static Dictionary<string, string> _legion = new();
-    private static DateTime _legionAt = DateTime.MinValue;
-
-    /// <summary>Legion Go: asks the device helper every 10 seconds at most (it starts a task each time).</summary>
-    private static void RefreshLegion()
-    {
-        if (Handheld.Vendor != HandheldVendor.Lenovo || !DeviceHelper.Installed) return;
-        if (DateTime.UtcNow - _legionAt < TimeSpan.FromSeconds(10)) return;
-        _legionAt = DateTime.UtcNow;
-        _ = Task.Run(async () => { var v = await HandheldVendors.ReadLegionAsync(); if (v.Count > 0) _legion = v; });
-    }
-
-    private static int? Int(Dictionary<string, string> d, string key) => d.TryGetValue(key, out var v) && int.TryParse(v, out int n) ? n : null;
-
     public static Reading Read()
     {
         int? cpu = null, gpu = null, cpuFan = null, gpuFan = null;
@@ -88,13 +74,6 @@ public static class DeviceSensors
             cpuFan = AsusAcpi.FanRpm(AsusAcpi.CpuFan);
             gpuFan = AsusAcpi.FanRpm(AsusAcpi.GpuFan);
             if (cpu != null) source = "ASUS firmware";
-        }
-        else if (Handheld.Vendor == HandheldVendor.Lenovo)
-        {
-            RefreshLegion();
-            cpu = Int(_legion, "cputemp"); gpu = Int(_legion, "gputemp");
-            cpuFan = Int(_legion, "cpufan"); gpuFan = Int(_legion, "gpufan");
-            if (cpu != null) source = "Lenovo firmware";
         }
         if (cpu == null) { cpu = ThermalZone(); if (cpu != null) source = "Windows thermal zone"; }
 

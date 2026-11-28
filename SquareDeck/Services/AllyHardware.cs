@@ -284,7 +284,9 @@ public static class AllyHid
     /// <summary>Finds the two collections (again at most every 10 seconds, so a missing one doesn't cost every call).</summary>
     private static void Scan()
     {
-        if ((_input != null && _aura != null) || DateTime.UtcNow - _lastScan < TimeSpan.FromSeconds(10)) return;
+        // On the X20 the lights go through the controller collection, so once that's found there's nothing more to look
+        // for: looking again every 10 seconds reopened the controller, which could make the lights blink (8.5.62).
+        if ((_input != null && (_aura != null || IsX20)) || DateTime.UtcNow - _lastScan < TimeSpan.FromSeconds(10)) return;
         _lastScan = DateTime.UtcNow;
         foreach (var path in AllyButtons.AsusHidPaths())
         {
@@ -305,7 +307,7 @@ public static class AllyHid
     /// <summary>Looks for the collections again on the next call (one went missing or a write failed).</summary>
     public static void Rescan()
     {
-        lock (Lock) { _lastScan = DateTime.MinValue; _inputAwake = _auraAwake = false; _x20Primed = false; }
+        lock (Lock) { _lastScan = DateTime.MinValue; _inputAwake = _auraAwake = false; _x20Primed = false; _lastBrightness = -1; }
     }
 
     // ---------------------------------------------------------------- waking the controller without ASUS's service
@@ -437,6 +439,47 @@ public static class AllyHid
 
     private static bool _x20Primed;
 
+    /// <summary>
+    /// The X20's eight zones, four per stick, addressed as zones 1 to 8 (1 to 4 the left stick, 5 to 8 the right),
+    /// checked on an X20 (8.5.61: standard, was Experimental). Colors for four zones are spread over the eight.
+    /// </summary>
+    public static bool X20EightZones => IsX20;
+
+    /// <summary>How many zones the stick lights have: eight on the X20, four on the other Allys.</summary>
+    public static int ZoneCount => IsX20 ? 8 : 4;
+
+    /// <summary>A color per LED (eight: 0 to 3 the left ring, 4 to 7 the right), shown straight away, not saved. Merged to four elsewhere.</summary>
+    public static bool SetZones8Live(IReadOnlyList<Color> eight)
+    {
+        if (eight.Count < 8) return false;
+        lock (Lock)
+        {
+            Scan();
+            if (IsX20 && _input != null)
+                return X20Send(eight.Select((c, z) => X20Zone(AuraMode.Solid, c, c, AuraSpeed.Slow, (Zone)(byte)(z + 1))), full: false);
+        }
+        return SetZonesLive(new[] { LightFx.Mix(eight[0], eight[1], 0.5), LightFx.Mix(eight[2], eight[3], 0.5), LightFx.Mix(eight[4], eight[5], 0.5), LightFx.Mix(eight[6], eight[7], 0.5) });
+    }
+
+    /// <summary>The zone numbers to send on the X20, and which of the four effect zones each takes its color from.</summary>
+    private static (byte Zone, int From)[] X20Layout => X20EightZones
+        ? new (byte, int)[] { (1, 0), (2, 0), (3, 1), (4, 1), (5, 2), (6, 2), (7, 3), (8, 3) }
+        : new (byte, int)[] { (1, 0), (2, 1), (3, 2), (4, 3) };
+
+    private static IEnumerable<byte[]> X20Frame(IReadOnlyList<Color> four, AuraMode mode = AuraMode.Solid, Color? second = null, AuraSpeed speed = AuraSpeed.Slow) =>
+        X20Layout.Select(l => X20Zone(mode, four[l.From], second ?? four[l.From], speed, (Zone)l.Zone));
+
+    /// <summary>Zone test (Experimental: 8-zone lights): each of the eight zones in its own color, to see the order on the X20.</summary>
+    public static bool TestX20Zones(IReadOnlyList<Color> eight)
+    {
+        lock (Lock)
+        {
+            Scan();
+            if (_input == null) return false;
+            return X20Send(eight.Select((c, i) => X20Zone(AuraMode.Solid, c, c, AuraSpeed.Slow, (Zone)(byte)(i + 1))), full: true);
+        }
+    }
+
     private static byte[] X20Zone(AuraMode mode, Color one, Color two, AuraSpeed speed, Zone zone) => new byte[]
     {
         InputId, 0xB3, (byte)zone, (byte)mode, one.R, one.G, one.B, mode == AuraMode.Solid ? (byte)0 : (byte)speed, 0,
@@ -463,7 +506,6 @@ public static class AllyHid
         return ok;
     }
 
-    private static readonly Zone[] X20Zones = { Zone.LeftOuter, Zone.LeftInner, Zone.RightInner, Zone.RightOuter };
 
     /// <summary>One effect on both rings. Breathing alternates between the two colors.</summary>
     public static bool SetLights(AuraMode mode, Color one, Color two, AuraSpeed speed)
@@ -475,7 +517,7 @@ public static class AllyHid
             {
                 // Every zone gets the effect (the whole-ring zone alone left halves behind on the X20).
                 var all = new List<byte[]> { X20Zone(mode, one, two, speed, Zone.All) };
-                all.AddRange(X20Zones.Select(z => X20Zone(mode, one, two, speed, z)));
+                all.AddRange(X20Frame(new[] { one, one, one, one }, mode, two, speed));
                 if (X20Send(all, full: true)) return true;
             }
             if (_aura == null) return false;
@@ -497,9 +539,7 @@ public static class AllyHid
             Scan();
             if (IsX20 && _input != null)
             {
-                var zones = new[] { (Zone.LeftOuter, left), (Zone.LeftInner, left), (Zone.RightInner, right), (Zone.RightOuter, right) }
-                    .Select(z => X20Zone(AuraMode.Solid, z.Item2, z.Item2, AuraSpeed.Slow, z.Item1));
-                if (X20Send(zones, full: true)) return true;
+                if (X20Send(X20Frame(new[] { left, left, right, right }), full: true)) return true;
             }
             if (_aura == null) return false;
             bool ok = Output(_aura, AuraMessage(AuraMode.Solid, left, left, AuraSpeed.Slow, Zone.All)) && Output(_aura, Apply);
@@ -526,7 +566,7 @@ public static class AllyHid
         lock (Lock)
         {
             Scan();
-            if (IsX20 && _input != null && X20Send(X20Zones.Select(z => X20Zone(AuraMode.Solid, color, color, AuraSpeed.Slow, z)), full: false)) return true;
+            if (IsX20 && _input != null && X20Send(X20Frame(new[] { color, color, color, color }), full: false)) return true;
             if (_aura == null) return false;
             bool ok = Output(_aura, AuraMessage(AuraMode.Solid, color, color, AuraSpeed.Slow, Zone.All)) && Output(_aura, Apply);
             if (!ok) Drop(ref _aura);
@@ -541,7 +581,7 @@ public static class AllyHid
         lock (Lock)
         {
             Scan();
-            if (IsX20 && _input != null && X20Send(X20Zones.Select((z, i) => X20Zone(AuraMode.Solid, zones[i], zones[i], AuraSpeed.Slow, z)), full: false)) return true;
+            if (IsX20 && _input != null && X20Send(X20Frame(zones), full: false)) return true;
             if (_aura == null) return false;
             bool ok = true;
             var order = new[] { Zone.LeftOuter, Zone.LeftInner, Zone.RightInner, Zone.RightOuter };
@@ -553,19 +593,29 @@ public static class AllyHid
     }
 
     /// <summary>Brightness 0 (off) to 3.</summary>
+    private static int _lastBrightness = -1;
+
     public static bool SetBrightness(int level)
     {
         lock (Lock)
         {
             Scan();
+            // Sent only when it changes: a brightness command can make the controller show its own saved effect for a
+            // moment (a flash over SquareDeck's), so repeating it on every refresh made the lights blink now and then.
+            level = Math.Clamp(level, 0, 3);
+            if (level == _lastBrightness && (_aura != null || (IsX20 && _input != null))) return true;
+            _lastBrightness = level;
             if (IsX20 && _input != null)
             {
                 // The X20 takes the brightness through the controller collection (sent to the lights one too, harmless).
                 bool x = Output(_input, new byte[] { InputId, 0xBA, 0xC5, 0xC4, (byte)Math.Clamp(level, 0, 3) });
                 Feature(_aura, new byte[] { AuraId, 0xBA, 0xC5, 0xC4, (byte)Math.Clamp(level, 0, 3) });
+                if (!x) _lastBrightness = -1;
                 return x;
             }
-            return Feature(_aura, new byte[] { AuraId, 0xBA, 0xC5, 0xC4, (byte)Math.Clamp(level, 0, 3) });
+            bool ok = Feature(_aura, new byte[] { AuraId, 0xBA, 0xC5, 0xC4, (byte)Math.Clamp(level, 0, 3) });
+            if (!ok) _lastBrightness = -1;
+            return ok;
         }
     }
 

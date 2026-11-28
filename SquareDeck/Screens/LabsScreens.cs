@@ -736,14 +736,31 @@ public sealed class StyleScheduleScreen : ListScreen
 {
     public StyleScheduleScreen() : base("Style schedule") { }
 
-    private static string NameOf(string id) => id.Length == 0 ? "Not chosen" : UiStyles.Find(id).Name;
+    private static string NameOf(string id) => id.Length == 0 ? "Not chosen" : UiStyles.Find(id).Name + "  ·  " + TierOf(id);
+
+    private static string TierOf(string id) =>
+        MyStyles.IsCustom(id) ? "Yours" : UiStyles.IsMythical(id) ? "Mythical" : UiStyles.Advanced.Any(x => x.Id == id && x.Unlock != null) ? "Unlocked" : "Legendary";
+
+    /// <summary>Every style the schedule can use, by tier, so each slot can be any kind: a Mythical morning and a
+    /// Legendary night, one of your own on weekends (8.5.100).</summary>
+    private static List<(string Name, List<UiStyle> Styles)> Tiers()
+    {
+        var tiers = new List<(string, List<UiStyle>)>
+        {
+            ("Mythical", UiStyles.MythicalInOrder()),
+            ("Legendary", UiStyles.LegendaryBasics.Concat(UiStyles.Advanced.Where(x => !x.Mythical && x.Unlock == null)).ToList()),
+            ("Unlocked", UiStyles.Advanced.Where(x => x.Unlock != null && !StyleUnlocks.IsLocked(x)).ToList()),
+            ("Yours", UiStyles.Custom.ToList()),
+        };
+        return tiers.Where(t => t.Item2.Count > 0).ToList();
+    }
 
     protected override void Build()
     {
         // On or off here too, now that the page opens straight from Settings > Themes.
         bool on = Labs.On("styleschedule");
         AddRow("Style schedule", on ? "On" : "Off", "\uE823", click: () => { Labs.Set("styleschedule", !on); UiSound.Select(); Rebuild(); },
-            subtitle: "A different style for mornings and nights or weekends, or a random Advanced style each day");
+            subtitle: "A different style for mornings and nights or weekends (Mythical, Legendary or your own, mixed as you like), or a random Advanced style each day");
         string mode = Labs.ScheduleMode;
         AddRow("Change", mode switch { "weekend" => "Weekdays and weekends", "random" => "A random Advanced style each day", _ => "Mornings and nights" }, "", click: () => _ = ChooseModeAsync());
         if (mode == "daynight")
@@ -773,8 +790,14 @@ public sealed class StyleScheduleScreen : ListScreen
 
     private async Task ChooseStyleAsync(string key)
     {
-        var styles = UiStyles.All.Concat(UiStyles.Advanced.Where(s => !StyleUnlocks.IsLocked(s))).ToList();
-        var menu = new MenuScreen("Choose a style", null, styles.Select(s => s.Name).ToArray());
+        // First the kind (any slot can be any kind, so Mythical and Legendary mix freely), then the style.
+        var tiers = Tiers();
+        string current = Labs.Get(key);
+        int t = await Host.AskAsync("Choose a style", "Any kind of style can go in any slot.",
+            tiers.Select(x => $"{x.Name}  ({x.Styles.Count})" + (x.Styles.Any(st => st.Id == current) ? "  ·  has the current one" : "")).ToArray());
+        if (t < 0) return;
+        var styles = tiers[t].Styles;
+        var menu = new MenuScreen(tiers[t].Name + " styles", null, styles.Select(st => (st.Id == current ? "★ " : "") + st.Name).ToArray());
         Host.Push(menu);
         int c = await menu.Result;
         if (c < 0) return;

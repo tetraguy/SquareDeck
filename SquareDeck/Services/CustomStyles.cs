@@ -49,6 +49,9 @@ public sealed class CustomStyle
     public string ButtonAnimation { get; set; } = "grow";
     public string PageAnimation { get; set; } = "slide";
     public string TileAnimation { get; set; } = "pulse";
+    /// <summary>Experimental "Lights match the UI style": this style's light effect ("" = picked for its colors) and speed.</summary>
+    public string Lights { get; set; } = "";
+    public string LightSpeed { get; set; } = "";
     public string BootAnimation { get; set; } = "logo";
     public string ExitAnimation { get; set; } = "logo";
     public string LaunchAnimation { get; set; } = "classic";
@@ -173,9 +176,9 @@ public static class MyStyles
     /// <summary>Every ready-made style there is to remix from, in tab order (locked Unlockable ones aren't offered yet).</summary>
     public static List<UiStyle> Everything()
     {
-        var list = new List<UiStyle>(UiStyles.All);
+        var list = new List<UiStyle>(UiStyles.LegendaryBasics);
         list.AddRange(UiStyles.Advanced.Where(x => !x.Mythical && x.Unlock == null));
-        list.AddRange(UiStyles.Advanced.Where(x => x.Mythical));
+        list.AddRange(UiStyles.MythicalInOrder());
         list.AddRange(UiStyles.Advanced.Where(x => x.Unlock != null && !StyleUnlocks.IsLocked(x)));
         return list;
     }

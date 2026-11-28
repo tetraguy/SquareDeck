@@ -495,11 +495,15 @@ public partial class MainWindow
             StyleLogo.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(350)));
     }
 
-    public void UseStyle(UiStyle style)
+    /// <param name="keepMusic">Leaves the menu music as it is.</param>
+    /// <param name="preview">A style gallery preview: its music plays too (even with style matching off, 8.5.99), but its lock screen isn't set.</param>
+    public void UseStyle(UiStyle style, bool keepMusic = false, bool preview = false)
     {
         var s = Settings;
         var leaving = UiStyles.Find(s.UiStyle);
         s.UiStyle = style.Id;
+        Labs.StyleChanged(style.Id); // cover and tile effects kept to some styles (8.5.81)
+        if (CoverStyles.On) Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(ApplyCoverStyle)); // the new style's corners and colors
         // The Switch style starts out without the hero background behind the home row: going back to it turns it off
         // (it can be turned on again in Settings > Home screen).
         if (style.Id == "switch" && leaving.Id != "switch") s.HeroBackgrounds = false;
@@ -530,7 +534,7 @@ public partial class MainWindow
             // Its own theme (light, dark or OLED) comes with it automatically (Theme.EffectiveMode); your choice for
             // Switch is kept for when you go back to it.
             s.SoundSet = style.Sounds;
-            s.MenuMusic = style.Music;
+            if (!keepMusic) s.MenuMusic = style.Music;
             UiSound.Configure(s);
             if (style.LaunchChime != null)
             {
@@ -540,13 +544,32 @@ public partial class MainWindow
             UseDynamicBackground(style.Moving);
         }
         else if (style.Wallpaper.Length > 0) s.Wallpaper = style.Wallpaper; // a style built around its own picture
+        // A preview lets you hear the style's own music either way (the gallery puts yours back unless you take it with the style).
+        if (preview && !keepMusic && !(s.StyleMatching || mine != null)) s.MenuMusic = style.Music;
         // Styles built around the game's artwork show it, unless a moving background has taken its place.
         if (style.WantsHero && s.DynamicBackground.Length == 0) s.HeroBackgrounds = true;
         s.Save();
         ApplyLook();
         // Animations, button pictures and music the style may have changed take effect now, not at the next start.
         ApplySettings();
-        if (mine != null) _ = ApplyStyleLockScreenAsync(mine);
+        if (mine != null && !keepMusic && !preview) _ = ApplyStyleLockScreenAsync(mine); // not for a gallery preview
+    }
+
+    /// <summary>
+    /// The style gallery put every setting back after previews (8.5.92): the sounds, button pictures, moving background,
+    /// look and settings follow, and the experiments that changed with the styles (kept to one style) catch up.
+    /// </summary>
+    public void ReapplyAfterPreview(IEnumerable<string> labsChanged)
+    {
+        var s = Settings;
+        UiSound.Configure(s);
+        UiSound.SetLaunchChime(s.LaunchChime, s.LaunchChimeFile);
+        Hints.SetLook(s.GlyphLook);
+        ApplyDynamicBackground();
+        ApplyLook();
+        ApplySettings();
+        foreach (var id in labsChanged) Labs.Refire(id);
+        if (CoverStyles.On) Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(ApplyCoverStyle));
     }
 
     /// <summary>Puts a style's lock screen picture on the Windows lock screen, if it has one.</summary>

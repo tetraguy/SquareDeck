@@ -387,6 +387,9 @@ public sealed class StreamingScreen : Screen, IPagePad
             // The controller, read by the page itself.
             string accent = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color is { } a ? $"#{a.R:X2}{a.G:X2}{a.B:X2}" : "#3AA0FF";
             await core.AddScriptToExecuteOnDocumentCreatedAsync(StreamingPad.For(accent));
+            // Experimental "Streaming service filters": the old TV look, drawn in the page over the video.
+            // Kept up to date while the service stays open (a new look shows at once).
+            await StreamFilters.AttachAsync(core, Service.Music, () => !_disposed);
             core.WebMessageReceived += (_, e) =>
             {
                 string message;

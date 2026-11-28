@@ -147,17 +147,24 @@ public sealed class GameOptionsScreen : Screen
         _rows.Children.OfType<Button>().FirstOrDefault()?.Focus();
     }
 
+    /// <summary>The highlight moved: the move sound and a light rumble (8.5.85), as on the home row.</summary>
+    private void Moved()
+    {
+        UiSound.Move();
+        Host.Rumble();
+    }
+
     public override bool OnAction(NavAction action)
     {
         var focused = Keyboard.FocusedElement as DependencyObject;
         bool inNav = focused != null && _navButtons.Any(b => ReferenceEquals(b, focused));
         bool inRows = focused is Button row && _rows.Children.Contains(row);
-        if (action == NavAction.Right && inNav) { EnterGroup(_group); UiSound.Move(); return true; }
+        if (action == NavAction.Right && inNav) { EnterGroup(_group); Moved(); return true; }
         if ((action == NavAction.Left || action == NavAction.Back) && inRows)
         {
             // Back to the groups, on the one being shown (B from the options goes back there first, then closes).
             _navButtons.FirstOrDefault(b => Equals(b.DataContext, _group))?.Focus();
-            UiSound.Move();
+            Moved();
             return true;
         }
         if (inRows && action is NavAction.Up or NavAction.Down)
@@ -165,14 +172,14 @@ public sealed class GameOptionsScreen : Screen
             var rows = _rows.Children.OfType<Button>().ToList();
             int at = rows.IndexOf((Button)focused!);
             int next = Math.Clamp(at + (action == NavAction.Down ? 1 : -1), 0, rows.Count - 1);
-            if (next != at) { rows[next].Focus(); rows[next].BringIntoView(); UiSound.Move(); }
+            if (next != at) { rows[next].Focus(); rows[next].BringIntoView(); Moved(); }
             return true;
         }
         if (inNav && action is NavAction.Up or NavAction.Down)
         {
             int at = _navButtons.IndexOf((Button)focused!);
             int next = Math.Clamp(at + (action == NavAction.Down ? 1 : -1), 0, _navButtons.Count - 1);
-            if (next != at) { _navButtons[next].Focus(); UiSound.Move(); }
+            if (next != at) { _navButtons[next].Focus(); Moved(); }
             return true;
         }
         return false;

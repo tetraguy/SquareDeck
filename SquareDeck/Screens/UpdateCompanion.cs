@@ -16,7 +16,7 @@ namespace SquareDeck.Screens;
 /// </summary>
 public sealed class UpdatePal
 {
-    public static bool Enabled => Labs.On("updatecompanion");
+    public static bool Enabled => Labs.On("updatecompanion") && Labs.On("companion"); // rides along only when you have a companion (8.5.102)
 
     private const double Size = 60;
     private readonly Canvas _lane = new() { Height = Size + 6, ClipToBounds = false, Margin = new Thickness(0, 0, 0, 2) };
@@ -46,7 +46,8 @@ public sealed class UpdatePal
         _lane.Children.Add(_bubble);
         _lane.Children.Add(_prop);
         _lane.Children.Add(_sprite);
-        _timer.Tick += (_, _) => Tick();
+        // A timer whose tick throws is never set going again (WPF), so one bad frame would freeze the companion for good.
+        _timer.Tick += (_, _) => { try { Tick(); } catch (Exception ex) { CrashLog.Write("Update companion", ex); } };
         _lane.Loaded += (_, _) => _timer.Start();
         _lane.Unloaded += (_, _) => _timer.Stop();
         Say(Pick($"{CompanionArt.Name} is knocking on GitHub's door…", "Fetching the new version!", "Ooh, an update!"), 3);
@@ -118,7 +119,8 @@ public sealed class UpdatePal
         {
             case "look":
                 // Looking left and right, waiting for the first bytes.
-                int look = (int)(t * 1.2) % 4 switch { 0 => -1, 2 => 1, _ => 0 };
+                // Parenthesised: a switch binds tighter than %, so without them this was "x % 0" and threw (8.5.83).
+                int look = ((int)(t * 1.2) % 4) switch { 0 => -1, 2 => 1, _ => 0 };
                 frame = (blink ? "b" : "h") + look;
                 y = Math.Sin(t * 2) * 1.5;
                 break;

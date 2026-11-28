@@ -445,6 +445,27 @@ function SetStage([string]$text) {
 
 # ---------------------------------------------------------------- the moving background (one of five styles)
 $rand = New-Object Random
+
+# While it installs, the line by the percentage is a random bit of game talk instead of installer steps (8.5.60).
+# Real news (done, cancelled, an error, an administrator prompt) is still said plainly.
+$gameLines = @(
+  'Loading the next level...', 'Respawning at the last checkpoint...', 'Grinding for XP...', 'Equipping new gear...',
+  'Leveling up...', 'Unlocking a new area...', 'Resting at the campfire...', 'Collecting power-ups...',
+  'Facing the final boss...', 'Rolling for loot...', 'Spending skill points...', 'Polishing the trophies...',
+  'Speedrunning the install...', 'Restocking health potions...', 'Calibrating the sticks...', 'Pushing more pixels...',
+  'Warping to the next world...', 'Charging the special move...', 'Building up the combo...', 'Clearing the side quests...',
+  'Blowing on the cartridge...', 'Skipping the cutscene...', 'Fast-traveling...', 'Crafting something shiny...',
+  'Opening the treasure chest...', 'Finding the secret room...', 'Waiting for the party to ready up...', 'Matchmaking new files...',
+  'Upgrading the base...', 'Taming the dragon...', 'Refueling the ship...', 'Picking a starter...',
+  'Unlocking an achievement...', 'Shaving frames off the route...', 'Defragmenting the dungeon...', 'Leveling the difficulty...'
+)
+$script:lastLine = -1; $script:lineAt = Get-Date
+function GameLine {
+  $i = $rand.Next($gameLines.Count)
+  if ($i -eq $script:lastLine) { $i = ($i + 1) % $gameLines.Count }
+  $script:lastLine = $i; $script:lineAt = Get-Date
+  SetStage $gameLines[$i]
+}
 $script:things = New-Object System.Collections.ArrayList
 $script:confetti = New-Object System.Collections.ArrayList
 $script:lastSpawn = Get-Date
@@ -635,7 +656,7 @@ function ReachStep([string]$name) {
   if (-not $steps.ContainsKey($name)) { return }
   $s = $steps[$name]
   if ($s[0] -gt $script:target) {
-    $script:target = $s[0]; SetStage $s[1]; StepTap
+    $script:target = $s[0]; GameLine; StepTap
     if ($palLines.ContainsKey($name)) { PalHop; PalSay (PalPick $palLines[$name]) }
   }
 }
@@ -688,11 +709,11 @@ function StartWidget([int]$code) {
   if (-not ($code -eq 0 -or $code -eq 3010)) { Finish $code; return }
   $script:widgetCode = $code; $script:widgetAt = Get-Date; $script:widgetStage = ''
   PalMood 'tinker'; PalProp 0xE90F; PalSay 'Tuning up your Game Bar widget too.'
-  if ($preview) { SetStage 'Updating the Game Bar widget...'; $script:target = [Math]::Max($script:target, 0.93); $script:state = 'widget'; return }
+  if ($preview) { GameLine; $script:target = [Math]::Max($script:target, 0.93); $script:state = 'widget'; return }
   try { Remove-Item -Path $widgetStatus -Force -ErrorAction SilentlyContinue } catch { }
   try {
     $script:widgetProc = Start-Process -FilePath $exe -ArgumentList @('__WIDGETARG__', "`"$widgetStatus`"") -PassThru -WindowStyle Hidden
-    SetStage 'Checking the Game Bar widget...'
+    GameLine
     $script:state = 'widget'
   } catch { Finish $code }
 }
@@ -730,10 +751,10 @@ $timer.Add_Tick({
   switch ($script:state) {
     'wait' {
       if ($preview) {
-        if ($t -gt 1.2) { SetStage 'Starting the installer...'; $script:target = 0.08; $script:state = 'install'; $script:simAt = $now; PalStart }
+        if ($t -gt 1.2) { GameLine; $script:target = 0.08; $script:state = 'install'; $script:simAt = $now; PalStart }
       }
       elseif (-not (Get-Process -Id $waitPid -ErrorAction SilentlyContinue) -or $t -gt 30) {
-        SetStage 'Starting the installer...'; $script:target = 0.08
+        GameLine; $script:target = 0.08
         try {
           $psi = New-Object System.Diagnostics.ProcessStartInfo 'msiexec.exe'
           $psi.Arguments = "/i `"$msi`" /qn /norestart /l*v `"$log`""
@@ -755,18 +776,21 @@ $timer.Add_Tick({
         Read-Log
         if ($script:proc.HasExited) { Read-Log; StartWidget $script:proc.ExitCode }
       }
+      # A new line every few seconds, so it keeps feeling alive between installer steps.
+      if (($now - $script:lineAt).TotalSeconds -gt 2.8) { GameLine }
       # Between steps the bar keeps creeping toward the next one, so it never looks stuck.
       if ($script:state -eq 'install' -and $script:target -lt 0.92) { $script:target += 0.0006 }
     }
     'widget' {
       # The Game Bar widget, updated by the new SquareDeck (it knows the steps), while this screen keeps going.
+      if (($now - $script:lineAt).TotalSeconds -gt 2.8) { GameLine }
       $line = ''
       try { if (Test-Path $widgetStatus) { $line = (Get-Content -Path $widgetStatus -Raw -ErrorAction Stop).Trim() } } catch { }
       if ($line -like 'step|*') {
         $parts = $line.Split('|', 4)
         $pct = 0.0; [double]::TryParse($parts[2], [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$pct) | Out-Null
         $stage = switch ($parts[1]) { 'trust' { 'Game Bar widget: Windows may ask an administrator to trust it...' } 'close' { 'Game Bar widget: closing Game Bar...' } 'install' { 'Updating the Game Bar widget...' } 'verify' { 'Game Bar widget: checking it''s there...' } default { 'Updating the Game Bar widget...' } }
-        if ($stage -ne $script:widgetStage) { $script:widgetStage = $stage; SetStage $stage }
+        if ($stage -ne $script:widgetStage) { $script:widgetStage = $stage; if ($parts[1] -eq 'trust') { SetStage $stage; $script:lineAt = (Get-Date).AddSeconds(30) } else { GameLine } }
         if ($parts[1] -eq 'install' -and $pct -ge 0) { $script:target = [Math]::Max($script:target, 0.93 + 0.06 * $pct / 100) }
       }
       $ended = ($preview -and ($now - $script:widgetAt).TotalSeconds -gt 2.2) -or

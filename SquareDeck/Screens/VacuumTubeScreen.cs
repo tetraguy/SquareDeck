@@ -127,6 +127,8 @@ public sealed class VacuumTubeScreen : Screen, IPagePad
 
             await core.AddScriptToExecuteOnDocumentCreatedAsync(VacuumTube.BootScript());
             await core.AddScriptToExecuteOnDocumentCreatedAsync(await File.ReadAllTextAsync(VacuumTube.ScriptPath));
+            // Experimental "Streaming service filters": the old TV look over DeckTube too.
+            await StreamFilters.AttachAsync(core, music: false, () => !_disposed);
 
             core.WebMessageReceived += (_, e) =>
             {

@@ -22,13 +22,13 @@ public partial class MainWindow
 {
     private static readonly string[] WidgetLabs =
     {
-        "wfpscap", "wautotdp", "wthermal", "wnotes", "wapps", "wcards", "wgameaware", "wpresets", "wtheme", "wcompanion", "wpowerlook", "ws2", "wfpsslider",
+        "wfpscap", "wautotdp", "wthermal", "wnotes", "wapps", "wcards", "wgameaware", "wpresets", "wtheme", "wcompanion", "wpowerlook", "ws2", "wfpsslider", "wfavorites",
     };
 
     /// <summary>Every card the widget has, in its usual order (the editor's list).</summary>
     private static readonly string[] WidgetCardIds =
     {
-        "game", "media", "power", "live", "ally", "notes", "launch", "quick",
+        "game", "media", "power", "live", "ally", "notes", "launch", "favorites", "quick",
     };
 
     private int _widgetCap;                    // the frame cap the widget set for this session (0: none)
@@ -84,6 +84,8 @@ public partial class MainWindow
         if (Labs.On("wpowerlook")) state["powerlook"] = Labs.Has("w.powerlook") ? Labs.Get("w.powerlook") : "dial";
         if (Labs.On("wthermal")) state["templimit"] = Settings.TdpTempLimit > 0 ? Settings.TdpTempLimit : 95;
         if (Labs.On("wnotes") && key != null) state["notes"] = Library.Find(key)?.Notes ?? "";
+        if (Labs.On("wfavorites"))
+            state["favkey"] = string.Join("|", FavoriteGames().Select(g => g.Key + (g.IsRunning ? "*" : "") + (g.Cover != null ? "c" : "")));
         if (Labs.On("wapps")) state["appskey"] = string.Join("|", _apps.OrderByDescending(a => a.RecentAt).Take(6).Select(a => a.LaunchId));
         if (Labs.On("wtheme")) state["themekey"] = UiStyles.Current.Id + "|" + WidgetAccent() + "|" + Settings.Wallpaper;
         if (Labs.On("wcompanion"))
@@ -161,6 +163,12 @@ public partial class MainWindow
             }
             case "apps":
                 _ = SendWidgetAppsAsync();
+                return true;
+            case "favorites":
+                _ = SendWidgetFavoritesAsync();
+                return true;
+            case "favlaunch" when Str("key") is { Length: > 0 } favKey:
+                _ = LaunchFavoriteFromWidgetAsync(favKey, Bool("stop") == true);
                 return true;
             case "launch" when Str("id") is { Length: > 0 } app:
                 if (!InstalledApps.Launch(app)) WidgetNote("Couldn't start it");
@@ -310,6 +318,49 @@ public partial class MainWindow
             list.Add(new JsonObject { ["id"] = a.LaunchId, ["name"] = a.Name, ["icon"] = icon });
         }
         WidgetBridge.Send(new JsonObject { ["type"] = "apps", ["apps"] = list });
+    }
+
+    // ---- favorites (8.5.87)
+
+    /// <summary>The favorite games, as the Favorites page lists them (installed first, then the most recently played).</summary>
+    private List<Game> FavoriteGames() => AllGames.Select(g => g.Actual).Where(g => g.IsFavorite && !g.IsActionTile && !g.OnWishlist)
+        .OrderByDescending(g => g.IsRunning).ThenByDescending(g => g.IsInstalled).ThenByDescending(g => g.RecentAt).ThenBy(g => g.Name)
+        .DistinctBy(g => g.Key).Take(60).ToList(); // each game once (8.5.91)
+
+    private async Task SendWidgetFavoritesAsync()
+    {
+        var list = new JsonArray();
+        foreach (var g in FavoriteGames())
+        {
+            string? cover = null;
+            try
+            {
+                BitmapSource? art = g.Cover as BitmapSource;
+                if (art is { IsFrozen: false } && art.CanFreeze) art = (BitmapSource)art.GetAsFrozen();
+                cover = await Task.Run(() => Encode(art, 112, jpeg: !g.UsesIcon));
+            }
+            catch (Exception) { }
+            list.Add(new JsonObject { ["key"] = g.Key, ["name"] = g.Name, ["cover"] = cover, ["running"] = g.IsRunning });
+        }
+        WidgetBridge.Send(new JsonObject { ["type"] = "favorites", ["games"] = list });
+    }
+
+    /// <summary>
+    /// A favorite chosen in the widget. Already running: back to it. Another game running: only with
+    /// <paramref name="stop"/> (the widget asked first), SquareDeck comes to the front, plays its closing animation for
+    /// that game and then the game starts with its own start animation, as it does from Home.
+    /// </summary>
+    private async Task LaunchFavoriteFromWidgetAsync(string key, bool stop)
+    {
+        var game = AllGames.FirstOrDefault(g => g.Key == key);
+        if (game == null) { WidgetNote("That game isn't in the library any more"); return; }
+        if (game.IsRunning) { ReturnToGame(game); return; }
+        var running = AllGames.FirstOrDefault(g => g.IsRunning && g != game);
+        if (running != null && !stop) { WidgetNote(running.Name + " is running: quit it first"); return; }
+        WindowActivator.BringToFront(this);
+        await Task.Delay(400); // Game Bar steps aside first
+        if (running != null && !await StopGameAsync(running, confirm: false, settleMs: 1500)) { WidgetNote("Couldn't quit " + running.Name); return; }
+        await ActivateAsync(game);
     }
 
     // ---- layout

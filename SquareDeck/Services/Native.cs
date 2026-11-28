@@ -468,6 +468,7 @@ public static class StoreLogos
         if (s == "ea" || s.StartsWith("ea ") || s.StartsWith("origin")) return "ea";
         if (s.StartsWith("ubisoft") || s.StartsWith("uplay")) return "ubisoft";
         if (s is "custom" or "imported" or "other" or "added") return "imported";
+        if (s.StartsWith("nexus")) return "nexus"; // Nexus Mods (Store page)
         return null;
     }
 

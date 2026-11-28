@@ -115,8 +115,14 @@ public static class AmdAdlx
     // IADLX3DChill: IsSupported, IsEnabled, GetFPSRange, GetMinFPS, GetMaxFPS, SetEnabled, SetMinFPS, SetMaxFPS.
     private const int ChillGetMin = 6, ChillGetMax = 7, ChillSetMin = 9, ChillSetMax = 10;
 
-    /// <summary>What the frame limiter was set to before a cap, to put back afterwards.</summary>
-    public sealed record CapState(string Method, bool Enabled, int First, int Second);
+    /// <summary>
+    /// What the frame limiter was set to before a cap, to put back afterwards, and the cap SquareDeck set
+    /// (<paramref name="Applied"/>; 0 when not known, from a version before 8.5.86).
+    /// </summary>
+    public sealed record CapState(string Method, bool Enabled, int First, int Second, int Applied = 0);
+
+    /// <summary>The lowest rate ever put back: a lower one left in the snapshot turns the limiter off instead (8.5.86).</summary>
+    public const int LowestRestore = 30;
 
     /// <summary>
     /// Caps the frame rate: Radeon's Frame Rate Target Control where the driver offers it, otherwise Radeon Chill with
@@ -129,7 +135,7 @@ public static class AmdAdlx
             if (!Ok(Fn<BoolOut>(f, FrtcSupported)(f, out var sup)) || sup == 0) return null;
             Fn<BoolOut>(f, FrtcEnabled)(f, out var on);
             Fn<IntOut>(f, FrtcGetFps)(f, out var old);
-            var before = new CapState("frtc", on != 0, old, 0);
+            var before = new CapState("frtc", on != 0, old, 0, fps);
             if (!Ok(Fn<IntIn>(f, FrtcSetFps)(f, fps)) || !Ok(Fn<BoolIn>(f, FrtcSetEnabled)(f, 1))) return null;
             return before;
         });
@@ -140,7 +146,7 @@ public static class AmdAdlx
             Fn<BoolOut>(f, ChillEnabled)(f, out var on);
             Fn<IntOut>(f, ChillGetMin)(f, out var min);
             Fn<IntOut>(f, ChillGetMax)(f, out var max);
-            var before = new CapState("chill", on != 0, min, max);
+            var before = new CapState("chill", on != 0, min, max, fps);
             // The highest first when lowering, the lowest first when raising, so min never goes above max.
             if (fps < max) { Fn<IntIn>(f, ChillSetMin)(f, fps); Fn<IntIn>(f, ChillSetMax)(f, fps); }
             else { Fn<IntIn>(f, ChillSetMax)(f, fps); Fn<IntIn>(f, ChillSetMin)(f, fps); }
@@ -149,21 +155,33 @@ public static class AmdAdlx
         });
     }
 
-    /// <summary>Puts the frame limiter back as <see cref="ApplyCap"/> found it.</summary>
+    /// <summary>
+    /// Puts the frame limiter back as <see cref="ApplyCap"/> found it. 8.5.86, so a stale snapshot can't drag the limiter
+    /// back to an old setting (it kept coming back at 15 FPS):
+    ///  - only while the limiter still holds SquareDeck's own cap: changed since (in AMD Software, Armoury Crate, a
+    ///    Default Game Profile...), it's left as it is now;
+    ///  - never to a rate under 30 FPS: a snapshot that low turns the limiter off instead.
+    /// </summary>
     public static void RestoreCap(CapState before)
     {
         if (before.Method == "frtc")
             With<bool>(ServicesGetFrtc, f =>
             {
-                if (before.First > 0) Fn<IntIn>(f, FrtcSetFps)(f, before.First);
-                Fn<BoolIn>(f, FrtcSetEnabled)(f, before.Enabled ? (byte)1 : (byte)0);
+                Fn<IntOut>(f, FrtcGetFps)(f, out var now);
+                if (before.Applied > 0 && now > 0 && now != before.Applied) return false; // someone else's setting now
+                bool usable = before.First >= LowestRestore;
+                if (usable) Fn<IntIn>(f, FrtcSetFps)(f, before.First);
+                Fn<BoolIn>(f, FrtcSetEnabled)(f, before.Enabled && usable ? (byte)1 : (byte)0);
                 return true;
             });
         else
             With<bool>(ServicesGetChill, f =>
             {
-                if (before.Second > 0) { Fn<IntIn>(f, ChillSetMax)(f, before.Second); if (before.First > 0) Fn<IntIn>(f, ChillSetMin)(f, before.First); }
-                Fn<BoolIn>(f, ChillSetEnabled)(f, before.Enabled ? (byte)1 : (byte)0);
+                Fn<IntOut>(f, ChillGetMax)(f, out var now);
+                if (before.Applied > 0 && now > 0 && now != before.Applied) return false;
+                bool usable = before.First >= LowestRestore && before.Second >= before.First;
+                if (usable) { Fn<IntIn>(f, ChillSetMax)(f, before.Second); Fn<IntIn>(f, ChillSetMin)(f, before.First); }
+                Fn<BoolIn>(f, ChillSetEnabled)(f, before.Enabled && usable ? (byte)1 : (byte)0);
                 return true;
             });
     }

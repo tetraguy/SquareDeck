@@ -932,7 +932,7 @@ public sealed partial class SettingsScreen : ListScreen
             Apply();
         });
         AddNote("Stops the pulsing highlight, page slides, fades, animated covers and the startup animation.");
-        AddRow("Covers that tilt", Labs.On("tilt") ? "On" : "Off", "\uE8B4", click: () => { Labs.Set("tilt", !Labs.On("tilt")); Rebuild(); },
+        AddRow("Covers that tilt", Labs.On("tilt") ? "On" : "Off", "\uE8B4", click: () => ToggleLab("tilt", "Covers that tilt", Rebuild),
             subtitle: "Turn off if movement on screen makes you uncomfortable");
 
         AddHeader("Hearing");
@@ -1038,13 +1038,35 @@ public sealed partial class SettingsScreen : ListScreen
         if (!_switch2) Rows.Children.Add(tabs);
         const double W = 296;
         if (_stylesTab is not ("mythical" or "unlockable" or "mine")) _stylesTab = "legendary"; // the old Basic and Advanced tabs
+        if (StyleGalleryScreen.On && !_pictureList && _stylesTab is "legendary" or "mythical")
+        {
+            // The style gallery (out of Experimental in 8.5.101): the styles are tried on the home screen itself;
+            // the list of pictures is still here, one row away.
+            string tab = _stylesTab;
+            AddRow("Open the style gallery", UiStyles.Current.Name, "\uE771", click: () => StyleGalleryScreen.Open(Host, tab),
+                subtitle: "The " + (tab == "mythical" ? "Mythical" : "Legendary") + " styles in a row on the home screen: A previews one for real, A again keeps it, B puts yours back");
+            AddRow("Surprise me", null, "\uE8B1", subtitle: "Switch to a random style you're not using now", click: () =>
+            {
+                var pool = tab == "mythical" ? UiStyles.MythicalInOrder() : UiStyles.LegendaryBasics.Concat(LegendaryKits);
+                var others = pool.Where(x => x.Id != s.UiStyle).ToList();
+                if (others.Count > 0) UseSwitchStyle(others[Random.Shared.Next(others.Count)]);
+            });
+            AddRow("Style schedule", Labs.On("styleschedule") ? "On" : "Off", "\uE823", subtitle: "A different style for mornings and nights or weekends, or a random Advanced style each day",
+                click: () => Host.Push(new StyleScheduleScreen()));
+            AddRow("See them as a list of pictures", null, "\uE8FD", subtitle: "The " + (tab == "mythical" ? "Mythical" : "Legendary") + " styles as cards here, the way they used to be chosen",
+                click: () => { _pictureList = true; UiSound.Select(); Rebuild(); });
+            return;
+        }
+        if (_pictureList && _stylesTab is "legendary" or "mythical")
+            AddRow("Back to the style gallery", null, "\uE771", subtitle: "Try the styles on the home screen itself",
+                click: () => { _pictureList = false; UiSound.Select(); Rebuild(); });
         if (_stylesTab == "mythical") { BuildAdvancedStyles(s, W, legendary: false, mythical: true); return; }
         if (_stylesTab == "unlockable") { BuildAdvancedStyles(s, W, legendary: false, unlockable: true); return; }
         if (_stylesTab == "mine") { BuildMyStyles(s, W); return; }
 
         AddRow("Surprise me", null, "\uE8B1", subtitle: "Switch to a random style you're not using now", click: () =>
         {
-            var others = UiStyles.All.Concat(LegendaryKits).Where(x => x.Id != s.UiStyle).ToList();
+            var others = UiStyles.LegendaryBasics.Concat(LegendaryKits).Where(x => x.Id != s.UiStyle).ToList();
             if (others.Count > 0) UseSwitchStyle(others[Random.Shared.Next(others.Count)]);
         });
         // Right under Surprise me, so it's easy to find: the page with the schedule and its on/off switch.
@@ -1069,10 +1091,10 @@ public sealed partial class SettingsScreen : ListScreen
             });
         }
 
-        AddHeader("Legendary styles  ·  " + (UiStyles.All.Length + kits.Count));
+        AddHeader("Legendary styles  ·  " + (UiStyles.LegendaryBasics.Count() + kits.Count));
         // Three to a row: the column is 1040 wide, and each card adds the tile's padding and ring plus a 10 gap.
         var shelf = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
-        foreach (var style in UiStyles.All)
+        foreach (var style in UiStyles.LegendaryBasics)
         {
             var st = style;
             bool inUse = st.Id == UiStyles.Current.Id;
@@ -1149,6 +1171,7 @@ public sealed partial class SettingsScreen : ListScreen
     }
 
     /// <summary>Which tab of Themes is showing: the Basic styles, the Advanced ones or the Legendary ones.</summary>
+    private static bool _pictureList; // Themes showing the old list of pictures instead of the gallery row (8.5.101)
     private static string _stylesTab = MyStyles.IsCustom(UiStyles.Current.Id) ? "mine" : UiStyles.Current.Unlock != null ? "unlockable" : UiStyles.IsMythical(UiStyles.Current.Id) ? "mythical" : "legendary";
 
     /// <summary>
@@ -1175,7 +1198,7 @@ public sealed partial class SettingsScreen : ListScreen
     {
         var current = UiStyles.Current;
         var list = unlockable ? UiStyles.Advanced.Where(x => x.Unlock != null).ToList()
-                              : mythical ? UiStyles.Advanced.Where(x => x.Mythical).ToList()
+                              : mythical ? UiStyles.MythicalInOrder()
                               : UiStyles.Advanced.Where(x => x.Legendary == legendary && !x.Mythical && x.Unlock == null).OrderBy(x => ShuffleKey(x.Id)).ToList();
         if (unlockable)
         {
@@ -1265,6 +1288,12 @@ public sealed partial class SettingsScreen : ListScreen
                     });
                 }
             }
+            catch (Exception) { }
+        }
+        else
+        {
+            // A plain style moved into Mythical (Pixel Woods, 8.5.101) has no kit artwork: its little home screen instead.
+            try { frame.Children.Add(new Border { CornerRadius = new CornerRadius(10), ClipToBounds = true, Child = new Viewbox { Stretch = Stretch.UniformToFill, Child = UiStyleScreen.Preview(st) } }); }
             catch (Exception) { }
         }
         if (st.Mythical)
@@ -1719,12 +1748,14 @@ public sealed partial class SettingsScreen : ListScreen
             click: ChooseExitStyle);
 
         AddHeader("Covers and companion");
+        AddFeature("coverstyle");
         AddFeature("coverdim");
         AddFeature("covereffect");
         AddFeature("tilt");
         if (Labs.On("tilt")) BuildTiltOptions();
         AddFeature("dust");
         AddFeature("companion");
+        if (Labs.On("companion")) AddFeature("updatecompanion");
 
         AddHeader("Moving background");
         AddFeature("wallpaperengine");
@@ -1738,6 +1769,9 @@ public sealed partial class SettingsScreen : ListScreen
         AddNote("Choose a built-in set or one of the sound packs, set the loudness, and pick which kinds of sound play.");
         AddRow("Game start chime", UiSound.LaunchChimes.FirstOrDefault(c => c.Id == s.LaunchChime).Name ?? "Rise", "\uE767",
             click: ChooseLaunchChime);
+
+        AddHeader("Equalizer");
+        AddFeaturePage("squareeq", "SquareDeck EQ");
 
         AddHeader("Background music");
         AddRow("Music on the launcher's screens", BackgroundMusic.NameOf(s.MenuMusic), "\uE8D6", click: () => _ = ChooseBackgroundMusicAsync(Host, Rebuild));
@@ -1874,7 +1908,12 @@ public sealed partial class SettingsScreen : ListScreen
         AddFeature("wtheme", "Widget: match my style");
         AddFeature("wcompanion", "Widget: companion");
         AddFeature("wfpsslider", "Widget: frame cap slider");
-        AddFeaturePage("wpowerlook", "Widget: wattage look", "How the TDP shows in the Power card: full dial, slim bar, mini dial, number only or preset chips");
+        {
+            string look = Labs.On("wpowerlook") && Labs.Has("w.powerlook") ? Labs.Get("w.powerlook") : "dial";
+            AddRow("Widget: wattage look", PowerLooks.FirstOrDefault(l => l.Id == look).Name ?? "Full dial", "\uE945",
+                click: () => LabPage("wpowerlook")?.Invoke(),
+                subtitle: $"How the TDP shows in the Power card: {PowerLooks.Length} looks, from the full dial to a gauge, battery cells, a ruler or a slider");
+        }
         AddNote("The widget's cards are all built in now: media controls, frame cap buttons, Auto TDP and the thermal warning in the Power and Live cards, " +
                 "game notes, launch apps and SquareDeck shortcuts, and the card editor (order, hiding, a layout and preset per game).");
         AddRow("Widget colors", WidgetThemeName(s.WidgetTheme), "\uE790", click: () => _ = ChooseWidgetThemeAsync(),
@@ -2027,26 +2066,14 @@ public sealed partial class SettingsScreen : ListScreen
         else if (!TdpControl.CanApply)
         {
             AddNote(chip.Name + ". " + chip.Note);
-            bool vendorFirmware = Handheld.Vendor is HandheldVendor.Lenovo or HandheldVendor.Msi;
-            if (vendorFirmware || TdpControl.IsIntel)
-            {
-                AddRow("Set up TDP control", "Not set up", "\uE896", click: () => _ = SetUpDeviceHelperAsync(),
-                    subtitle: vendorFirmware
-                        ? "Sets the limit through the " + Handheld.DisplayName + "'s own firmware (one Windows permission prompt)"
-                        : "Sets Intel's power limits with KX.exe from your HandheldCompanion install (one Windows permission prompt)");
-                AddNote("Setting the power limit needs administrator rights. Setup adds the device helper: a small script in Program Files " +
-                        "and a background task, \"SquareDeck\\DeviceHelper\", that changes only the settings on its list, without asking each time." +
-                        (TdpControl.IsIntel && !vendorFirmware
-                            ? " Intel power limits need KX.exe, which comes with HandheldCompanion (github.com/Valkirie/HandheldCompanion): install HandheldCompanion first, or point SquareDeck to its KX folder."
-                            : ""));
-            }
+            if (TdpControl.IsIntel)
+                AddNote("SquareDeck sets power limits on the ROG Ally family's AMD processors; Intel processors aren't supported.");
             if (!TdpControl.IsIntel)
             {
-                AddRow(vendorFirmware ? "Set up with RyzenAdj instead" : "Set up TDP control", "Not set up", "\uE896", click: SetUpTdp,
+                AddRow("Set up TDP control", "Not set up", "\uE896", click: SetUpTdp,
                     subtitle: TdpControl.HasBundled ? "Installs RyzenAdj, which comes with SquareDeck (one Windows permission prompt)"
                                                     : "Downloads RyzenAdj from GitHub and installs it (one Windows permission prompt)");
-                if (!vendorFirmware)
-                    AddNote("Setting the power limit needs administrator rights. Setup installs RyzenAdj (an open-source tool, " +
+                AddNote("Setting the power limit needs administrator rights. Setup installs RyzenAdj (an open-source tool, " +
                             "github.com/FlyGoat/RyzenAdj) into Program Files and adds a background task, \"SquareDeck\\ApplyTdp\", " +
                             "that applies your limits without asking each time. You can remove both here later.");
             }
@@ -2157,7 +2184,7 @@ public sealed partial class SettingsScreen : ListScreen
     private void BuildTdpHelper(Settings s, string? header)
     {
         var chip = TdpControl.Chip;
-        if (!TdpControl.Installed && TdpControl.Method is "asus" or "lenovo" or "msi" && !TdpControl.IsIntel && chip != null)
+        if (!TdpControl.Installed && TdpControl.Method == "asus" && !TdpControl.IsIntel && chip != null)
         {
             if (header != null) AddHeader(header);
             AddRow("Set up RyzenAdj too", "Optional", "\uE896", click: SetUpTdp,
@@ -2167,7 +2194,7 @@ public sealed partial class SettingsScreen : ListScreen
         {
             if (header != null) AddHeader(header);
             AddRow("Keep re-applying", OnOff(s.TdpReapply), "\uE72C", click: () => { s.TdpReapply = !s.TdpReapply; SaveTdp(); },
-                subtitle: "Every 15 seconds, for devices whose own software puts its limit back (Armoury Crate, Legion Space)");
+                subtitle: "Every 15 seconds, in case Armoury Crate puts its own limit back");
             AddRow("Apply now", TdpControl.LastResult, "\uE768", click: async () => { await TdpControl.ApplyAsync(); Rebuild(); });
             if (TdpControl.HelperNeedsUpdate)
                 AddRow("Update the TDP helper", "Needed for the power profile", "\uE895", click: SetUpTdp,
@@ -2193,9 +2220,6 @@ public sealed partial class SettingsScreen : ListScreen
         string about = now switch
         {
             "asus" => "Through the Ally's firmware, like Armoury Crate (no helper needed)",
-            "lenovo" => "Through Lenovo's firmware, like Legion Space (device helper)",
-            "msi" => "Through MSI's firmware, like MSI Center M (device helper)",
-            "kx" => "Intel's PL1 / PL2 limits with KX.exe (device helper)",
             _ => "Through the RyzenAdj helper"
         };
         AddRow("How the limit is set", TdpControl.MethodName(now), "\uE950", click: async () =>
@@ -2212,51 +2236,6 @@ public sealed partial class SettingsScreen : ListScreen
         }, subtitle: about);
     }
 
-    /// <summary>Sets up the device helper (Legion Go, MSI Claw, Intel TDP), finding KX.exe for Intel.</summary>
-    private async Task SetUpDeviceHelperAsync()
-    {
-        bool vendor = Handheld.Vendor is HandheldVendor.Lenovo or HandheldVendor.Msi;
-        string? kx = DeviceHelper.FindKx();
-        if (TdpControl.IsIntel && kx == null)
-        {
-            int pick = await Host.AskAsync("KX.exe wasn't found",
-                "Intel power limits are set with KX.exe, which comes with HandheldCompanion (github.com/Valkirie/HandheldCompanion). " +
-                "SquareDeck looked in Program Files and didn't find it. " +
-                (vendor ? "You can set up without it: the " + Handheld.DisplayName + "'s own firmware sets the limit." : "Install HandheldCompanion, or choose its KX folder."),
-                vendor ? new[] { "Set up without it", "Choose the KX folder…", "Cancel" } : new[] { "Choose the KX folder…", "Cancel" });
-            string chosen = vendor ? (pick switch { 0 => "skip", 1 => "browse", _ => "" }) : (pick == 0 ? "browse" : "");
-            if (chosen == "") return;
-            if (chosen == "browse")
-            {
-                var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Find KX.exe", Filter = "KX.exe|KX.exe", CheckFileExists = true };
-                if (dialog.ShowDialog() != true) return;
-                kx = System.IO.Path.GetDirectoryName(dialog.FileName);
-            }
-        }
-        if (await Host.AskAsync("Set up the device helper?",
-                "Windows will ask for permission once. SquareDeck adds a small script to Program Files and a background task, " +
-                "\"SquareDeck\\DeviceHelper\", that changes only the settings on its list (power modes, fan boost, charge limit, power limits). " +
-                "Changing power limits is at your own risk; stay within your device's range.",
-                "Set up", "Cancel") != 0) return;
-        Host.ShowToast("DEVICE HELPER", "Setting up…", "", "", "info");
-        bool hadTdp = TdpControl.CanApply;
-        var error = await DeviceHelper.InstallAsync(kx);
-        if (error != null)
-        {
-            await Host.AskAsync("The device helper isn't set up", error, "OK");
-            Rebuild();
-            return;
-        }
-        Host.ShowToast("DEVICE HELPER", "Set up", "", "", "info");
-        if (!hadTdp && TdpControl.CanApply)
-        {
-            Host.Settings.TdpEnabled = true;
-            Host.Settings.TdpWatts = TdpControl.Chip?.Default ?? 15;
-        }
-        _ = HandheldVendors.ApplyAllAsync(Host.Settings);
-        SaveTdp();
-    }
-
     // ---------------------------------------------------------------- <model> Specific Settings
 
     /// <summary>Where the TDP settings are: the handheld's own section on a handheld, Power and performance elsewhere.</summary>
@@ -2268,8 +2247,8 @@ public sealed partial class SettingsScreen : ListScreen
     // ---------------------------------------------------------------- the handheld's own section
     //
     // One place for everything about this device, as a hub of groups (each opens on its own): Performance, Processor
-    // tuning, Fans and temperature, Lights, Controller, Buttons, Battery, Screen, This device and Advanced. On the ROG
-    // Ally family it covers what HandheldCompanion offers for it: TDP and the ASUS modes, fan curves, the RGB rings,
+    // tuning, Fans and temperature, Lights, Controller, Buttons, Battery, Screen, This device and Advanced: TDP and the
+    // ASUS modes, fan curves, the RGB rings,
     // the controller's firmware settings (rumble strength, stick and trigger dead zones, M1 / M2, mouse mode), the
     // charge limit, and the screen's refresh rate and resolution.
 
@@ -2295,64 +2274,6 @@ public sealed partial class SettingsScreen : ListScreen
         } : null);
 
         if (ally) BuildAllyHardware(s);
-        // Legion Go / MSI Claw: through the device helper.
-        if (HandheldVendors.Supported)
-        {
-            bool lenovo = Handheld.Vendor == HandheldVendor.Lenovo;
-            AddHeader(lenovo ? "Legion modes and fans" : "MSI Claw modes and fans");
-            if (!DeviceHelper.Installed)
-            {
-                AddRow("Set up the device helper", "Not set up", "\uE896", click: () => _ = SetUpDeviceHelperAsync(),
-                    subtitle: (lenovo ? "Legion modes" : "User scenarios") + ", fan boost and the charge limit need it (one Windows permission prompt)");
-            }
-            else
-            {
-                var modes = HandheldVendors.Modes;
-                AddRow(lenovo ? "Legion mode" : "User scenario", modes.FirstOrDefault(m => m.Id == s.HandheldPowerMode).Name ?? "Leave as it is", "\uEC4A",
-                    click: async () =>
-                    {
-                        int choice = await Host.AskAsync(lenovo ? "Legion mode" : "User scenario", null, modes.Select(m => m.Name).ToArray());
-                        if (choice < 0) return;
-                        s.HandheldPowerMode = modes[choice].Id;
-                        s.Save();
-                        bool ok = await HandheldVendors.SetModeAsync(s.HandheldPowerMode);
-                        Host.ShowToast(Handheld.DisplayName.ToUpperInvariant(), ok ? modes[choice].Name : "Couldn't change it", ok ? "" : DeviceHelper.LastResult, "", "info");
-                        Rebuild();
-                    }, subtitle: modes.FirstOrDefault(m => m.Id == s.HandheldPowerMode).About);
-                AddRow("Fan boost", OnOff(s.HandheldFanBoost), "\uE9CA", click: async () =>
-                {
-                    s.HandheldFanBoost = !s.HandheldFanBoost;
-                    s.Save();
-                    if (!await HandheldVendors.SetFanBoostAsync(s.HandheldFanBoost))
-                        Host.ShowToast(Handheld.DisplayName.ToUpperInvariant(), "Couldn't change the fans", DeviceHelper.LastResult, "", "info");
-                    Rebuild();
-                }, subtitle: "The fans at full speed: loud, but the coolest");
-                if (lenovo)
-                    AddRow("Stop charging at 80%", OnOff(s.HandheldChargeLimit is > 0 and < 100), "\uEBB5", click: async () =>
-                    {
-                        s.HandheldChargeLimit = s.HandheldChargeLimit is > 0 and < 100 ? 100 : 80;
-                        s.Save();
-                        if (!await HandheldVendors.SetChargeLimitAsync(s.HandheldChargeLimit))
-                            Host.ShowToast("LEGION", "Couldn't change the charge limit", DeviceHelper.LastResult, "", "info");
-                        Rebuild();
-                    }, subtitle: "Kinder to the battery when the Legion Go is mostly plugged in");
-                else
-                    AddRow("Stop charging at", s.HandheldChargeLimit is > 0 ? s.HandheldChargeLimit + "%" : "Leave as it is", "\uEBB5", click: async () =>
-                    {
-                        var limits = HandheldVendors.ClawChargeLimits;
-                        int choice = await Host.AskAsync("Stop charging at", "80% is kinder to the battery when the Claw is mostly plugged in.",
-                            limits.Select(l => l == 0 ? "Leave as it is" : l + "%").ToArray());
-                        if (choice < 0) return;
-                        s.HandheldChargeLimit = limits[choice];
-                        s.Save();
-                        if (s.HandheldChargeLimit > 0 && !await HandheldVendors.SetChargeLimitAsync(s.HandheldChargeLimit))
-                            Host.ShowToast("MSI CLAW", "Couldn't change the charge limit", DeviceHelper.LastResult, "", "info");
-                        Rebuild();
-                    });
-            }
-        }
-
-
         // ---- Screen (every handheld): refresh rate and resolution of the built-in display.
         BuildHandheldScreen();
 
@@ -2373,29 +2294,14 @@ public sealed partial class SettingsScreen : ListScreen
         // ---- Advanced: the helpers (the TDP helper's rows were added to it by BuildTdp)
         AddHeader("Advanced");
         BuildTdpHelper(s, null);
-        if (HandheldVendors.Supported || TdpControl.IsIntel)
-        {
-            if (DeviceHelper.Installed)
+        if (DeviceHelper.Installed)
+            // Left by an earlier version, for the Legion Go, MSI Claw and Intel handhelds SquareDeck no longer supports.
+            AddRow("Remove the old device helper", "Not used any more", "\uE74D", click: async () =>
             {
-                AddRow("Device helper", "Set up", "\uE90F", click: async () =>
-                {
-                    int choice = await Host.AskAsync("Device helper", "Changes handheld settings that need administrator rights.", "Set it up again", "Remove it", "Cancel");
-                    if (choice == 0) await SetUpDeviceHelperAsync();
-                    else if (choice == 1)
-                    {
-                        var error = await DeviceHelper.UninstallAsync();
-                        if (error != null) await Host.AskAsync("Device helper", error, "OK");
-                        Rebuild();
-                    }
-                }, subtitle: TdpControl.IsIntel ? (DeviceHelper.HasKx ? "With KX.exe for Intel power limits" : "Without KX.exe: Intel power limits through the firmware only") : "Power modes, fans, charge limit, power limits");
-            }
-            else if (!HandheldVendors.Supported)
-            {
-                AddRow("Set up Intel TDP", "Not set up", "\uE896", click: () => _ = SetUpDeviceHelperAsync(),
-                    subtitle: "Uses KX.exe from HandheldCompanion (one Windows permission prompt)");
-            }
-        }
-
+                var error = await DeviceHelper.UninstallAsync();
+                await Host.AskAsync("Device helper", error ?? "Removed. Its background task and its folder in Program Files are gone.", "OK");
+                Rebuild();
+            }, subtitle: "An earlier version set it up for other handhelds. Removing it takes one Windows permission prompt");
     }
 
     /// <summary>The top of the handheld's section: its picture, name, processor and power range, and what it's set to now.</summary>
@@ -2455,6 +2361,22 @@ public sealed partial class SettingsScreen : ListScreen
     }
 
     /// <summary>Saves a setting, applies it, and redraws.</summary>
+    /// <summary>The X20's eight zones, each its own color, until OK; then the lights go back.</summary>
+    private async Task TestEightZonesAsync()
+    {
+        LightFx.Stop();
+        Color[] colors =
+        {
+            Color.FromRgb(255, 0, 0), Color.FromRgb(255, 110, 0), Color.FromRgb(255, 230, 0), Color.FromRgb(0, 230, 60),
+            Color.FromRgb(0, 220, 255), Color.FromRgb(0, 60, 255), Color.FromRgb(170, 0, 255), Color.FromRgb(255, 255, 255),
+        };
+        bool ok = await Task.Run(() => AllyHid.TestX20Zones(colors));
+        await Host.AskAsync("8-zone test", ok
+            ? "Zones 1 to 8 are lit: red, orange, yellow, green, cyan, blue, purple, white. Note which LED shows which color (and if some stay dark), then choose OK to put your lights back."
+            : "The controller didn't take the test.", "OK");
+        AllyControl.ApplyLights(force: true);
+    }
+
     private void AllySave(Action change, Action? apply = null)
     {
         change();
@@ -2542,6 +2464,7 @@ public sealed partial class SettingsScreen : ListScreen
                 subtitle: "It takes over the Ally's lights, so SquareDeck's changes don't show. Turn off \"Use Dynamic Lighting on my devices\"");
         if (s.AllyLights.Length == 0) AddNote("The lights are left as they are. Choose an effect and SquareDeck takes them over.");
         var mode = AllyControl.LightModes.FirstOrDefault(m => m.Id == s.AllyLights);
+        AddFeature("stylelights"); // out of Experimental in 8.5.102, off unless you turn it on
         AddRow("Effect", mode.Name ?? "Leave as it is", "\uE781", click: () => _ = ChooseLightEffectAsync(),
             subtitle: string.IsNullOrEmpty(mode.About) ? "The rings around the sticks" : mode.About);
         AddRow("Surprise me", null, "\uE8B1", click: () => AllySave(() =>
@@ -2577,9 +2500,14 @@ public sealed partial class SettingsScreen : ListScreen
         AddRow("Pulse red when the battery is low", OnOff(s.AllyLowBatteryFlash), "\uEBA0",
             click: () => AllySave(() => s.AllyLowBatteryFlash = !s.AllyLowBatteryFlash, () => AllyControl.ApplyLights(force: true)),
             subtitle: "At 15% or less, until you plug in");
+        if (AllyHid.X20EightZones)
+            AddRow("Test the 8 zones", null, "\uE9D9", click: () => _ = TestEightZonesAsync(),
+                subtitle: "Lights the X20's eight zones in red, orange, yellow, green, cyan, blue, purple and white, so you can see which LED is which");
         AddRow("Lights react to achievements and downloads", OnOff(s.AllyLightReactions), "\uE7E8",
             click: () => AllySave(() => s.AllyLightReactions = !s.AllyLightReactions, () => AllyControl.ApplyLights(force: true)),
             subtitle: "A gold sweep when you unlock an achievement, a green pulse when a download or update finishes");
+        if (s.AllyLights is not ("" or "off") && AsusOptimization.Running)
+            AddNote("ASUS Optimization is running, and it can put its own light color back for a moment now and then (a flash over your effect). If you see that, turn the lights off in Armoury Crate SE, or switch the service off below.");
 
         // ---- When the lights may light (Armoury Crate SE's power states)
         AddHeader("When the lights are on");
@@ -2875,13 +2803,20 @@ public sealed partial class SettingsScreen : ListScreen
         var s = Host.Settings;
         var modes = AllyControl.LightModes;
         int current = Array.FindIndex(modes, m => m.Id == s.AllyLights);
-        int choice = await LightEffectPicker.AskAsync(this, "Light effect", null, LightEffectPicker.AllEffects(), current, AllyControl.FxInputs(s));
+        // The list stays open: each choice is saved and shown on the lights straight away; B closes it.
+        await LightEffectPicker.AskAsync(this, "Light effect", null, LightEffectPicker.AllEffects(), current, AllyControl.FxInputs(s), ApplyLightEffectAsync);
+        Rebuild();
+    }
+
+    private async Task ApplyLightEffectAsync(int choice)
+    {
+        var s = Host.Settings;
+        var modes = AllyControl.LightModes;
         if (choice < 0 || choice >= modes.Length) return;
         s.AllyLights = modes[choice].Id;
         bool woke = s.AllyLights is not ("" or "off") && AllyControl.WakeLights(s);
         s.Save();
         if (woke) Host.ShowToast("ROG ALLY", "\"Awake\" is back on", "It was off in When the lights are on, which kept the lights dark whatever the effect.", "", "info");
-        Rebuild();
         if (s.AllyLights.Length == 0) return;
         if (!await AllyControl.ApplyLightsAsync(force: true))
             Host.ShowToast("ROG ALLY", "Couldn't reach the lights", "SquareDeck will keep trying. Armoury Crate SE may be holding them.", "", "info");
@@ -3177,7 +3112,7 @@ public sealed partial class SettingsScreen : ListScreen
                                    "achshot", "watermark", "milestones", "stickers", "discord" })
             AddFeature(id);
         AddHeader("Pages and services");
-        foreach (var id in new[] { "recomp", "freegames", "vacuumtube", "musicstreams", "leaderboard", "boss", "mood", "passport" })
+        foreach (var id in new[] { "recomp", "freegames", "vacuumtube", "musicstreams", "leaderboard", "boss", "mood", "passport", "streamfx" })
             AddFeature(id);
 
         AddHeader("Service keys");
@@ -3402,6 +3337,7 @@ public sealed partial class SettingsScreen : ListScreen
                 AddRow(f.Name, blocked ?? OnOff(on), f.Glyph, click: () =>
                 {
                     if (blocked != null && !on) { _ = Host.AskAsync(feature.Name, "This PC doesn't report a motion sensor, so the covers can't follow its tilt.", "OK"); return; }
+                    if (Labs.IsScoped(feature.Id)) { ToggleLab(feature.Id, feature.Name, Rebuild); return; }
                     Labs.Set(feature.Id, !on);
                     if (feature.Id is "newsettings" or "settingsview")
                     {
@@ -3412,6 +3348,7 @@ public sealed partial class SettingsScreen : ListScreen
                     }
                     Rebuild();
                 }, subtitle: f.About);
+                if (on && Labs.IsScoped(f.Id)) AddScopeRow(f.Id, f.Name);
                 if (on && LabPage(f.Id) is { } open) AddRow("Open " + f.Name.ToLowerInvariant(), null, "\uE768", click: open);
             }
         }
@@ -3459,6 +3396,13 @@ public sealed partial class SettingsScreen : ListScreen
         "mood" => () => Host.Push(PlayPages.Mood()),
         "companion" => () => Host.Push(new CompanionScreen()),
         "settingsview" => ChooseLayout,
+        "stylelights" => () => _ = Host.AskAsync("Lights match the UI style",
+            $"{UiStyles.Current.Name} plays {StyleLights.NameFor(UiStyles.Current, Host.Settings)}, in its own colors. Each UI style has its own effect; " +
+            "a style you made can have one of your choice in the style builder (Lights). Turning the lights off, and a game profile's own lights, still win.", "OK"),
+        "coverstyle" => () => Host.Push(new CoverStyleScreen()),
+        "squareeq" => () => Host.Push(new EqScreen()),
+        "streamfx" => () => Host.Push(new StreamFilterScreen()),
+        "stylegallery" => () => StyleGalleryScreen.Open(Host, "all"),
         "coverdim" => () => Host.Push(new CoverLabsScreen(effect: false)),
         "covereffect" => () => Host.Push(new CoverLabsScreen(effect: true)),
         "closelaunchers" => async () =>
@@ -3488,6 +3432,7 @@ public sealed partial class SettingsScreen : ListScreen
         {
             if (blocked != null && !on) { _ = Host.AskAsync(label, "This PC doesn't report a motion sensor, so the covers can't follow its tilt.", "OK"); return; }
             if (taken) { _ = ChooseMotionEffectAsync(id, label, rival!, rivalName); return; }
+            if (Labs.IsScoped(id)) { ToggleLab(id, label, Rebuild); return; }
             Labs.Set(id, !on);
             if (id is "newsettings" or "settingsview")
             {
@@ -3499,7 +3444,53 @@ public sealed partial class SettingsScreen : ListScreen
             Rebuild();
         }, subtitle: taken ? $"Can't be on with {rivalName}: both use the motion sensor. Select to choose which one you want" : f.About);
         if (taken && row != null) row.Opacity = 0.5;
+        if (on && Labs.IsScoped(id)) AddScopeRow(id, label);
         if (on && LabPage(id) is { } open) AddRow("Open " + label.ToLowerInvariant(), null, "\uE768", click: open);
+    }
+
+    // ---------------------------------------------------------------- this style only, or every style (8.5.81)
+
+    /// <summary>
+    /// Turns a cover or tile effect on or off. Turning one on asks whether it's for the UI style in use only (it then
+    /// turns itself off on other styles and back on when this one returns) or for every style.
+    /// </summary>
+    internal void ToggleLab(string id, string label, Action done)
+    {
+        if (Labs.On(id)) { Labs.TurnOff(id); done(); return; }
+        if (!Labs.IsScoped(id)) { Labs.Set(id, true); done(); return; }
+        _ = TurnOnScopedAsync(id, label, done);
+    }
+
+    private async Task TurnOnScopedAsync(string id, string label, Action done)
+    {
+        var style = UiStyles.Current;
+        int c = await Host.AskAsync(label, $"Use it with {style.Name} only, or with every UI style? Kept to {style.Name}, it turns off " +
+            "when you choose another style and comes back, as you left it, when you return.", $"{style.Name} only", "Every UI style", "Cancel");
+        if (c is < 0 or > 1) return;
+        Labs.SetScope(id, null);
+        if (c == 0) Labs.SetScope(id, style.Id);
+        Labs.Set(id, true);
+        done();
+    }
+
+    /// <summary>"Applies to": which styles an effect that's on is kept to, changeable without turning it off.</summary>
+    internal void AddScopeRow(string id, string label)
+    {
+        var styles = Labs.ScopeStyles(id);
+        string value = styles == null ? "Every UI style"
+            : styles.Length == 1 ? UiStyles.Find(styles[0]).Name + " only"
+            : $"{styles.Length} styles";
+        AddRow("Applies to", value, "\uE790", click: async () =>
+        {
+            var style = UiStyles.Current;
+            int c = await Host.AskAsync(label + ": applies to", styles is { Length: > 1 }
+                    ? "On with: " + string.Join(", ", styles.Select(x => UiStyles.Find(x).Name)) + "." : null,
+                $"{style.Name} only", "Every UI style", "Cancel");
+            if (c is < 0 or > 1) return;
+            Labs.SetScope(id, null);
+            if (c == 0) Labs.SetScope(id, style.Id);
+            Rebuild();
+        }, subtitle: "Kept to some styles, it turns off on the others and comes back when you return to them");
     }
 
     /// <summary>Covers that tilt or the Continue parallax: one or the other, chosen here.</summary>

@@ -28,8 +28,8 @@ namespace SquareDeck.Widget
 
         private static readonly Color AmberColor = Color.FromArgb(255, 0xFF, 0xB0, 0x3B);
 
-        private static readonly string[] CardIds = { "game", "media", "power", "live", "ally", "notes", "launch", "quick" };
-        private static readonly string[] CardNames = { "Game", "Now playing", "Power", "Live", "ROG Ally", "Game notes", "Launch", "Quick" };
+        private static readonly string[] CardIds = { "game", "media", "power", "live", "ally", "notes", "launch", "favorites", "quick" };
+        private static readonly string[] CardNames = { "Game", "Now playing", "Power", "Live", "ROG Ally", "Game notes", "Launch", "Favorites", "Quick" };
 
         private Border CardOf(string id)
         {
@@ -82,6 +82,7 @@ namespace SquareDeck.Widget
             BuildThermal();
             BuildNotes(cards);
             BuildLaunch(cards);
+            BuildFavorites(cards);
             BuildHeaderExtras();
             BuildEditor();
             // The Quick card stays last, as before.
@@ -342,8 +343,11 @@ namespace SquareDeck.Widget
             AddCard(cards, "launch", "", "Launch", body);
         }
 
+        private int _appsRound;
+
         private async void ApplyApps(JsonObject m)
         {
+            int round = ++_appsRound; // only the newest list fills the row
             _appsRow.Children.Clear();
             var list = Arr(m, "apps");
             if (list == null) return;
@@ -363,6 +367,7 @@ namespace SquareDeck.Widget
                 b.Click += (s, e) => _link.Send("launch", "id", id);
                 _appsRow.Children.Add(b);
                 var icon = await Decode(Str(a, "icon"));
+                if (round != _appsRound) return;
                 if (icon != null) { face.Children.Clear(); face.Children.Add(new Image { Source = icon, Stretch = Stretch.Uniform }); }
             }
         }
@@ -545,6 +550,7 @@ namespace SquareDeck.Widget
         private void ApplyEightMessage(string type, JsonObject m)
         {
             if (type == "apps") ApplyApps(m);
+            else if (type == "favorites") ApplyFavorites(m);
             else if (type == "theme") ApplyTheme(m);
             else if (type == "companion") ApplyCompanionImage(m);
         }
@@ -648,6 +654,9 @@ namespace SquareDeck.Widget
             {
                 ShowCard("notes", _labs.Contains("wnotes") && running.Length > 0);
                 ShowCard("launch", _labs.Contains("wapps"));
+                ShowCard("favorites", _labs.Contains("wfavorites"));
+                string favKey = _labs.Contains("wfavorites") ? Str(s, "favkey") : null;
+                if (favKey != null && favKey != _favAsked) { _favAsked = favKey; _link.Send("favorites"); }
             });
 
             // Layout: order and hidden cards.
@@ -759,6 +768,121 @@ namespace SquareDeck.Widget
             FontFamily = new FontFamily("Segoe UI");
             ApplyBackground(_background);
         }
+        // ============================================================ 1.6.21: the Favorites card
+
+        private StackPanel _favRow;
+        private ScrollViewer _favScroll;
+        private TextBlock _favEmpty;
+        private Grid _favAsk;
+        private TextBlock _favAskText;
+        private Button _favAskGo;
+        private string _favAsked = "", _favPendingKey = "", _favPendingName = "";
+
+        /// <summary>Your favorite games as square covers in a row that scrolls sideways; select one to play it.</summary>
+        private void BuildFavorites(StackPanel cards)
+        {
+            var body = new StackPanel();
+            _favRow = new StackPanel { Orientation = Orientation.Horizontal };
+            _favScroll = new ScrollViewer
+            {
+                Content = _favRow, HorizontalScrollMode = ScrollMode.Enabled, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollMode = ScrollMode.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(0, 0, 0, 10)
+            };
+            body.Children.Add(_favScroll);
+            _favEmpty = new TextBlock { Text = "No favorites yet. Add games to Favorites in SquareDeck and they show here.", FontSize = 13, TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Subtle), Visibility = Visibility.Collapsed, Margin = new Thickness(2, 4, 2, 6) };
+            body.Children.Add(_favEmpty);
+
+            // "Another game is running": asked here, before anything is stopped.
+            _favAsk = new Grid { Visibility = Visibility.Collapsed, Padding = new Thickness(14, 12, 14, 12), Margin = new Thickness(0, 4, 0, 4), CornerRadius = new CornerRadius(12), Background = new SolidColorBrush(Color.FromArgb(0x2E, 0xFF, 0xB0, 0x30)) };
+            var ask = new StackPanel();
+            _favAskText = new TextBlock { FontSize = 13, TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Colors.White) };
+            ask.Children.Add(_favAskText);
+            var buttons = new Grid { Margin = new Thickness(0, 10, 0, 0) };
+            buttons.ColumnDefinitions.Add(new ColumnDefinition());
+            buttons.ColumnDefinitions.Add(new ColumnDefinition());
+            _favAskGo = new Button { Style = DeckButton, Content = "Quit and start", HorizontalAlignment = HorizontalAlignment.Stretch, Height = 40, Margin = new Thickness(0, 0, 4, 0) };
+            _favAskGo.Click += (s, e) =>
+            {
+                _favAsk.Visibility = Visibility.Collapsed;
+                var m = new JsonObject();
+                m["op"] = JsonValue.CreateStringValue("favlaunch");
+                m["key"] = JsonValue.CreateStringValue(_favPendingKey);
+                m["stop"] = JsonValue.CreateBooleanValue(true);
+                _link.Send(m);
+            };
+            buttons.Children.Add(_favAskGo);
+            var cancel = new Button { Style = DeckButton, Content = "Keep playing", HorizontalAlignment = HorizontalAlignment.Stretch, Height = 40, Margin = new Thickness(4, 0, 0, 0) };
+            cancel.Click += (s, e) => _favAsk.Visibility = Visibility.Collapsed;
+            Grid.SetColumn(cancel, 1);
+            buttons.Children.Add(cancel);
+            ask.Children.Add(buttons);
+            _favAsk.Children.Add(ask);
+            body.Children.Add(_favAsk);
+            AddCard(cards, "favorites", "", "Favorites", body);
+        }
+
+        private int _favRound;
+
+        private async void ApplyFavorites(JsonObject m)
+        {
+            // A newer list can arrive while this one is still loading covers: only the newest fills the row (1.6.24:
+            // two at once each added their games, so they showed two or three times over).
+            int round = ++_favRound;
+            _favRow.Children.Clear();
+            var seen = new HashSet<string>();
+            var list = Arr(m, "games");
+            _favEmpty.Visibility = list == null || list.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (list == null) return;
+            foreach (var v in list)
+            {
+                if (v.ValueType != JsonValueType.Object) continue;
+                var g = v.GetObject();
+                string key = Str(g, "key") ?? "", name = Str(g, "name") ?? "";
+                if (!seen.Add(key)) continue;
+                bool runs = Bool(g, "running") == true;
+                var face = new Grid { Width = 84, Height = 84 };
+                face.Children.Add(new Border { CornerRadius = new CornerRadius(10), Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)) });
+                face.Children.Add(new TextBlock { Text = name, FontSize = 11, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(6), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(Subtle) });
+                var art = new Border { CornerRadius = new CornerRadius(10) };
+                face.Children.Add(art);
+                if (runs)
+                {
+                    var badge = new Border { CornerRadius = new CornerRadius(6), Padding = new Thickness(6, 1, 6, 2), Margin = new Thickness(4), Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x2E, 0xB8, 0x72)), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+                    badge.Child = new TextBlock { Text = "Playing", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Colors.White) };
+                    face.Children.Add(badge);
+                }
+                var b = new Button
+                {
+                    Style = DeckButton, Content = face, Width = 92, Height = 92, Padding = new Thickness(4), Margin = new Thickness(0, 0, 8, 0), CornerRadius = new CornerRadius(14),
+                    Background = new SolidColorBrush(Colors.Transparent)
+                };
+                ToolTipService.SetToolTip(b, name);
+                b.GotFocus += (s, e) => b.StartBringIntoView(); // the row scrolls along as you move through it
+                b.Click += (s, e) => FavoriteChosen(key, name, runs);
+                _favRow.Children.Add(b);
+                var cover = await Decode(Str(g, "cover"));
+                if (round != _favRound) return; // a newer list has taken over
+                if (cover != null) art.Background = new ImageBrush { ImageSource = cover, Stretch = Stretch.UniformToFill };
+            }
+        }
+
+        /// <summary>A favorite was selected: played straight away, or, while another game runs, asked about first.</summary>
+        private void FavoriteChosen(string key, string name, bool runs)
+        {
+            if (!runs && !string.IsNullOrEmpty(_runningName))
+            {
+                _favPendingKey = key;
+                _favPendingName = name;
+                _favAskText.Text = _runningName + " is running. It has to be quit before " + name + " can start, and any unsaved progress in it will be lost.";
+                _favAsk.Visibility = Visibility.Visible;
+                _favAskGo.Focus(FocusState.Programmatic);
+                return;
+            }
+            var m = new JsonObject();
+            m["op"] = JsonValue.CreateStringValue("favlaunch");
+            m["key"] = JsonValue.CreateStringValue(key);
+            _link.Send(m);
+        }
     }
 
     /// <summary>A simple wrapping row (UWP has no WrapPanel): children flow left to right onto new lines.</summary>
@@ -792,5 +916,6 @@ namespace SquareDeck.Widget
             }
             return final;
         }
+
     }
 }

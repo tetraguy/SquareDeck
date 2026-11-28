@@ -2315,12 +2315,19 @@ public sealed class DetailsScreen : Screen
             RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
             if (!Theme.CurrentIsDark)
             {
-                // Logos are usually drawn light, for dark backgrounds: give them one on the light theme.
-                _logoHost.Content = new Border
+                // Logos are usually drawn light, for dark backgrounds. On a light look they used to sit on a dark grey
+                // plate, which showed as a grey box on every coloured style: now they float on the page like they do on
+                // dark looks, held off the light background by a tighter, darker halo instead.
+                image.Effect = new DropShadowEffect { BlurRadius = 10, ShadowDepth = 0, Opacity = 0.95, Color = Color.FromRgb(0x14, 0x14, 0x18) };
+                var halo = new Grid { HorizontalAlignment = _logoAlign };
+                var soft = new Image
                 {
-                    Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x2D)), CornerRadius = new CornerRadius(10),
-                    Padding = new Thickness(18, 10, 18, 10), HorizontalAlignment = _logoAlign, Child = image
+                    Source = logo, MaxHeight = _logoHeight, MaxWidth = _logoWidth, Stretch = Stretch.Uniform, HorizontalAlignment = _logoAlign,
+                    Effect = new DropShadowEffect { BlurRadius = 26, ShadowDepth = 0, Opacity = 0.55, Color = Colors.Black }, IsHitTestVisible = false
                 };
+                RenderOptions.SetBitmapScalingMode(soft, BitmapScalingMode.HighQuality);
+                halo.Children.Add(soft); halo.Children.Add(image);
+                _logoHost.Content = halo;
             }
             else _logoHost.Content = image;
             // Looks that show the logo large in place of the name: the name goes (it's in the logo).
@@ -3676,6 +3683,7 @@ public sealed partial class LibraryScreen : Screen
                 QueueArt(g, art, () => { art.Visibility = Visibility.Visible; name.Visibility = Visibility.Collapsed; }, box);
             }
             AddBadges(face, g);
+            var pose = StyleCover(box, face, tileWidth, tileHeight); // Experimental "Cover styles"
 
             var stack = new StackPanel { Width = tileWidth };
             stack.Children.Add(box);
@@ -3726,6 +3734,7 @@ public sealed partial class LibraryScreen : Screen
             {
                 _lastFocus = g.Key; title.Active = true; ShowSpotlight(g);
                 Panel.SetZIndex(tile, 1);
+                if (pose != null && CoverStyles.Library?.Straighten == true) box.RenderTransform = Transform.Identity;
                 // The whole tile moves, so the highlight ring around it grows with the cover (it stayed put before).
                 if (Motion.HighlightGrow > 1 || Motion.SelectGrow > 1.001) Motion.GrowTile(tile, true);
             };
@@ -3733,6 +3742,7 @@ public sealed partial class LibraryScreen : Screen
             {
                 title.Active = false;
                 Panel.SetZIndex(tile, 0);
+                if (pose != null) box.RenderTransform = pose;
                 if (Motion.HighlightGrow > 1 || Motion.SelectGrow > 1.001) Motion.GrowTile(tile, false);
             };
             tile.MouseEnter += (_, _) => title.Active = true;
@@ -3747,6 +3757,23 @@ public sealed partial class LibraryScreen : Screen
             });
         else _groups.Children.Add(panel);
         LoadArt();
+    }
+
+    private int _coverIndex;
+
+    /// <summary>Experimental "Cover styles": a library cover's cut, frame and pose; returns its pose (null when it has none).</summary>
+    private Transform? StyleCover(Border box, Grid face, double width, double height)
+    {
+        if (CoverStyles.Library is not { } look || look.Plain) return null;
+        double corner = box.CornerRadius.TopLeft;
+        if (CoverStyles.Outline(look.Shape, width, height, corner) is { } outline) box.Clip = outline;
+        var host = new Grid { IsHitTestVisible = false };
+        face.Children.Add(host);
+        CoverStyles.Decorate(host, look, width, height, corner, null);
+        var pose = CoverStyles.PoseFor(look, _coverIndex++, -1, library: true);
+        box.RenderTransformOrigin = new Point(0.5, 0.5);
+        if (pose != null) box.RenderTransform = pose;
+        return pose;
     }
 
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, object> _usualMargins = new();
@@ -4077,6 +4104,7 @@ public sealed partial class LibraryScreen : Screen
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
         var box = GridScreen.ImageBox(62, 62, out var cover);
+        if (CoverStyles.Library is { Icon: not "style" } iconLook) CoverStyles.StyleIcon(box, 62, 62, iconLook.Icon); // Experimental "Cover styles"
         Lazy(box, cover, g);
         if (g.UsesIcon && !g.IconFills) { cover.Stretch = Stretch.Uniform; cover.Margin = new Thickness(12); if (g.TileBackground != null) box.Background = g.TileBackground; }
         box.VerticalAlignment = VerticalAlignment.Center;

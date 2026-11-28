@@ -127,6 +127,7 @@ public sealed class Settings
     public bool LabsGraduated8166 { get; set; }
     public bool LabsGraduated8168 { get; set; }
     public bool LabsGraduatedPcTools { get; set; }
+    public bool LabsGraduated85102 { get; set; }
     /// <summary>Explorer's sidebar is open (L1 or F1 folds it away).</summary>
     public bool ExplorerSidebarOpen { get; set; } = true;
 
@@ -517,13 +518,8 @@ public sealed class Settings
     /// <summary>The triggers' dead zone (inner) and where they reach full (outer), percent.</summary>
     public int AllyTriggerInner { get; set; }
     public int AllyTriggerOuter { get; set; } = 100;
-    // ---- Handheld Specific Settings (Legion Go, MSI Claw: through the device helper)
-    /// <summary>The maker's performance mode to set at start; -1 = leave as it is.</summary>
-    public int HandheldPowerMode { get; set; } = -1;
-    /// <summary>Fans at full speed.</summary>
-    public bool HandheldFanBoost { get; set; }
-    /// <summary>Stop charging at this percentage (Legion: 80% on or off); 0 = leave as it is.</summary>
-    public int HandheldChargeLimit { get; set; }
+    /// <summary>The one-time note that SquareDeck is made for the ROG Ally family was shown (on any other PC, 8.5.81).</summary>
+    public bool NotAllyNoticeShown { get; set; }
     /// <summary>"My Device" on the home screen's buttons (handhelds only).</summary>
     public bool ShowMyDeviceButton { get; set; }
     /// <summary>Settings > Experimental: Adrenaline Hook (AMD graphics only).</summary>

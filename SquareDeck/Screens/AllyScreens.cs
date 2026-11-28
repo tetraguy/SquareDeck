@@ -45,6 +45,22 @@ public sealed class AllyControlScreen : ListScreen
 
     private static string OnOff(bool on) => on ? "On" : "Off";
 
+    /// <summary>The X20's eight zones, each its own color, until OK; then the lights go back.</summary>
+    private async Task TestEightZonesAsync()
+    {
+        LightFx.Stop();
+        Media.Color[] colors =
+        {
+            Media.Color.FromRgb(255, 0, 0), Media.Color.FromRgb(255, 110, 0), Media.Color.FromRgb(255, 230, 0), Media.Color.FromRgb(0, 230, 60),
+            Media.Color.FromRgb(0, 220, 255), Media.Color.FromRgb(0, 60, 255), Media.Color.FromRgb(170, 0, 255), Media.Color.FromRgb(255, 255, 255),
+        };
+        bool ok = await Task.Run(() => AllyHid.TestX20Zones(colors));
+        await Host.AskAsync("8-zone test", ok
+            ? "Zones 1 to 8 are lit: red, orange, yellow, green, cyan, blue, purple, white. Note which LED shows which color (and if some stay dark), then choose OK to put your lights back."
+            : "The controller didn't take the test.", "OK");
+        AllyControl.ApplyLights(force: true);
+    }
+
     private void Save(Action change, Action? apply = null)
     {
         change();
@@ -69,21 +85,26 @@ public sealed class AllyControlScreen : ListScreen
         var s = Host.Settings;
         var modes = AllyControl.LightModes;
         int current = Array.FindIndex(modes, m => m.Id == s.AllyLights);
-        int choice = await LightEffectPicker.AskAsync(this, "Light effect", null, LightEffectPicker.AllEffects(), current, AllyControl.FxInputs(s));
+        // The list stays open: each choice is saved and shown on the lights straight away; B closes it.
+        await LightEffectPicker.AskAsync(this, "Light effect", null, LightEffectPicker.AllEffects(), current, AllyControl.FxInputs(s), ApplyEffectAsync);
+        Rebuild();
+    }
+
+    private async Task ApplyEffectAsync(int choice)
+    {
+        var s = Host.Settings;
+        var modes = AllyControl.LightModes;
         if (choice < 0 || choice >= modes.Length) return;
         s.AllyLights = modes[choice].Id;
         bool woke = s.AllyLights is not ("" or "off") && AllyControl.WakeLights(s);
         s.Save();
         if (woke) Host.ShowToast("ROG ALLY", "\"Awake\" is back on", "It was off in When the lights are on, which kept the lights dark whatever the effect.", "", "info");
-        Rebuild();
         if (s.AllyLights.Length == 0) return; // "leave as it is" changes nothing
         bool ok = await AllyControl.ApplyLightsAsync(force: true);
         if (!ok)
             Host.ShowToast("ROG ALLY", "Couldn't reach the lights", "SquareDeck will keep trying. Armoury Crate SE may be holding them.", "", "info");
         else if (AllyControl.DynamicLightingOn)
             Host.ShowToast("ROG ALLY", "Windows' Dynamic Lighting is on", "It holds the Ally's lights. Turn it off in Settings > Personalization > Dynamic Lighting.", "", "info");
-        else if (s.AllyLights == "accent")
-            Host.ShowToast("ROG ALLY", "Lights match SquareDeck's accent color", "They follow it when the theme or the game's color changes.", "", "info");
     }
 
     /// <summary>Windows' Dynamic Lighting holds the Ally's lights while it's on, so nothing else can change them.</summary>
@@ -150,9 +171,14 @@ public sealed class AllyControlScreen : ListScreen
         AddRow("Pulse red when the battery is low", OnOff(s.AllyLowBatteryFlash), "",
             click: () => Save(() => s.AllyLowBatteryFlash = !s.AllyLowBatteryFlash, () => AllyControl.ApplyLights(force: true)),
             subtitle: "At 15% or less, over whatever the lights are doing, until you plug in");
+        if (AllyHid.X20EightZones)
+            AddRow("Test the 8 zones", null, "\uE9D9", click: () => _ = TestEightZonesAsync(),
+                subtitle: "Lights the X20's eight zones in red, orange, yellow, green, cyan, blue, purple and white, so you can see which LED is which");
         AddRow("Lights react to achievements and downloads", OnOff(s.AllyLightReactions), "\uE7E8",
             click: () => Save(() => s.AllyLightReactions = !s.AllyLightReactions, () => AllyControl.ApplyLights(force: true)),
             subtitle: "A gold sweep when you unlock an achievement, a green pulse when a download or update finishes");
+        if (s.AllyLights is not ("" or "off") && AsusOptimization.Running)
+            AddNote("ASUS Optimization is running, and it can put its own light color back for a moment now and then (a flash over your effect). If you see that, turn the lights off in Armoury Crate SE, or switch the service off below.");
 
         // ---- When the lights may light (Armoury Crate SE's power states)
         AddHeader("When the lights are on");

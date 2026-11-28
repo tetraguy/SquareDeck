@@ -46,13 +46,117 @@ public static class AllyControl
         ("cpu", "Processor load", "Green when idle through amber to red when busy, breathing faster as it works"),
         ("clock", "Time of day", "Night blue, sunrise orange, daylight, sunset red and dusk purple, through the day"),
         ("ambilight", "Ambilight", "The sticks take the colors on screen beside them, as you play"),
+        // 8.5.61: drawn LED by LED for the ROG Xbox Ally X20's eight zones (on the other Allys, shown on their four).
+        ("orbit", "Orbit", "A point of your color circling each ring, the sticks turning opposite ways"),
+        ("twin", "Twin chase", "Your two colors chasing each other round both rings"),
+        ("dualspin", "Dual spin", "Your first color spinning round the left stick, your second round the right"),
+        ("figure8", "Figure eight", "A light tracing a figure eight through both rings"),
+        ("snake", "Snake", "A three-light snake slithering round one ring, then the other"),
+        ("radar", "Radar sweep", "A sweep of your color with a fading trail, round and round"),
+        ("pulsering", "Pulse ring", "A wave of brightness running round both rings"),
+        ("fillup", "Loading bar", "The rings fill up LED by LED, hold, then empty"),
+        ("pinwheel", "Pinwheel", "Your two colors alternating LED by LED, turning"),
+        ("yinyang", "Yin and yang", "Each ring half one color and half the other, turning slowly"),
+        ("gradientring", "Gradient ring", "Your two colors blended round each ring, drifting"),
+        ("rainbowring", "Rainbow ring", "The whole rainbow round each ring, turning"),
+        ("vortex", "Vortex", "Rainbows spinning opposite ways, speeding up and slowing down"),
+        ("lightbar", "Beacons", "Rotating beacons: red round the left stick, blue round the right"),
+        ("candy", "Candy stripes", "Red and white stripes marching round the rings"),
+        ("fire", "Fire", "Flames: the lower LEDs burn bright, the upper ones flicker"),
+        ("rain", "Rain", "Drops landing on top of the rings and running down"),
+        ("matrix", "Digital rain", "Green code flickering LED by LED"),
+        ("fireworks", "Fireworks", "Bursts of color popping on random LEDs and fading"),
+        ("confetti", "Confetti", "Random colors scattered over the LEDs, never the same twice"),
+        ("eyes", "Watching eyes", "Two eyes glancing around together, blinking now and then"),
+        ("metronome", "Metronome", "A tick at the top of the left ring, then the right, back and forth"),
+        ("batteryring", "Battery gauge", "The charge across all eight LEDs in the battery's color; the next one breathes while charging"),
+        ("cpuring", "Processor gauge", "How busy the processor is, filling the LEDs from green to red"),
+        // 8.5.62: 25 more for the eight zones.
+        ("lighthouse", "Lighthouse", "A warm beam sweeping slowly round both rings, with a long afterglow"),
+        ("bounce", "Bouncing ball", "A ball of your color bouncing from one stick over to the other"),
+        ("pingpong", "Ping-pong", "A rally between the sticks: each ring flashes your second color as it hits"),
+        ("heartring", "Rising heartbeat", "A heartbeat climbing each ring from the bottom LEDs to the top"),
+        ("sonar", "Sonar", "A ping of your color, fading out to the far LEDs, then silence"),
+        ("hourglass", "Hourglass", "Sand running from the upper LEDs into the lower ones, then turned over"),
+        ("traffic", "Traffic light", "Green, a blinking amber, then red, round and round"),
+        ("thunderstorm", "Thunderstorm", "Dark storm clouds with lightning cracking across now and then"),
+        ("embers", "Embers", "A dying fire: deep red, with embers glowing up here and there"),
+        ("tide", "Tide", "The sea rising over the lower LEDs to the upper ones, and going out"),
+        ("aurorawave", "Northern lights", "Greens, blues and purples rippling LED by LED"),
+        ("disco", "Disco", "Every LED a bold color, all changing on the beat"),
+        ("alternator", "Alternating flash", "Quick flashes jumping between the sticks: your first color, then your second"),
+        ("spectrum", "Music meter", "Bars bouncing on each stick, green at the bottom, red when they peak"),
+        ("dna", "Double helix", "Your two colors twisting round the rings like two strands"),
+        ("sunrise", "Sunrise", "Night blue, then an orange glow climbing the rings into daylight, and back"),
+        ("neon", "Neon sign", "Pink on the left, cyan on the right, buzzing and sometimes dropping out"),
+        ("rgbquad", "RGB carousel", "Red, green, blue and white, one per LED, turning round each ring"),
+        ("countdown", "Countdown", "Eight lights going out one by one, then a flash"),
+        ("wormholes", "Wormholes", "Two swirling holes: orange on the left stick, blue on the right"),
+        ("jellyfish", "Jellyfish", "A soft glow pulsing at the top of each ring, its tentacles trailing down"),
+        ("plasma", "Plasma", "Smooth, shifting colors flowing over every LED"),
+        ("sos", "Morse SOS", "Three short, three long, three short, in your color"),
+        ("carousel", "Merry-go-round", "Pastel lights going round and bobbing up and down"),
+        ("kaleidoscope", "Kaleidoscope", "The two rings mirroring each other, colors folding and changing"),
+        // 8.5.63: 25 more.
+        ("pendulum", "Pendulum", "A light of your color swinging along each ring, slowing at the ends"),
+        ("glitch", "Glitch", "Your color, with LEDs glitching to your second color, white or off for a split second"),
+        ("cometrain", "Comet shower", "Little comets falling from the top of the rings to the bottom"),
+        ("firefly", "Fireflies", "Soft yellow-green glows rising and fading at random, like a summer night"),
+        ("blobs", "Lava lamp", "Warm blobs drifting slowly up and down each ring"),
+        ("duobreath", "Breathing duet", "The left stick breathes your first color, the right your second, taking turns"),
+        ("starfield", "Starry night", "Stars of different brightness twinkling on deep blue"),
+        ("seasons", "Four seasons", "Spring green, summer gold, autumn orange and winter white, turning round"),
+        ("candles", "Two candles", "A flickering candle on each stick: a warm flame on top, a glow below"),
+        ("amberbeacon", "Amber beacon", "An amber flash spinning fast round both rings, like a roadworks light"),
+        ("toxic", "Radioactive", "Toxic green, glowing and bubbling"),
+        ("frost", "Frost", "Pale ice blues, with glints of white catching the light"),
+        ("sakura", "Cherry blossom", "Soft pinks, with white petals drifting down the rings"),
+        ("surf", "Surf", "A wave building from the bottom, breaking white at the top, washing back"),
+        ("heat", "Heat map", "Each LED drifting between cold blue and hot red"),
+        ("dice", "Dice roll", "The LEDs tumble, then settle on a number from one to six"),
+        ("spinner", "Loading spinner", "A bright arc of your color racing round each ring"),
+        ("bricks", "Brick breaker", "A ball knocking out the lit LEDs one by one, then the wall rebuilds"),
+        ("stacker", "Block stacker", "Colored blocks stacking from the bottom LEDs up, then the rows clear"),
+        ("stereo", "Stereo meter", "Left and right levels bouncing on their own sticks, green to red"),
+        ("chameleon", "Chameleon", "Shifting between SquareDeck's accent color and the selected game's color"),
+        ("constellation", "Constellations", "Stars joining up into little shapes, then fading"),
+        ("meteor", "Meteor", "Now and then a meteor streaking from the left stick to the right"),
+        ("drip", "Dripping", "Drops of your color forming at the top of each ring and running down"),
+        ("nebula", "Nebula", "Pinks and purples swirling round the rings, with the odd star"),
+        // 8.5.81: 25 more.
+        ("tesla", "Tesla coil", "Violet sparks crackling and jumping between the LEDs"),
+        ("chomper", "Chomper", "A yellow chomper eating its way round each ring, a ghost close behind"),
+        ("prism", "Prism", "A beam of white crossing from the left stick and splitting into a rainbow on the right"),
+        ("clockhands", "Clock hands", "The real time: the hour hand on the left ring, the minute hand on the right"),
+        ("biolum", "Bioluminescence", "Dark waves rolling across, waking blue-green glows as they pass"),
+        ("signals", "Turn signals", "Amber blinkers: left, right, then hazards"),
+        ("typewriter", "Typewriter", "The LEDs typed in one by one, then a ding and back to the start"),
+        ("supernova", "Supernova", "A star swelling red and orange, bursting white, then fading through blue and violet"),
+        ("goldenhour", "Golden hour", "Late-afternoon light, drifting slowly between amber and rose"),
+        ("volcano", "Volcano", "A dark red rumble, then an orange eruption shooting up the rings"),
+        ("scanner", "Scanner", "A line of your color sweeping back and forth across both sticks, with a fading tail"),
+        ("ghost", "Ghost", "A pale light appearing out of the dark, drifting and vanishing"),
+        ("snowfall", "Snowfall", "White flakes drifting slowly down the rings on a night-blue sky"),
+        ("tornado", "Tornado", "A grey swirl spinning faster and faster, then winding down"),
+        ("gears", "Gears", "Two cogs meshing: the rings turning opposite ways in your two colors"),
+        ("rainbowbreath", "Rainbow breath", "Slow breaths, each one a new color"),
+        ("peacock", "Peacock", "Teal, green, blue and gold, shimmering like a peacock's tail"),
+        ("moodring", "Mood ring", "Warms up over the session: calm blue, green, amber, red, then purple after four hours"),
+        ("focustimer", "Focus timer", "A 25-minute timer filling the LEDs in your color, then a five-minute green break"),
+        ("holiday", "Holiday lights", "A string of red, green and gold bulbs twinkling and stepping along"),
+        ("current", "Electric current", "A crackling pulse of your color racing from the left stick to the right"),
+        ("quasar", "Quasar", "Two opposite beams of blue-white light turning round a violet core"),
+        ("magnet", "Magnets", "Your two colors pulled together, meeting with a flash, then pushed apart"),
+        ("vinyl", "Record player", "A dark disc in your color with a glint of light going round at record speed"),
+        ("ufo", "UFO", "Colored lights circling on top, a green tractor beam pulsing below"),
     };
 
     /// <summary>"Surprise me": a random gradient-style effect with two colors that go together.</summary>
     public static (string Mode, string One, string Two) Surprise()
     {
         var rnd = new Random();
-        string[] modes = { "gradient", "wave", "cycle", "sparkle", "ripple", "breathing", "swap" };
+        string[] modes = { "gradient", "wave", "cycle", "sparkle", "ripple", "breathing", "swap",
+                           "twin", "dualspin", "figure8", "pinwheel", "yinyang", "gradientring", "orbit" };
         double h = rnd.NextDouble() * 360, gap = 90 + rnd.NextDouble() * 120; // two hues far enough apart to read
         string Hex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
         return (modes[rnd.Next(modes.Length)], Hex(LightFx.Hue(h)), Hex(LightFx.Hue(h + gap)));
@@ -290,6 +394,7 @@ public static class AllyControl
         if (s == null || !IsAlly || !s.AllyLightReactions || s.AllyLights is "" or "off" || _idleDark || _lowFlash) return;
         if (_playing && s.AllyLightsOffPlaying && !s.AllyGameLights) return; // kept dark while playing
         if (Interlocked.Exchange(ref _reacting, 1) == 1) return;
+        LightLog("react:" + kind, "lights reacting (Settings > Lights react to achievements and downloads)");
         _ = Task.Run(async () =>
         {
             try
@@ -355,8 +460,11 @@ public static class AllyControl
     {
         var s = _settings;
         if (s == null || !IsAlly) return Task.FromResult(false);
-        ApplyLightPower(force);
-        ApplyXboxLight(force);
+        // Not forced from here: re-sending the power mask (and the Xbox button) on every forced refresh could make the
+        // controller show its own saved effect for a moment, a bright flash over SquareDeck's (8.5.62). They're sent
+        // when they change, and forced by their own settings.
+        ApplyLightPower();
+        ApplyXboxLight();
         string mode = s.AllyLights;
         int? battery = Battery.GetPercent();
         bool plugged = Battery.IsPluggedIn();
@@ -379,6 +487,16 @@ public static class AllyControl
                 gameColor = _runningColor ?? one;
             }
         }
+        // Experimental "Lights match the UI style": the style's own effect and colors (your own settings stay as they are,
+        // so turning it off brings them back). Not while the lights are off, or while a game profile plays its own.
+        string speedName = s.AllyLightSpeed;
+        if (StyleLights.On && !gameLights && mode != "off")
+        {
+            var style = UiStyles.Current;
+            (mode, speedName) = StyleLights.For(style, s);
+            one = Vivid(CurrentAccent() ?? one);
+            two = StyleLights.SecondColor(style, one, Theme.CurrentIsDark);
+        }
         string key;
         Func<bool> apply;
         if (_lowFlash)
@@ -400,7 +518,7 @@ public static class AllyControl
         else
         {
             int pct = BrightnessPercent(s);
-            var speed = Speed;
+            var speed = speedName switch { "slow" => AllyHid.AuraSpeed.Slow, "fast" => AllyHid.AuraSpeed.Fast, _ => AllyHid.AuraSpeed.Medium };
             // Colors chosen here are dimmed to the percentage with the rings at full; rainbow and wheel use the
             // Ally's own nearest step.
             Color D(Color c) => Dim(c, pct);
@@ -430,8 +548,8 @@ public static class AllyControl
                     break;
                 case var fx when LightFx.IsSoftware(fx):
                     // Played by SquareDeck, frame by frame (the rings at full, the colors dimmed to the percentage).
-                    var inputs = FxInputs(s, one, two, gameColor) with { Speed = LightFx.SpeedFactor(s.AllyLightSpeed) };
-                    key = $"fx{fx}{one}{two}{s.AllyLightSpeed}{pct}";
+                    var inputs = FxInputs(s, one, two, gameColor) with { Speed = LightFx.SpeedFactor(speedName) };
+                    key = $"fx{fx}{one}{two}{speedName}{pct}";
                     apply = () => { bool ok = AllyHid.SetBrightness(3); LightFx.Play(fx, inputs, pct); return ok; };
                     break;
                 default: return Task.FromResult(false);
@@ -642,7 +760,7 @@ public static class AllyControl
     /// <summary>The theme's accent changed (for "SquareDeck's accent color").</summary>
     public static void AccentChanged()
     {
-        if (_settings?.AllyLights == "accent") ApplyLights();
+        if (_settings?.AllyLights == "accent" || StyleLights.On) ApplyLights(); // and a new style's own lights
     }
 
     // ================================================================ the Xbox button's light

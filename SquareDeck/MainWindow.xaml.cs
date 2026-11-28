@@ -1532,6 +1532,7 @@ public partial class MainWindow : Window
         UpdateHomeHints(); // "Back to game" only shows while one is running
         // The Ally's lights while playing: off, or the game's own effect (game profile, its cover's colors by default).
         AllyControl.SetRunning(running, running == null ? null : Library.Find(running.Key)?.Profile);
+        if (SquareEq.On) SquareEq.SetRunning(running, running == null ? null : Library.Find(running.Key)?.Profile); // the game's EQ
         UpdateAmdMetrics(running);
         if (running != null)
         {
@@ -1588,6 +1589,7 @@ public partial class MainWindow : Window
             RunningIcon.Background = new ImageBrush(game.Cover) { Stretch = Stretch.UniformToFill };
             RunningIcon.Child = null;
         }
+        StyleRunningIcon(); // Experimental "Cover styles": the icon shape
         RunningIcon.Visibility = Visibility.Visible;
         RunningDot.Visibility = Visibility.Collapsed;
     }

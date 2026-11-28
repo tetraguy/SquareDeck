@@ -1,7 +1,340 @@
 # Changelog
 
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
-version newer than the one installed (each section starts at its "## 8.5.58
+version newer than the one installed (each section starts at its "## version" heading).
+
+## 9.0.0
+- **SquareDeck 9.** This is a new major version, made of everything since 8.5. That covers ROG Ally family support only; the style gallery as the way to choose styles, with each style's music during previews; SquareDeck EQ; cover styles; streaming service filters; 25 new light effects; the widget's Favorites card and power looks; and the new Mythical lineup. No other changes from 8.5.102.
+
+## 8.5.102
+Five more features are out of Experimental:
+- **SquareDeck EQ** is part of SquareDeck, with no switch, under Settings > Sound > Equalizer. It does nothing until Equalizer APO is installed and set up from its page, and it stops checking the audio output in the background until then.
+- **Cover styles** is on by default, with its switch under Settings > Looks > Covers and companion.
+- **Companion on the update screens** is on by default, and only shows when your companion is on. Its switch sits under the companion's in Settings > Looks.
+- **Streaming service filters** is on by default, with its switch under Pages and services.
+- **Lights match the UI style** is off by default. Its switch is above Effect in the Ally's Lights settings.
+
+All of these turn on once for everyone, except Lights match the UI style. Each one you can switch keeps its switch, so you can turn it off. The style gallery is already the default (8.5.101).
+
+## 8.5.101
+- **Four more Mythical styles.** Pixel Woods, Meridian, Ubuntu and Fern & Brass have moved from Legendary to Mythical. The Mythical order now starts Axiom, Pixel Woods, Meridian, Teal Sketchbook, Plum Ember, Amber Glow, Ubuntu, Fern & Brass. The rest follow, with Abyss, Greenhouse, Origami, Forge, Glacier and Cartographer still last. Pixel Woods has no kit artwork, so its Mythical card shows a small picture of its home screen.
+- **The style gallery is the default.** It's no longer in Settings > Experimental. Settings > Themes (Legendary and Mythical) opens it straight onto the home screen. The old list of pictures is still there through "See them as a list of pictures", with "Back to the style gallery" to return.
+
+## 8.5.100
+- **New Mythical order.** Axiom comes first, then Teal Sketchbook, Plum Ember and Amber Glow, followed by the rest as before. Abyss, Greenhouse, Origami, Forge, Glacier and Cartographer are now last. The same order applies in Settings > Themes > Mythical, the style gallery and the style builder's list.
+- **Style schedule mixes any kind of style.** Choosing a style for a slot (day, night, weekdays, weekends) now asks for the kind first: Mythical, Legendary, Unlocked or Yours (your own styles, which couldn't be picked before). Then you pick from that list. Any slot can hold any kind, so a Mythical morning and a Legendary night work. Each slot shows its style's kind, and the current one is starred in the list.
+
+## 8.5.99
+- **Style gallery previews play the style's music.** Previewing a style now switches to its background music too, with the usual crossfade, so you hear the whole style. This happens even with style matching off. Leaving with B puts your music back. Applying with A keeps the style's music only when style matching is on (or for a style of your own); otherwise your music comes back. Previews still don't change the Windows lock screen.
+
+## 8.5.98
+- **Style gallery: the highlight sits outside the card.** The accent highlight was a border painted inside the frame, and the picture spilled over its rounded corners. It's now a ring around the outside of the card with a small gap, and it fades in and out as you move. The picture is clipped to the frame's rounded corners. The "previewing" marker uses the same outside ring, in white. The row has a bit more room so the ring isn't cut off when the card grows.
+
+## 8.5.97
+- **Style gallery feels smoother.** The row now glides to the highlighted card instead of jumping, and pressing again mid-glide just moves where it's heading, so holding a direction flows. The highlighted card grows with a quick ease. The little home-screen pictures are drawn one at a time in idle moments, nearest first, so building them no longer holds up a button press. Cards near the highlight are kept as ready-made pictures while the row moves, so their shadows and previews aren't redrawn every frame.
+
+## 8.5.96
+- **Style gallery: the button letters show.** The button badges at the bottom of the panel are white with the letter in the style's background color. With a light style previewed (Sakura, Frosted Light…), "Enter", "Esc", "X" and "Y" turned white on white. The letters are always dark on the panel now.
+- **Style gallery: the highlighted card isn't cut off.** The selected card grows a little, and its top edge was clipped by the row. The row has room around it now.
+
+## 8.5.95
+- **Style gallery: a solid panel.** The row's panel is fully solid now, so nothing of the home screen shows through it. It has a brighter edge, the home screen behind it is dimmed further, and each picture has a thin light rim to set it apart.
+
+## 8.5.94
+- **Style gallery: the home screen can't be used while you preview.** With the row hidden (X), a click or tap on a home button opened its page, and the preview was left half done. Now the gallery takes every click, tap and scroll on the screen. One on the home screen just brings the row back, and the controller and keyboard already only reached the gallery.
+
+## 8.5.94
+- **Style gallery: the home screen can't be used while previewing.** With the row hidden (X), a click or tap on a home screen button used to open its page and leave the preview half done. Now the gallery takes every click, tap and scroll. One on the home screen just brings the row back, and only the gallery's own cards respond. Controller and keyboard buttons already went only to the gallery.
+
+## 8.5.93
+- **Style gallery: the row has a panel of its own.** It was only a fade, so the home screen's buttons and text showed through behind the previews, and the cards blended into whatever style was being previewed. Now:
+  - The row sits on a dark, nearly solid card with a hairline edge and a shadow, floating above the bottom of the home screen.
+  - The bottom of the home screen is dimmed behind it.
+  - Each picture has a dark plate and a shadow of its own.
+  - The text and hints are always light on the panel, so they read the same whatever style is behind.
+  - X hides the panel and the dimming together, to see the whole home screen.
+
+## 8.5.92
+- **Experimental: Style gallery.** Try the UI styles on the home screen itself instead of in a list. The styles sit in a row along the bottom of Home, with each one's little picture, name, tier and font.
+  - **A** previews the highlighted style for real: the whole launcher switches to it, with its wallpaper, colors, font, tiles, buttons, sounds and skin. Your music keeps playing.
+  - **A again** on the previewed style keeps it, now with its music too.
+  - **B** leaves and puts your own style back exactly as it was, with every setting the previews touched.
+  - **LB / RB** change group (All, Mythical, Legendary, Unlocked, Yours), and **LT / RT** jump eight styles at a time.
+  - **X** hides the row to see the whole home screen. **Y** previews a surprise.
+  - While it's on, the Legendary and Mythical tabs in Settings > Themes open the gallery instead of the list of pictures.
+  - A preview of a style you made doesn't change the Windows lock screen. Only keeping it does.
+
+## 8.5.91
+- **Fixed: streaming filters kept the first look.** A service stays open in the background, so it kept the look it opened with whatever you chose afterwards. The page now gets the drawing code once, and a change of look, strength or the switch reaches an open service at once (and every page it opens after).
+- **Streaming filters: finer grain.** The noise was a small picture stretched over the whole screen, so it showed as big blocks and looked the same in every look. It's now a fine, full-resolution texture moved about, lighter on battery too.
+- **Fixed: favorites repeated in the widget's Favorites card** (widget 1.6.24). A second list could arrive while the first was still loading its covers, and both added their games to the row. Only the newest list fills it now, and each game is listed once. The Launch card's apps had the same slip, also fixed.
+
+## 8.5.90
+- **Fixed: the widget's Favorites card stayed empty** (widget 1.6.23). SquareDeck sent the list of favorites, but the widget only passed the apps, theme and companion messages on to its cards, so the favorites were dropped on arrival. They show now.
+
+## 8.5.89
+- **Experimental: Streaming service filters.** Watch Netflix, Pluto TV, Hulu, Prime Video, DeckTube and the other streaming services like it's an old TV. The effect is drawn inside the page itself, so it covers the video in full screen too. Five looks:
+  - CRT television: scanlines, a phosphor mask, a soft glow and the curved glass edge of a tube set.
+  - VHS tape: washed-out colors, tape noise, a rolling tracking band, and the VCR's "PLAY ▶", "SP" and date and time on screen.
+  - Black and white: grain, a dark vignette and the odd flicker.
+  - Old film: sepia, scratches and dust, and at Strong the frame weaving in the gate.
+  - Late-night cable: warm, faded colors and a little bloom.
+  - Options: Subtle, Normal or Strong; the set switching on as a service opens (a bright line opening up from the middle); the VCR text on or off; and music services too (off by default).
+
+## 8.5.88
+- **Fixed: the widget didn't build** (widget 1.6.22). The Favorites card's code had been added to the wrong class in the widget's code file, so it couldn't find anything from the widget and gave 20 "does not exist in the current context" errors. Moved into the widget page, where it belongs.
+
+## 8.5.87
+- **Widget: a Favorites card** (widget 1.6.21): your favorite games as square covers in a row.
+  - The row scrolls sideways, following the highlight as you move along it, so every favorite can be reached.
+  - Select one to play it. A game that's already running shows "Playing", and selecting it goes back to it.
+  - If another game is running, the widget asks first ("… is running. It has to be quit before … can start") with **Quit and start** or **Keep playing**.
+  - With Quit and start, SquareDeck comes to the front, plays its closing animation for the running game, then starts the favorite with its usual start animation.
+  - The card can be moved or hidden in the widget's card editor.
+
+## 8.5.86
+- **Fixed: Frame Rate Target Control kept going back to 15 FPS.** SquareDeck never sets a cap under 30 FPS. But after a game or a widget cap, it put the limiter back exactly as it found it, from a snapshot. That snapshot could be old: it's saved to disk and put back the next time SquareDeck starts. So a 15 FPS setting from before (made by AMD Software, Armoury Crate or a Default Game Profile) kept being written back over whatever you had set since. Now:
+  - The limiter is only put back while it still holds SquareDeck's own cap. If it was changed since, it's left as it is.
+  - A snapshot under 30 FPS turns the limiter off instead of setting it that low.
+- **Widget: five more wattage looks** (widget 1.6.20), ten in all:
+  - Gauge: a half-circle speedometer with a needle.
+  - Battery cells: ten cells; select one to jump to that level.
+  - Big buttons: big thumb-sized minus and plus.
+  - Slider: from quiet to full power.
+  - Ruler: a tick per watt, with a pointer; select the ruler to go there.
+  - Choose in Settings > System (Widget: wattage look), which now shows the look in use.
+
+## 8.5.85
+- **Game options rumble as you move.** On a game's options (Play, Your library, Customize, Steam, Manage), each move gets a light rumble, like the home row. It follows your rumble strength in Settings, and none when that's off.
+
+## 8.5.84
+- **SquareDeck EQ installs its plugin by itself.** On the EQ page, press **Install**: an "Installing necessary plugins" card shows the progress while SquareDeck does the rest.
+  - It downloads Equalizer APO 1.4.2's official installer from SourceForge.
+  - It checks the file against Equalizer APO's published fingerprint (SHA-256) and won't run anything else.
+  - It installs it quietly and sets up SquareDeck EQ, all with one Windows permission prompt.
+  - It restarts Windows' audio service, so the EQ plays without restarting the Ally.
+  - Equalizer APO's Device Selector opens on the way, to tick the Ally's speakers (and headphones).
+  - If anything goes wrong, you can try again or open Equalizer APO's page.
+
+## 8.5.83
+- **Fixed: the companion on the update download card.** Only its speech bubble showed, stuck in the corner, and the companion itself never appeared.
+  - The cause: its "looking around" step, while waiting for the first bytes, divided by zero (an operator-precedence slip). That stopped its animation for good.
+  - Now it walks along the bar, carries the update, hops at each quarter and cheers at the end, as intended.
+  - A bad frame can no longer freeze it.
+
+## 8.5.82
+- **Experimental: SquareDeck EQ**, SquareDeck's own equalizer (Settings > Sound > Equalizer, or Experimental).
+  - **How it plays:** through the free, open-source Equalizer APO. SquareDeck includes none of its code: it writes one settings file that Equalizer APO applies straight away. A one-time setup takes one Windows permission prompt, and your own Equalizer APO settings are kept in a backup.
+  - **22 presets** in three groups:
+    - Everyday: Flat, Ally speakers+, Clear voices, Night mode, Easy on the ears.
+    - Games: Footsteps, Open world, Racing, Horror, Action and fighting, Story and RPG, Retro handheld.
+    - Music and video: Cinematic, Bass boost, Punchy, Rock, Electronic, Vocals, Acoustic and jazz, Podcasts, Treble boost, Warm headphones.
+    - Each preset plays as you move to it in the list, so you can hear it before choosing.
+  - **Your own EQ:** ten bands plus bass, clarity, air and stereo width (all the way to mono), on a live curve, heard as you change it. Your curves join the presets.
+  - **A preset for each output:** the Ally's speakers, headphones and Bluetooth, and a TV or monitor. It switches by itself when the sound moves.
+  - **Speaker guard:** on the Ally's own speakers, the deep bass they can't play is filtered out, so they don't distort and can go louder cleanly.
+  - **Loudness at low volume:** bass and treble come back a little as the volume goes down.
+  - **An EQ for each game:** in a game's profile, any preset, or "Match the game", which picks one from its genre (Footsteps for shooters, Racing for driving games, Horror...). Your usual EQ comes back when the game closes.
+  - **Balance**, and **automatic headroom**: the EQ is turned down by as much as it boosts, so it never clips.
+
+## 8.5.81
+- **SquareDeck is now made for ASUS's handhelds only**: the ROG Ally, Ally X, ROG Xbox Ally, Xbox Ally X and Xbox Ally X20.
+  - Support for the Legion Go, MSI Claw, Steam Deck, AYANEO, GPD, OneXPlayer, AOKZOE, AYN and ZOTAC handhelds is gone: their recognition, the Legion modes and Claw user scenarios, fan boost and charge limits, Intel (KX) power limits, the device helper, and their button pictures.
+  - Power limits go through the ASUS firmware, with RyzenAdj kept as the backup.
+  - An old device helper left by an earlier version can be removed from Settings > the handheld > Advanced.
+  - On any other PC, SquareDeck says once that it's made for the ROG Ally, then runs as a plain launcher.
+  - The device table was rewritten from ASUS's own board codes.
+- **25 new light effects** (135 in all), drawn LED by LED for the X20 and blended in pairs on the four-zone Allys: Tesla coil, Chomper, Prism, Clock hands, Bioluminescence, Turn signals, Typewriter, Supernova, Golden hour, Volcano, Scanner, Ghost, Snowfall, Tornado, Gears, Rainbow breath, Peacock, Mood ring, Focus timer, Holiday lights, Electric current, Quasar, Magnets, Record player and UFO.
+- **Experimental: Lights match the UI style.** Every UI style plays a light effect picked for it, in its own colors, and the lights change the moment you switch styles.
+  - Styles you build yourself get a Lights row in the style builder.
+  - Your own light settings are left as they are and come back when it's off.
+  - Turning the lights off, and a game profile's own lights, still win.
+- **Experimental: Cover styles.** Shape the covers on Home and in the library, each with its own choices or the library matching Home:
+  - 13 cuts (hexagon, ticket, arch, shield, slanted and more).
+  - 9 poses (tilted, slanted, scattered, fanned, lean in, staircase, gentle bob), with an option to straighten the highlighted cover.
+  - 15 frames (Polaroid, film strip, cartridge, game case, gallery gold, neon tube, pixel border, sticker and more) in a color of your choice.
+  - Icon shapes for app icons on Home, the running game's icon and the library's List view.
+  - The square, tall and wide art settings, all on one page with a live preview.
+- **This style only, or every style**: turning on Cover styles, Cover art effect, Darken covers, Covers that tilt or Dusty tiles asks whether it's for the UI style in use or for every style.
+  - Kept to a style, it turns off on other styles and comes back as you left it when you return.
+  - An "Applies to" row changes it later.
+- **28 styles moved to Mythical**: Luna XP, Tropical Night, Cozy Place, Olympus, Sapphire, Scholar, Spectrum, Retro Windows, Cozy Pixel, Chronos, Greenhouse, Abyss, Origami, Forge, Glacier, Cartographer, Sweet Shop, Gatsby, Stained Glass, Koi Pond, Blueprint, Circuit, Grimoire, Mirage, Riad, Autumn, Halftone and Pharaoh.
+- **Interface sounds** (sound set, navigation sound, loudness) has the Switch 2 look, and so do its pop-ups.
+
+## 8.5.80
+- **Six more Mythical styles** from the owner's reference images, redrawn sharp in code like the last batch, each with its own font:
+  - **Violet Console** (Plus Jakarta Sans): a night-time media console in navy, graphite and electric violet; raised graphite cards, glowing violet buttons, white discs, a wallpaper with the two D-pads and violet progress bars.
+  - **Lavender Mist** (Montserrat): soft lavender-white neumorphism with violet and charcoal; violet Sign Up pills, charcoal discs, the charcoal On/Off switch with its ringed knob, violet-ringed badges.
+  - **Midnight Amber** (Outfit): midnight-navy tiles on warm peach with amber light; amber-ringed discs, amber knobs and dots, a peach wallpaper with the play tile, chart and number keys.
+  - **Blueprint Sun** (DM Sans): bold flat sky blue, navy and sunshine yellow; navy cards, yellow pills, yellow-ringed radios, a wallpaper with the chart card, progress ring and clouds.
+  - **Cyan Void** (Exo 2): near-black neumorphism traced in cyan; hairline-framed pop-ups with a cyan triangle, sunken pills with a glowing bar, cyan-rimmed discs, a wallpaper of cyan outlines and triangles.
+  - **Indigo Haze** (Manrope): monochrome indigo neumorphism; cards raised from the indigo itself, square-edged violet buttons, the violet switch with a white knob, soft white line icons.
+- New fonts (SIL Open Font License): Plus Jakarta Sans, Outfit, DM Sans, Exo 2, Manrope.
+
+## 8.5.79
+- Game page: on light and coloured styles the game's logo no longer sits on a dark grey box. It floats on the page as it does on dark styles, kept readable by a darker halo around its letters.
+
+## 8.5.78
+- **Seventeen new Mythical styles**, one for each of the owner's reference images. The references are flat screenshots, so instead of cutting them up (they'd come out soft) each style is redrawn sharp in code in that image's language: its shapes, outlines and corners, its shadow family (soft drop, neumorphic pairs, hard offsets, colour glows, sunken wells, hand-drawn ink), its gradients, switches, radios and tabs, its icon style, and a wallpaper of its own. Every one has its own font.
+  - **Atomic Cream** (Poppins): mid-century cream, teal, navy and orange; teal-rimmed cards, divider buttons, white glyphs on coloured tiles, halftone-and-starburst wallpaper.
+  - **Night Ledger** (Mulish): a night-mode wallet; charcoal cards, salmon gradient buttons and tiles, a periwinkle-to-aqua switch knob, the slate diagonal fold.
+  - **Indigo Pulse** (Nunito): deep indigo glow cards, the orange-to-pink LOGIN gradient, a slider-style switch, a wallpaper with the chart's two glowing waves.
+  - **Ultraviolet Slate** (Raleway): dark neumorphic slate with a blue-to-purple header band, gradient gauge rings and line icons, equaliser bars.
+  - **Sunset Noir** (Montserrat): charcoal neumorphism with an orange-pink-purple sunset gradient, the stop-button check box, soft sunset glows.
+  - **Teal Sketchbook** (Architects Daughter): hand-drawn teal with inked outlines, corner hatching and the lavender offset shadow, the ON/OFF block switch, doodle icons.
+  - **Magenta Noir** (Josefin Sans): black neumorphism with hot magenta rings, radio dots and a faint magenta waveform.
+  - **Ember Snow** (Rubik): snow-white neumorphism with the orange-to-red ember gradient and an embossed dial.
+  - **Pastel Pop OS** (Space Grotesk): a pastel Y2K desktop with thick black outlines and hard shadows, the magenta eyeball switch, sticker icons, white grids.
+  - **Sky Bubble** (Barlow): soft sky-blue UI, white floating cards, blue gradient pills, a bubble wallpaper.
+  - **Ice Cap** (Lato): pale grey neumorphism with ice blue, the OFF/ON switch, blue radio dots, embossed rings.
+  - **Lilac Sketch** (Gochi Hand): a lilac sketchbook with the reference's black corner tabs, a hand-drawn window, outlined stars.
+  - **Sage Material** (Roboto): flat material in sage, purple, teal and plum with square corners and progress rings.
+  - **Prism Pulse** (Quicksand): pastel prisms on dusk, the four-colour slanted menu stripe, icons cycling mint, coral, blue and lilac.
+  - **Infograph** (Comfortaa): infographic black with coral and periwinkle, dotted spirals, a dot grid and a bar chart.
+  - **Chrome Cyan** (Chakra Petch): brushed steel and glowing cyan; spun-metal knobs, a steel switch over a cyan slot, cyan sliders.
+  - **Copy That 95** (Space Mono): a 90s desktop in tan and orange; windows with title-bar buttons, Enter/Ok buttons, a progress-block switch, a dithered desktop.
+- New fonts (all SIL Open Font License): Poppins, Mulish, Nunito, Raleway, Rubik, Space Grotesk, Barlow, Lato, Gochi Hand, Architects Daughter, Quicksand, Space Mono.
+
+## 8.5.77
+- New Mythical style: **Good Notes**, clean editorial paper on warm mustard, made from the owner's landing-page template (a Photoshop file).
+  - **From the template:** its beige page (thin ink edge, soft shadow on the yellow) for rows and cards; a pop-up page with its black "2021" year tab and side block clipped to the right edge; its black SEE COURSES block for buttons; its own smiley for home buttons (face wiped, the thin ink ring kept); its outlined mustard bar as the switch track (beige when off) with the black year tab as the knob; check boxes with its thin hand-drawn X.
+  - **Icons:** thin black line icons to match the template's hairline X and arrows.
+  - **Look:** light mode on the mockup's warm mustard, washed with the template's own marble texture (taken from its image layer), ink corner marks and a few outlined mustard bars (the wallpaper); square corners everywhere, a mustard pointer with an ink edge, Roboto (the template's typeface), the Coffee Shop track.
+  - Like the other Mythical styles, the template's pieces are the owner's own asset and stay out of the public repository.
+
+## 8.5.76
+- New Mythical style: **Dial-Up Dream**, a kawaii retro desktop made from the owner's Y2K inbox sticker kit (an Illustrator file).
+  - **The kit's own pieces, cut out and emptied:** its white rating bar for rows and cards (stars cleared), its media-player window for pop-ups (purple title bar and its little aqua X kept, the controls cleared from the screen), its aqua smiley for home buttons (face wiped, rim and offset shadow kept), and its window-control boxes for check boxes: an X when checked, like the old desktops, the emptied minimise box when not.
+  - **Drawn in the kit's language** (flat fills, purple rim, purple offset shadow): pink buttons and pink-and-aqua switches.
+  - **Icons:** the kit's own stickers (envelope, star, planet, notepad, smiley, window box, play-pause), and the rest drawn as matching stickers (house, cog, camera, handheld, power, bag).
+  - **Look:** light mode on the kit's pale pink grid desktop with its sparkles, planet, cloud, smileys and envelopes stuck around a clear middle (the wallpaper), an aqua pointer with a purple rim, purple text, Montserrat (the kit's own typeface), jelly tiles, retro sounds, the Windows XP Installation track.
+  - Like the other Mythical styles, the kit's pieces are the owner's own asset and stay out of the public repository.
+
+## 8.5.75
+- New Mythical style: **Petal Glass**, frosted glass over pink petals, made from the owner's glassmorphism app kit (an Illustrator file).
+  - **The kit's glass, rebuilt so it stays see-through:** milky glass tiles with a bright rim and a soft top sheen for rows and cards, glass pop-ups topped with the kit's blue-to-lavender header band, glass bubbles with a thin blue-lavender ring for home buttons, and frosted check squares (blue with a white tick when checked). The kit's pieces are translucent over its background, so they're redrawn in its exact colours instead of cut out with the background stuck to them.
+  - **From the kit:** its blue chip for buttons, its milky ON switch with the blue knob, and its own nav icons (house, target, bars, cog) lifted and coloured in its blue-to-lavender; the rest drawn as matching soft solids.
+  - **Look:** light mode on a soft pink-to-rose wallpaper of glossy pink-magenta blobs (some blurred behind the glass, some crisp) with the kit's paper flecks, plum text, Open Sans, glow tiles, glass sounds, the Aero track.
+  - Like the other Mythical styles, the kit's pieces are the owner's own asset and stay out of the public repository.
+
+## 8.5.74
+- New Mythical style: **Riveted Sky**, a cartoon game menu made from the owner's bolted-plate game UI kit (an Illustrator file).
+  - **The kit's own pieces, cut out and emptied:** its white plate with four bolts (square for rows and cards, wide for buttons; the glossy white-over-grey split redrawn cleanly where the words were), its sky-to-violet MENU panel for pop-ups (plates, side handles, title and close button removed; the navy banner kept), and its white disc for home buttons.
+  - **Built from its pieces:** switches from its resource bar (the navy-rimmed track in its blue when on and its dark well colour when off, the white disc as the knob), and check boxes from its blue close button (empty, or with a navy tick in the cross's stroke).
+  - **Icons:** the kit's own navy play, gear, list, cart, envelope, heart and share, and the rest drawn as the same chunky rounded solids.
+  - **Look:** light mode on a riveted sky-to-violet wallpaper (bolted panel grid, white sparkles), a white plate pointer with a navy rim, navy text, Patrick Hand lettering (closest to the kit's hand-drawn letters), jelly tiles, arcade sounds, the Jumps track.
+  - Like the other Mythical styles, the kit's pieces are the owner's own asset and stay out of the public repository.
+
+## 8.5.73
+- New Mythical style: **Cloud Doodle**, a hand-drawn sketchbook made from the owner's doodled mint-and-lavender UI kit (an Illustrator file).
+  - **The kit's own pieces, cut out and emptied:** its inked lavender card for rows and cards, its mint picture frame for pop-ups (picture and scrollbar wiped), its puffy lavender UPDATE cloud for buttons, its mint MENU cloud for home buttons (the kit's two-tone split kept crisp under the wiped word), and its cloud-knob candy-stripe switches.
+  - **Check boxes:** a mint star from the kit's rating row when checked, a lavender pebble when not.
+  - **Icons:** the kit's own inked lavender phone, camera, speaker, wifi and envelope, and the rest drawn the same way (lavender fill, black ink, darker lavender shading on one side, a little hand wobble).
+  - **Look:** light mode on ruled notebook paper with a mint margin and the kit's clouds, stars and pebbles stuck around the edges (the wallpaper), a doodled pointer with the kit's lavender shadow, Patrick Hand lettering (SIL Open Font License), jelly tiles, bubble sounds, the Sweetness track.
+  - Like the other Mythical styles, the kit's pieces are the owner's own asset and stay out of the public repository.
+
+## 8.5.72
+- New Mythical style: **Golden Hour**, made from the owner's navy neumorphic UI kit with the gold-to-blue gradient (an Illustrator file).
+  - **The kit's own pieces, cut out and emptied:** its raised navy "Press Here" pill for rows and cards, its open dropdown box for pop-ups, its raised round button for home buttons, its own switches (gold-to-blue on), and its raised dot buttons for check boxes.
+  - **From the kit's gradient:** buttons use the gold "Press Here" pill's gradient, laid out fresh without its label.
+  - **Icons:** the kit's own white line house, nut, heart, bell and music note, and the rest drawn in the same line.
+  - **Look:** dark mode on soft navy with gold and blue glows (also the wallpaper), white text, gold highlight, Open Sans (Regular, made from the variable font you sent), the Daybreak track.
+  - Like the other Mythical styles, the kit's pieces are the owner's own asset and stay out of the public repository.
+- Removed the **Soft Touch** and **Blurred Tint** styles (and their skins and wallpapers). Anyone using one is moved to the default style.
+
+## 8.5.71
+- New Mythical style: **Plum Ember**, made from the owner's neumorphic remote-control UI kit (an Illustrator file).
+  - **The kit's own pieces, cut out and emptied:** its sunken plum pill (LOW) for rows, cards and pop-ups, its search bar for buttons, its VOL dial with the glowing amber ring for home buttons, its upright OFF / ON sliders (words wiped, turned on their side) for switches, and its glowing ring button and plain raised button for check boxes.
+  - **Icons:** the kit's own amber magnifier, star, menu and power lines, and the rest drawn in the same amber line, all with a soft warm glow.
+  - **Look:** dark mode on a plum gradient with a faint ember glow (also the wallpaper), amber highlight and titles, Montserrat (the kit's own typeface), the Dreamcore track.
+  - Like the other Mythical styles, the kit's pieces are the owner's own asset and stay out of the public repository.
+
+## 8.5.70
+- New Mythical style: **Violet Pulse**, made from the owner's charcoal-and-gradient UI kit (an Illustrator file).
+  - **The kit's own pieces, cut out and emptied:** its inset charcoal box (the one holding the switches) for rows and cards, its own sunken switches (grey knob off, gradient knob on), its gradient circles for home buttons, and its gradient outline and filled check squares.
+  - **From the kit's gradients:** pop-ups use the calendar card's blue-to-pink gradient and buttons the Dark switch's track, laid out fresh at the sizes the skin needs.
+  - **Icons:** the kit's own white line house, nut and heart, and the rest drawn in the same thin white line.
+  - **Look:** dark mode on charcoal with soft blue and violet glows (also the wallpaper), white text, violet highlight, Montserrat, the Es Vapour track.
+  - Like the other Mythical styles, the kit's pieces are the owner's own asset and stay out of the public repository.
+
+## 8.5.69
+- New Mythical style: **Neon Tide**, made from the owner's glassy teal-and-violet UI kit (an Illustrator file).
+  - **The kit's own pieces, cut out and emptied:** its glass card with the thin light border (laid out square for rows and wide for pop-ups, keeping its border, corner and glass gradient), its teal gradient button, its dial for home buttons, its pill switches (teal on, violet off) with the ON / OFF words wiped, and its glass and violet check squares.
+  - **Icons:** the kit's magnifier (Browser), person (Friends) and star (Favorites) in white, and the rest drawn in the same white line.
+  - **Look:** dark mode on a navy-to-midnight gradient with soft teal and violet glows (also the wallpaper), white text, teal highlight, Roboto (Regular, made from the variable font you sent), the Waves track.
+  - Like the other Mythical styles, the kit's pieces are the owner's own asset and stay out of the public repository.
+
+## 8.5.68
+- New Mythical style: **Coral Night**, made from the owner's dark gradient UI kit (an Illustrator file).
+  - **The kit's own pieces, cut out and emptied:** its inset navy card (with its inner shadow) for rows, cards and pop-ups, its coral-to-red Sign Up pill for buttons, its orange-to-red sun for home buttons, and its grey outline and gradient check squares.
+  - **Drawn to match:** gradient switches on a dark inset track, a gradient pointer, and solid white icons beside the kit's own wallet (used for Stores).
+  - **Look:** dark mode on navy with blurred coral glows (also the wallpaper), white text, coral highlight, Montserrat, the Sun Rays track.
+  - Like the other Mythical styles, the kit's pieces are the owner's own asset and stay out of the public repository.
+
+## 8.5.67
+- New Mythical style: **Amber Glow**, made from the owner's dark UI kit (an Illustrator file).
+  - **The kit's own pieces, cut out and emptied:** its raised charcoal tile for rows and cards, its raised button, its big card for pop-ups, its round knob for home buttons, its switches with the orange track, and its orange and inset check squares, each with the kit's soft light-and-dark shadow.
+  - **Icons:** the kit's own thin orange line icons (house, menu, bell, heart), and the ones it doesn't have (gear, music note, globe, camera, handheld, folder, friends, power, shopping bag) drawn in the same line.
+  - **Look:** dark mode on charcoal with a faint amber glow (also the wallpaper), orange highlight and titles, Overpass as the font (free, SIL Open Font License), the Gaming Vibes track.
+  - Like the other Mythical styles, the kit's pieces are the owner's own asset and stay out of the public repository.
+
+## 8.5.66
+- New Mythical style: **Blurred Tint**, made from the owner's flat UI kit (an Illustrator file).
+  - **The kit's own pieces, cut out and emptied:** its slate cards for rows and cards, its card with the navy header box for pop-ups, its slate pill with the navy core for buttons, its slate square with the dark knob for home buttons, and its dot check boxes.
+  - **Drawn to match:** the switches (slate pill, navy track, white bar when on), the pointer, and the icons the kit doesn't have (house, grid, globe, camera, handheld, folder, friends, power, shopping bag). The bell, gear, music note and star are the kit's own.
+  - **Look:** dark mode on a blurred slate-to-navy wallpaper, white text and highlight, Montserrat, the At Rest track and soft sounds.
+  - Like Axiom's and Soft Touch's, the kit's pieces are the owner's own asset and stay out of the public repository.
+- Fixed the changelog's opening line, which had been split by an earlier entry.
+
+## 8.5.65
+- New Mythical style: **Soft Touch**, made from the owner's gradient UI kit (an Illustrator file).
+  - **The kit's own pieces, cut out and emptied:** its raised white rounded squares for rows, cards, pop-ups and home buttons; its pill for buttons; its ridged switch sliding over indigo, widened (and in grey for off); its blue "+" square as the check box.
+  - **Icons:** the kit's own (house, gear, bell, calendar, share, download folder) in its sky-to-indigo gradient, and the ones it doesn't have (globe, camera, handheld, star, music, power, shopping bag) drawn to match. A soft blue pointer.
+  - **Look:** light mode on the kit's misty blue-grey (also the wallpaper), the kit's indigo highlight, Montserrat as the font (free, SIL Open Font License), the Ripples track and soft bubble sounds.
+  - Like Axiom's, the kit's pieces are the owner's own asset and stay out of the public repository.
+
+## 8.5.64
+- Nexus Mods has its own logo on the Store page tile and in the top bar of its page (StoreLogos\nexus.png).
+
+## 8.5.63
+- The light effect list stays open: choosing an effect saves it and shows it on the lights straight away, the mark moves to it, and you can keep trying others. B closes the list.
+- 25 more eight-zone effects:
+  - **Motion and play:** Pendulum, Glitch, Loading spinner, Brick breaker, Block stacker, Dice roll, Breathing duet, Stereo meter.
+  - **Sky and space:** Comet shower, Starry night, Constellations, Meteor, Nebula.
+  - **Nature:** Fireflies, Lava lamp, Four seasons, Two candles, Frost, Cherry blossom, Surf, Dripping.
+  - **Color moods:** Amber beacon, Radioactive, Heat map, Chameleon (between the accent and the selected game's color).
+- Removed the E-Day style, with its artwork, sound pack, music, live background, wallpaper and font. If it was in use, SquareDeck goes back to the default style.
+
+## 8.5.62
+- Stick lights: fixed the occasional bright flash over an effect.
+  - A forced refresh (a light reaction ending, dimming or waking after a minute without input, some settings) re-sent the brightness, the "when the lights are on" mask and the Xbox button. Any of them can make the controller show its own saved effect for a moment. Each is now sent only when it changes.
+  - On the X20, SquareDeck no longer looks for the separate lights collection every 10 seconds. That reopened the controller, and the X20 doesn't need it.
+  - "Lights react to achievements and downloads" (a green-teal double pulse when a download or game update finishes) now notes each reaction in the light log, so a flash can be traced to it.
+  - With ASUS Optimization running, the lights settings note that it can put its own color back for a moment.
+- 25 more eight-zone effects:
+  - **Light and motion:** Lighthouse, Bouncing ball, Ping-pong, Rising heartbeat, Sonar, Hourglass, Countdown, Morse SOS.
+  - **Weather and nature:** Thunderstorm, Embers, Tide, Northern lights, Sunrise, Jellyfish.
+  - **Color shows:** Traffic light, Disco, Alternating flash, Music meter, Double helix, Neon sign, RGB carousel, Wormholes, Plasma, Merry-go-round, Kaleidoscope.
+
+## 8.5.61
+- ROG Xbox Ally X20: eight-zone stick lights are now standard (checked on an X20; no longer Experimental). Four LEDs per stick, each its own color: one color per stick, several colors on one ring and different colors on each ring all work. On the X20 every effect is drawn for eight zones (the four-zone ones spread over them). The other Allys keep their four, with the new effects merged to fit. **Test the 8 zones** stays in the X20's light settings.
+- The effect picker's preview shows four LEDs per ring.
+- 24 new effects drawn LED by LED for the eight zones:
+  - **Chasing lights:** Orbit, Twin chase, Dual spin, Figure eight, Snake, Radar sweep, Pulse ring.
+  - **Your two colors:** Loading bar, Pinwheel, Yin and yang, Gradient ring.
+  - **Rainbows and stripes:** Rainbow ring, Vortex, Beacons, Candy stripes.
+  - **Nature and play:** Fire, Rain, Digital rain, Fireworks, Confetti, Watching eyes, Metronome.
+  - **Gauges:** Battery gauge (the charge across all eight LEDs) and Processor gauge.
+- "Surprise me" can pick the new two-color ring effects too.
+
+## 8.5.60
+- Installing an update: the line by the percentage now shows random game talk ("Respawning at the last checkpoint...", "Blowing on the cartridge...", "Facing the final boss..."), a new one every few seconds and at each install step, instead of installer steps like "Starting the installer". Done, cancelled, an installer error and the Game Bar widget's administrator prompt are still said plainly.
+
+## 8.5.59
+- After a game closes, the cover no longer fades in large over the screen and flies down into its tile (it looked sluggish). Home is simply back, with that game selected.
+- Experimental: **8-zone lights on the ROG Xbox Ally X20** (System and troubleshooting, off by default). The X20's rings have eight zones, four per stick. With it on, the X20 path addresses zones 1 to 8 (1 to 4 the left stick, 5 to 8 the right) instead of four, each half ring's color going to its two LEDs. Lights settings get **Test the 8 zones**: zones 1 to 8 light in red, orange, yellow, green, cyan, blue, purple and white for checking the order, and your lights come back after.
+
+## 8.5.58
 - Eleven new stick light effects (ideas from the Colores plugin, written for SquareDeck), in the effect picker with their preview:
   - **Gradient**: your two colors blended across both sticks.
   - **Wave**: your two colors rolling across.
@@ -73,8 +406,6 @@ version newer than the one installed (each section starts at its "## 8.5.58
 - New, off by default: **Battery estimate for each game** (Settings > Gaming > While playing). A game's page shows about how long the battery lasts in it, from your own unplugged sessions.
 - New, off by default: **Pause the game while you're in SquareDeck** (Settings > Gaming > While playing). Three seconds after SquareDeck comes up over a game, the game is frozen so it stops using power. It carries on as soon as you go back. The game is let go before it's closed, when SquareDeck closes, and on the next start if SquareDeck crashed. Protected games (anti-cheat, Store apps) just keep running.
 - New, off by default: **Auto TDP learns each game** (Settings > Gaming > Performance Boost). After a minute holding the target frame rate, Auto TDP remembers that power for the game and that target, and starts there next time.
-
-## version" heading).
 
 ## 8.5.48
 

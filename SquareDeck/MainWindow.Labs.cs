@@ -47,6 +47,9 @@ public partial class MainWindow
         _ = Task.Run(Updater.CleanUpDownloads); // installers left from an update that's finished
         if (int.TryParse(Labs.Get("sticks.zone"), out var zone) && zone is >= 10 and <= 90) Gamepad.StickThreshold = (short)(32767 * zone / 100);
         Labs.Changed += OnLabChanged;
+        if (CoverStyles.On) Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(ApplyCoverStyle));
+        _eqTimer.Tick += (_, _) => SquareEq.Tick();
+        UpdateEq();
         _labsTimer.Tick += (_, _) => _ = LabsTickAsync();
         _labsTimer.Start();
         _tiltTimer.Tick += (_, _) => TiltTick();
@@ -93,6 +96,9 @@ public partial class MainWindow
             case "plxcontinue": SetContinueParallax(Labs.On("plxcontinue") && !_plxGamePaused); break;
             case "coverdim": case "covereffect": ApplyCoverLabs(); break;
             case "dust": RefreshDust(); break;
+            case "stylelights": AllyControl.ApplyLights(true); break;
+            case SquareEq.Lab: UpdateEq(); break;
+            case "coverstyle": ApplyCoverStyle(); break;
             case "companion": SetCompanion(Labs.On("companion")); break;
             case "discord":
                 if (Labs.On("discord") && Labs.Get("discord.presence", "1") == "1") { _discordTimer.Start(); _ = DiscordTickAsync(); }
@@ -400,6 +406,7 @@ public partial class MainWindow
         if (_labsLastIndex >= 0 && index >= 0) CompanionLook(Math.Sign(index - _labsLastIndex));
         if (index != _labsLastIndex) CompanionNoticeSelection();
         _labsLastIndex = index;
+        if (CoverStyles.On) UpdateCoverPoses();
         if (!Labs.On("genresound")) return;
         _genreTimer.Stop();
         _genreTimer.Start(); // waits a moment, so scrolling past tiles doesn't flip the music each step

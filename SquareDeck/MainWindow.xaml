@@ -148,169 +148,174 @@
                                                        Foreground="{DynamicResource AccentBrush}"/>
                                         </Canvas>
 
-                                        <Border x:Name="Ring" Grid.Row="1" BorderThickness="{DynamicResource RingThickness}"
-                                                Margin="{DynamicResource TileRingMargin}" Effect="{DynamicResource RingGlow}"
-                                                CornerRadius="{DynamicResource RingCorner}" BorderBrush="Transparent"/>
-                                        <Border Grid.Row="1" Margin="{DynamicResource TileInnerMargin}" Background="{DynamicResource TileBrush}"
-                                                CornerRadius="{DynamicResource TileCorner}" Effect="{DynamicResource TileShadow}"
-                                                BorderBrush="{DynamicResource PanelStroke}" BorderThickness="{DynamicResource PanelStrokeThickness}">
-                                            <!-- Drawn once and reused while the row glides: the rounded mask, shadow and cover were redrawn
-                                                 for every tile on every frame, which made scrolling sluggish. A little
-                                                 over full size so the highlighted tile stays sharp as it grows. -->
-                                            <Border.CacheMode>
-                                                <BitmapCache RenderAtScale="1.15" SnapsToDevicePixels="True" EnableClearType="False"/>
-                                            </Border.CacheMode>
-                                            <Grid>
-                                            <!-- Everything on the tile is clipped to this rounded shape -->
-                                            <Border x:Name="CornerMask" Background="{DynamicResource TileMaskBrush}"
-                                                    CornerRadius="{DynamicResource TileCorner}"/>
-                                            <Grid>
-                                                <Grid.OpacityMask>
-                                                    <VisualBrush Visual="{Binding ElementName=CornerMask}"/>
-                                                </Grid.OpacityMask>
-                                                <TextBlock x:Name="Fallback" Text="{Binding Name}" Margin="18"
-                                                           FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap"
-                                                           TextAlignment="Center" TextTrimming="CharacterEllipsis"
-                                                           Foreground="{DynamicResource SubtleBrush}"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                <!-- "Add app" and "Game library" tiles: an icon with the name under it -->
-                                                <StackPanel x:Name="ActionFace" HorizontalAlignment="Center"
-                                                            VerticalAlignment="Center" Visibility="Collapsed">
-                                                    <TextBlock Text="{Binding TileGlyph}" FontFamily="Segoe MDL2 Assets"
-                                                               FontSize="64" HorizontalAlignment="Center"
-                                                               Foreground="{DynamicResource SubtleBrush}"/>
-                                                    <TextBlock Text="{Binding Name}" FontSize="20" FontWeight="SemiBold"
-                                                               Margin="0,16,0,0" HorizontalAlignment="Center"
-                                                               Foreground="{DynamicResource SubtleBrush}"/>
-                                                </StackPanel>
-                                                <Image x:Name="CoverImage" Source="{Binding TileImage}" Stretch="UniformToFill"
-                                                       RenderOptions.BitmapScalingMode="{DynamicResource CoverScaling}"/>
-                                                <!-- Animated cover: a silent looping clip, only on the highlighted tile -->
-                                                <MediaElement x:Name="AnimatedFace" Visibility="Collapsed"
-                                                              Source="{Binding AnimatedCover, NotifyOnTargetUpdated=True}"
-                                                              LoadedBehavior="Manual" UnloadedBehavior="Close"
-                                                              IsMuted="True" Stretch="UniformToFill"
-                                                              Binding.TargetUpdated="Animated_SourceChanged"
-                                                              MediaEnded="Animated_Ended" MediaFailed="Animated_Failed"/>
-                                                <!-- Apps: the icon at its natural size on a gradient of its own colors -->
-                                                <Border x:Name="IconFace" Background="{Binding TileBackground}"
-                                                        Visibility="Collapsed">
-                                                    <Image x:Name="IconImage" Source="{Binding Cover}" Width="124" Height="124"
-                                                           Stretch="Uniform" HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"
-                                                           RenderOptions.BitmapScalingMode="HighQuality">
-                                                        <Image.Effect>
-                                                            <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.35"/>
-                                                        </Image.Effect>
-                                                    </Image>
-                                                </Border>
-                                                <!-- Experimental "Dusty tiles": dust on games not played for months -->
-                                                <Image Source="{Binding DustImage}" Stretch="Fill" IsHitTestVisible="False"/>
-                                                <!-- Experimental "Darken covers that aren't highlighted": dimmed and softened, cleared on the highlighted tile -->
-                                                <Rectangle x:Name="CoverDim" Fill="{DynamicResource CoverDimBrush}" IsHitTestVisible="False"/>
-                                                <Rectangle x:Name="CoverFade" Fill="{DynamicResource CoverFadeBrush}" IsHitTestVisible="False"/>
-                                                <Border x:Name="UpdateBadge" Background="#2B7DE0" CornerRadius="3" Padding="8,3"
-                                                        Margin="8" HorizontalAlignment="Left" VerticalAlignment="Bottom"
-                                                        Visibility="Collapsed">
-                                                    <TextBlock Text="{Binding UpdateText}" FontSize="13" FontWeight="Bold"
-                                                               Foreground="White"/>
-                                                </Border>
-                                                <!-- "Continue playing": wide artwork with the game and when it was last played -->
-                                                <Grid x:Name="ContinueFace" Visibility="Collapsed">
-                                                    <Rectangle>
-                                                        <Rectangle.Fill>
-                                                            <LinearGradientBrush StartPoint="0,0.25" EndPoint="0,1">
-                                                                <GradientStop Color="#00000000" Offset="0"/>
-                                                                <GradientStop Color="#E0000000" Offset="1"/>
-                                                            </LinearGradientBrush>
-                                                        </Rectangle.Fill>
-                                                    </Rectangle>
-                                                    <StackPanel VerticalAlignment="Bottom" Margin="24,0,24,18">
-                                                        <TextBlock Text="CONTINUE WHERE YOU LEFT OFF" FontSize="14" FontWeight="Bold"
-                                                                   Foreground="{DynamicResource AccentOnDarkBrush}"/>
-                                                        <!-- The game's logo when SteamGridDB has one, else its name -->
-                                                        <Image Source="{Binding ContinueLogo}" MaxHeight="80" MaxWidth="360" Stretch="Uniform"
-                                                               HorizontalAlignment="Left" Margin="0,8,0,6" RenderOptions.BitmapScalingMode="HighQuality">
-                                                            <Image.Style>
-                                                                <Style TargetType="Image">
-                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding HasContinueLogo}" Value="True">
-                                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Image.Style>
+                                        <!-- The tile itself (ring and cover), turned as one by Experimental "Cover styles" (8.5.81) -->
+                                        <Grid x:Name="TileBody" Grid.Row="1" RenderTransformOrigin="0.5,0.5">
+                                            <Border x:Name="Ring" BorderThickness="{DynamicResource RingThickness}"
+                                                    Margin="{DynamicResource TileRingMargin}" Effect="{DynamicResource RingGlow}"
+                                                    CornerRadius="{DynamicResource RingCorner}" BorderBrush="Transparent"/>
+                                            <Border x:Name="TileFace" Margin="{DynamicResource TileInnerMargin}" Background="{DynamicResource TileBrush}"
+                                                    CornerRadius="{DynamicResource TileCorner}" Effect="{DynamicResource TileShadow}"
+                                                    BorderBrush="{DynamicResource PanelStroke}" BorderThickness="{DynamicResource PanelStrokeThickness}">
+                                                <!-- Drawn once and reused while the row glides: the rounded mask, shadow and cover were redrawn
+                                                     for every tile on every frame, which made scrolling sluggish. A little
+                                                     over full size so the highlighted tile stays sharp as it grows. -->
+                                                <Border.CacheMode>
+                                                    <BitmapCache RenderAtScale="1.15" SnapsToDevicePixels="True" EnableClearType="False"/>
+                                                </Border.CacheMode>
+                                                <Grid>
+                                                <!-- Everything on the tile is clipped to this rounded shape -->
+                                                <Border x:Name="CornerMask" Background="{DynamicResource TileMaskBrush}"
+                                                        CornerRadius="{DynamicResource TileCorner}"/>
+                                                <Grid>
+                                                    <Grid.OpacityMask>
+                                                        <VisualBrush Visual="{Binding ElementName=CornerMask}"/>
+                                                    </Grid.OpacityMask>
+                                                    <TextBlock x:Name="Fallback" Text="{Binding Name}" Margin="18"
+                                                               FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                               TextAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource SubtleBrush}"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    <!-- "Add app" and "Game library" tiles: an icon with the name under it -->
+                                                    <StackPanel x:Name="ActionFace" HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center" Visibility="Collapsed">
+                                                        <TextBlock Text="{Binding TileGlyph}" FontFamily="Segoe MDL2 Assets"
+                                                                   FontSize="64" HorizontalAlignment="Center"
+                                                                   Foreground="{DynamicResource SubtleBrush}"/>
+                                                        <TextBlock Text="{Binding Name}" FontSize="20" FontWeight="SemiBold"
+                                                                   Margin="0,16,0,0" HorizontalAlignment="Center"
+                                                                   Foreground="{DynamicResource SubtleBrush}"/>
+                                                    </StackPanel>
+                                                    <Image x:Name="CoverImage" Source="{Binding TileImage}" Stretch="UniformToFill"
+                                                           RenderOptions.BitmapScalingMode="{DynamicResource CoverScaling}"/>
+                                                    <!-- Animated cover: a silent looping clip, only on the highlighted tile -->
+                                                    <MediaElement x:Name="AnimatedFace" Visibility="Collapsed"
+                                                                  Source="{Binding AnimatedCover, NotifyOnTargetUpdated=True}"
+                                                                  LoadedBehavior="Manual" UnloadedBehavior="Close"
+                                                                  IsMuted="True" Stretch="UniformToFill"
+                                                                  Binding.TargetUpdated="Animated_SourceChanged"
+                                                                  MediaEnded="Animated_Ended" MediaFailed="Animated_Failed"/>
+                                                    <!-- Apps: the icon at its natural size on a gradient of its own colors -->
+                                                    <Border x:Name="IconFace" Background="{Binding TileBackground}"
+                                                            Visibility="Collapsed">
+                                                        <Image x:Name="IconImage" Source="{Binding Cover}" Width="124" Height="124"
+                                                               Stretch="Uniform" HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               RenderOptions.BitmapScalingMode="HighQuality">
                                                             <Image.Effect>
-                                                                <DropShadowEffect BlurRadius="14" ShadowDepth="0" Opacity="0.75"/>
+                                                                <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.35"/>
                                                             </Image.Effect>
                                                         </Image>
-                                                        <TextBlock Text="{Binding Name}" FontSize="30" FontWeight="SemiBold" Margin="0,2,0,0"
-                                                                   Foreground="White" TextTrimming="CharacterEllipsis">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding HasContinueLogo}" Value="True">
-                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                        <TextBlock Text="{Binding Subtitle}" FontSize="16" Foreground="#E0FFFFFF"
+                                                    </Border>
+                                                    <!-- Experimental "Dusty tiles": dust on games not played for months -->
+                                                    <Image Source="{Binding DustImage}" Stretch="Fill" IsHitTestVisible="False"/>
+                                                    <!-- Experimental "Darken covers that aren't highlighted": dimmed and softened, cleared on the highlighted tile -->
+                                                    <Rectangle x:Name="CoverDim" Fill="{DynamicResource CoverDimBrush}" IsHitTestVisible="False"/>
+                                                    <Rectangle x:Name="CoverFade" Fill="{DynamicResource CoverFadeBrush}" IsHitTestVisible="False"/>
+                                                    <Border x:Name="UpdateBadge" Background="#2B7DE0" CornerRadius="3" Padding="8,3"
+                                                            Margin="8" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                                            Visibility="Collapsed">
+                                                        <TextBlock Text="{Binding UpdateText}" FontSize="13" FontWeight="Bold"
+                                                                   Foreground="White"/>
+                                                    </Border>
+                                                    <!-- "Continue playing": wide artwork with the game and when it was last played -->
+                                                    <Grid x:Name="ContinueFace" Visibility="Collapsed">
+                                                        <Rectangle>
+                                                            <Rectangle.Fill>
+                                                                <LinearGradientBrush StartPoint="0,0.25" EndPoint="0,1">
+                                                                    <GradientStop Color="#00000000" Offset="0"/>
+                                                                    <GradientStop Color="#E0000000" Offset="1"/>
+                                                                </LinearGradientBrush>
+                                                            </Rectangle.Fill>
+                                                        </Rectangle>
+                                                        <StackPanel VerticalAlignment="Bottom" Margin="24,0,24,18">
+                                                            <TextBlock Text="CONTINUE WHERE YOU LEFT OFF" FontSize="14" FontWeight="Bold"
+                                                                       Foreground="{DynamicResource AccentOnDarkBrush}"/>
+                                                            <!-- The game's logo when SteamGridDB has one, else its name -->
+                                                            <Image Source="{Binding ContinueLogo}" MaxHeight="80" MaxWidth="360" Stretch="Uniform"
+                                                                   HorizontalAlignment="Left" Margin="0,8,0,6" RenderOptions.BitmapScalingMode="HighQuality">
+                                                                <Image.Style>
+                                                                    <Style TargetType="Image">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasContinueLogo}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Image.Style>
+                                                                <Image.Effect>
+                                                                    <DropShadowEffect BlurRadius="14" ShadowDepth="0" Opacity="0.75"/>
+                                                                </Image.Effect>
+                                                            </Image>
+                                                            <TextBlock Text="{Binding Name}" FontSize="30" FontWeight="SemiBold" Margin="0,2,0,0"
+                                                                       Foreground="White" TextTrimming="CharacterEllipsis">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasContinueLogo}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <TextBlock Text="{Binding Subtitle}" FontSize="16" Foreground="#E0FFFFFF"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <!-- More about it: play time, achievements, status, rating, the last note -->
+                                                            <TextBlock Text="{Binding ContinueDetail}" FontSize="14" Foreground="#B8FFFFFF" Margin="0,3,0,0"
+                                                                       TextTrimming="CharacterEllipsis">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasContinueDetail}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <Grid Width="220" Height="5" HorizontalAlignment="Left" Margin="0,8,0,0">
+                                                                <Grid.Style>
+                                                                    <Style TargetType="Grid">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasContinueProgress}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Grid.Style>
+                                                                <Border CornerRadius="2.5" Background="#40FFFFFF"/>
+                                                                <Border CornerRadius="2.5" HorizontalAlignment="Left" Width="{Binding ContinueProgressWidth}"
+                                                                        Background="{DynamicResource AccentOnDarkBrush}"/>
+                                                            </Grid>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <Border x:Name="RunBadge" Background="#2EB872" CornerRadius="3" Padding="8,3"
+                                                            Margin="8" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                            Visibility="Collapsed">
+                                                        <TextBlock Text="RUNNING" FontSize="13" FontWeight="Bold" Foreground="White"/>
+                                                    </Border>
+                                                    <!-- Xbox style: the name across the bottom of the selected tile -->
+                                                    <Border x:Name="NameOverlay" VerticalAlignment="Bottom" Padding="16,10" Visibility="Collapsed"
+                                                            Background="#B0000000" Opacity="{DynamicResource TileNameOpacity}">
+                                                        <TextBlock Text="{Binding Name}" FontSize="30" Foreground="White"
                                                                    TextTrimming="CharacterEllipsis"/>
-                                                        <!-- More about it: play time, achievements, status, rating, the last note -->
-                                                        <TextBlock Text="{Binding ContinueDetail}" FontSize="14" Foreground="#B8FFFFFF" Margin="0,3,0,0"
-                                                                   TextTrimming="CharacterEllipsis">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
-                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding HasContinueDetail}" Value="True">
-                                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                        <Grid Width="220" Height="5" HorizontalAlignment="Left" Margin="0,8,0,0">
-                                                            <Grid.Style>
-                                                                <Style TargetType="Grid">
-                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding HasContinueProgress}" Value="True">
-                                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Grid.Style>
-                                                            <Border CornerRadius="2.5" Background="#40FFFFFF"/>
-                                                            <Border CornerRadius="2.5" HorizontalAlignment="Left" Width="{Binding ContinueProgressWidth}"
-                                                                    Background="{DynamicResource AccentOnDarkBrush}"/>
-                                                        </Grid>
-                                                    </StackPanel>
+                                                    </Border>
+                                                    <Border x:Name="FavBadge" Width="34" Height="34" CornerRadius="17"
+                                                            Background="#C0000000" Margin="8" HorizontalAlignment="Right"
+                                                            VerticalAlignment="Top" Visibility="Collapsed">
+                                                        <TextBlock Text="&#xEB52;" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                                                                   Foreground="#FF5A6E" HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Border>
                                                 </Grid>
-                                                <Border x:Name="RunBadge" Background="#2EB872" CornerRadius="3" Padding="8,3"
-                                                        Margin="8" HorizontalAlignment="Left" VerticalAlignment="Top"
-                                                        Visibility="Collapsed">
-                                                    <TextBlock Text="RUNNING" FontSize="13" FontWeight="Bold" Foreground="White"/>
-                                                </Border>
-                                                <!-- Xbox style: the name across the bottom of the selected tile -->
-                                                <Border x:Name="NameOverlay" VerticalAlignment="Bottom" Padding="16,10" Visibility="Collapsed"
-                                                        Background="#B0000000" Opacity="{DynamicResource TileNameOpacity}">
-                                                    <TextBlock Text="{Binding Name}" FontSize="30" Foreground="White"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </Border>
-                                                <Border x:Name="FavBadge" Width="34" Height="34" CornerRadius="17"
-                                                        Background="#C0000000" Margin="8" HorizontalAlignment="Right"
-                                                        VerticalAlignment="Top" Visibility="Collapsed">
-                                                    <TextBlock Text="&#xEB52;" FontFamily="Segoe MDL2 Assets" FontSize="16"
-                                                               Foreground="#FF5A6E" HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"/>
-                                                </Border>
-                                            </Grid>
-                                            </Grid>
-                                        </Border>
+                                                </Grid>
+                                            </Border>
+                                            <!-- Experimental "Cover styles": the frame, and the highlight along the cover's cut -->
+                                            <Grid x:Name="CoverFrameHost" Margin="{DynamicResource TileInnerMargin}" IsHitTestVisible="False"/>
+                                        </Grid>
                                     </Grid>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsSelected" Value="True">

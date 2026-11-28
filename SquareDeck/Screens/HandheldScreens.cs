@@ -726,7 +726,7 @@ public sealed class MyDeviceScreen : ListScreen
             }
             if (r.CpuTemp is int t)
                 SetGauge(_gauges.GetValueOrDefault("temp"), Math.Clamp((t - 30) / 70.0, 0, 1), t + "°", r.GpuTemp is int gt ? $"GPU {gt}°  ·  {r.TempSource}" : r.TempSource);
-            else SetGauge(_gauges.GetValueOrDefault("temp"), null, "—", Handheld.Vendor == HandheldVendor.Lenovo && !DeviceHelper.Installed ? "set up the device helper" : "not reported");
+            else SetGauge(_gauges.GetValueOrDefault("temp"), null, "—", "not reported");
             if (r.CpuFanRpm is int f)
                 SetGauge(_gauges.GetValueOrDefault("fans"), Math.Clamp(f / 6500.0, 0, 1), f == 0 ? "Off" : $"{f / 1000.0:0.0}k", f == 0 ? "not spinning" : r.GpuFanRpm is int gf ? $"RPM  ·  2nd {gf:N0}" : "RPM");
             else SetGauge(_gauges.GetValueOrDefault("fans"), null, "—", "not reported");
@@ -844,8 +844,7 @@ public sealed class SupportedHandheldsScreen : ListScreen
     protected override void Build()
     {
         var current = Handheld.Current;
-        AddNote("Recognized from the motherboard's maker and product name, as HandheldCompanion (github.com/Valkirie/HandheldCompanion) does. " +
-                "The power range is the device's own; SquareDeck keeps the TDP inside it.");
+        AddNote("Recognized from the motherboard's maker and ASUS's board code. The power range is the device's own; SquareDeck keeps the TDP inside it.");
         foreach (var m in Handheld.Models.Where(x => x.Brand == _brand).GroupBy(x => x.Name).Select(g => g.First()))
         {
             bool mine = ReferenceEquals(m, current) || (current != null && current.Name == m.Name);

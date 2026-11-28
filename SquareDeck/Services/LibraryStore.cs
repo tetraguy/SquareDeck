@@ -64,6 +64,8 @@ public sealed class GameProfile
     // from AllyControl.LightModes. The colors are for one color, breathing and a color per stick (null = the
     // colors from Settings).
     public string? Lights { get; set; }
+    /// <summary>Experimental "SquareDeck EQ": the preset while this game runs (null = as outside games, "auto" = match the game).</summary>
+    public string? Eq { get; set; }
     public string? LightColor { get; set; }
     public string? LightColor2 { get; set; }
 
@@ -85,7 +87,7 @@ public sealed class GameProfile
     public bool IsEmpty => Width == 0 && RefreshRate == 0 && Hdr == null && PowerPlanId == null && AudioDeviceId == null && !HasPower
                            && Lights == null && LightColor == null && LightColor2 == null && !AmdMetricsOverlay
                            && FanCurve == null && Vibration == null && XboxLightOff == null && WidgetQuick == null
-                           && VisualMode == null && VisualTemperature == null;
+                           && VisualMode == null && VisualTemperature == null && Eq == null;
 }
 
 /// <summary>A game the user added by hand: any program on the PC.</summary>

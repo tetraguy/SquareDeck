@@ -27,6 +27,11 @@ public sealed partial class SettingsScreen
         ("mini", "Mini dial", "A small ring with the number inside, beside the four presets"),
         ("number", "Number only", "Just \u201C15 W\u201D with arrows; select the number for the full dial"),
         ("chips", "Preset chips", "A row of preset buttons (10, 15, 20, 25 W\u2026) and a custom chip for exact watts"),
+        ("gauge", "Gauge", "A half-circle speedometer: the arc fills and the needle swings to the watts"),
+        ("cells", "Battery cells", "Ten cells lit up to the watts; select a cell to jump to that level"),
+        ("stepper", "Big buttons", "Two big minus and plus buttons for the thumbs, the watts large between them"),
+        ("slider", "Slider", "A slider from quiet (moon) to full power (lightning), the watts above it"),
+        ("ruler", "Ruler", "A tick for every watt and a pointer at the setting; select the ruler to go straight there"),
         ("dial", "Full dial", "The big dial and preset cards, as before"),
     };
 

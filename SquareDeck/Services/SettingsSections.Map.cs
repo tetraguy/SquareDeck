@@ -36,7 +36,6 @@ public static partial class SettingsSections
         ["handheld"] = new()
         {
             [""] = new[] { "CpuBoost", "CpuCores", "CpuEpp", "MaxCpu", "RyzenProfile", "TdpBoostWindow", "TdpEnabled", "TdpPluggedWatts", "TdpReapply", "TdpTempLimit", "TdpWatts", "WindowsPowerMode" },
-            ["ASUS software"] = new[] { "HandheldChargeLimit", "HandheldFanBoost", "HandheldPowerMode" },
             ["Advanced"] = new[] { "TdpEnabled", "TdpReapply" },
             ["Battery care"] = new[] { "AllyChargeLimit" },
             ["Controller"] = new[] { "AllyStickInner", "AllyStickOuter", "AllyTriggerInner", "AllyTriggerOuter", "AllyVibration" },

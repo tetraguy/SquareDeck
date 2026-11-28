@@ -72,10 +72,16 @@ public sealed class StoreWebScreen : Screen
         var top = new Grid { Height = 58 };
         top.SetResourceReference(Panel.BackgroundProperty, "BgBrush");
         var left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(22, 0, 0, 0) };
-        var glyph = Ui.Glyph(store.Glyph, 20, "AccentBrush");
-        glyph.VerticalAlignment = VerticalAlignment.Center;
-        glyph.Margin = new Thickness(0, 0, 12, 0);
-        left.Children.Add(glyph);
+        // The store's own logo when SquareDeck has one (Nexus Mods), otherwise its icon.
+        if (StoreLogos.For(store.Name) is { } logo)
+            left.Children.Add(new Image { Source = logo, Width = 28, Height = 28, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) });
+        else
+        {
+            var glyph = Ui.Glyph(store.Glyph, 20, "AccentBrush");
+            glyph.VerticalAlignment = VerticalAlignment.Center;
+            glyph.Margin = new Thickness(0, 0, 12, 0);
+            left.Children.Add(glyph);
+        }
         var name = Ui.Text(store.Name, 20, "FgBrush", bold: true);
         name.VerticalAlignment = VerticalAlignment.Center;
         name.Margin = new Thickness(0, 0, 18, 0);

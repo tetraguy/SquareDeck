@@ -387,6 +387,14 @@ public sealed partial class GameProfileScreen : ListScreen
                         click: () => Host.Push(new LedColorScreen("Second light color – " + _game.Name, two, hex => { Profile.LightColor2 = hex; Saved(); })));
             }
         }
+        // Experimental "SquareDeck EQ": the sound while this game runs.
+        if (SquareEq.On)
+        {
+            AddHeader("Sound");
+            AddRow("EQ while playing", SquareEq.NameOf(p.Eq), "\uE9E9", click: EqChoice,
+                subtitle: p.Eq == "auto" ? "Picked from the game's genre: " + SquareEq.Find(SquareEq.Suggest(GenreCache.Of(_game) ?? "", _game.Name)).Name
+                        : p.Eq == null ? "The preset for the speakers or headphones in use" : SquareEq.Find(p.Eq).About);
+        }
         // The ROG Ally's screen while this game runs: an ASUS GameVisual mode and color temperature.
         if (AllyControl.IsAlly)
         {
@@ -516,6 +524,20 @@ public sealed partial class GameProfileScreen : ListScreen
             Host.Library.Save();
         });
         Host.ShowToast("GAME PROFILE", $"{name}: {Profile.TdpWatts} W" + (refresh > 0 ? $", {refresh} Hz" : ""), _game.Name, "", "info", remember: false);
+    }
+
+    /// <summary>Experimental "SquareDeck EQ": the preset while this game runs.</summary>
+    private async void EqChoice()
+    {
+        var presets = SquareEq.All.ToList();
+        string match = SquareEq.Find(SquareEq.Suggest(GenreCache.Of(_game) ?? "", _game.Name)).Name;
+        var names = new List<string> { "Same as outside games", "Match the game (" + match + ")" };
+        names.AddRange(presets.Select(x => x.Name));
+        int c = await Host.AskAsync("EQ while playing", "Used while " + _game.Name + " runs. Your usual EQ comes back when it closes.", names.ToArray());
+        if (c < 0) return;
+        Profile.Eq = c == 0 ? null : c == 1 ? "auto" : presets[c - 2].Id;
+        Saved();
+        if (_game.IsRunning) SquareEq.SetRunning(_game, Profile);
     }
 
     private void Saved()
@@ -1136,7 +1158,19 @@ public sealed class StoresScreen : GridScreen
         AddTile(GlyphBox(small, small, "\uE8EC"), _cine ? null : wish, small, () => Host.Push(new WishlistScreen()), wish, _deals);
         AddTile(GlyphBox(small, small, "\uE787"), _cine ? null : "Release calendar", small, () => Host.Push(new ReleaseCalendarScreen()), "Release calendar", _deals);
         AddTile(GlyphBox(small, small, "\uE710"), _cine ? null : "Add more stores", small, () => Host.Push(new AddStoresScreen()), "Add more stores", extras);
-        AddTile(GlyphBox(small, small, StoreWebScreen.NexusMods.Glyph), _cine ? null : "Nexus Mods", small, () => Host.Push(StoreWebScreen.Open(StoreWebScreen.NexusMods)), "Nexus Mods", extras);
+        {
+            // Nexus Mods' own logo (StoreLogos\nexus.png), or its icon without it.
+            FrameworkElement face = GlyphBox(small, small, StoreWebScreen.NexusMods.Glyph);
+            if (StoreLogos.For("Nexus Mods") is { } nexusLogo)
+            {
+                var box = ImageBox(small, small, out var image);
+                image.Source = nexusLogo;
+                image.Stretch = Stretch.Uniform;
+                image.Margin = new Thickness(small * 0.16);
+                face = box;
+            }
+            AddTile(face, _cine ? null : "Nexus Mods", small, () => Host.Push(StoreWebScreen.Open(StoreWebScreen.NexusMods)), "Nexus Mods", extras);
+        }
         int hiddenInstalled = _all.Count(s => s.Installed && hidden.Contains(s.Name));
         if (hiddenInstalled > 0)
             AddTile(GlyphBox(small, small, "\uE7B3"), _cine ? null : $"Hidden stores ({hiddenInstalled})", small, () => _ = ShowHiddenAsync(), $"Hidden stores ({hiddenInstalled})", extras);

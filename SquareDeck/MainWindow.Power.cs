@@ -26,7 +26,18 @@ public partial class MainWindow
         Perf.Update(Settings);
         TdpControl.Init(Settings);
         AllyControl.Init(Settings);
-        _ = HandheldVendors.ApplyAllAsync(Settings); // Legion Go / MSI Claw: mode, fan boost, charge limit
+        if (!Handheld.IsHandheld && !Settings.NotAllyNoticeShown)
+        {
+            // SquareDeck is made for the ROG Ally family (8.5.81): said once on any other PC, which still runs it as a plain launcher.
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(4));
+                Settings.NotAllyNoticeShown = true;
+                Settings.Save();
+                await AskAsync("Made for the ROG Ally", "SquareDeck is made for ASUS's ROG Ally family: the ROG Ally, Ally X, ROG Xbox Ally, Xbox Ally X " +
+                    "and Xbox Ally X20. On this PC it works as a launcher, without the handheld's controls (power limits, fans, lights and buttons).", "OK");
+            }));
+        }
         Brightness.Prefetch(); // so the quick settings show the brightness slider the moment they open
         if (Settings.ExperimentAdrenalineHook && Settings.AdrenalineAutoHook)
         {
