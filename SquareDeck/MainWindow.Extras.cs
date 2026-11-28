@@ -98,6 +98,7 @@ public partial class MainWindow
     public void RestartWithoutSaving()
     {
         _skipSaveOnClose = true;
+        SafeFile.Discard(); // and nothing waiting to be saved either (9.0.1)
         try
         {
             if (Environment.ProcessPath is string exe)

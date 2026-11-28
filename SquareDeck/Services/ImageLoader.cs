@@ -27,12 +27,40 @@ public static class ImageLoader
     public static (string Path, int Width)? OriginOf(ImageSource? image) =>
         image != null && Origins.TryGetValue(image, out var o) ? (o.Item1, o.Item2) : null;
 
+    // Pictures already decoded and still in use somewhere (9.0.1): a cover on Home and the same cover in the library, a
+    // style's wallpaper in its preview and on its card, are decoded once and shared (they're frozen, so that's safe).
+    // Only weak references are kept, so this never holds a picture in memory by itself; a file that has changed since
+    // (its time or size) is decoded again.
+    private static readonly object RecentGate = new();
+    private static readonly Dictionary<string, (DateTime Stamp, long Size, WeakReference<ImageSource> Image)> Recent = new(StringComparer.OrdinalIgnoreCase);
+    private static int _recentAdds;
+
     public static ImageSource? FromFile(string path, int decodeWidth)
     {
         try
         {
+            var info = new FileInfo(path);
+            if (!info.Exists) return null;
+            DateTime stamp = info.LastWriteTimeUtc;
+            long size = info.Length;
+            string key = decodeWidth + "|" + path;
+            lock (RecentGate)
+            {
+                if (Recent.TryGetValue(key, out var known) && known.Stamp == stamp && known.Size == size && known.Image.TryGetTarget(out var alive))
+                    return alive;
+            }
             var image = FromBytes(File.ReadAllBytes(path), decodeWidth);
-            if (image != null) Origins.AddOrUpdate(image, Tuple.Create(path, decodeWidth));
+            if (image != null)
+            {
+                Origins.AddOrUpdate(image, Tuple.Create(path, decodeWidth));
+                lock (RecentGate)
+                {
+                    Recent[key] = (stamp, size, new WeakReference<ImageSource>(image));
+                    // Now and then, forget the entries whose pictures are gone.
+                    if (++_recentAdds % 256 == 0)
+                        foreach (var gone in Recent.Where(r => !r.Value.Image.TryGetTarget(out _)).Select(r => r.Key).ToList()) Recent.Remove(gone);
+                }
+            }
             return image;
         }
         catch (Exception)

@@ -103,6 +103,7 @@ public static class Diagnostics
             // The settings, without keys, tokens or passwords.
             try
             {
+                SafeFile.Flush(); // the settings as they are now (9.0.1)
                 string settingsFile = Path.Combine(Settings.DataDir, "settings.json");
                 if (File.Exists(settingsFile))
                 {

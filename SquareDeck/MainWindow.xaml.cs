@@ -64,16 +64,16 @@ public partial class MainWindow : Window
     private bool _pollingRunning;
     private CancellationTokenSource? _loadCts;
 
-    public Settings Settings { get; } = Remember(Services.Settings.Load());
+    public Settings Settings { get; } = Remember(StartupLoads.TakeSettings());
 
     /// <summary>The running launcher's settings, for code that has no window at hand (another thread).</summary>
     public static Settings? CurrentSettings { get; private set; }
 
     private static Settings Remember(Settings settings) => CurrentSettings = settings;
-    public LibraryStore Library { get; } = LibraryStore.Load();
+    public LibraryStore Library { get; } = StartupLoads.TakeLibrary();
 
     /// <summary>Play time measured by the launcher itself.</summary>
-    public PlaytimeStore Playtime { get; } = PlaytimeStore.Load();
+    public PlaytimeStore Playtime { get; } = StartupLoads.TakePlaytime();
 
     private DateTime _lastPlaytimeTick = DateTime.UtcNow;
     private DateTime _lastPlaytimeSave = DateTime.UtcNow;
@@ -82,7 +82,7 @@ public partial class MainWindow : Window
     private int _stopReturnIndex;           // round button to go back to from Stop
 
     /// <summary>Which achievements were already unlocked, and the feed of new ones.</summary>
-    public AchievementStore Achievements { get; } = AchievementStore.Load();
+    public AchievementStore Achievements { get; } = StartupLoads.TakeAchievements();
 
     private readonly HashSet<int> _steamWasRunning = new();
     // Steam games started from their own program: Steam may never mark them "running", so their processes are watched.

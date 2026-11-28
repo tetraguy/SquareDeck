@@ -860,9 +860,8 @@ public sealed class Settings
     {
         try
         {
-            Directory.CreateDirectory(DataDir);
-            SafeFile.WriteAllText(FilePath,
-                JsonSerializer.Serialize(this, SafeFile.Indented));
+            // Gathered with the saves of the next moment and written on a background thread (9.0.1).
+            SafeFile.WriteSoon(FilePath, () => JsonSerializer.Serialize(this, SafeFile.Indented));
         }
         catch
         {

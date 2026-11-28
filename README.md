@@ -4,170 +4,229 @@
 
 # SquareDeck
 
-**A controller-first game launcher for Windows handhelds and living-room PCs.**
+**The console experience the ROG Ally always deserved.**
 
-Your games from every store, your apps, music and settings on one console-style home screen
-you can drive entirely with a gamepad.
+One controller-first home for every game, every store and everything else you do on your handheld:
+designed to be picked up, pressed once, and played.
 
 [Download](https://github.com/tetraguy/SquareDeck/releases) · [Changelog](CHANGELOG.md) · [Report a problem](https://github.com/tetraguy/SquareDeck/issues)
 
 </div>
 
-<!-- Add screenshots here, for example:
-<p align="center">
-  <img src="docs/home.png" width="49%"> <img src="docs/library.png" width="49%">
-</p>
--->
+<img width="2559" height="1439" alt="SquareDeck home screen" src="https://github.com/user-attachments/assets/a1135cf3-5012-4a29-9315-76a8b651798d" />
 
-## Why SquareDeck
+---
 
-<img width="2559" height="1439" alt="UI 4" src="https://github.com/user-attachments/assets/a1135cf3-5012-4a29-9315-76a8b651798d" />
+## Our mission
 
-Windows on a handheld means a desktop built for a mouse, and a different launcher for every store. SquareDeck puts
-one home screen in front of all of it: pick it up, press A, play.
+Windows handhelds are remarkable machines held back by software that was never meant for them. A desktop built for a
+mouse. A different launcher for every store. Pop-ups, sign-in windows and tiny buttons between you and your game.
 
-- **One library.** Steam, Epic, GOG, Xbox / Game Pass, Battle.net, Ubisoft Connect and the EA app, plus your own
-  programs and apps. Steam games use Steam's own artwork; covers and everything else come from SteamGridDB.
-- **Built for a controller.** Every page, setting and pop-up works with a gamepad, touch, keyboard or mouse.
-- **Made for handhelds.** Power limits (TDP) per game, a quick menu over your game, and it gets out of the game's way
-  while you play.
-- **Yours to style.** Color themes, wallpapers, moving backgrounds, sounds and music (a new theming system is on the way).
+**SquareDeck exists to make a Windows handheld feel like a console.** It sits in front of Windows and replaces the
+clutter with one calm, beautiful home screen, drivable entirely with a controller, that brings your whole library,
+your hardware and your entertainment together. It aims to be:
+
+- **Effortless.** Every page, setting and pop-up works with a controller first, and with touch, keyboard and mouse as well.
+- **Complete.** No more reaching for the desktop: game settings, power, lights, files, apps, music, video and Wi-Fi are all inside.
+- **Personal.** Nearly two hundred hand-crafted styles, a style builder, a companion of your own and a look that changes with your mood or the time of day.
+- **Respectful.** Light on memory and battery, out of the way while you play, honest about what it changes, and free of ads and accounts.
+
+SquareDeck is built for and tuned to the **ASUS ROG Ally family**: ROG Ally, ROG Ally X, ROG Xbox Ally, ROG Xbox
+Ally X and Xbox Ally X20.
+
+---
+
+## Highlights
+
+| | |
+|---|---|
+| 🎮 **Every store, one library** | Steam, Epic, GOG, Xbox / Game Pass, Battle.net, Ubisoft Connect, the EA app, emulated classics, PC recompilations, cloud games and your own programs, side by side. |
+| ✨ **A style for every mood** | Mythical, Legendary and Unlockable styles, each with its own artwork, type, sounds, music and light effects. Try them live on your home screen with the **style gallery**. |
+| ⚡ **Made for the Ally** | Power limits per game, fan curves, stick lights, button remapping, charge limits and a Game Bar widget, without needing Armoury Crate open. |
+| 🕹️ **Retro Lounge and Recomp Zone** | About 40 classic consoles with one-press emulator setup, and native PC recompilations of console games. |
+| 🎧 **Entertainment built in** | Spotify, your own music, Netflix, YouTube (DeckTube), Hulu and more, all full screen with the controller, plus SquareDeck's own equalizer. |
+| 🧰 **No desktop required** | File explorer, task manager, terminal, browser, captures gallery, Wi-Fi and Bluetooth, installed apps and system tools, all controller-ready. |
+
+---
 
 ## Features
 
-### Library and games
-- Home row of recent games, favorites, collections, categories, ratings and status
-- A notebook for every game: rich-text notes (headings, lists, checklists, highlights, colors) with your screenshots
-  dropped right into the text, pinned and colored note cards, and templates to start from
-- Game pages with details, achievements, screenshots, trailers and play time, for every game (details for non-Steam
-  games come from the Steam store when the game is sold there, or Wikipedia)
-- Pick any game's square cover, icon, tall grid, header capsule, hero image and logo from SteamGridDB (one tab each), or
-  use your own, with a progress card while it downloads
-- Library: section tabs (Installed, Favorites, Recently played, Not installed, Wishlist, Updates, Collections) switched
-  with LB / RB, chips for each store, category and status, and a slim toolbar (search, sort, view, More). Covers as
-  Square, Grid (tall poster art) or Rectangle (the wide store header), in eleven views: Grid, Compact, Large, Mini,
-  Posters, Banners, List, Spotlight, Spotlight list, Shelves and Timeline, grouped by category, main genre, or played
-  and never played
-- Home row art as Square, Tall grid or Rectangle, in Small, Medium or Large, with fifteen highlight animations
-- **Wishlist and sales:** your Steam wishlist and games you watch, with prices, discounts and the lowest price seen, a
-  notification when one goes on sale, and a month-view **release calendar**
-- Install stores from SquareDeck with the Windows Package Manager
-- **Recomp Zone**: browse native PC recompilations of console games with Windows builds, filter by
-  platform and genre or sort by stars, read Library-style pages about each, and install, update, play or locate them
-- **Game Genie**: facts and questions and answers about any game, written by Google Gemini, from an
-  Ask Genie button on its page
-- A mood picker: choose how you feel and get three games from your library that fit, with their artwork and play time
-- **Backlog Boss:** your unfinished games as a monster to defeat an hour at a time, and **My Gamer Passport:** ink stamps for every genre, era and store you've played
-- Launch splash that covers store pop-ups until the game is on screen, with six animations and an optional countdown
-- How long to beat (from HowLongToBeat.com) on every game's page, next to your own play time
-- Start Steam games straight from their .exe to skip Steam's launch pop-up
-- Asks before starting a Steam game with an update waiting: update first (with live progress) or play anyway
-- Stop a game from the launcher, with a console-style "Closing software" screen
-- Session summaries, play-time tracking and achievement pop-ups
-- **Cloud gaming:** Xbox Cloud Gaming, GeForce NOW, Amazon Luna and Antstream Arcade on the Stores page, full screen
-  with your controller passed straight to the game. Leave by holding View + Start (or other buttons you choose in Settings), with Ctrl+Shift+Q (also changeable), or the hidden corner button
+### Home and library
 
-### Handheld
-- **TDP control** for AMD and Intel handhelds (RyzenAdj, the device's own firmware on ROG Ally, Legion Go and MSI Claw,
-  or KX.exe from HandheldCompanion for Intel), with per-game limits for battery and plugged in
-- **<Your model> Specific Settings** (in Settings > Experimental): settings for the handheld SquareDeck recognizes (about 75
-  models from ASUS, Lenovo, MSI, Valve, AYANEO, GPD, OneXPlayer, AOKZOE, AYN, ZOTAC and more), with its own power
-  range, its controls, and the list of supported handhelds
-- **My Device:** a live dashboard with a battery ring, gauges for processor, graphics, temperature and fan, and cards
-  for power draw, battery health and pace, the power limit, controller battery, memory, every drive, display, network
-  and sound (a home screen button, off by default)
-- **Legion Go and MSI Claw:** Legion modes / MSI user scenarios, fan boost, charge limit and TDP through their firmware
-- **DeckTube**: YouTube's TV and console app, made for the controller, with VacuumTube's ad blocking,
-  SponsorBlock, DeArrow and Return YouTube Dislike. It gets its own tab on the Music page, next to Spotify
-- **Adrenaline Hook** (experimental, AMD graphics): adds Xbox, Store and other games to AMD Software so its per-game
-  settings work for them, with Adrenalin switches per game, repair after updates, backups and the Radeon overlay shortcuts
-- Live processor, memory, graphics, storage and network readouts in Settings > Power and performance
-- **Performance Boost:** frees memory before a game starts, with fifteen animations and matching vibration
-- **Performance overlay:** FPS, frame time, CPU / GPU use, CPU speed, RAM, TDP and battery over your games, in three
-  layouts, three detail levels and six styles (FPS through the bundled [PresentMon](https://github.com/GameTechDev/PresentMon))
-- **Game profiles:** resolution, refresh rate, HDR, power plan and audio device, applied on launch and put back after
-- **In-game quick menu** over any full-screen game (Xbox mode too): live CPU / GPU / RAM use, screenshot and record,
-  volume, brightness, TDP and exit
-- **Xbox mode home app:** boot straight into SquareDeck on Windows 11's full screen experience, no extra tool needed
-- **ROG Ally buttons:** remap Armoury Crate, Command Center, Xbox Library, M1 / M2 and the back-button combos
-  (ROG Ally, Ally X, Xbox Ally, Xbox Ally X and Xbox Ally X20)
-- **ROG Ally controls:** stick lights (effects, colors, battery level, the selected game's colors, low-battery pulse,
-  game lights that follow the running game or its game profile),
-  ASUS Silent / Performance / Turbo, fan curves, battery charge limit, TDP through ASUS's firmware with no setup,
-  mouse mode and switching off the built-in controller
-- Lean mode while a game runs: lets go of covers, pages and caches, frees graphics memory and lets Windows reclaim
-  its memory first, then comes back with focus when the game closes
-- Rests while another app is in front: music, moving backgrounds, animations and animated covers pause, and after a
-  minute in the background it frees memory too
-- Performance mode, low-battery notice and Do not disturb while playing
+- **A console-style home row** of your recent games, with square, tall or wide art in three sizes and fifteen
+  highlight animations. "Continue where you left off" brings your last game to the front.
+- **One library for every store**, with tabs for Installed, Favorites, Recently played, Not installed, Wishlist,
+  Updates and Collections (switched with LB / RB), chips for each store, category and status, and search, sort and
+  filters on a slim toolbar.
+- **Eleven library views**: Grid, Compact, Large, Mini, Posters, Banners, List, Spotlight, Spotlight list, Shelves and
+  Timeline. Group by category, main genre, or played and never played.
+- **Artwork your way.** Steam games use Steam's own art. For everything else, pick any square cover, icon, tall grid,
+  header, hero image or logo from SteamGridDB, or use your own pictures.
+- **Cover styles.** Cut covers into shapes, tilt or fan them out, and frame them like a Polaroid, a cartridge or a
+  gallery print. Game icons can be shaped too.
+- **Rich game pages** with details, achievements, screenshots, trailers, how long to beat (from HowLongToBeat.com),
+  optional player statistics and your own play time, for every game, not just Steam's.
+- **A notebook for every game**: rich-text notes with headings, checklists, highlights and colors, your screenshots
+  dropped right into the text, pinned note cards and templates.
+- **Game profiles** that apply resolution, refresh rate, HDR, power plan, audio device, power limit, frame cap,
+  equalizer preset and lights when a game starts, and put everything back when it ends.
+- **Launch options and scripts** before and after a game, a launch splash that hides store pop-ups until the game is on
+  screen, Steam games started straight from their own program to skip Steam's pop-up, and a prompt to update first
+  or play anyway when a Steam update is waiting.
+- **Stopping a game** from the launcher with a console-style closing screen, and session summaries afterwards.
+- **Wishlist and sales**: your Steam wishlist and watched games with prices, discounts and the lowest price seen, a
+  notification when one goes on sale, and a month-view release calendar.
+- **Library care**: move games between drives, a storage advisor, install-time estimates, overnight downloads, a
+  library cleanup and a "Fix this game" helper.
 
-### Look and feel
-- Themes, in four tabs:
-  - **Basic:** 100 styles of the Switch design, each with its own colors, type, corners, buttons, wallpaper or moving
-    background, sounds and music
-  - **Advanced:** 18 styles made from UI kits, with the kit's own panels, buttons, dialogs, switches, mouse pointer and
-    (for some) icons. Several come in more than one color
-  - **Legendary:** 21 styles drawn from scratch by Claude: every panel, button, pop-up, switch, check box, pointer,
-    icon and wallpaper, each with its own font, sounds and music
-  - **Unlockable:** 6 styles you earn by playing (hours, achievements, finished games, late nights and streaks)
-- Create your own styles: background, music, interface and navigation sounds, colors, font, button shape and look,
-  shelf, effects (halftone, comic book, synthwave, Y2K, dreamcore and more), game art, animations and the Windows lock
-  screen picture. Save them with your own name, and export or import them as .sdstyle files
-- 22 color themes, plus your choice of font and game art shape and size
-- 37 moving backgrounds (or add your own videos), 26 picture wallpapers, 19 music tracks and 8 interface sound packs
-- Controller button pictures for Xbox, PlayStation and Switch, in two art styles, plus keyboard keys
-- Light, dark, OLED and high-contrast themes, larger text and reduced motion
-- 16 startup animations, and a "Good morning" greeting by your profile picture
+### Play and discover
 
-### Built in
-- Web browser with tabs, favorites and controller navigation; web links from anywhere in SquareDeck can open in it
-- Multimedia page: music player for your own files, Spotify playing inside the launcher (Premium), now-playing from any app, and Netflix, YouTube, Hulu,
-  Prime Video, Crunchyroll, Disney+, Paramount+ and Tubi full screen with controller controls (each locked to its own site),
-  opening with a movie-night animation (curtains, film countdown, clapperboard, marquee lights or popcorn); full
-  screen, with the controller read by the page itself, and a now-playing pill on the home screen while one is open
-- Captures gallery for Game Bar screenshots and clips, grouped by game into albums you can export as a ZIP or delete,
-  with a built-in share sheet and 3 to 6 captures per row
-- File explorer with tabs (drag files between them), a fold-away sidebar and the Recycle Bin; task manager, display and sound settings
-- Wi-Fi and Bluetooth in a blade from the right of the home screen: join networks, pair and connect devices
-- Terminal (Command Prompt or PowerShell) inside the launcher, and a storage speed test for drives and memory cards
-- Steam friends, game news, search across everything
-- Backup and restore of settings and library
-- Updates install by themselves: the new version downloads, installs silently behind a full-screen progress
-  animation, and SquareDeck opens again
-- Apps in Settings: see every installed app, and uninstall, modify, repair or reset it
-- A play-time dashboard: weekly and 12-week charts, an activity heat map, most-played games, genres, habits, achievements and records
-- Optional player stats on game pages: players now and peaks, owner estimates, monthly players and review history, with SteamDB a press away
+- **Game Genie**: facts, tips and answers about any game, written by Google Gemini, from the game's own page.
+- **Mood picker**: say how you feel and get three games from your library that fit.
+- **Backlog Boss**: your unfinished games as a monster to defeat one hour at a time.
+- **Gamer Passport**: ink stamps for every genre, era and store you've played.
+- **Achievements, in style**: pop-ups that match your look, an achievement sticker book, milestone celebrations,
+  achievement guides and an optional screenshot each time you unlock one.
+- **Friends**: Steam friends, a friends leaderboard, game news, a free-games tracker, Discord and Twitch.
+- **A play-time dashboard**: weekly and 12-week charts, an activity heat map, most-played games, genres, habits and
+  records, plus a game diary.
+- **Unlockables**: extra styles, highlight colors and companion outfits you earn by playing, from hours and
+  achievements to finished games, late nights and streaks.
 
-### Built-in Solutions
+### Retro Lounge
 
-## File Explorer
+- **About 40 consoles**, from the NES and Atari 2600 to the PS3, Wii U and Xbox 360, each in its own colors.
+- **One-press emulators**: RetroArch (with cores fetched as needed), DuckStation, PCSX2, PPSSPP, Dolphin, RPCS3, Cemu,
+  xemu, Xenia Canary, Azahar, melonDS, mGBA, Flycast, Vita3K, shadPS4 and more. Each installs from its official
+  release, keeps its settings and saves in Retro Lounge's folder, and checks for updates.
+- **Your games, found and dressed**: ROM folders in the layouts EmuDeck, RetroBat and ES-DE use, multi-disc games as
+  one game, box art from libretro-thumbnails or ScreenScraper, shaders and bezels per console, and a save-state browser.
+- **A BIOS page** that explains what each console needs and where it goes. Retro Lounge never downloads games or BIOS
+  files: those come from what you own.
 
-<img width="2559" height="1439" alt="File Explorer" src="https://github.com/user-attachments/assets/b17bd796-df4b-43cc-9b36-8d106b50dd41" />
+### Recomp Zone and cloud gaming
 
-## Music Player
+- **Recomp Zone**: browse native PC recompilations of console classics, filter by platform and genre, read about each
+  one, and install, update, play or locate it.
+- **Cloud gaming**: Xbox Cloud Gaming, GeForce NOW, Amazon Luna and Antstream Arcade, full screen, with your controller
+  passed straight to the game.
 
-<img width="2559" height="1439" alt="Music Player" src="https://github.com/user-attachments/assets/7716aaea-1b45-480f-a6e4-c1be6883a067" />
+### Made for the ROG Ally
 
-## Web Browser
+- **Power control** through ASUS's own firmware with no setup (or RyzenAdj), with limits per game for battery and
+  plugged in, Silent / Performance / Turbo modes, an Auto TDP option in the widget and frame-rate caps per game.
+- **Stick lights** with more than 100 effects, two colors, battery level, the selected game's colors, a low-battery
+  pulse and lights that follow the running game. Optionally, **lights that match your UI style**, picked for every style.
+- **Buttons your way**: remap Armoury Crate, Command Center, M1 / M2 and the back-button combos, switch on mouse mode,
+  or switch off the built-in controller.
+- **Fans, battery and memory**: custom fan curves, a battery charge limit, battery health, CPU core configuration and
+  graphics memory settings.
+- **My Device**: a live dashboard with a battery ring, gauges for processor, graphics, temperature and fan, and cards
+  for power draw, battery pace, the power limit, controller battery, memory, drives, display, network and sound.
+- **Performance overlay**: FPS, frame time, CPU / GPU use, CPU speed, RAM, power and battery, in three layouts, three
+  detail levels and six styles (FPS through the bundled PresentMon).
+- **In-game quick menu** over any game, Xbox mode included: live readouts, screenshot and record, volume, brightness,
+  power and exit.
+- **Game Bar widget**: a companion panel inside Xbox Game Bar with cards for the running game, now playing, power (in
+  several wattage looks), live stats, ROG Ally controls, game notes, apps to launch, favorites and quick settings.
+  Reorder or hide cards, keep a layout and presets per game, and match it to your style.
+- **Performance Boost** frees memory before a game starts, **lean mode** lets go of covers and caches while you play,
+  and SquareDeck **rests** in the background so music, moving backgrounds and animations never cost you frames.
+- **Docked / TV mode**, a charger check, a session timer with break reminders, microSD awareness and a drive-connected notice.
+- **Xbox mode home app**: boot straight into SquareDeck on Windows 11's full screen experience, with no extra tools.
 
-<img width="2559" height="1439" alt="Browser" src="https://github.com/user-attachments/assets/1a5a70eb-ee64-454e-ab19-c3ac034e246c" />
+### Make it yours
 
-## Task Manager
+- **The style gallery**: browse styles in a row over your real home screen. Press A to preview one live, with its
+  wallpaper, sounds and music, press A again to keep it, or B to put yours back.
+- **Nearly two hundred styles**, each with its own colors, type, corners, buttons, wallpaper or moving background,
+  sounds, music and light effect:
+  - **Mythical**: the richest styles, drawn from scratch with every panel, button, pop-up, switch, pointer and icon of their own
+  - **Legendary**: the Switch-inspired design in dozens of variations, and styles made from hand-picked UI kits
+  - **Unlockable**: styles you earn by playing
+  - **Yours**: styles you make
+- **The style builder**: choose the background, music, interface and navigation sounds, colors, font, button shape,
+  shelf, effects (halftone, comic book, synthwave, Y2K, dreamcore and more), game art, animations, lights and the Windows
+  lock screen picture. Save them under your own name, and share them as `.sdstyle` files.
+- **A style schedule**: one style for mornings and another for nights, weekdays and weekends, or a surprise every day,
+  mixing Mythical, Legendary and your own as you like.
+- **A pixel companion**: six characters in any color, with your choice of name, reacting to what you do, riding along
+  on the update screens and appearing in the widget.
+- **Moving backgrounds** (including your own videos and Wallpaper Engine imports), picture wallpapers, background music,
+  interface sound packs, sound that follows the genre, covers that tilt with the handheld, dusty tiles, cover
+  effects and startup animations.
+- **Controller button pictures** for Xbox, PlayStation and Switch in several art styles, plus keyboard keys.
+- **Accessibility**: light, dark, OLED and high-contrast modes, larger text, reduced motion and a dyslexia-friendly style.
 
-<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/0995c3ca-374d-405b-9f68-077b6781fd4e" />
+### Entertainment
 
+- **Multimedia**: a music player for your own files, Spotify inside the launcher (Premium), YouTube Music and Apple
+  Music, now-playing from any app, and a now-playing pill on the home screen.
+- **Streaming services**: Netflix, Hulu, Prime Video, Crunchyroll, Disney+, Paramount+, Pluto TV, Tubi and more,
+  full screen with controller controls, each locked to its own site, opening with a movie-night animation.
+- **Streaming filters**: watch like it's an old TV, with a curved CRT and scanlines, a worn VHS tape, black and white,
+  old film or late-night cable.
+- **DeckTube**: YouTube's TV app made for the controller, with ad blocking, SponsorBlock, DeArrow and Return YouTube Dislike.
+- **SquareDeck EQ**: SquareDeck's own equalizer, with 22 presets for games, music and films, your own curves, separate
+  presets for speakers, headphones and TV that switch by themselves, a speaker guard, loudness at low volume and an EQ
+  per game. It uses the free Equalizer APO, which SquareDeck can download from its official source and set up for you.
+- **Captures**: Game Bar screenshots and clips grouped by game into albums, with a share sheet, ZIP export and optional watermarks.
+
+### Your PC, from the couch
+
+- **File explorer** with tabs, drag and drop, a fold-away sidebar and the Recycle Bin.
+- **Task manager**, a **terminal** (Command Prompt or PowerShell), and a **web browser** with tabs, favorites and
+  controller navigation.
+- **Wi-Fi and Bluetooth** in a blade from the side of the home screen: join networks, and pair and connect devices.
+- **Installed apps**: uninstall, modify, repair or reset any app, and manage startup apps.
+- **System care**: driver check, Windows Update guard, a storage speed test, a controller tester with stick dead zones,
+  and display and sound settings.
+- **Search everything** from one button: games, apps, settings and pages.
+
+### Dependable by design
+
+- **Updates install themselves**: the new version downloads, installs silently behind a full-screen animation, and
+  SquareDeck opens again.
+- **Safe saving**: settings and your library are written without ever leaving a half-written file, gathered into one
+  write and kept off the interface's thread, so a busy disk never holds up a button press.
+- **Backup and restore** of your settings, library, play time and achievements, **crash recovery**, and a **one-tap bug report**.
+- **Light on resources**: pictures decoded once and shared, empty controller slots checked once a second, game
+  detection in the background, and a low-power mode while you're away.
+
+---
+
+## A look inside
+
+<table>
+<tr>
+<td width="50%"><b>File Explorer</b><br><img alt="File Explorer" src="https://github.com/user-attachments/assets/b17bd796-df4b-43cc-9b36-8d106b50dd41"></td>
+<td width="50%"><b>Music Player</b><br><img alt="Music Player" src="https://github.com/user-attachments/assets/7716aaea-1b45-480f-a6e4-c1be6883a067"></td>
+</tr>
+<tr>
+<td width="50%"><b>Web Browser</b><br><img alt="Browser" src="https://github.com/user-attachments/assets/1a5a70eb-ee64-454e-ab19-c3ac034e246c"></td>
+<td width="50%"><b>Task Manager</b><br><img alt="Task Manager" src="https://github.com/user-attachments/assets/0995c3ca-374d-405b-9f68-077b6781fd4e"></td>
+</tr>
+</table>
+
+---
 
 ## Install
 
 1. Download the latest release from the [Releases page](https://github.com/tetraguy/SquareDeck/releases).
+2. Run SquareDeck. First-time setup walks you through your stores, your look and your controller.
+3. Optionally, add the Game Bar widget and set SquareDeck as your Xbox mode home app (see below).
+
 **Requirements**
 
 | | |
 |---|---|
-| Windows | 10 version 2004 or newer. Windows 11 24H2 for Xbox mode. |
+| Device | ASUS ROG Ally, ROG Ally X, ROG Xbox Ally, ROG Xbox Ally X or Xbox Ally X20 |
+| Windows | Windows 11 recommended. Windows 11 24H2 or later for Xbox mode. |
 | Runtime | [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) |
-| Browser | WebView2 Runtime (included with Windows 11 and current Windows 10) |
-| TDP control | An AMD Ryzen or Intel handheld (Intel: HandheldCompanion installed, for KX.exe). Setup asks for administrator permission once. |
+| Browser | WebView2 Runtime (included with Windows 11) |
+
+SquareDeck runs on other Windows PCs too, but the hardware features (power, lights, buttons, fans) are made for the
+ROG Ally family.
 
 ## Controls
 
@@ -180,27 +239,26 @@ one home screen in front of all of it: pick it up, press A, play.
 | Game options | Y | Y |
 | Next / previous page | RB / LB | Page Down / Page Up |
 | Jump by letter (library) | RT / LT | |
-| Library section | RB / LB | |
 | Scroll a long page | Right stick | Mouse wheel |
 | Search everything | Start / Menu | F3 or / |
 | Quick settings | View | Q |
 | In-game quick menu | Guide, or View + Start | |
 | Windowed / full screen | | F11 |
 
-A, B, X and Y can be swapped (there's a Nintendo-layout preset), and you choose which pages LB / RB switch
-between, in Settings > Controller and quick menu.
+A, B, X and Y can be swapped (there's a Nintendo-layout preset), and you choose which pages LB / RB switch between,
+in Settings > Controller and quick menu.
 
 ## Set as the Xbox mode home app
 
-On Windows 11 24H2 or later, SquareDeck can be what Xbox mode (the gaming full screen experience) opens to.
+On Windows 11 24H2 or later, SquareDeck can be what Xbox mode (the full screen experience) opens to.
 
 1. Turn on Developer Mode in Windows: Settings > System > For developers.
 2. In SquareDeck: Settings > System and tools > Xbox mode home app > **Use SquareDeck as the Xbox mode home app**.
-3. Optionally turn on **Open Xbox mode when Windows starts**.
+3. Optionally, turn on **Open Xbox mode when Windows starts**.
 
-SquareDeck registers its own folder with Windows; nothing is installed elsewhere. Developer Mode is needed because
-Windows only accepts home apps from outside the Microsoft Store that way. [AnyFSE](https://github.com/ashpynov/AnyFSE)
-remains available from the same page if you prefer it.
+SquareDeck registers its own folder with Windows, and nothing is installed anywhere else. Developer Mode is needed
+because Windows only accepts home apps from outside the Microsoft Store that way.
+[AnyFSE](https://github.com/ashpynov/AnyFSE) remains available from the same page if you prefer it.
 
 ## Build from source
 
@@ -210,63 +268,76 @@ cd SquareDeck
 dotnet run --project SquareDeck
 ```
 
-Or open `SquareDeck.sln` in Visual Studio 2022 with the ".NET desktop development" workload and press F5.
-The first build downloads one NuGet package (Microsoft.Web.WebView2).
+Or open `SquareDeck.sln` in Visual Studio 2022 with the ".NET desktop development" workload and press F5. The Game Bar
+widget (`Widget/SquareDeck.Widget`) is a UWP project and also needs the "Universal Windows Platform development" workload.
 
-SquareDeck is a WPF app on .NET 8. Settings, covers and your library edits live in `%LOCALAPPDATA%\SquareDeck`.
+SquareDeck is a WPF app on .NET 8. Your settings, covers and library edits live in `%LOCALAPPDATA%\SquareDeck`.
 
 ## Good to know
 
 - **Stopping a game** ends every program running from its install folder. Unsaved progress is lost.
-- **Achievements** and friends need your Steam profile's game details to be public, and a free Steam Web API key
-  for some features.
-- **The in-game quick menu** and **performance overlay** are windows over the game. They can't appear over exclusive-fullscreen games; borderless works.
-- **Cloud gaming** services need their own accounts and subscriptions, and run in SquareDeck's built-in Edge (WebView2).
+- **Achievements and friends** need your Steam profile's game details to be public, and some features need a free
+  Steam Web API key.
+- **The in-game quick menu and performance overlay** are windows over the game, so they can't appear over
+  exclusive-fullscreen games. Borderless works.
+- **Cloud gaming and streaming services** need their own accounts and subscriptions, and run in SquareDeck's built-in
+  Edge (WebView2).
 - **Play time** is counted only while SquareDeck is open.
-- **Starting Steam games directly** skips launch options set in Steam, may hide the Steam overlay, and some games
+- **Starting Steam games directly** skips launch options set in Steam and may hide the Steam overlay. Some games
   still restart through Steam.
 - **A backup file contains your API keys.** Keep it private.
-- **Replace the Windows desktop** makes SquareDeck your shell. If it ever fails to open: Ctrl+Shift+Esc > Run new
-  task > `explorer.exe`, then turn the setting off.
+- **Replace the Windows desktop** makes SquareDeck your shell. If it ever fails to open, press Ctrl+Shift+Esc, choose
+  Run new task, enter `explorer.exe`, and then turn the setting off.
 
-More notes on individual features are in the [changelog](CHANGELOG.md).
-
+More detail on every feature is in the [changelog](CHANGELOG.md).
 
 ## Credits
 
+SquareDeck stands on the shoulders of wonderful projects and creators:
+
 - Artwork from [SteamGridDB](https://www.steamgriddb.com/)
 - FPS in the performance overlay uses [PresentMon](https://github.com/GameTechDev/PresentMon) (MIT), bundled in `SquareDeck/Tools/PresentMon`
-- TDP control uses [RyzenAdj](https://github.com/FlyGoat/RyzenAdj) (LGPL-3.0), bundled in `SquareDeck/Tools/RyzenAdj`
+- Power control can use [RyzenAdj](https://github.com/FlyGoat/RyzenAdj) (LGPL-3.0), bundled in `SquareDeck/Tools/RyzenAdj`
+- SquareDeck EQ uses [Equalizer APO](https://sourceforge.net/projects/equalizerapo/), downloaded from its official
+  source when you choose to install it. SquareDeck doesn't include it
 - ROG Ally button reading is based on [AnyFSE](https://github.com/ashpynov/AnyFSE) by Artem Shpynov (MIT)
 - ROG Ally firmware, lights and controller messages, and the Xbox Ally X20's model id, come from
   [HandheldCompanion](https://github.com/Valkirie/HandheldCompanion) by Valkirie (CC BY-NC-SA 4.0). The files ported
-  from it (`Services/AllyHardware.cs`, and the parts of `Services/AllyButtons.cs` marked as such) are shared under the
-  same licence. So are the handheld list and power ranges (`Services/Handheld.cs`) and the Legion Go, MSI Claw and
-  Intel commands (`Services/DeviceHelper.cs`, `Services/HandheldVendors.cs`), which follow it too. Intel power limits
-  use KX.exe from your own HandheldCompanion install; SquareDeck doesn't include it
-- Adrenaline Hook (Settings > Experimental) is rebuilt from [Adrenaline Hook](https://github.com/tetraguy/Adrenaline-Hook) by tetraguy
-- DeckTube (Settings > Library and stores) runs the page scripts of [VacuumTube](https://github.com/shy1132/VacuumTube) by shy
-  (MIT licence), bundled in `SquareDeck/VacuumTube` by `tools/vacuumtube/build.js`; its licence is in that folder
-- The Advanced styles use these UI kits (in `SquareDeck/Skins`), each under its own terms:
-  NEONIX UI assets by GONKEN Games — https://gonkengames.itch.io/ ; Free Hologram Interface by Wenrexa; Glowing UI icons;
-  Mega Cozy UI Pack and Cozy UI Pack demos by dobo_ui; Pixel UI Kit by Northleaf Studio; Tropical Night UI Lite by Brunka
-  Games; Retro Windows GUI; Retro Arcade UI Mini Pack (CC0); Softline UI Kit – Flat Night by The Cooked Works; Fern & Brass
-  by Kaliopa Studio; Nebula UI by kama-labs; Soft Modern UI Lite. The full list is in the app under Settings > Updates and data > Credits
+  from it (`Services/AllyHardware.cs`, and the parts of `Services/AllyButtons.cs` marked as such) are shared under the same licence
+- Adrenaline Hook is rebuilt from [Adrenaline Hook](https://github.com/tetraguy/Adrenaline-Hook) by tetraguy
+- DeckTube runs the page scripts of [VacuumTube](https://github.com/shy1132/VacuumTube) by shy (MIT), bundled in
+  `SquareDeck/VacuumTube` by `tools/vacuumtube/build.js`. Its licence is in that folder
+- The kit-based styles use these UI kits (in `SquareDeck/Skins`), each under its own terms:
+  NEONIX UI assets by GONKEN Games (https://gonkengames.itch.io/), Free Hologram Interface by Wenrexa, Glowing UI icons,
+  Mega Cozy UI Pack and Cozy UI Pack demos by dobo_ui, Pixel UI Kit by Northleaf Studio, Tropical Night UI Lite by Brunka
+  Games, Retro Windows GUI, Retro Arcade UI Mini Pack (CC0), Softline UI Kit – Flat Night by The Cooked Works, Fern & Brass
+  by Kaliopa Studio, Nebula UI by kama-labs, and Soft Modern UI Lite. The full list is in the app under Settings > Updates and data > Credits
 - Indivial uses the Indivial UI kit (three colors)
 - Scholar uses the Scholar GUI kit, Afacad Flux by Kristian Möller and OpenDyslexic by Abbie Gonzalez (SIL Open Font License)
-- Music "At Rest", "Daybreak" and "Thinking of You" by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0
 - Sapphire uses the Sapphire GUI kit (three colors) and Barlow Condensed by Jeremy Tribby (SIL Open Font License)
 - Spectrum uses the Spectrum UI kit (five colors)
-- Atelier, Abyss, Greenhouse, Origami, Sumi-e, Forge, Glacier, Cartographer, Sweet Shop and Gatsby are original styles drawn for SquareDeck, with fonts under the SIL Open Font License: Philosopher, Play, Crimson Text, Varela Round, Spectral, Saira Condensed, Didact Gothic, IM FELL English, Sniglet and Poiret One
-- Meridian is an original style drawn for SquareDeck (artwork, icons, pointer and star-chart wallpaper), with the Marcellus font by Brian J. Bonislawsky (SIL Open Font License)
-- Ubuntu is an original skin in the spirit of the Ubuntu desktop, with the Ubuntu font by Dalton Maag (Ubuntu Font Licence 1.0). Ubuntu is a trademark of Canonical
-- Fatanzia uses the Fatanzia UI kit
-- Cozy Place uses the Travel Book UI (Lite) kit
+- Fatanzia uses the Fatanzia UI kit, and Cozy Place uses the Travel Book UI (Lite) kit
+- Atelier, Abyss, Greenhouse, Origami, Sumi-e, Forge, Glacier, Cartographer, Sweet Shop and Gatsby are original styles
+  drawn for SquareDeck, with fonts under the SIL Open Font License: Philosopher, Play, Crimson Text, Varela Round,
+  Spectral, Saira Condensed, Didact Gothic, IM FELL English, Sniglet and Poiret One
+- Meridian is an original style drawn for SquareDeck (artwork, icons, pointer and star-chart wallpaper), with the
+  Marcellus font by Brian J. Bonislawsky (SIL Open Font License)
+- Ubuntu is an original skin in the spirit of the Ubuntu desktop, with the Ubuntu font by Dalton Maag (Ubuntu Font
+  Licence 1.0). Ubuntu is a trademark of Canonical
 - Luna XP uses the Windows XP UI pack packed by NullTale (https://nulltale.itch.io/). The Windows XP look, icons,
   sounds and the Bliss wallpaper belong to Microsoft
+- Music "At Rest", "Daybreak" and "Thinking of You" by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0
 - Interface sounds: UI SFX by CAPTNPHANTOM (Essential UI packs) and UI & Menu SFX by Northleaf Studio
-- Fonts: VT323 by Peter Hull and Jersey 10 by Sarah Cadigan-Fried (SIL Open Font License), Pixel Operator by Jayvee Enaguas (CC0)
+- Fonts: VT323 by Peter Hull and Jersey 10 by Sarah Cadigan-Fried (SIL Open Font License), and Pixel Operator by Jayvee Enaguas (CC0)
 - Sound packs, music, moving backgrounds and controller glyphs belong to their respective creators
 
-SquareDeck is an independent project. It isn't affiliated with or endorsed by Valve, Microsoft, Nintendo, Sony,
-ASUS or any store or publisher named here. All trademarks belong to their owners.
+---
+
+<div align="center">
+
+**SquareDeck** is an independent project. It isn't affiliated with or endorsed by ASUS, Microsoft, Valve, Nintendo,
+Sony, or any store or publisher named here. All trademarks belong to their owners.
+
+*Pick it up. Press A. Play.*
+
+</div>

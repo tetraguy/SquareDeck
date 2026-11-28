@@ -162,9 +162,7 @@ public sealed class LibraryStore
     {
         try
         {
-            Directory.CreateDirectory(Settings.DataDir);
-            SafeFile.WriteAllText(FilePath,
-                JsonSerializer.Serialize(this, SafeFile.Indented));
+            SafeFile.WriteSoon(FilePath, () => JsonSerializer.Serialize(this, SafeFile.Indented)); // 9.0.1
         }
         catch
         {

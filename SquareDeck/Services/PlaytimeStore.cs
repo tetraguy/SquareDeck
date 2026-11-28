@@ -99,8 +99,7 @@ public sealed class PlaytimeStore
     {
         try
         {
-            Directory.CreateDirectory(Settings.DataDir);
-            SafeFile.WriteAllText(FilePath, JsonSerializer.Serialize(this));
+            SafeFile.WriteSoon(FilePath, () => JsonSerializer.Serialize(this)); // 9.0.1
         }
         catch
         {

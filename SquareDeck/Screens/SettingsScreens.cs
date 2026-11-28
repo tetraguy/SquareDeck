@@ -1259,6 +1259,15 @@ public sealed partial class SettingsScreen : ListScreen
         AddRow("Credits", null, "\uE946", subtitle: "The artists behind these kits, sounds and fonts", click: () => Host.Push(new CreditsScreen()));
     }
 
+    private static async Task ShowCardPictureAsync(Border holder, string path)
+    {
+        var image = await Task.Run(() => ImageLoader.FromFile(path, 680));
+        if (image == null) return;
+        holder.Background = new ImageBrush(image) { Stretch = Stretch.UniformToFill };
+        if (Theme.ReduceMotion) holder.Opacity = 1;
+        else holder.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(140)));
+    }
+
     /// <summary>An Advanced style's card: a picture of its artwork, its name in its own font, and its colors.</summary>
     internal static Button AdvancedCard(UiStyle st, string? variant, bool inUse, double W, StyleUnlocks.Progress? locked = null)
     {
@@ -1270,25 +1279,11 @@ public sealed partial class SettingsScreen : ListScreen
         if (st.Skin is { } skin)
         {
             string path = System.IO.Path.Combine(Services.Skins.FolderFor(skin, variant), "preview.jpg");
-            try
-            {
-                if (System.IO.File.Exists(path))
-                {
-                    var picture = new System.Windows.Media.Imaging.BitmapImage();
-                    picture.BeginInit();
-                    picture.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                    picture.DecodePixelWidth = 680;
-                    picture.UriSource = new Uri(path);
-                    picture.EndInit();
-                    picture.Freeze();
-                    frame.Children.Add(new Border
-                    {
-                        CornerRadius = new CornerRadius(10),
-                        Background = new ImageBrush(picture) { Stretch = Stretch.UniformToFill }
-                    });
-                }
-            }
-            catch (Exception) { }
+            // Decoded on a background thread and faded in (9.0.1): a tab of sixty cards used to decode sixty pictures
+            // before the page could appear.
+            var picture = new Border { CornerRadius = new CornerRadius(10), Opacity = 0 };
+            frame.Children.Add(picture);
+            _ = ShowCardPictureAsync(picture, path);
         }
         else
         {

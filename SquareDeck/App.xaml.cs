@@ -187,6 +187,9 @@ public partial class App : Application
             return;
         }
 
+        // This copy stays: the library, play time and achievements start loading in the background now (9.0.1).
+        SquareDeck.Services.StartupLoads.Begin();
+
         // Anything that goes wrong is written to crash.log. Errors on the interface thread are caught, so one
         // broken page or menu doesn't take the whole launcher down.
         DispatcherUnhandledException += (_, args) =>
@@ -197,6 +200,7 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
             if (args.ExceptionObject is Exception ex) SquareDeck.Services.CrashLog.Write("Background", ex);
+            if (args.IsTerminating) try { SquareDeck.Services.SafeFile.Flush(); } catch (Exception) { } // what was waiting to be saved
         };
         TaskScheduler.UnobservedTaskException += (_, args) =>
         {
@@ -208,7 +212,7 @@ public partial class App : Application
         // The squaredeck: link (the Game Bar widget's "Start SquareDeck"), registered at every start, so it points at
         // this copy even after SquareDeck moves, and whether or not the widget connection is on.
         SquareDeck.Services.WidgetBridge.RegisterProtocol();
-        SquareDeck.Services.Perf.CapFrameRate(SquareDeck.Services.Settings.Load()); // must happen before any animation exists
+        SquareDeck.Services.Perf.CapFrameRate(SquareDeck.Services.StartupLoads.ReadSettings()); // must happen before any animation exists
         var window = new MainWindow();
         MainWindow = window;
         window.Show();

@@ -1166,6 +1166,7 @@ public partial class MainWindow
         try { if (Settings.ToastsSuppressed) DoNotDisturb.Set(false); } catch (Exception) { }
         UnregisterSummonKey();
 
+        SafeFile.Discard(); // nothing waiting to be saved writes the old settings back afterwards (9.0.1)
         await RunBusyAsync("Resetting", () => Task.Run(() =>
         {
             try

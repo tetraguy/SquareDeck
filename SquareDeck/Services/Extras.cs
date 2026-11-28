@@ -90,6 +90,7 @@ public static class Backup
     /// <summary>Writes a backup into <paramref name="folder"/> and returns its path.</summary>
     public static string Create(string folder, bool dated = true)
     {
+        SafeFile.Flush(); // the files as they are now, not as they were a moment ago (9.0.1)
         Directory.CreateDirectory(folder);
         var name = dated ? $"SquareDeck-backup-{DateTime.Now:yyyy-MM-dd-HHmm}.zip" : "SquareDeck-backup-latest.zip";
         var path = Path.Combine(folder, name);
@@ -117,6 +118,7 @@ public static class Backup
         using var zip = ZipFile.OpenRead(zipPath);
         if (zip.GetEntry("settings.json") == null && zip.GetEntry("library.json") == null)
             throw new InvalidDataException("That file is not a SquareDeck backup.");
+        SafeFile.Discard(); // a save waiting from before mustn't overwrite what's restored
         Directory.CreateDirectory(Settings.DataDir);
         zip.ExtractToDirectory(Settings.DataDir, overwriteFiles: true);
     }

@@ -3,6 +3,16 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 9.0.2
+- **New README.** Rewritten from top to bottom for SquareDeck 9. It now has the project's mission, a highlights table, every feature area (Home and library, Play and discover, Retro Lounge, Recomp Zone and cloud gaming, the ROG Ally features and Game Bar widget, styles and the style gallery, entertainment, PC tools, reliability), ROG Ally family requirements, and updated credits (Equalizer APO added; the Legion, MSI Claw and Intel notes removed with that support).
+
+## 9.0.1
+Faster and smoother, with nothing taken away:
+- **Saving no longer holds up the interface.** Settings, the library, play time and achievements used to be written to disk on the interface's thread every time anything changed, sometimes many times in a row (a slider, or applying a style with its colors, sounds and music). Saves made in the same moment are now gathered into one, and the file is written on a background thread. A steady stream of changes is still written at least every 2 seconds. Everything waiting is written when SquareDeck closes (and if it crashes), and before a backup or a diagnostics report reads the files. A reset or a restored backup drops anything waiting, so it can't write the old settings back.
+- **Quicker start.** The library, play time and achievements are read side by side on background threads while the window is set up, instead of one after another on the interface's thread. The settings file is read once instead of twice.
+- **Pictures are decoded once.** A cover, wallpaper or icon already decoded at the same size and still in use is shared instead of read and decoded again, for example a cover on Home and in the library, or a style's wallpaper in its previews. A file that changes is decoded again. Nothing is kept in memory just for this.
+- **Settings > Themes opens faster.** The cards' artwork is decoded on a background thread and fades in, so a tab of 60 cards appears straight away instead of after decoding 60 pictures.
+
 ## 9.0.0
 - **SquareDeck 9.** This is a new major version, made of everything since 8.5. That covers ROG Ally family support only; the style gallery as the way to choose styles, with each style's music during previews; SquareDeck EQ; cover styles; streaming service filters; 25 new light effects; the widget's Favorites card and power looks; and the new Mythical lineup. No other changes from 8.5.102.
 
