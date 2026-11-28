@@ -13,7 +13,7 @@ designed to be picked up, pressed once, and played.
 
 </div>
 
-<img width="2557" height="1425" alt="image" src="https://github.com/user-attachments/assets/b36e669d-4c95-4a7f-a70e-9242d9c78b61" />
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/99ffb44f-5346-48e8-8228-8bc921526ce0" />
 
 ---
 
@@ -103,6 +103,8 @@ Ally X and Xbox Ally X20.
   one game, box art from libretro-thumbnails or ScreenScraper, shaders and bezels per console, and a save-state browser.
 - **A BIOS page** that explains what each console needs and where it goes. Retro Lounge never downloads games or BIOS
   files: those come from what you own.
+
+  <img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/3ca5f07c-5d9a-4bd9-8ea4-f92af017d542" />
 
 ### Recomp Zone and cloud gaming
 
@@ -212,20 +214,22 @@ Ally X and Xbox Ally X20.
 
 ---
 
-## A look inside
+### Over 180 UI Styles
 
-<table>
-<tr>
-<td width="50%"><b>File Explorer</b><br><img alt="File Explorer" src="https://github.com/user-attachments/assets/b17bd796-df4b-43cc-9b36-8d106b50dd41"></td>
-<td width="50%"><b>Music Player</b><br><img alt="Music Player" src="https://github.com/user-attachments/assets/7716aaea-1b45-480f-a6e4-c1be6883a067"></td>
-</tr>
-<tr>
-<td width="50%"><b>Web Browser</b><br><img alt="Browser" src="https://github.com/user-attachments/assets/1a5a70eb-ee64-454e-ab19-c3ac034e246c"></td>
-<td width="50%"><b>Task Manager</b><br><img alt="Task Manager" src="https://github.com/user-attachments/assets/0995c3ca-374d-405b-9f68-077b6781fd4e"></td>
-</tr>
-</table>
+## Luna XP
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/203b1715-12a9-4d57-a74c-b116dd2df500" />
 
----
+## Meridian
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/25cdb1a8-b3c3-4f63-b3f9-b5fb22834b83" />
+
+## Axiom
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/89b558b0-2b3f-4ed0-b605-096d3d361813" />
+
+## Pop Art
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/9f8171f7-0232-4b69-96e4-ffd4a1356b37" />
+
+## Sunset Noir
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/24939a16-a079-445f-ad62-ee3cf563fe77" />
 
 ## Install
 
