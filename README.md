@@ -13,11 +13,11 @@ designed to be picked up, pressed once, and played.
 
 </div>
 
-<img width="2559" height="1439" alt="SquareDeck home screen" src="https://github.com/user-attachments/assets/a1135cf3-5012-4a29-9315-76a8b651798d" />
+<img width="2557" height="1425" alt="image" src="https://github.com/user-attachments/assets/b36e669d-4c95-4a7f-a70e-9242d9c78b61" />
 
 ---
 
-## Our mission
+## My mission
 
 Windows handhelds are remarkable machines held back by software that was never meant for them. A desktop built for a
 mouse. A different launcher for every store. Pop-ups, sign-in windows and tiny buttons between you and your game.
@@ -108,6 +108,11 @@ Ally X and Xbox Ally X20.
 
 - **Recomp Zone**: browse native PC recompilations of console classics, filter by platform and genre, read about each
   one, and install, update, play or locate it.
+
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/ead62554-93d4-4523-b07d-732b81525dd6" />
+
+---
+  
 - **Cloud gaming**: Xbox Cloud Gaming, GeForce NOW, Amazon Luna and Antstream Arcade, full screen, with your controller
   passed straight to the game.
 
@@ -137,6 +142,9 @@ Ally X and Xbox Ally X20.
 
 ### Make it yours
 
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/f6d2f015-64eb-4145-a216-f1ae41ad31cd" />
+
+
 - **The style gallery**: browse styles in a row over your real home screen. Press A to preview one live, with its
   wallpaper, sounds and music, press A again to keep it, or B to put yours back.
 - **Nearly two hundred styles**, each with its own colors, type, corners, buttons, wallpaper or moving background,
@@ -160,6 +168,9 @@ Ally X and Xbox Ally X20.
 
 ### Entertainment
 
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/656f264d-7e4f-403f-917d-45bd53f654c4" />
+
+
 - **Multimedia**: a music player for your own files, Spotify inside the launcher (Premium), YouTube Music and Apple
   Music, now-playing from any app, and a now-playing pill on the home screen.
 - **Streaming services**: Netflix, Hulu, Prime Video, Crunchyroll, Disney+, Paramount+, Pluto TV, Tubi and more,
@@ -175,8 +186,14 @@ Ally X and Xbox Ally X20.
 ### Your PC, from the couch
 
 - **File explorer** with tabs, drag and drop, a fold-away sidebar and the Recycle Bin.
+
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/e0fa5dcb-3588-4349-a060-93dd20421e03" />
+
 - **Task manager**, a **terminal** (Command Prompt or PowerShell), and a **web browser** with tabs, favorites and
   controller navigation.
+
+<img width="2559" height="1439" alt="image" src="https://github.com/user-attachments/assets/f31c1ebd-c8c2-461b-abff-c758283184b2" />
+
 - **Wi-Fi and Bluetooth** in a blade from the side of the home screen: join networks, and pair and connect devices.
 - **Installed apps**: uninstall, modify, repair or reset any app, and manage startup apps.
 - **System care**: driver check, Windows Update guard, a storage speed test, a controller tester with stick dead zones,
