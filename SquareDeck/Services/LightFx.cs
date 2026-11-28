@@ -32,6 +32,8 @@ public static class LightFx
         "tesla", "chomper", "prism", "clockhands", "biolum", "signals", "typewriter", "supernova", "goldenhour", "volcano",
         "scanner", "ghost", "snowfall", "tornado", "gears", "rainbowbreath", "peacock", "moodring", "focustimer", "holiday",
         "current", "quasar", "magnet", "vinyl", "ufo",
+        // 9.0.3
+        "interactive",
     };
 
     /// <summary>The effects drawn LED by LED for eight zones (Frame8); on four-zone Allys they're merged in pairs.</summary>
@@ -51,6 +53,7 @@ public static class LightFx
         "tesla", "chomper", "prism", "clockhands", "biolum", "signals", "typewriter", "supernova", "goldenhour", "volcano",
         "scanner", "ghost", "snowfall", "tornado", "gears", "rainbowbreath", "peacock", "moodring", "focustimer", "holiday",
         "current", "quasar", "magnet", "vinyl", "ufo",
+        "interactive",
     };
 
     public static bool IsSoftware(string mode) => Software.Contains(mode);
@@ -65,15 +68,15 @@ public static class LightFx
         or "metronome" or "dualspin" or "figure8"
         or "bounce" or "pingpong" or "heartring" or "sonar" or "alternator" or "dna" or "sos" or "countdown"
         or "pendulum" or "glitch" or "duobreath" or "spinner" or "bricks" or "dice"
-        or "clockhands" or "typewriter" or "scanner" or "gears" or "focustimer" or "current" or "magnet" or "vinyl";
+        or "clockhands" or "typewriter" or "scanner" or "gears" or "focustimer" or "current" or "magnet" or "vinyl" or "interactive";
     public static bool UsesSecondColor(string mode) => mode is "breathing" or "sticks" or "swap" or "gradient" or "wave" or "cycle" or "sparkle"
         or "twin" or "pinwheel" or "gradientring" or "yinyang" or "dualspin" or "figure8"
         or "pingpong" or "dna" or "alternator" or "duobreath" or "glitch"
-        or "clockhands" or "gears" or "magnet";
+        or "clockhands" or "gears" or "magnet" or "interactive";
 
     /// <summary>The effects with a speed to choose.</summary>
     public static bool UsesSpeed(string mode) => mode is "breathing" or "rainbow" or "wheel" || (IsSoftware(mode) && mode is not ("temperature" or "gradient" or "cpu" or "clock" or "ambilight" or "batteryring" or "cpuring"
-        or "clockhands" or "moodring" or "focustimer"));
+        or "clockhands" or "moodring" or "focustimer" or "interactive"));
 
     /// <summary>How fast: 0.6 slow, 1 medium, 1.6 fast.</summary>
     public static double SpeedFactor(string? speed) => speed switch { "slow" => 0.6, "fast" => 1.6, _ => 1.0 };
@@ -85,6 +88,8 @@ public static class LightFx
         public double? Cpu { get; init; }
         /// <summary>The screen's colors near each zone (read while Ambilight plays): left outer, left inner, right inner, right outer.</summary>
         public Color[]? Screen { get; init; }
+        /// <summary>Where the sticks point (read while Interactive plays): left x, left y, right x, right y, each -1 to 1 (up is +y).</summary>
+        public double[]? Sticks { get; init; }
     }
 
     /// <summary>The four zones' colors: left outer, left inner, right inner, right outer.</summary>
@@ -1410,6 +1415,34 @@ public static class LightFx
                 }
                 return c;
             }
+            case "interactive":
+            {
+                // 9.0.3: each ring lights where its stick points (left stick, first color; right stick, second), brighter
+                // the further it's pushed, and fades behind as you turn it. At rest: a faint glow. With no sticks to read
+                // (the preview), the sticks are pretended to turn slowly round.
+                var st = i.Sticks ?? new[] { Math.Cos(t * 2.2), Math.Sin(t * 2.2), Math.Cos(-t * 1.7 + 1), Math.Sin(-t * 1.7 + 1) };
+                // The LEDs' directions round each ring: lower left, upper left, upper right, lower right.
+                double[] dirs = { 225, 135, 45, 315 };
+                lock (StickTrail)
+                {
+                    for (int r = 0; r < 2; r++)
+                    {
+                        double x = st[r * 2], y = st[r * 2 + 1];
+                        double mag = Math.Clamp(Math.Sqrt(x * x + y * y), 0, 1);
+                        mag = mag < 0.18 ? 0 : (mag - 0.18) / 0.82; // a small dead zone
+                        double angle = Math.Atan2(y, x) * 180 / Math.PI;
+                        for (int k = 0; k < 4; k++)
+                        {
+                            double d = Math.Abs(((angle - dirs[k]) % 360 + 540) % 360 - 180); // 0 to 180 degrees away
+                            double now = mag * Math.Pow(Math.Max(0, Math.Cos(d * Math.PI / 180)), 1.6);
+                            int z = r * 4 + k;
+                            StickTrail[z] = Math.Max(now, StickTrail[z] * 0.8); // a soft trail as it turns
+                            c[z] = Scale(r == 0 ? i.One : i.Two, Math.Max(0.06, StickTrail[z]));
+                        }
+                    }
+                }
+                return c;
+            }
             case "ufo":
             {
                 // A flying saucer: colored lights circling the top LEDs, a green tractor beam pulsing below.
@@ -1541,6 +1574,7 @@ public static class LightFx
                 "gradient" or "clock" => 1000,
                 "cpu" => 150,
                 "ambilight" => 125,
+                "interactive" => 30, // follows the sticks without a lag you can feel
                 _ => 90,
             };
             _timer?.Dispose();
@@ -1561,6 +1595,20 @@ public static class LightFx
     }
 
     public static bool Playing => _timer != null;
+
+    // ---------------------------------------------------------------- Interactive: the sticks (9.0.3)
+
+    private static readonly double[] StickTrail = new double[8];
+    private static readonly Gamepad StickReader = new();
+
+    /// <summary>Where the first controller's sticks point, -1 to 1 (it's only read, never taken from a game).</summary>
+    private static double[] SticksNow()
+    {
+        var raw = StickReader.GetRaw();
+        if (!raw.Connected) return new double[4];
+        static double N(short v) => Math.Clamp(v / 32767.0, -1, 1);
+        return new[] { N(raw.LeftX), N(raw.LeftY), N(raw.RightX), N(raw.RightY) };
+    }
 
     // ---------------------------------------------------------------- readings for the live effects
 
@@ -1664,6 +1712,7 @@ public static class LightFx
         }
         if (mode is "cpu" or "cpuring") inputs = inputs with { Cpu = CpuNow() };
         if (mode == "ambilight") inputs = inputs with { Screen = ScreenColors() };
+        if (mode == "interactive") inputs = inputs with { Sticks = SticksNow() };
         try
         {
             // Eight zones on the X20 (four LEDs per stick), four on the other Allys.

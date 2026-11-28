@@ -3,6 +3,56 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 9.0.7
+**Fixed: the performance overlay showed nothing, or no frame rate.**
+- **It shows when you turn it on.** It's set to appear over games only, so turning it on from the widget or the quick menu while SquareDeck was in front showed nothing at all. It now appears for a few seconds straight away. It also shows while a game SquareDeck started is running, even if that game is windowed or Xbox Game Bar is open over it.
+- **FPS without setting anything up.** PresentMon needs permission to read frame rates. Without it, the overlay only ever said "n/a" unless you'd allowed it in Settings and then signed out. Now Windows asks once (each time SquareDeck is open) and PresentMon runs as administrator in the background. It stops when you turn the overlay off or close SquareDeck. If you say no, nothing changes, and the permission in Settings still works as before.
+- **The right game's frames.** Only the window in front was counted. With Game Bar open, a store app's frame window, or a launcher in front of its game, that's not the program drawing the game, so FPS stayed blank. Every program's frames are now read: the one in front counts if it's drawing, and otherwise the busiest one does, leaving out SquareDeck, Game Bar and Windows' own pieces.
+
+## 9.0.6
+**The companion playground grows a neighborhood** (Settings > Experimental > Companion playground).
+- **The neighborhood:** follow the sign at the left of the yard (or press LB) down to town. There's Café Mochi, the post office, a bulletin board, an open-air stage, a pond with reeds, street lamps, houses on the hill, and the same real sky as the yard. LB / RB now go town ◀ yard ▶ house.
+- **Five neighbors,** each with a personality, things to say, a favorite snack and ten hearts to earn:
+  - **Mochi** the cat runs the café.
+  - **Pepper** the bunny delivers the mail.
+  - **Ziggy** the robot invents things.
+  - **Luna** the ghost plays music on the stage.
+  - **Bramble** the dino tends the garden by the pond.
+  You can chat, give gifts (their favorite is worth double), play rock, paper, scissors (best of three), and play their own games with them. A "!" over a name means they have something to ask or you have something to hand in.
+- **Side missions:** three for each neighbor, 15 in all. Find Bramble's lost hat somewhere in your yard and Ziggy's gear somewhere in town. Deliver a parcel and a song between neighbors. Bring them snacks. Hit scores in the games. Catch particular fish, including a golden koi for Mochi's café. Rewards are star bits, hearts and prizes: a fish tank, a telescope, a disco ball, a monocle and a sweatband.
+- **Daily quests:** three a day, such as feed your companion twice, catch 3 fish, win hide-and-seek, chat with 3 neighbors or hear 2 jokes. Each is worth star bits, with a 15 ★ bonus for finishing all three. Press Menu (☰) or use the quest board to see quests, side missions, your fish collection and your best scores.
+- **New minigames:**
+  - **Fishing** at the pond: wait for the bobber to dip, then press A in time. There are 12 fish to collect, from minnows to the legendary golden koi and moonfish; some only bite by day or at night, and now and then you land an old boot.
+  - **Memory Match** at the café: six pairs to find in as few moves as you can.
+  - **Beat Hop** on the stage, with Luna: press A as each note reaches the ring, for Perfect, Good and combos, then get a grade from S to D.
+- **Your companion's own menu** (A on it): pet, hear a joke (15 of them, with the punchline after a pause), dance together, play **hide-and-seek** in the yard (it hides behind something while you count; you get three guesses, and it giggles as a hint), or see today's quests. X still pets it straight away.
+- **The post office** has a free parcel (a snack) once a day, and the café sells drinks and cake for less than the shop.
+
+## 9.0.5
+- **Fixed: opening the companion playground froze SquareDeck.** The need bars (food, energy, fun) were animated from a width that hadn't been set yet. That fails inside WPF's drawing on every frame, so nothing more was drawn. The bars now start from a set width.
+
+## 9.0.4
+**Your companion, with more heart.**
+- **23 new acts:** skateboarding, a guitar solo, singing, baking a cupcake, a selfie, a superhero flight, a ninja vanish (gone in a puff of smoke, back somewhere else), breakdancing, hiccups, sneaking on tiptoe, a drum solo, levitating, laughing, shivering, putting on shades, a snowball throw, a wink, a shrug, a victory jump, peeking over the edge, a hug, a boop and a sulk. They mix in with what it already does on Home and the other pages, and you can try each one on its page.
+- **It points at your games.** Now and then, when you rest on a game on Home, it walks over under the tile and points up at it while it talks about it.
+- **Wit.** New things to say on Home, in Settings, the Library, the Stores and Wishlist, Multimedia, Captures, Friends and game pages. Game lines with attitude ("500 hours? Should I give you two some privacy?"). Comments when you've gone quiet for a while, when it's very late, and when you scroll back and forth without picking anything. Poke it too many times and you get comebacks instead of just dizziness ("Achievement unlocked: Most Annoying Finger").
+- **New ways to touch it on Home:** tap to pet, double-tap to boop its nose, hold for a hug, and drag it to carry it somewhere else along the bottom (it dangles and wriggles, then lands with a bounce and stays there).
+- **Accessories:** 13, worn with any outfit: bow tie, reading glasses, freckles, rosy cheeks, a fancy mustache, a monocle, a star sticker, a bell collar, a necktie, a pirate patch, a heart badge, a sweatband and a pearl necklace. The first four are free (Companion page > Accessory); the rest are in the playground's Star Shop. Shown everywhere it appears.
+
+**New in Settings > Experimental: Companion playground.** A little world where your companion lives:
+- **The yard** under the real sky: sunrise, day, sunset and a starry night with a moon, with drifting clouds. It has an apple tree (fresh apples every few hours), a flower bed that blooms a little more each day in a row you visit, a mailbox with a daily letter (a note from your companion, sometimes about the game you played, and star bits; more for a streak), a toy box (ball, kite, bubble wand, frisbee), the Star Shop, butterflies it chases, and a telescope for shooting stars at night if you buy one.
+- **Its house:** a bed for naps (the lights go down), a fridge for snacks (each character has a favorite), a TV showing the game you played last, an arcade cabinet with **Star Catch** (30 seconds to catch falling stars and dodge rain clouds, with a best score), a bookshelf (with titles like "One Hundred Years of Loading Screens"), and a mirror for trying on accessories. Furniture you buy goes in too: a fish tank, a disco ball (dance party), a trophy shelf with your achievement count, a framed poster of your favorite game, a lava lamp, a rug and a plant. Five wallpapers to choose from.
+- **Needs and friendship:** food, energy and fun drift down slowly in real time while you're away (never to nothing) and come back with snacks, naps and play. Spending time together raises your friendship, through ten levels from "New friends" to "Kindred spirits", with a celebration at each one.
+- **Star bits:** earned from the daily letter, Star Catch, petting, a shooting star, and playing your games (one for every 10 minutes since your last visit, up to 40). Spend them on snacks, toys, furniture, wallpaper and accessories.
+- It lives there on its own too: it wanders, naps when it's tired, dances, does somersaults and tells you what's on its mind.
+- **Controls:** left and right pick something (highlighted, with its name), A uses it, X pets it, Y opens the Star Shop, LB / RB go inside or outside, B leaves. Everything can also be tapped.
+- With the playground on, the companion on Home now and then says when it's hungry, sleepy or bored. The Companion page shows your level and star bits, with a button to visit.
+
+## 9.0.3
+- **New light effect: Interactive.** A special effect: each stick's ring lights up where you point that stick, brighter the further you push it, with a soft trail as you turn it. The left stick uses your first color and the right stick your second. At rest the rings glow faintly. The rings are updated about 33 times a second so they keep up with your thumb. The sticks are only read, never taken from a game. On the X20 each ring's four LEDs follow the stick; on the other Allys, each half ring does. The effect picker previews it with the sticks turning on their own.
+- **The Switch style moves around with the Switch 2 sounds.** Its navigation sound is now the Switch 2 Sounds pack. A new install starts with it, and anyone on the Switch style who had navigation set to "same as the interface sounds" is switched to it once. Choosing another navigation sound still works as before.
+- **Fixed: the Wishlist page could hang and leave SquareDeck stuck.** Checking prices ran in the background and changed the list of games while the Wishlist (or Stores and calendar) page was reading it, so the page failed halfway. The check now builds a new list and swaps it in whole, as do Watch and Stop watching. On top of that, a page that fails while opening, closing or coming back into view no longer stops navigation: B still closes it, the page underneath comes back, and nothing half-closed is left on screen. Any such failure goes to crash.log.
+
 ## 9.0.2
 - **New README.** Rewritten from top to bottom for SquareDeck 9. It now has the project's mission, a highlights table, every feature area (Home and library, Play and discover, Retro Lounge, Recomp Zone and cloud gaming, the ROG Ally features and Game Bar widget, styles and the style gallery, entertainment, PC tools, reliability), ROG Ally family requirements, and updated credits (Equalizer APO added; the Legion, MSI Claw and Intel notes removed with that support).
 

@@ -30,6 +30,22 @@ public static class CompanionArt
         ("party", "Party hat"), ("flower", "Flower"), ("bandana", "Bandana"), ("horns", "Little horns"), ("visor", "Space visor"),
     };
 
+    /// <summary>
+    /// Accessories (9.0.3): worn with any outfit, on the face, cheeks or neck. A few come free; the rest are bought with
+    /// star bits in the companion playground (Experimental).
+    /// </summary>
+    public static readonly (string Id, string Name)[] Accessories =
+    {
+        ("bowtie", "Bow tie"), ("glasses", "Reading glasses"), ("freckles", "Freckles"), ("blush", "Rosy cheeks"),
+        ("mustache", "Fancy mustache"), ("monocle", "Monocle"), ("star", "Star sticker"), ("collar", "Bell collar"),
+        ("necktie", "Necktie"), ("eyepatch", "Pirate patch"), ("heart", "Heart badge"), ("sweatband", "Sweatband"), ("pearls", "Pearl necklace"),
+    };
+
+    public static string AccessoryName(string id) => id.Length == 0 ? "None" : Accessories.FirstOrDefault(o => o.Id == id).Name ?? id;
+
+    /// <summary>The accessory it's wearing ("" for none).</summary>
+    public static string Accessory => Labs.Get("companion.accessory", "");
+
     public static string OutfitName(string id) => id.Length == 0 ? "None" : Outfits.FirstOrDefault(o => o.Id == id).Name ?? id;
 
     public static string SpeciesId => Labs.Get("companion.species", "blob");
@@ -76,8 +92,9 @@ public static class CompanionArt
     /// <paramref name="mood"/>: happy, sleepy, cheer, bored, worried, love, dance. <paramref name="look"/>: -1 left, 0 ahead, 1 right.
     /// <paramref name="wave"/>: an arm raised (for waving, alternate it).
     /// </summary>
-    public static void Draw(Canvas canvas, string species, string colorHex, string mood, bool blink, string outfit, int look = 0, bool wave = false, double cell = 6)
+    public static void Draw(Canvas canvas, string species, string colorHex, string mood, bool blink, string outfit, int look = 0, bool wave = false, double cell = 6, string? accessory = null)
     {
+        accessory ??= Accessory;
         canvas.Children.Clear();
         var map = Maps.TryGetValue(species, out var m) ? m : Maps["blob"];
         var grid = map.Select(r => r.ToCharArray()).ToArray();
@@ -148,6 +165,23 @@ public static class CompanionArt
                 for (int y = 5; y <= 6; y++) for (int x = 2; x <= 9; x++) Put(x, y, 'A');
                 Put(1, 5, 'X'); Put(10, 5, 'X'); Put(1, 6, 'X'); Put(10, 6, 'X'); Put(3, 5, 'W');
                 break;
+        }
+        // Accessories, over the outfit (9.0.3).
+        switch (accessory)
+        {
+            case "bowtie": Put(3, 10, 'R'); Put(4, 10, 'R'); Put(5, 10, 'M'); Put(6, 10, 'M'); Put(7, 10, 'R'); Put(8, 10, 'R'); Put(3, 9, 'R'); Put(8, 9, 'R'); break;
+            case "glasses": for (int x = 3; x <= 8; x++) Put(x, 4, 'K'); Put(2, 5, 'K'); Put(9, 5, 'K'); Put(5, 5, 'K'); Put(6, 5, 'K'); break;
+            case "freckles": Put(2, 8, 'D'); Put(3, 7, 'D'); Put(9, 8, 'D'); Put(8, 7, 'D'); break;
+            case "blush": Put(2, 7, 'P'); Put(3, 7, 'P'); Put(8, 7, 'P'); Put(9, 7, 'P'); break;
+            case "mustache": Put(4, 7, 'K'); Put(5, 7, 'K'); Put(6, 7, 'K'); Put(7, 7, 'K'); Put(3, 8, 'K'); Put(8, 8, 'K'); break;
+            case "monocle": Put(6, 4, 'G'); Put(7, 4, 'G'); Put(8, 4, 'G'); Put(8, 5, 'G'); Put(8, 6, 'G'); Put(9, 7, 'G'); Put(9, 8, 'G'); Put(10, 9, 'G'); break;
+            case "star": Put(9, 7, 'G'); Put(8, 8, 'G'); Put(9, 8, 'G'); Put(10, 8, 'G'); Put(9, 9, 'G'); break;
+            case "collar": for (int x = 2; x <= 9; x++) Put(x, 10, 'R'); Put(5, 10, 'G'); Put(6, 10, 'G'); Put(5, 11, 'G'); Put(6, 11, 'G'); break;
+            case "necktie": Put(5, 10, 'C'); Put(6, 10, 'C'); Put(5, 11, 'C'); Put(4, 10, 'W'); Put(7, 10, 'W'); break;
+            case "eyepatch": for (int x = 1; x <= 10; x++) Put(x, 4, 'K'); Put(7, 5, 'K'); Put(8, 5, 'K'); Put(7, 6, 'K'); Put(8, 6, 'K'); break;
+            case "heart": Put(8, 9, 'R'); Put(10, 9, 'R'); Put(8, 10, 'R'); Put(9, 10, 'R'); Put(10, 10, 'R'); Put(9, 11, 'R'); Put(9, 9, 'P'); break;
+            case "sweatband": for (int x = 1; x <= 10; x++) Put(x, 3, x % 3 == 0 ? 'R' : 'W'); break;
+            case "pearls": for (int x = 2; x <= 9; x++) Put(x, 10, x % 2 == 0 ? 'W' : 'X'); break;
         }
         var body = (Color)ColorConverter.ConvertFromString(colorHex);
         var dark = Color.FromRgb((byte)(body.R * 0.68), (byte)(body.G * 0.68), (byte)(body.B * 0.68));

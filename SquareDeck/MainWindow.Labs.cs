@@ -905,7 +905,7 @@ public partial class MainWindow
                     Sparkles("≡", 4, "#AAB4C8");
                     break;
             }
-        if (!reduce) CompanionExtraAnimate(action);
+        if (!reduce) { CompanionExtraAnimate(action); CompanionMoreAnimate(action); }
         string? say = CompanionTakeLine(action) ?? CompanionExtraSay(action) ?? action switch
         {
             "wave" => new[] { "Hi!", "Welcome back!", "Hello!" }[Random.Shared.Next(3)],
@@ -1081,7 +1081,15 @@ public partial class MainWindow
     /// </summary>
     private static (string Arrive, string[] Idle, string[] Lines)? CompanionPlace(Screen? screen)
     {
-        if (screen is { IsDialog: true }) return null;
+        if (screen is { IsDialog: true } or CompanionPlayground) return null; // the playground has its own big companion
+        var place = CompanionPlaceBase(screen);
+        // 9.0.4: more to do and say on Home and the busier pages.
+        if (place is { } p && CompanionMoreFor(screen) is { } more) return (p.Arrive, p.Idle.Concat(more.Idle).ToArray(), p.Lines.Concat(more.Lines).ToArray());
+        return place;
+    }
+
+    private static (string Arrive, string[] Idle, string[] Lines)? CompanionPlaceBase(Screen? screen)
+    {
         if (CompanionPlaceExtra(screen) is { } extra) return extra;
         var core = CompanionPlaceCore(screen);
         if (core is { } c && screen == null) return (c.Arrive, c.Idle.Concat(HomeMoreActs).ToArray(), c.Lines.Concat(HomeMore).ToArray());

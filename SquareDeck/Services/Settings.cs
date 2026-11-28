@@ -128,6 +128,7 @@ public sealed class Settings
     public bool LabsGraduated8168 { get; set; }
     public bool LabsGraduatedPcTools { get; set; }
     public bool LabsGraduated85102 { get; set; }
+    public bool NavSwitch2_903 { get; set; }
     /// <summary>Explorer's sidebar is open (L1 or F1 folds it away).</summary>
     public bool ExplorerSidebarOpen { get; set; } = true;
 
@@ -327,7 +328,7 @@ public sealed class Settings
     public List<CustomStyle> CustomStyles { get; set; } = new();
 
     /// <summary>The sound set for moving around ("" = the same as <see cref="SoundSet"/>). Styles of your own can choose their own.</summary>
-    public string NavSoundSet { get; set; } = "";
+    public string NavSoundSet { get; set; } = "pack:Switch 2 Sounds"; // 9.0.3: the Switch style's own (a new install starts on Switch)
 
     /// <summary>The color variant chosen for each Advanced style that has some (style id → variant id).</summary>
     public Dictionary<string, string> SkinVariants { get; set; } = new();
@@ -742,6 +743,12 @@ public sealed class Settings
                     {
                         s.BrowserKeepOpen = false; // pages you've left don't stay loaded in the background
                         s.BrowserKeep8539 = true;
+                    }
+                    if (!s.NavSwitch2_903)
+                    {
+                        // 9.0.3: the Switch style moves around with the Switch 2 sounds (moving the same as the other sounds before).
+                        if (s.UiStyle == "switch" && string.IsNullOrEmpty(s.NavSoundSet)) s.NavSoundSet = "pack:Switch 2 Sounds";
+                        s.NavSwitch2_903 = true;
                     }
                     if (!s.CloudIntro8533)
                     {

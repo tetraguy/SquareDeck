@@ -149,6 +149,7 @@ public partial class MainWindow
         if (status == "Dropped") personal.Add("Giving it another chance?");
         if (g.IsFavorite) personal.Add("One of your favorites!");
         if (!g.IsInstalled) personal.Add("Install this one? I'd play it.");
+        personal.AddRange(CompanionWitFor(g)); // 9.0.4: with a bit of attitude
         var kind = CompanionKind(g);
         bool usePersonal = personal.Count > 0 && (kind == null || Random.Shared.Next(2) == 0);
         if (usePersonal) return personal[Random.Shared.Next(personal.Count)];
@@ -180,6 +181,7 @@ public partial class MainWindow
         if (_companion == null) return;
         if (!_companionNoticeHooked) { _companionNotice.Tick += (_, _) => CompanionNoticeTick(); _companionNoticeHooked = true; }
         var now = DateTime.Now;
+        CompanionCountScroll();
         _companionSteps.Enqueue(now);
         while (_companionSteps.Count > 0 && now - _companionSteps.Peek() > TimeSpan.FromSeconds(1.6)) _companionSteps.Dequeue();
         if (_companionSteps.Count >= 10 && now - _companionDizzyAt > TimeSpan.FromSeconds(25))
@@ -206,6 +208,8 @@ public partial class MainWindow
         if (Random.Shared.Next(100) >= 65) return; // not every single time
         _companionNoticedAt = now;
         _companionNoticedKey = game.Key;
+        // 9.0.4: now and then it walks over and points at the game instead.
+        if (Random.Shared.Next(3) == 0 && CompanionPointAt(CompanionLineFor(game))) return;
         CompanionQueue(CompanionActFor(game), CompanionLineFor(game));
     }
 
@@ -224,6 +228,7 @@ public partial class MainWindow
     {
         _companionLaunched = item;
         _companionLaunchedAt = DateTime.Now;
+        _companionScrolls = 0;
         var kind = CompanionKind(item);
         string line = kind switch
         {
@@ -350,7 +355,7 @@ public partial class MainWindow
         {
             _companionPets = 0;
             CompanionSounds.Pet(CompanionArt.SpeciesId, excited: true);
-            _companionLines["dizzy"] = "Okay, okay! I'm dizzy!";
+            _companionLines["dizzy"] = Random.Shared.Next(3) == 0 ? "Okay, okay! I'm dizzy!" : TickleComeback(); // 9.0.4: comebacks
             CompanionReact("dizzy");
             return;
         }
@@ -360,6 +365,8 @@ public partial class MainWindow
         var lines = PetLines(species).Concat(new[] { "Hehe!", "That tickles!", "Again!" }).ToArray();
         _companionLines["pet"] = lines[Random.Shared.Next(lines.Length)];
         CompanionReact("pet");
+        // With the playground on, now and then a star bit for the attention (9.0.4).
+        if (CompanionLife.On && CompanionLife.PetReward()) Later(0.4, () => Prop("+1 ★", "#FFD84D", 13, 64, 10, 1.4));
     }
 
     /// <summary>Pets it from its page (as tapping it does on Home).</summary>
@@ -371,7 +378,8 @@ public partial class MainWindow
         _companion.IsHitTestVisible = true;
         _companionSprite.Background = Brushes.Transparent;
         _companionSprite.Cursor = System.Windows.Input.Cursors.Hand;
-        _companionSprite.MouseLeftButtonUp += (_, e) => { e.Handled = true; CompanionPet(); };
+        HookCompanionTouch(); // 9.0.4: tap to pet, double-tap to boop, hold to hug, drag to carry
+        StartCompanionWit();
         _companionPetHooked = true;
     }
 
@@ -384,7 +392,7 @@ public partial class MainWindow
         "build" => 3, "pixel" => 2, "fish" => 3.4, "flashlight" => 2.8, "dizzy" => 2.6, "pet" => 1.4, "snow" => 3.5, "fireworks" => 3,
         "feast" => 3, "pumpkin" => 2.4,
         "yoyo" => 2.6, "kite" => 3.4, "paint" => 3, "jumprope" => 2.6, "gum" => 2.8, "headphones" => 3.2, "stargaze" => 3.4, "sandwich" => 2.8,
-        _ => null,
+        _ => CompanionMoreSeconds(action), // 9.0.4
     };
 
     private static string? CompanionExtraMood(string? action) => action switch
@@ -397,7 +405,7 @@ public partial class MainWindow
         "yoyo" or "kite" or "paint" or "stargaze" or "sandwich" => "happy",
         "jumprope" or "headphones" => "dance",
         "gum" => "cheer",
-        _ => null,
+        _ => CompanionMoreMood(action),
     };
 
     private static string? CompanionExtraSay(string action) => action switch
@@ -436,7 +444,7 @@ public partial class MainWindow
         "headphones" => "This song slaps.",
         "stargaze" => "Make a wish…",
         "sandwich" => "Snack time!",
-        _ => null,
+        _ => CompanionMoreSay(action),
     };
 
     /// <summary>

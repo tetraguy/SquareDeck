@@ -471,7 +471,9 @@ public partial class MainWindow
                 Settings.OsdEnabled = !Settings.OsdEnabled;
                 Settings.Save();
                 PerfOverlay.Apply(Settings);
-                Note(Settings.OsdEnabled ? "Performance overlay on" : "Performance overlay off");
+                Note(!Settings.OsdEnabled ? "Performance overlay off"
+                    : FrameCounter.Available && !FrameCounter.Permitted ? "Performance overlay on. Windows asks once so it can read the frame rate."
+                    : "Performance overlay on");
                 break;
             case "refresh":
                 CycleRefreshRate();

@@ -3390,6 +3390,7 @@ public sealed partial class SettingsScreen : ListScreen
         "passport" => () => Host.Push(PlayPages.Passport()),
         "mood" => () => Host.Push(PlayPages.Mood()),
         "companion" => () => Host.Push(new CompanionScreen()),
+        "companionplay" => () => Host.Push(new CompanionPlayground()),
         "settingsview" => ChooseLayout,
         "stylelights" => () => _ = Host.AskAsync("Lights match the UI style",
             $"{UiStyles.Current.Name} plays {StyleLights.NameFor(UiStyles.Current, Host.Settings)}, in its own colors. Each UI style has its own effect; " +

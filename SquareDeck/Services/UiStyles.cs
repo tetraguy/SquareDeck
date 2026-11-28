@@ -124,7 +124,8 @@ public static class UiStyles
         {
             Id = "switch", Name = "Switch", Sounds = "classic", Music = "track:Sweetness", Moving = "",
             Description = "The original: round buttons and square tiles on a clean background, with a soft blue-to-pink gradient ring around what's highlighted.",
-            RingColors = new[] { "#3F7CFF", "#7B6CFF", "#C46BE6", "#FF7FB5", "#55C8FF" }
+            RingColors = new[] { "#3F7CFF", "#7B6CFF", "#C46BE6", "#FF7FB5", "#55C8FF" },
+            NavSounds = "pack:Switch 2 Sounds", // 9.0.3: moving around sounds like the Switch 2
         },
         new()
         {

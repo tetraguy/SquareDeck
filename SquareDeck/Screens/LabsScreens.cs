@@ -1329,6 +1329,21 @@ public sealed class CompanionScreen : ListScreen
             if (n != null && n.Trim().Length > 0) Change("companion.name", n.Trim().Length > 16 ? n.Trim()[..16] : n.Trim());
         });
         AddRow("Outfit", CompanionArt.OutfitName(Labs.Outfit), "", click: () => Host.Push(new UnlockablesScreen()), subtitle: "Earned in Unlockables");
+        // 9.0.4: accessories, worn with any outfit.
+        AddRow("Accessory", CompanionArt.AccessoryName(CompanionArt.Accessory), "\uE734", click: async () =>
+        {
+            var owned = CompanionArt.Accessories.Where(a => CompanionLife.Owns("acc:" + a.Id)).ToList();
+            int c = await Host.AskAsync("Accessory", CompanionLife.On ? "More in the Star Shop in the companion playground." : "Turn on Companion playground in Settings > Experimental to earn star bits for more.",
+                new[] { "None" }.Concat(owned.Select(a => a.Name)).Append("Cancel").ToArray());
+            if (c < 0 || c > owned.Count) return;
+            Change("companion.accessory", c == 0 ? "" : owned[c - 1].Id);
+        }, subtitle: "Bow tie, glasses, freckles and rosy cheeks to start; more in the playground's Star Shop");
+        if (CompanionLife.On)
+        {
+            CompanionLife.CatchUp();
+            AddRow("Visit the playground", $"\u2665 Level {CompanionLife.Level}  \u00b7  \u2605 {CompanionLife.Stars}", "\uE80F", click: () => Host.Push(new CompanionPlayground()),
+                subtitle: CompanionLife.NeedLine() ?? "Its yard and house: feed it, play, nap, dress up, and play Star Catch");
+        }
 
         AddHeader("Try a reaction");
         AddNote("It reacts by itself on Home: a wave when you come back from a game, a jump for achievements, a spin for milestones, " +
@@ -1344,7 +1359,13 @@ public sealed class CompanionScreen : ListScreen
                                             ("shop", "Go shopping"), ("camera", "Take a picture"), ("trophy", "Trophy"), ("zoom", "Zoom"),
                                             ("roam", "Wander around"), ("hop", "Hop along"), ("cartwheel", "Cartwheel"), ("slide", "Slide"),
                                             ("moonwalk", "Moonwalk"), ("ball", "Kick a ball"), ("bubbles", "Blow bubbles"), ("magic", "Magic trick"),
-                                            ("meditate", "Meditate"), ("sneeze", "Sneeze"), ("wobble", "Wobble"), ("cheer", "Cheer"), ("nod", "Nod") })
+                                            ("meditate", "Meditate"), ("sneeze", "Sneeze"), ("wobble", "Wobble"), ("cheer", "Cheer"), ("nod", "Nod"),
+                                            // 9.0.4
+                                            ("skate", "Skateboard"), ("guitar", "Guitar solo"), ("sing", "Sing"), ("bake", "Bake a cupcake"), ("selfie", "Selfie"),
+                                            ("hero", "Superhero"), ("ninja", "Ninja vanish"), ("breakdance", "Breakdance"), ("hiccup", "Hiccups"), ("sneak", "Sneak"),
+                                            ("drums", "Drum solo"), ("levitate", "Levitate"), ("laugh", "Laugh"), ("shiver", "Shiver"), ("cool", "Shades on"),
+                                            ("snowball", "Snowball"), ("wink", "Wink"), ("shrug", "Shrug"), ("victory", "Victory"), ("peekedge", "Peek over the edge"),
+                                            ("hug", "Hug"), ("boop", "Boop"), ("sulk", "Sulk") })
         {
             var action = id;
             AddRow(label, null, "", click: () => Host.CompanionReact(action));
@@ -1372,6 +1393,7 @@ public sealed class CompanionScreen : ListScreen
             AddRow(label, null, "\uE7FC", click: () => Host.CompanionReact(hobby));
         }
         AddHeader("Petting");
+        AddNote("On Home: tap to pet, double-tap to boop its nose, hold for a hug, and drag it to carry it somewhere else along the bottom. Poke it too much and it talks back.");
         AddRow("Pet " + CompanionArt.Name, null, "\uE76E", click: () => Host.PetCompanion(),
             subtitle: $"Tap it on Home to pet it: it {CompanionSounds.Describe(CompanionArt.SpeciesId)} (each character has its own noises, with interface sounds on), " +
                       "and does a little something of its own");

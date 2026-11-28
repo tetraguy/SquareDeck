@@ -64,6 +64,7 @@ public static partial class Labs
         new("tilt", "Covers that tilt", "Tilting the handheld shifts the highlighted cover in 3D", "\uE8B4", Looks),
         new("dust", "Dusty tiles", "Games you haven't played in months gather dust on the home row", "\uE91C", Looks),
         new("companion", "Companion", "A small pixel friend in the corner of Home: six characters, any color, your choice of name, and reactions to what you do", "\uE899", Looks),
+        new("companionplay", "Companion playground", "A little world where your companion lives: a yard under the real sky with an apple tree, flowers, a daily letter and the Star Shop, and its house with a bed, a fridge, a TV showing your last game, an arcade minigame and a mirror for dressing up. Feed it, play with it, let it nap, and grow your friendship; earn star bits for snacks, toys, furniture and accessories", "\uE80F", Looks),
         new("updatecompanion", "Companion on the update screens", "Your companion rides the progress bar while SquareDeck downloads and installs an update: it carries the new version along, hops at each step, cheers and throws confetti when it's done, and looks worried if something goes wrong", "\uE895", Looks),
         new("achshot", "Screenshot on achievements", "A screenshot when an achievement unlocks, named after it", "\uE722", Play),
         new("milestones", "Milestone celebrations", "Confetti for 100 hours in a game, your 100th achievement, a finished game and more", "\uE7C1", Play),

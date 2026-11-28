@@ -1820,7 +1820,10 @@ public partial class MainWindow : Window
         _screens.Add(screen);
         ScreenLayer.Children.Add(screen);
         Motion.OpenPage(screen, screen.IsDialog);
-        screen.OnShown();
+        // 9.0.3: a page that fails while it sets itself up is still a page you can leave with B (the failure used to
+        // escape from here, half way through opening it).
+        try { screen.OnShown(); }
+        catch (Exception ex) { CrashLog.Write("Opening " + screen.GetType().Name, ex); }
         screen.FocusDefaultLater();
     }
 
@@ -1847,9 +1850,12 @@ public partial class MainWindow : Window
             closedConnectionPage |= closing is WifiScreen or BluetoothScreen or ConnectionBladeScreen;
             _screens.RemoveAt(i);
             ScreenLayer.Children.Remove(closing);
-            closing.OnClosed();
+            // 9.0.3: a page that fails while closing doesn't stop the pages under it coming back.
+            try { closing.OnClosed(); } catch (Exception ex) { CrashLog.Write("Closing " + closing.GetType().Name, ex); }
             closing.StopTimers(); // anything it forgot to stop
         }
+        // Nothing left drawn that isn't open (a page that failed half way through opening or closing).
+        foreach (var stray in ScreenLayer.Children.OfType<Screen>().Where(x => !_screens.Contains(x)).ToList()) ScreenLayer.Children.Remove(stray);
 
         if (closedConnectionPage) UpdateConnections();
 
@@ -1863,7 +1869,7 @@ public partial class MainWindow : Window
         var top = _screens[^1];
         top.Visibility = Visibility.Visible;
         if (!_backgroundMode) top.ResumeTimers();
-        top.OnResumed();
+        try { top.OnResumed(); } catch (Exception ex) { CrashLog.Write("Back to " + top.GetType().Name, ex); }
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
         {
             if (!IsTop(top)) return;

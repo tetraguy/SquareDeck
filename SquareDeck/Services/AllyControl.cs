@@ -149,6 +149,8 @@ public static class AllyControl
         ("magnet", "Magnets", "Your two colors pulled together, meeting with a flash, then pushed apart"),
         ("vinyl", "Record player", "A dark disc in your color with a glint of light going round at record speed"),
         ("ufo", "UFO", "Colored lights circling on top, a green tractor beam pulsing below"),
+        // 9.0.3: a special one that follows you.
+        ("interactive", "Interactive", "Special: each ring lights up where you point its stick, in your colors (left stick, first color; right stick, second), with a soft trail as you turn it"),
     };
 
     /// <summary>"Surprise me": a random gradient-style effect with two colors that go together.</summary>

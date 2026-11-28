@@ -78,6 +78,9 @@ public sealed class PerfOverlay : Window
         if (_current == null)
         {
             _current = new PerfOverlay(s);
+            // 9.0.7: shown for a few seconds straight away, wherever you are, so turning it on visibly does something
+            // (it then waits for a game, unless it's set to show always).
+            _current._previewUntil = DateTime.UtcNow.AddSeconds(6);
             _current.Show();
         }
         _current.Restyle();
@@ -98,6 +101,7 @@ public sealed class PerfOverlay : Window
     private double? _cpu, _gpu, _ram, _ramUsedGb, _ramTotalGb;
     private int? _mhz;
     private bool _sampling;
+    private DateTime _previewUntil;
 
     private PerfOverlay(Settings s)
     {
@@ -301,7 +305,10 @@ public sealed class PerfOverlay : Window
         // When to show: always, or only while a full-screen program other than SquareDeck is in front.
         var (pid, full) = ForegroundApp();
         bool ours = pid == Environment.ProcessId;
-        bool show = _s.OsdWhen == "always" || (full && !ours && pid != 0);
+        // 9.0.7: also while a game SquareDeck started is running and SquareDeck isn't in front (the game may be
+        // windowed, or Xbox Game Bar may be open over it), and for a few seconds after it's turned on.
+        bool gameRunning = !ours && pid != 0 && Application.Current?.MainWindow is MainWindow main && main.AllGames.Any(g => g.IsRunning);
+        bool show = _s.OsdWhen == "always" || (full && !ours && pid != 0) || gameRunning || DateTime.UtcNow < _previewUntil;
         FrameCounter.TargetPid = ours ? 0 : pid;
         if (!show)
         {
@@ -549,12 +556,49 @@ public static class FrameCounter
 {
     private static Process? _process;
     private static readonly object Gate = new();
-    private static readonly Queue<(DateTime At, double Ms)> Frames = new();
+    private static readonly Queue<(DateTime At, int Pid, double Ms)> Frames = new();
     private static int _pidColumn = -1, _msColumn = -1;
     private static int _users;
 
-    /// <summary>Only this process's frames count (0: none).</summary>
+    /// <summary>
+    /// The process in front, whose frames are counted first. When it isn't drawing anything (Xbox Game Bar open over
+    /// the game, a store app's frame window, a launcher in front of its game), the busiest drawing process is counted
+    /// instead, leaving out SquareDeck and Windows' own pieces (9.0.7: only the window in front used to count).
+    /// </summary>
     public static int TargetPid { get; set; }
+
+    private static readonly Dictionary<int, bool> Ignored = new();
+    private static readonly string[] IgnoredNames =
+    {
+        "SquareDeck", "msedgewebview2", "GameBar", "GameBarFTServer", "XboxGameBarWidgets", "XboxPcAppFT", "explorer", "SearchHost",
+        "StartMenuExperienceHost", "ShellExperienceHost", "TextInputHost", "dwm", "ApplicationFrameHost", "LockApp", "SquareDeck.Widget",
+    };
+
+    private static bool IsIgnored(int pid)
+    {
+        if (pid == Environment.ProcessId || pid <= 4) return true;
+        if (Ignored.TryGetValue(pid, out var known)) return known;
+        bool ignore;
+        try
+        {
+            using var p = Process.GetProcessById(pid);
+            ignore = IgnoredNames.Any(n => p.ProcessName.Equals(n, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception) { ignore = true; }
+        if (Ignored.Count > 500) Ignored.Clear();
+        Ignored[pid] = ignore;
+        return ignore;
+    }
+
+    /// <summary>The frames to count: the process in front if it's drawing, otherwise the busiest one.</summary>
+    private static List<double> Counted()
+    {
+        Trim();
+        var mine = Frames.Where(f => f.Pid == TargetPid).Select(f => f.Ms).ToList();
+        if (TargetPid > 0 && mine.Count >= 2) return mine;
+        var busiest = Frames.GroupBy(f => f.Pid).Where(g => !IsIgnored(g.Key)).OrderByDescending(g => g.Count()).FirstOrDefault();
+        return busiest?.Select(f => f.Ms).ToList() ?? new List<double>();
+    }
 
     public static string? ToolPath
     {
@@ -616,7 +660,7 @@ public static class FrameCounter
     public static void Retry()
     {
         if (_users <= 0 || ToolPath is not { } tool) return;
-        if (_process is { HasExited: false }) return;
+        if (_process is { HasExited: false } || _elevated) return;
         if (DateTime.UtcNow - _lastTry < TimeSpan.FromSeconds(15)) return;
         _ = Task.Run(() => LaunchAny(tool));
     }
@@ -628,10 +672,10 @@ public static class FrameCounter
         {
             lock (Gate)
             {
-                Trim();
-                if (Frames.Count < 2) return null;
-                double totalMs = Frames.Sum(f => f.Ms);
-                return totalMs > 0 ? Frames.Count * 1000.0 / totalMs : null;
+                var frames = Counted();
+                if (frames.Count < 2) return null;
+                double totalMs = frames.Sum();
+                return totalMs > 0 ? frames.Count * 1000.0 / totalMs : null;
             }
         }
     }
@@ -643,8 +687,8 @@ public static class FrameCounter
         {
             lock (Gate)
             {
-                Trim();
-                return Frames.Count < 2 ? null : Frames.Average(f => f.Ms);
+                var frames = Counted();
+                return frames.Count < 2 ? null : frames.Average();
             }
         }
     }
@@ -673,10 +717,14 @@ public static class FrameCounter
             _lastTry = DateTime.UtcNow;
             _stderr = "";
             // PresentMon 2.x takes "--" options; 1.x took "-". Try the newer form and fall back if it quits straight away.
+            if (_elevated) return; // already counting through the administrator copy
             bool ok = Launch(tool, "--output_stdout --stop_existing_session --session_name SquareDeckOSD --no_console_stats --exclude dwm.exe")
                    || Launch(tool, "-output_stdout -stop_existing_session -session_name SquareDeckOSD -no_top -exclude dwm.exe");
             _denied = !ok && (!Permitted || _stderr.Contains("access", StringComparison.OrdinalIgnoreCase) || _stderr.Contains("privilege", StringComparison.OrdinalIgnoreCase)
                               || _stderr.Contains("elevat", StringComparison.OrdinalIgnoreCase));
+            // 9.0.7: without the permission, Windows asks once (for this time SquareDeck is open) and PresentMon runs
+            // as administrator, writing its frames to a file SquareDeck reads as it grows.
+            if (!ok && _denied && !_elevationDeclined) ok = LaunchElevated(tool);
             Problem = ok ? null : _denied
                 ? "Windows doesn't let PresentMon read frame rates for this account"
                 : "PresentMon stopped straight away" + (_stderr.Length > 0 ? ": " + _stderr.Trim().Split('\n')[0] : "");
@@ -725,15 +773,102 @@ public static class FrameCounter
             return;
         }
         if (cells.Length <= Math.Max(_pidColumn, _msColumn)) return;
-        if (!int.TryParse(cells[_pidColumn], out int pid) || pid != TargetPid) return;
+        if (!int.TryParse(cells[_pidColumn], out int pid) || pid == Environment.ProcessId) return;
         if (!double.TryParse(cells[_msColumn], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double ms) || ms <= 0 || ms > 1000) return;
-        lock (Gate) Frames.Enqueue((DateTime.UtcNow, ms));
+        lock (Gate)
+        {
+            Frames.Enqueue((DateTime.UtcNow, pid, ms));
+            while (Frames.Count > 4000) Frames.Dequeue(); // several programs drawing at once: keep it bounded
+        }
+    }
+
+    // ---------------------------------------------------------------- PresentMon as administrator (9.0.7)
+
+    private static bool _elevated, _elevationDeclined;
+    private static CancellationTokenSource? _tail;
+    private static string StopFile => System.IO.Path.Combine(System.IO.Path.GetTempPath(), "SquareDeckOSD.stop");
+    private static string CsvFile => System.IO.Path.Combine(System.IO.Path.GetTempPath(), "SquareDeckOSD.csv");
+
+    /// <summary>
+    /// Starts PresentMon as administrator through a small PowerShell script (Windows asks once), writing to a file.
+    /// The script stops PresentMon when SquareDeck closes or turns the overlay off (it leaves a stop file).
+    /// </summary>
+    private static bool LaunchElevated(string tool)
+    {
+        try
+        {
+            try { File.Delete(StopFile); } catch (Exception) { }
+            try { File.Delete(CsvFile); } catch (Exception) { }
+            string Q(string v) => "'" + v.Replace("'", "''") + "'";
+            string script =
+                $"$p = Start-Process -FilePath {Q(tool)} -ArgumentList {Q($"--output_file \"{CsvFile}\" --stop_existing_session --session_name SquareDeckOSDAdmin --no_console_stats --exclude dwm.exe")} -WindowStyle Hidden -PassThru; " +
+                $"while (-not $p.HasExited -and (Get-Process -Id {Environment.ProcessId} -ErrorAction SilentlyContinue) -and -not (Test-Path {Q(StopFile)})) {{ Start-Sleep -Milliseconds 800 }}; " +
+                "if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }";
+            string encoded = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script));
+            Process.Start(new ProcessStartInfo("powershell.exe", "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand " + encoded)
+            {
+                UseShellExecute = true, Verb = "runas", WindowStyle = ProcessWindowStyle.Hidden,
+            })?.Dispose();
+        }
+        catch (System.ComponentModel.Win32Exception) { _elevationDeclined = true; return false; } // "No" to Windows' question
+        catch (Exception) { return false; }
+        _elevated = true;
+        _denied = false;
+        _tail?.Cancel();
+        _tail = new CancellationTokenSource();
+        var token = _tail.Token;
+        _ = Task.Run(() => TailCsv(token));
+        return true;
+    }
+
+    /// <summary>Reads the frames PresentMon writes to its file, as they arrive.</summary>
+    private static async Task TailCsv(CancellationToken token)
+    {
+        _pidColumn = _msColumn = -1;
+        // Waits for the file (Windows' question, then PresentMon starting).
+        for (int i = 0; i < 120 && !File.Exists(CsvFile); i++)
+        {
+            if (token.IsCancellationRequested) return;
+            await Task.Delay(500).ConfigureAwait(false);
+        }
+        if (!File.Exists(CsvFile)) { _elevated = false; Problem = "PresentMon didn't start as administrator"; return; }
+        try
+        {
+            using var stream = new FileStream(CsvFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream);
+            string pending = "";
+            var buffer = new char[16384];
+            while (!token.IsCancellationRequested)
+            {
+                int n = await reader.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
+                if (n == 0) { await Task.Delay(120).ConfigureAwait(false); continue; }
+                pending += new string(buffer, 0, n);
+                int nl;
+                while ((nl = pending.IndexOf('\n')) >= 0)
+                {
+                    Parse(pending[..nl].TrimEnd('\r'));
+                    pending = pending[(nl + 1)..];
+                }
+            }
+        }
+        catch (Exception) { }
+        finally { _elevated = false; }
+    }
+
+    private static void StopElevated()
+    {
+        _tail?.Cancel();
+        _tail = null;
+        if (!_elevated) return;
+        try { File.WriteAllText(StopFile, "stop"); } catch (Exception) { }
+        _elevated = false;
     }
 
     public static void Stop()
     {
         if (Interlocked.Decrement(ref _users) > 0) return;
         _users = 0;
+        StopElevated();
         try { if (_process is { HasExited: false }) _process.Kill(); }
         catch (Exception) { }
         _process = null;

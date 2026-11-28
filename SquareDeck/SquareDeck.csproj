@@ -11,7 +11,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>SquareDeck</AssemblyName>
     <RootNamespace>SquareDeck</RootNamespace>
-    <Version>9.0.2</Version>
+    <Version>9.0.7</Version>
     <ApplicationIcon>Assets\SquareDeck.ico</ApplicationIcon>
   </PropertyGroup>
 

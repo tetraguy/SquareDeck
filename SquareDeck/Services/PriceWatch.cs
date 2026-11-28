@@ -74,14 +74,14 @@ public sealed class PriceWatch
         var existing = Find(appId);
         if (existing != null) return existing;
         var game = new WatchedGame { AppId = appId, Name = name, Source = "watch", Added = DateTime.Now };
-        Games.Add(game);
+        Games = new List<WatchedGame>(Games) { game }; // a new list: a refresh reading the old one isn't disturbed (9.0.3)
         Save();
         return game;
     }
 
     public void Unwatch(int appId)
     {
-        Games.RemoveAll(g => g.AppId == appId && g.Source == "watch");
+        Games = Games.Where(g => !(g.AppId == appId && g.Source == "watch")).ToList();
         Save();
     }
 
@@ -96,23 +96,29 @@ public sealed class PriceWatch
     {
         var alerts = new List<Alert>();
         var ids = await SteamWishlist.GetIdsAsync(apiKey, ct).ConfigureAwait(false);
+        // 9.0.3: the list is changed as a copy and swapped in whole. This runs on a background thread while the Wishlist,
+        // Stores and calendar pages read Games; changing the list they were reading made those pages fail halfway
+        // ("Collection was modified"), leaving the Wishlist page stuck half built.
+        var list = Games.ToList();
+        WatchedGame? FindIn(int appId) => list.FirstOrDefault(g => g.AppId == appId);
         if (ids != null)
         {
             WishlistState = "ok";
             var wished = ids.Select(i => i.AppId).ToHashSet();
             // Off the wishlist (or bought): gone, unless you also chose to watch it here.
-            Games.RemoveAll(g => g.Source == "wishlist" && !wished.Contains(g.AppId));
+            list.RemoveAll(g => g.Source == "wishlist" && !wished.Contains(g.AppId));
             foreach (var (appId, added) in ids)
             {
-                var g = Find(appId);
-                if (g == null) Games.Add(new WatchedGame { AppId = appId, Source = "wishlist", Added = added });
+                var g = FindIn(appId);
+                if (g == null) list.Add(new WatchedGame { AppId = appId, Source = "wishlist", Added = added });
                 else if (g.Source == "watch") g.Source = "wishlist";
             }
         }
         else WishlistState = SteamLibrary.GetSteamId64() == null ? "none" : "private";
-        Games.RemoveAll(g => owned.Contains(g.AppId));
+        list.RemoveAll(g => owned.Contains(g.AppId));
+        Games = list;
 
-        var due = Games.OrderBy(g => g.Name.Length == 0 ? 0 : 1).ThenBy(g => g.CheckedAt).Take(max).ToList();
+        var due = list.OrderBy(g => g.Name.Length == 0 ? 0 : 1).ThenBy(g => g.CheckedAt).Take(max).ToList();
         using var gate = new SemaphoreSlim(3);
         await Task.WhenAll(due.Select(async g =>
         {
