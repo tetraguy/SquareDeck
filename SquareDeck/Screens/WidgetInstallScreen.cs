@@ -211,7 +211,7 @@ public sealed class WidgetInstallScreen : Screen
                         // moment to come back, and this pop-up closes first so Game Bar isn't behind it.
                         var host = Host;
                         Finish(true, message);
-                        _ = Task.Delay(700).ContinueWith(_ => host.Dispatcher.BeginInvoke(new Action(host.OpenWidget)));
+                        _ = Task.Delay(700).ContinueWith(_ => host.Dispatcher.BeginInvoke(new Action(host.OpenGameBarWidget)));
                     }),
                     ("", "Done", () => Finish(true, message)));
         }

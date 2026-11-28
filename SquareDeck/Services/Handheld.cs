@@ -148,6 +148,19 @@ public static class Handheld
         }
     }
 
+    /// <summary>
+    /// 9.0.19: the page on ASUS's site with this model's user manual, opened inside SquareDeck; null for anything else.
+    /// The ROG Xbox Ally and Xbox Ally X share one page. Follows the model SquareDeck settled on, like the picture.
+    /// </summary>
+    public static string? ManualUrl => DisplayName switch
+    {
+        "ROG Xbox Ally X20" => "https://rog.asus.com/us/gaming-handhelds/rog-ally/rog-xbox-ally-x20-2026/helpdesk_manual/",
+        "ROG Xbox Ally X" or "ROG Xbox Ally" => "https://rog.asus.com/gaming-handhelds/rog-ally/rog-xbox-ally-2025/helpdesk_manual/",
+        "ROG Ally X" => "https://rog.asus.com/gaming-handhelds/rog-ally/rog-ally-x-2024/helpdesk_manual/",
+        "ROG Ally" => "https://rog.asus.com/gaming-handhelds/rog-ally/rog-ally-2023/helpdesk_manual/",
+        _ => null
+    };
+
     public static HandheldVendor Vendor => Current?.Vendor ?? (AllyKnown ? HandheldVendor.Asus : HandheldVendor.Generic);
 
     public static bool Has(HandheldControl c) => ((Current?.Controls ?? (Vendor == HandheldVendor.Asus ? AllyControls : HandheldControl.None)) & c) != 0;

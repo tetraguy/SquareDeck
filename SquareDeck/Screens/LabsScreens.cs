@@ -98,12 +98,12 @@ public sealed class MoveGameScreen : ListScreen
             bool fits = size <= 0 || d.Free > size * 1.05;
             string kind = d.Removable ? "microSD / USB" : d.Label;
             var drive = d;
-            var row = AddRow($"{d.Drive}  {kind}", current ? "Here now" : fits ? Labs.Size(d.Free) + " free" : "Not enough space", d.Removable ? "" : "",
+            var row = AddRow($"{d.Drive}  {kind}", current ? "Here now" : fits ? Labs.Size(d.Free) + " free" : "Not enough space", d.Removable ? "\uE88E" : "\uEDA2",
                 click: current || !fits || _busy ? null : () => _ = MoveAsync(drive), subtitle: d.Library + $"  ·  {Labs.Size(d.Free)} free of {Labs.Size(d.Total)}");
             if (current || !fits) row.Opacity = 0.55;
         }
         AddHeader("Another drive");
-        AddRow("Add a Steam library on another drive", null, "", click: () => ProcessUtil.Open("steam://open/settings"),
+        AddRow("Add a Steam library on another drive", null, "\uE710", click: () => ProcessUtil.Open("steam://open/settings"),
             subtitle: "In Steam: Settings > Storage > Add drive. It shows up here afterwards");
     }
 
@@ -154,17 +154,17 @@ public sealed class StorageAdvisorScreen : ListScreen
     {
         var stale = Stale();
         foreach (var d in Labs.Drives())
-            AddRow($"{d.Drive}  {(d.Removable ? "microSD / USB" : d.Label)}", Labs.Size(d.Free) + " free", d.Removable ? "" : "",
+            AddRow($"{d.Drive}  {(d.Removable ? "microSD / USB" : d.Label)}", Labs.Size(d.Free) + " free", d.Removable ? "\uE88E" : "\uEDA2",
                 subtitle: $"{Labs.Size(d.Total - d.Free)} used of {Labs.Size(d.Total)}");
         if (stale.Count == 0) { AddNote("Every installed Steam game has been played in the last six months."); return; }
         AddHeader($"{stale.Count} games not played in 6 months  ·  {Labs.Size(stale.Sum(g => g.SizeOnDisk))}");
         AddNote("Uninstalled games stay in your library as not installed, and can be installed again any time.");
-        AddRow("Uninstall all of these", null, "", click: () => _ = UninstallAsync(stale), subtitle: "Steam asks you to confirm each one");
+        AddRow("Uninstall all of these", null, "\uE74D", click: () => _ = UninstallAsync(stale), subtitle: "Steam asks you to confirm each one");
         foreach (var g in stale)
         {
             var game = g;
             var last = g.LastPlayed is DateTime lp ? "Last played " + Ui.Ago(lp) : "Never played";
-            AddRow(g.Name, Labs.Size(g.SizeOnDisk), "", click: () => _ = UninstallAsync(new List<Game> { game }), subtitle: last);
+            AddRow(g.Name, Labs.Size(g.SizeOnDisk), "\uE7FC", click: () => _ = UninstallAsync(new List<Game> { game }), subtitle: last);
         }
     }
 
@@ -216,7 +216,7 @@ public sealed class CleanupScreen : ListScreen
         foreach (var g in broken)
         {
             var game = g;
-            AddRow(g.Name, g.IsCustom ? "Program missing" : "Folder missing", "", click: () => _ = Host.OpenOptionsAsync(game),
+            AddRow(g.Name, g.IsCustom ? "Program missing" : "Folder missing", "\uE783", click: () => _ = Host.OpenOptionsAsync(game),
                 subtitle: (g.IsCustom ? g.LaunchPath : g.InstallDir) + "  ·  Options to remove or fix it");
         }
         if (_leftovers == null) { AddNote("Looking for leftover folders…"); return; }
@@ -225,7 +225,7 @@ public sealed class CleanupScreen : ListScreen
         foreach (var l in _leftovers)
         {
             var left = l;
-            AddRow(Path.GetFileName(l.Path), Labs.Size(l.Size), "", click: () => _ = RemoveAsync(left), subtitle: l.Path);
+            AddRow(Path.GetFileName(l.Path), Labs.Size(l.Size), "\uE8B7", click: () => _ = RemoveAsync(left), subtitle: l.Path);
         }
     }
 
@@ -251,13 +251,13 @@ public sealed class OvernightScreen : ListScreen
         bool sleep = Labs.Get("overnight.sleep", "1") == "1";
         AddNote("Start it before bed with the charger in. While Steam is downloading or updating, the PC stays awake; when everything " +
                 "has finished, it can go to sleep. Queue games first with Install > Add to the install queue.");
-        AddRow(active ? "Stop overnight mode" : "Start overnight mode", active ? "On" : "Off", "", click: () =>
+        AddRow(active ? "Stop overnight mode" : "Start overnight mode", active ? "On" : "Off", "\uE708", click: () =>
         {
             Labs.Put("overnight.active", active ? "0" : "1");
             if (active) Labs.KeepAwake(false);
             Rebuild();
         }, subtitle: active ? Labs.Get("overnight.status", "Waiting for downloads") : "Turns itself off when it's done");
-        AddRow("Sleep when everything is done", sleep ? "On" : "Off", "", click: () => { Labs.Put("overnight.sleep", sleep ? "0" : "1"); Rebuild(); });
+        AddRow("Sleep when everything is done", sleep ? "On" : "Off", "\uE823", click: () => { Labs.Put("overnight.sleep", sleep ? "0" : "1"); Rebuild(); });
         if (!Battery.IsPluggedIn()) AddNote("The charger isn't plugged in. Overnight mode waits for it.");
     }
 }
@@ -274,13 +274,13 @@ public sealed class BugReportScreen : ListScreen
         var text = Labs.BugReport(Host.Settings, _note);
         AddNote("This opens a new issue on SquareDeck's GitHub page with the details filled in. Your user name, folders under your " +
                 "user folder, API keys, Steam id and e-mail addresses are taken out. You'll see it all before it's sent, and a GitHub account is needed.");
-        AddRow("Say what happened", _note == null ? "Optional" : "Written", "", click: async () =>
+        AddRow("Say what happened", _note == null ? "Optional" : "Written", "\uE70F", click: async () =>
         {
             var t = await Host.PromptAsync("What happened?", "What you were doing and what went wrong.", _note ?? "", "Done");
             if (t != null) { _note = t.Trim().Length == 0 ? null : t.Trim(); Rebuild(); }
         }, subtitle: _note);
-        AddRow("Open the issue on GitHub", null, "", click: () => ProcessUtil.Open(Labs.IssueUrl(text)));
-        AddRow("Copy the report", null, "", click: () => { try { Clipboard.SetText(text); Host.ShowToast("COPIED", "Bug report copied", "Paste it anywhere", "", remember: false); } catch (Exception) { } });
+        AddRow("Open the issue on GitHub", null, "\uE8A7", click: () => ProcessUtil.Open(Labs.IssueUrl(text)));
+        AddRow("Copy the report", null, "\uE8C8", click: () => { try { Clipboard.SetText(text); Host.ShowToast("COPIED", "Bug report copied", "Paste it anywhere", "", remember: false); } catch (Exception) { } });
         AddHeader("What will be sent");
         var preview = Ui.Text(text, 13, "SubtleBrush");
         preview.TextWrapping = TextWrapping.Wrap;
@@ -304,7 +304,7 @@ public sealed class RefundScreen : ListScreen
         foreach (var r in list)
         {
             string time = r.MinutesLeft < 60 ? $"{r.MinutesLeft:0} min of play left" : $"{r.MinutesLeft / 60:0.#} h of play left";
-            AddRow(r.Game.Name, time, "", click: () => ProcessUtil.Open("https://help.steampowered.com/"),
+            AddRow(r.Game.Name, time, "\uE8C7", click: () => ProcessUtil.Open("https://help.steampowered.com/"),
                 subtitle: $"{r.MinutesPlayed:0} min played  ·  bought around {r.Bought:MMM d}  ·  {Math.Ceiling(r.TimeLeft.TotalDays):0} days left");
         }
     }
@@ -332,13 +332,13 @@ public sealed class GameDiaryScreen : ListScreen
         {
             var session = s;
             var during = shots.Where(x => x.When >= s.Start && x.When <= s.Start.AddSeconds(s.Seconds + 120)).Select(x => x.Path).ToList();
-            items.Add((s.Start, () => AddRow($"{session.Start:h:mm tt}  Played {Labs.Hours(session.Seconds / 3600)}", during.Count > 0 ? $"{during.Count} screenshots" : null, "",
+            items.Add((s.Start, () => AddRow($"{session.Start:h:mm tt}  Played {Labs.Hours(session.Seconds / 3600)}", during.Count > 0 ? $"{during.Count} screenshots" : null, "\uE7FC",
                 click: during.Count > 0 ? () => Host.Push(new ViewerScreen(during, 0)) : null)));
         }
         foreach (var n in notes)
         {
             var note = n;
-            items.Add((n.Created, () => AddRow($"{note.Created:h:mm tt}  Note: {note.Title}", null, "", click: () => Host.Push(new GameNotesScreen(_game)),
+            items.Add((n.Created, () => AddRow($"{note.Created:h:mm tt}  Note: {note.Title}", null, "\uE70B", click: () => Host.Push(new GameNotesScreen(_game)),
                 subtitle: note.Preview.Length > 90 ? note.Preview[..90] + "…" : note.Preview)));
         }
         // Screenshots taken outside any recorded session (Steam's F12, older ones).
@@ -346,7 +346,7 @@ public sealed class GameDiaryScreen : ListScreen
         foreach (var day in loose.GroupBy(x => x.When.Date))
         {
             var paths = day.Select(x => x.Path).ToList();
-            items.Add((day.Max(x => x.When), () => AddRow($"{day.Key:MMM d}  {paths.Count} screenshots", null, "", click: () => Host.Push(new ViewerScreen(paths, 0)))));
+            items.Add((day.Max(x => x.When), () => AddRow($"{day.Key:MMM d}  {paths.Count} screenshots", null, "\uE722", click: () => Host.Push(new ViewerScreen(paths, 0)))));
         }
         foreach (var day in items.OrderByDescending(i => i.When).GroupBy(i => i.When.Date))
         {
@@ -368,26 +368,26 @@ public sealed class FixGameScreen : ListScreen
         AddNote("Try these one at a time, starting from the top. Each one says what it does before doing it.");
         if (_game.IsSteam)
         {
-            AddRow("Verify the game's files", null, "", click: () => ProcessUtil.Open($"steam://validate/{_game.AppId}"),
+            AddRow("Verify the game's files", null, "\uE9D5", click: () => ProcessUtil.Open($"steam://validate/{_game.AppId}"),
                 subtitle: "Steam checks every file and downloads any that are missing or damaged");
             var shader = Labs.ShaderCacheOf(_game);
-            AddRow("Clear the shader cache", shader == null ? "None found" : null, "", click: shader == null ? null : () => _ = ClearShadersAsync(shader),
+            AddRow("Clear the shader cache", shader == null ? "None found" : null, "\uE7B5", click: shader == null ? null : () => _ = ClearShadersAsync(shader),
                 subtitle: "Steam's saved graphics shaders for this game. They're rebuilt, so the first minutes may stutter");
         }
         var folders = Labs.SettingsFoldersOf(_game);
-        AddRow("Reset the game's settings", folders.Count == 0 ? "No folder found" : $"{folders.Count} found", "", click: folders.Count == 0 ? null : () => _ = ResetSettingsAsync(folders),
+        AddRow("Reset the game's settings", folders.Count == 0 ? "No folder found" : $"{folders.Count} found", "\uE777", click: folders.Count == 0 ? null : () => _ = ResetSettingsAsync(folders),
             subtitle: folders.Count == 0 ? "Its settings folder wasn't found in Documents or AppData" : "Renames its settings folders so the game starts fresh. Renaming them back undoes it");
         var redist = Labs.RedistributablesOf(_game);
-        AddRow("Reinstall Visual C++ and DirectX", redist.Count == 0 ? "None included" : $"{redist.Count} installers", "", click: redist.Count == 0 ? null : () => _ = RedistAsync(redist),
+        AddRow("Reinstall Visual C++ and DirectX", redist.Count == 0 ? "None included" : $"{redist.Count} installers", "\uE896", click: redist.Count == 0 ? null : () => _ = RedistAsync(redist),
             subtitle: "The runtime files that ship with the game. Missing ones are a common reason games don't start");
-        AddRow("Run it as administrator", null, "", click: () => _ = RunAsAdminAsync(),
+        AddRow("Run it as administrator", null, "\uE7EF", click: () => _ = RunAsAdminAsync(),
             subtitle: "Once, for games that need permission to write their files");
         if (!string.IsNullOrEmpty(_game.InstallDir) && Directory.Exists(_game.InstallDir))
-            AddRow("Open the game's folder", null, "", click: () => ProcessUtil.Open("explorer.exe", "\"" + _game.InstallDir + "\""));
+            AddRow("Open the game's folder", null, "\uE838", click: () => ProcessUtil.Open("explorer.exe", "\"" + _game.InstallDir + "\""));
         foreach (var f in folders)
         {
             var folder = f;
-            AddRow("Open " + Path.GetFileName(f), null, "", click: () => ProcessUtil.Open("explorer.exe", "\"" + folder + "\""), subtitle: f);
+            AddRow("Open " + Path.GetFileName(f), null, "\uE8B7", click: () => ProcessUtil.Open("explorer.exe", "\"" + folder + "\""), subtitle: f);
         }
     }
 
@@ -474,9 +474,9 @@ public sealed class StickCheckScreen : Screen
         var sticks = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         sticks.Children.Add(Stick("Left stick", _left, _leftZone, _leftText));
         sticks.Children.Add(Stick("Right stick", _right, _rightZone, _rightText));
-        _measure = Ui.PanelButton("", "Measure drift (don't touch the sticks)");
+        _measure = Ui.PanelButton("\uE9D2", "Measure drift (don't touch the sticks)");
         _measure.Click += (_, _) => { _samples.Clear(); _measuring = DateTime.Now; _result.Text = "Measuring… keep your thumbs off the sticks."; };
-        _zone = Ui.PanelButton("", ZoneLabel());
+        _zone = Ui.PanelButton("\uE7FC", ZoneLabel());
         _zone.Click += (_, _) => _ = ChooseZoneAsync();
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 24, 0, 0) };
         buttons.Children.Add(_measure);
@@ -607,9 +607,9 @@ public sealed class BatteryHealthScreen : ListScreen
         if (!_loaded) { AddNote("Reading Windows' battery report…"); return; }
         if (_health is not { } h) { AddNote("No battery information is available on this PC."); return; }
         double pct = 100.0 * h.Full / h.Design;
-        AddRow("Health", $"{pct:0}%", "", subtitle: pct >= 90 ? "Like new" : pct >= 80 ? "Good: some normal wear" : pct >= 65 ? "Worn: shorter battery life than new" : "Very worn: think about a replacement");
-        AddRow("Holds now", $"{h.Full / 1000.0:0.0} Wh", "", subtitle: $"It held {h.Design / 1000.0:0.0} Wh when new");
-        AddRow("Charge cycles", h.Cycles?.ToString() ?? "Not reported", "", subtitle: "One cycle is a full battery's worth of charging, spread over any number of charges");
+        AddRow("Health", $"{pct:0}%", "\uEBA7", subtitle: pct >= 90 ? "Like new" : pct >= 80 ? "Good: some normal wear" : pct >= 65 ? "Worn: shorter battery life than new" : "Very worn: think about a replacement");
+        AddRow("Holds now", $"{h.Full / 1000.0:0.0} Wh", "\uE83F", subtitle: $"It held {h.Design / 1000.0:0.0} Wh when new");
+        AddRow("Charge cycles", h.Cycles?.ToString() ?? "Not reported", "\uE895", subtitle: "One cycle is a full battery's worth of charging, spread over any number of charges");
         if (h.History.Count >= 2)
         {
             AddHeader("Capacity over time");
@@ -724,7 +724,7 @@ public sealed class LeaderboardScreen : ListScreen
         {
             var shared = p.IsYou ? new List<string>() : p.Games.Select(g => g.Game).Where(mine.Contains).ToList();
             string top = p.Games.Count > 0 ? "Mostly " + p.Games[0].Game : "Nothing lately";
-            var row = AddRow($"{rank++}.  {p.Name}{(p.IsYou ? "  (you)" : "")}", Labs.Hours(p.Hours), p.IsYou ? "" : "",
+            var row = AddRow($"{rank++}.  {p.Name}{(p.IsYou ? "  (you)" : "")}", Labs.Hours(p.Hours), p.IsYou ? "\uE77B" : "\uE716",
                 subtitle: shared.Count > 0 ? top + "  ·  Both playing " + string.Join(", ", shared.Take(3)) : top);
             if (p.IsYou) row.FontWeight = FontWeights.Bold;
         }
@@ -762,18 +762,18 @@ public sealed class StyleScheduleScreen : ListScreen
         AddRow("Style schedule", on ? "On" : "Off", "\uE823", click: () => { Labs.Set("styleschedule", !on); UiSound.Select(); Rebuild(); },
             subtitle: "A different style for mornings and nights or weekends (Mythical, Legendary or your own, mixed as you like), or a random Advanced style each day");
         string mode = Labs.ScheduleMode;
-        AddRow("Change", mode switch { "weekend" => "Weekdays and weekends", "random" => "A random Advanced style each day", _ => "Mornings and nights" }, "", click: () => _ = ChooseModeAsync());
+        AddRow("Change", mode switch { "weekend" => "Weekdays and weekends", "random" => "A random Advanced style each day", _ => "Mornings and nights" }, "\uE823", click: () => _ = ChooseModeAsync());
         if (mode == "daynight")
         {
-            AddRow("Day style", NameOf(Labs.Get("schedule.day")), "", click: () => _ = ChooseStyleAsync("schedule.day"), subtitle: $"From {Labs.Get("schedule.morningHour", "7")}:00");
-            AddRow("Night style", NameOf(Labs.Get("schedule.night")), "", click: () => _ = ChooseStyleAsync("schedule.night"), subtitle: $"From {Labs.Get("schedule.nightHour", "19")}:00");
-            AddRow("Morning starts at", Labs.Get("schedule.morningHour", "7") + ":00", "", click: () => _ = ChooseHourAsync("schedule.morningHour", 4, 11));
-            AddRow("Night starts at", Labs.Get("schedule.nightHour", "19") + ":00", "", click: () => _ = ChooseHourAsync("schedule.nightHour", 16, 23));
+            AddRow("Day style", NameOf(Labs.Get("schedule.day")), "\uE706", click: () => _ = ChooseStyleAsync("schedule.day"), subtitle: $"From {Labs.Get("schedule.morningHour", "7")}:00");
+            AddRow("Night style", NameOf(Labs.Get("schedule.night")), "\uE708", click: () => _ = ChooseStyleAsync("schedule.night"), subtitle: $"From {Labs.Get("schedule.nightHour", "19")}:00");
+            AddRow("Morning starts at", Labs.Get("schedule.morningHour", "7") + ":00", "\uE823", click: () => _ = ChooseHourAsync("schedule.morningHour", 4, 11));
+            AddRow("Night starts at", Labs.Get("schedule.nightHour", "19") + ":00", "\uE823", click: () => _ = ChooseHourAsync("schedule.nightHour", 16, 23));
         }
         else if (mode == "weekend")
         {
-            AddRow("Weekday style", NameOf(Labs.Get("schedule.weekday")), "", click: () => _ = ChooseStyleAsync("schedule.weekday"));
-            AddRow("Weekend style", NameOf(Labs.Get("schedule.weekend")), "", click: () => _ = ChooseStyleAsync("schedule.weekend"));
+            AddRow("Weekday style", NameOf(Labs.Get("schedule.weekday")), "\uE821", click: () => _ = ChooseStyleAsync("schedule.weekday"));
+            AddRow("Weekend style", NameOf(Labs.Get("schedule.weekend")), "\uE787", click: () => _ = ChooseStyleAsync("schedule.weekend"));
         }
         else AddNote("Today's: " + NameOf(Labs.ScheduledStyle(DateTime.Now) ?? ""));
         AddNote("Choosing a style yourself in Themes still works; the schedule changes it again at the next switch.");
@@ -902,7 +902,21 @@ public sealed class UnlockablesScreen : ListScreen
     protected override void Build()
     {
         var rewards = Labs.Rewards(Host.AllGames, Host.Playtime, Host.Achievements, Host.Library);
-        AddNote("Play to earn these. Highlight colors apply straight away; outfits are for the Companion (Settings > Home screen).");
+        // 9.0.17: the companion at the top, trying on whichever outfit is highlighted.
+        var preview = new Canvas { Width = 120, Height = 120, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 2) };
+        var previewName = Ui.Text("", 18, "SubtleBrush");
+        previewName.HorizontalAlignment = HorizontalAlignment.Center;
+        previewName.Margin = new Thickness(0, 0, 0, 6);
+        void Try(string outfit, string label)
+        {
+            CompanionArt.Draw(preview, CompanionArt.SpeciesId, CompanionArt.ColorHex, "happy", false, outfit, cell: 10);
+            previewName.Text = label;
+        }
+        Try(Labs.Outfit, Labs.Outfit.Length > 0 ? CompanionArt.OutfitName(Labs.Outfit) + " (wearing it)" : CompanionArt.Name);
+        Rows.Children.Add(preview);
+        Rows.Children.Add(previewName);
+        AddNote("Play to earn these. Highlight colors apply straight away; outfits are for the Companion (Settings > Home screen). Highlight an outfit to see it on your companion.");
+
         foreach (var group in rewards.GroupBy(r => r.Kind))
         {
             AddHeader(group.Key == "color" ? "Highlight colors" : "Companion outfits");
@@ -911,9 +925,10 @@ public sealed class UnlockablesScreen : ListScreen
                 var reward = r;
                 bool earned = r.Progress >= 1;
                 bool inUse = r.Kind == "color" ? string.Equals(Host.Settings.AccentColor, r.Value, StringComparison.OrdinalIgnoreCase) : Labs.Outfit == r.Value;
-                var row = AddRow(r.Name, earned ? (inUse ? "In use" : "Earned") : $"{r.Progress * 100:0}%", earned ? "" : "",
-                    click: earned ? () => Use(reward, inUse) : null, subtitle: r.Goal);
+                var row = AddRow(r.Name, earned ? (inUse ? "In use" : "Earned") : $"{r.Progress * 100:0}%", earned ? "\uE73E" : "\uE72E",
+                    click: earned ? () => Use(reward, inUse) : () => { }, subtitle: r.Goal);
                 if (!earned) row.Opacity = 0.6;
+                if (r.Kind == "outfit") row.GotKeyboardFocus += (_, _) => Try(reward.Value, CompanionArt.OutfitName(reward.Value) + (earned ? "" : $"  \u00b7  {reward.Progress * 100:0}% there"));
             }
         }
     }
@@ -1007,7 +1022,7 @@ public sealed class MoodScreen : Screen
             if (picked)
             {
                 var check = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Background = Brushes.White, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12),
-                    Child = new TextBlock { Text = "", FontFamily = Ui.IconFont, FontSize = 14, Foreground = new SolidColorBrush(look.To), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+                    Child = new TextBlock { Text = "\uE73E", FontFamily = Ui.IconFont, FontSize = 14, Foreground = new SolidColorBrush(look.To), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
                 face.Children.Add(check);
             }
             var tile = Ui.Tile(face);
@@ -1055,7 +1070,7 @@ public sealed class MoodScreen : Screen
         }
         _results.Children.Add(row);
 
-        var again = Ui.Row("Pick again", null, "", subtitle: "Three more for the same mood");
+        var again = Ui.Row("Pick again", null, "\uE72C", subtitle: "Three more for the same mood");
         again.Width = 420;
         again.HorizontalAlignment = HorizontalAlignment.Center;
         again.Margin = new Thickness(0, 8, 0, 0);
@@ -1081,7 +1096,7 @@ public sealed class MoodScreen : Screen
         var playBadge = new Border { CornerRadius = new CornerRadius(14), Padding = new Thickness(12, 5, 14, 6), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 14, 16) };
         playBadge.SetResourceReference(Border.BackgroundProperty, "AccentBrush");
         var playRow = new StackPanel { Orientation = Orientation.Horizontal };
-        playRow.Children.Add(new TextBlock { Text = "", FontFamily = Ui.IconFont, FontSize = 13, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 7, 0) });
+        playRow.Children.Add(new TextBlock { Text = "\uE768", FontFamily = Ui.IconFont, FontSize = 13, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 7, 0) });
         playRow.Children.Add(new TextBlock { Text = game.IsRunning ? "Resume" : "Play", FontSize = 14, FontWeight = FontWeights.Bold, Foreground = Brushes.White });
         playBadge.Child = playRow;
         art.Children.Add(playBadge);
@@ -1110,12 +1125,12 @@ public sealed class MoodScreen : Screen
             c.Child = r;
             facts.Children.Add(c);
         }
-        Chip("", GenreCache.Of(game) ?? "");
-        if (HowLongToBeat.Cached(game).Times is { Main: > 0 } t) Chip("", "About " + Labs.Hours(t.Main) + " to finish");
+        Chip("\uE8EC", GenreCache.Of(game) ?? "");
+        if (HowLongToBeat.Cached(game).Times is { Main: > 0 } t) Chip("\uE916", "About " + Labs.Hours(t.Main) + " to finish");
         double played = Host.Playtime.TotalSeconds(game.Key);
         if (played < 60 && game.IsSteam && SteamLibrary.GetPlaytimeMinutes(game.AppId) is int steamMinutes) played = steamMinutes * 60.0;
-        Chip("", played >= 60 ? PlaytimeStore.Format(played) + " played" : "Not played yet");
-        if (game.IsSteam && Host.Achievements.ProgressOf(game.AppId) is { Total: > 0 } a) Chip("", $"{a.Unlocked}/{a.Total} achievements");
+        Chip("\uE823", played >= 60 ? PlaytimeStore.Format(played) + " played" : "Not played yet");
+        if (game.IsSteam && Host.Achievements.ProgressOf(game.AppId) is { Total: > 0 } a) Chip("\uE734", $"{a.Unlocked}/{a.Total} achievements");
         info.Children.Add(facts);
         string when = game.RecentAt > DateTime.MinValue ? "Last played " + Ui.Ago(game.RecentAt) : game.IsSteam ? "Steam" : game.Source;
         if (!string.IsNullOrEmpty(when)) info.Children.Add(Ui.Text(when, 13, "SubtleBrush"));
@@ -1313,31 +1328,36 @@ public sealed class CompanionScreen : ListScreen
         if (!Labs.On("companion")) AddNote("Turn on Companion in Settings > Home screen to see it on Home.");
 
         AddHeader("Look");
-        AddRow("Character", CompanionArt.Species.First(s => s.Id == CompanionArt.SpeciesId).Name, "", click: async () =>
-        {
-            int c = await Host.AskAsync("Character", null, CompanionArt.Species.Select(s => s.Name).ToArray());
-            if (c >= 0) Change("companion.species", CompanionArt.Species[c].Id);
-        });
-        AddRow("Color", CompanionArt.Colors.FirstOrDefault(c => c.Hex == CompanionArt.ColorHex).Name ?? "Custom", "", click: async () =>
-        {
-            int c = await Host.AskAsync("Color", null, CompanionArt.Colors.Select(x => x.Name).ToArray());
-            if (c >= 0) Change("companion.color", CompanionArt.Colors[c].Hex);
-        });
-        AddRow("Name", CompanionArt.Name, "", click: async () =>
+        // 9.0.17: each choice shown on the companion itself.
+        AddRow("Character", CompanionArt.Species.First(s => s.Id == CompanionArt.SpeciesId).Name, "\uE77B", click: () =>
+            Host.Push(new CompanionPickerScreen("Character", "Who keeps you company on Home. Each one has its own noises and walk.",
+                CompanionArt.Species.Select(sp => new CompanionPickerScreen.Choice(sp.Id, sp.Name, sp.Id, CompanionArt.ColorHex, CompanionArt.Accessory)).ToList(),
+                CompanionArt.SpeciesId, c => Change("companion.species", c.Id))));
+        AddRow("Color", CompanionArt.Colors.FirstOrDefault(c => c.Hex == CompanionArt.ColorHex).Name ?? "Custom", "\uE790", click: () =>
+            Host.Push(new CompanionPickerScreen("Color", "Your " + CompanionArt.Species.First(sp => sp.Id == CompanionArt.SpeciesId).Name.ToLowerInvariant() + " in each color.",
+                CompanionArt.Colors.Select(col => new CompanionPickerScreen.Choice(col.Hex, col.Name, CompanionArt.SpeciesId, col.Hex, CompanionArt.Accessory)).ToList(),
+                CompanionArt.ColorHex, c => Change("companion.color", c.Id))));
+        AddRow("Name", CompanionArt.Name, "\uE70F", click: async () =>
         {
             var n = await Host.PromptAsync("Name your companion", null, CompanionArt.Name);
             if (n != null && n.Trim().Length > 0) Change("companion.name", n.Trim().Length > 16 ? n.Trim()[..16] : n.Trim());
         });
-        AddRow("Outfit", CompanionArt.OutfitName(Labs.Outfit), "", click: () => Host.Push(new UnlockablesScreen()), subtitle: "Earned in Unlockables");
+        AddRow("Outfit", CompanionArt.OutfitName(Labs.Outfit), "\uE734", click: () => Host.Push(new UnlockablesScreen()), subtitle: "Earned in Unlockables");
         // 9.0.4: accessories, worn with any outfit.
-        AddRow("Accessory", CompanionArt.AccessoryName(CompanionArt.Accessory), "\uE734", click: async () =>
+        AddRow("Accessory", CompanionArt.AccessoryName(CompanionArt.Accessory), "\uE734", click: () =>
         {
-            var owned = CompanionArt.Accessories.Where(a => CompanionLife.Owns("acc:" + a.Id)).ToList();
-            int c = await Host.AskAsync("Accessory", CompanionLife.On ? "More in the Star Shop in the companion playground." : "Turn on Companion playground in Settings > Experimental to earn star bits for more.",
-                new[] { "None" }.Concat(owned.Select(a => a.Name)).Append("Cancel").ToArray());
-            if (c < 0 || c > owned.Count) return;
-            Change("companion.accessory", c == 0 ? "" : owned[c - 1].Id);
-        }, subtitle: "Bow tie, glasses, freckles and rosy cheeks to start; more in the playground's Star Shop");
+            var choices = new List<CompanionPickerScreen.Choice> { new("", "None", CompanionArt.SpeciesId, CompanionArt.ColorHex, "") };
+            foreach (var a in CompanionArt.Accessories)
+            {
+                bool owned = CompanionLife.Owns("acc:" + a.Id);
+                string? locked = owned ? null : CompanionLife.On ? CompanionLife.AccessoryPrice(a.Id) + " \u2605 in the Star Shop" : "In the playground's Star Shop";
+                choices.Add(new(a.Id, a.Name, CompanionArt.SpeciesId, CompanionArt.ColorHex, a.Id, locked));
+            }
+            // The ones it has first, then the rest with their price.
+            choices = choices.Take(1).Concat(choices.Skip(1).OrderBy(c => c.Locked != null)).ToList();
+            Host.Push(new CompanionPickerScreen("Accessory", "Worn with any outfit. " + (CompanionLife.On ? "Earn star bits in the companion playground for the rest." : "Turn on Companion playground in Settings > Experimental to earn star bits for more."),
+                choices, CompanionArt.Accessory, c => Change("companion.accessory", c.Id)));
+        }, subtitle: "Bow tie, glasses, freckles, rosy cheeks, a bandage and a beauty mark to start; more in the playground's Star Shop");
         if (CompanionLife.On)
         {
             CompanionLife.CatchUp();
@@ -1368,7 +1388,7 @@ public sealed class CompanionScreen : ListScreen
                                             ("hug", "Hug"), ("boop", "Boop"), ("sulk", "Sulk") })
         {
             var action = id;
-            AddRow(label, null, "", click: () => Host.CompanionReact(action));
+            AddRow(label, null, "\uE768", click: () => Host.CompanionReact(action));
         }
         AddHeader("Game acts");
         AddNote("Highlight a game on Home for a moment and it acts out what kind of game it is, and says something about it: how long you've played, " +
@@ -1472,7 +1492,7 @@ public sealed class ChangelogScreen : ListScreen
             }
         }
         if (_shown < _versions.Count)
-            AddRow("Show older versions", $"{_versions.Count - _shown} more", "", click: () => { _shown += 10; Rebuild(); });
+            AddRow("Show older versions", $"{_versions.Count - _shown} more", "\uE74A", click: () => { _shown += 10; Rebuild(); });
     }
 }
 
@@ -1509,10 +1529,10 @@ public sealed class CoverLabsScreen : ListScreen
             return;
         }
         string dark = Labs.Get("coverdim.dark", "40"), soft = Labs.Get("coverdim.soft", "0");
-        AddRow("Brightness", dark switch { "20" => "Slightly darker", "30" => "Darker", "40" => "Dark", "55" => "Very dark", "70" => "Darkest", _ => dark + "%" }, "",
+        AddRow("Brightness", dark switch { "20" => "Slightly darker", "30" => "Darker", "40" => "Dark", "55" => "Very dark", "70" => "Darkest", _ => dark + "%" }, "\uE706",
             click: () => Pick("coverdim.dark", new[] { ("20", "Slightly darker"), ("30", "Darker"), ("40", "Dark"), ("55", "Very dark"), ("70", "Darkest") }),
             subtitle: "How much darker covers are when they aren't highlighted");
-        AddRow("Contrast", soft switch { "0" => "Unchanged", "15" => "A little softer", "30" => "Softer", "45" => "Much softer", _ => soft + "%" }, "",
+        AddRow("Contrast", soft switch { "0" => "Unchanged", "15" => "A little softer", "30" => "Softer", "45" => "Much softer", _ => soft + "%" }, "\uE793",
             click: () => Pick("coverdim.soft", new[] { ("0", "Unchanged"), ("15", "A little softer"), ("30", "Softer"), ("45", "Much softer") }),
             subtitle: "Lower contrast makes the other covers recede further");
         AddNote("The highlighted cover is always shown as it is.");

@@ -48,7 +48,7 @@ public sealed class Settings
     public bool WelcomeMessage { get; set; } = true;
     public bool SteamArtworkFirst { get; set; }              // set once SteamGridDB copies of Steam's own art were let go (6.3)
     public bool ShowHowLongToBeat { get; set; } = true;       // game pages: HowLongToBeat times (kept in hltb.json)
-    public bool ShowPlayerStats { get; set; }                 // game pages: players now, peaks, owners, monthly players, review history
+    public bool ShowPlayerStats { get; set; } = true;                 // game pages: players now, peaks, owners, monthly players, review history
     public bool ShowClock { get; set; } = true;
     public int WallpaperBlur { get; set; }                  // still wallpaper blur radius (same levels as the moving background)
     public string UiFont { get; set; } = "style";           // app-wide font, or "style" for the UI style's own
@@ -74,6 +74,8 @@ public sealed class Settings
     public string WidgetBackground { get; set; } = "squaredeck";
     /// <summary>The widget's quick settings that show, in order (null: all of them). Changed from the widget's Edit button or Settings.</summary>
     public List<string>? WidgetQuick { get; set; }
+    /// <summary>9.0.16: the order of the round buttons under the games, by id (null: as they come). See MainWindow.HomeButtonIds.</summary>
+    public List<string>? HomeButtonOrder { get; set; }
     /// <summary>Every quick setting the widget has (id, name), in its own order.</summary>
     public static readonly (string Id, string Name)[] WidgetQuickTiles =
     {
@@ -85,7 +87,8 @@ public sealed class Settings
     };
     /// <summary>The widget's cards that show, in order (Power always shows).</summary>
     public List<string>? WidgetSections { get; set; } = new(WidgetSectionIds);
-    public static readonly string[] WidgetSectionIds = { "game", "live", "ally", "quick" };
+    public static readonly string[] WidgetSectionIds = { "game", "live", "ally", "launch", "favorites", "quick" };
+    public bool WidgetCards917 { get; set; } // 9.0.17: Launch and Favorites joined the cards that can be hidden (on to start with)
     /// <summary>The widget's Close game button (two presses) on the game card.</summary>
     public bool WidgetCloseGame { get; set; } = true;
     public string OsdWhen { get; set; } = "games";        // games (full-screen programs) | always
@@ -128,7 +131,10 @@ public sealed class Settings
     public bool LabsGraduated8168 { get; set; }
     public bool LabsGraduatedPcTools { get; set; }
     public bool LabsGraduated85102 { get; set; }
+    /// <summary>9.0.20: the companion playground left Experimental (on once, with a switch).</summary>
+    public bool LabsGraduated9020 { get; set; }
     public bool NavSwitch2_903 { get; set; }
+    public bool PlayerStats913 { get; set; }  // 9.0.13: Player stats on game details is on by default
     /// <summary>Explorer's sidebar is open (L1 or F1 folds it away).</summary>
     public bool ExplorerSidebarOpen { get; set; } = true;
 
@@ -244,6 +250,7 @@ public sealed class Settings
 
     /// <summary>Controller rumble strength, 0 (off) to 100. -1 means "not set yet" (older settings files).</summary>
     public int RumbleStrength { get; set; } = -1;
+    public bool Rumble917 { get; set; } // 9.0.17: interface rumble on by default
 
     /// <summary>Silence Windows notification pop-ups while a game is running.</summary>
     public bool DoNotDisturb { get; set; }
@@ -259,6 +266,13 @@ public sealed class Settings
 
     /// <summary>While a game runs, the summon shortcut opens SquareDeck's Game Bar widget instead of the whole launcher.</summary>
     public bool InGameQuickMenu { get; set; } = true;
+
+    /// <summary>9.0.21: what opens over a game: "widget" (SquareDeck's Xbox Game Bar widget) or "squaredeck" (the quick menu).</summary>
+    public string InGameMenu { get; set; } = "widget";
+    /// <summary>9.0.21: the quick menu's side: left or right.</summary>
+    public string QuickMenuSide { get; set; } = "left";
+    /// <summary>9.0.21: the quick menu takes the focus (and so the controller) from the game while it's open.</summary>
+    public bool QuickMenuFocus { get; set; } = true;
 
     /// <summary>Tint the highlight to match the highlighted game's cover.</summary>
     public bool GameAccent { get; set; }
@@ -385,11 +399,12 @@ public sealed class Settings
 
     /// <summary>Pages LB / RB skip over (they can still be opened from their buttons).</summary>
     public List<string> PagesOff { get; set; } = new() { "library", "captures", "music", "friends", "settings" };
-    public bool ShowFriendsButton { get; set; }
+    public bool ShowFriendsButton { get; set; } = true;
     public bool ShowExplorerButton { get; set; } = true;
 
     /// <summary>The News button on the home screen.</summary>
-    public bool ShowNewsButton { get; set; }
+    public bool ShowNewsButton { get; set; } = true;
+    public bool HomeButtons913 { get; set; } // 9.0.13: every home button on (My Device moved to Settings)
 
     /// <summary>
     /// 8.5.15: the home buttons were set once to the new defaults (Home, Favorites, Apps, Captures, Multimedia, Web
@@ -519,6 +534,41 @@ public sealed class Settings
     /// <summary>The triggers' dead zone (inner) and where they reach full (outer), percent.</summary>
     public int AllyTriggerInner { get; set; }
     public int AllyTriggerOuter { get; set; } = 100;
+    // 9.0.13: the left and right sides on their own. The values above are the left stick, the left trigger and the left
+    // motor; these are the right ones (-1: the same as the left, as before 9.0.13).
+    public int AllyVibrationR { get; set; } = -1;
+    public int AllyStickInnerR { get; set; } = -1;
+    public int AllyStickOuterR { get; set; } = -1;
+    public int AllyTriggerInnerR { get; set; } = -1;
+    public int AllyTriggerOuterR { get; set; } = -1;
+    /// <summary>The sticks' anti-deadzone (0 to 32%): the smallest movement past the dead zone a game sees, for games with dead zones of their own.</summary>
+    public int AllyAdzL { get; set; }
+    public int AllyAdzR { get; set; }
+    /// <summary>Each stick's response curve: four points of "movement, response" in percent, comma-separated ("" is straight).</summary>
+    public string AllyCurveL { get; set; } = "";
+    public string AllyCurveR { get; set; } = "";
+    /// <summary>9.0.13: gyro aiming. "off", or "mouse" (tilting the Ally moves the mouse, for games that aim with a mouse).</summary>
+    public string GyroMode { get; set; } = "off";
+    public int GyroSensitivity { get; set; } = 100;
+    public int GyroDeadzone { get; set; }
+    /// <summary>When the gyro aims: "always", or while a button is held ("lb", "rb", "lt", "rt", "ls", "rs", "lbrb").</summary>
+    public string GyroButton { get; set; } = "always";
+    public bool GyroInvertX { get; set; }
+    public bool GyroInvertY { get; set; }
+    /// <summary>Turning the Ally (yaw) or tilting it sideways (roll) moves the aim left and right.</summary>
+    public string GyroHorizontal { get; set; } = "yaw";
+    public bool GyroOnlyInGames { get; set; } = true;
+    /// <summary>The gyro's resting reading, measured by Calibration > Gyro (degrees per second), taken off every reading.</summary>
+    public double GyroBiasX { get; set; }
+    public double GyroBiasY { get; set; }
+    public double GyroBiasZ { get; set; }
+    /// <summary>9.0.13 OLED care: SquareDeck's picture moves by a few pixels now and then, so nothing stays in the same place.</summary>
+    public bool OledPixelShift { get; set; }
+    /// <summary>OLED care: after this many idle minutes on SquareDeck (0 off), a pixel refresh plays until you press something.</summary>
+    public int OledRefreshMinutes { get; set; }
+
+    /// <summary>9.0.18: how the user manual was last turned: 0 as usual, 90 turned right, 270 turned left.</summary>
+    public int ManualRotation { get; set; }
     /// <summary>The one-time note that SquareDeck is made for the ROG Ally family was shown (on any other PC, 8.5.81).</summary>
     public bool NotAllyNoticeShown { get; set; }
     /// <summary>"My Device" on the home screen's buttons (handhelds only).</summary>
@@ -734,6 +784,12 @@ public sealed class Settings
                         s.ShowFriendsButton = s.ShowNewsButton = s.ShowMyDeviceButton = false;
                         s.HomeButtons8515 = true;
                     }
+                    if (!s.HomeButtons913)
+                    {
+                        // 9.0.13: with My Device gone from the row, every button under the games is on (each can still be hidden in Settings).
+                        s.ShowMusicButton = s.ShowBrowserButton = s.ShowExplorerButton = s.ShowFriendsButton = s.ShowNewsButton = true;
+                        s.HomeButtons913 = true;
+                    }
                     if (!s.TdpBoost8542)
                     {
                         s.TdpBoostWindow = "short"; // short bursts above the limit, as ASUS's own modes allow: no more sluggish menus
@@ -743,6 +799,11 @@ public sealed class Settings
                     {
                         s.BrowserKeepOpen = false; // pages you've left don't stay loaded in the background
                         s.BrowserKeep8539 = true;
+                    }
+                    if (!s.PlayerStats913)
+                    {
+                        s.ShowPlayerStats = true; // 9.0.13: on for everyone once; the switch stays in Settings > Library and stores
+                        s.PlayerStats913 = true;
                     }
                     if (!s.NavSwitch2_903)
                     {
@@ -810,6 +871,11 @@ public sealed class Settings
                     foreach (var k in s.AllyBindings.Where(b => b.Value == "quickmenu").Select(b => b.Key).ToList()) s.AllyBindings[k] = "widget";
                     s.WidgetTheme ??= "squaredeck";
                     s.WidgetSections ??= new List<string>(WidgetSectionIds);
+                    if (!s.WidgetCards917)
+                    {
+                        foreach (var id in new[] { "launch", "favorites" }) if (!s.WidgetSections.Contains(id)) s.WidgetSections.Add(id);
+                        s.WidgetCards917 = true;
+                    }
                     s.SpotifyClientId ??= "";
                     s.MusicService ??= "youtube";
                     s.SpotifyToken ??= "";
@@ -840,6 +906,13 @@ public sealed class Settings
                     s.AspectRatio ??= "16:9";
                     s.SetupDone ??= true;                                   // an existing user: don't run first-time setup
                     if (s.RumbleStrength < 0) s.RumbleStrength = s.Vibration ? 60 : 0;
+                    if (!s.Rumble917)
+                    {
+                        // 9.0.17: the controller's little buzzes in the interface are on by default (Settings > Controller turns them off).
+                        if (s.RumbleStrength <= 0) s.RumbleStrength = 60;
+                        s.RumbleOnButtons = true;
+                        s.Rumble917 = true;
+                    }
                     s.LaunchChimeFile ??= "";
                     s.SoundSet ??= "classic";
                     s.SoundFolder ??= "";
@@ -860,7 +933,7 @@ public sealed class Settings
         {
             // Corrupt settings file: fall back to defaults.
         }
-        return new Settings { ThemeMode = "system", SetupDone = false, RumbleStrength = 0 };
+        return new Settings { ThemeMode = "system", SetupDone = false, RumbleStrength = 60, Rumble917 = true };
     }
 
     public void Save()

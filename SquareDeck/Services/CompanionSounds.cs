@@ -79,6 +79,14 @@ public static class CompanionSounds
                     "clap" => Join(new List<float[]> { Noise(0.04, 0.8), Thud(0.05) }),
                     "slurp" => Join(Enumerable.Range(0, 4).Select(_ => Join(new List<float[]> { Noise(0.05, 0.25), Sweep(600 * p, 300 * p, 0.04, Shape.Sine, 0.2, 0) })).ToList()),
                     "crunch" => Join(Enumerable.Range(0, 3).Select(_ => Join(new List<float[]> { Noise(0.035, 0.45), Silence(0.05) })).ToList()),
+                    // 9.0.17
+                    "snore" => Join(new List<float[]> { Sweep(90 * p, 70 * p, 0.55, Shape.Saw, 0.12, vibrato: 0.2), Silence(0.25), Sweep(320 * p, 260 * p, 0.35, Shape.Sine, 0.08, 0) }),
+                    "yawn" => Sweep(520 * p, 220 * p, 0.7, Shape.Sine, 0.3, vibrato: 0.05),
+                    "whistle" => Join(new List<float[]> { Sweep(1400 * p, 1900 * p, 0.18, Shape.Sine, 0.25, 0), Silence(0.05), Sweep(1900 * p, 1300 * p, 0.25, Shape.Sine, 0.25, 0) }),
+                    "splat" => Join(new List<float[]> { Noise(0.12, 0.6), Thud(0.14) }),
+                    "thud" => Thud(0.16),
+                    "flutter" => Join(Enumerable.Range(0, 6).Select(_ => Join(new List<float[]> { Noise(0.025, 0.2), Silence(0.05) })).ToList()),
+                    "ding" => Join(new List<float[]> { Sweep(1568 * p, 1568 * p, 0.08, Shape.Sine, 0.3, 0), Sweep(2093 * p, 2093 * p, 0.3, Shape.Sine, 0.25, 0) }),
                     _ => Array.Empty<float>(),
                 };
                 if (samples.Length == 0) return;

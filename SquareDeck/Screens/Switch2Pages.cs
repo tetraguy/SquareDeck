@@ -47,6 +47,8 @@ public static class Switch2Pages
         || screen is SoundsScreen            // Interface sounds: the sound set, navigation sound and loudness (8.5.81)
         || screen is EqScreen or EqPresetScreen // SquareDeck EQ (8.5.81)
         || screen is StreamFilterScreen      // Streaming service filters (8.5.89)
+        || screen is StoreAccountScreen      // Epic Games account and Xbox account (9.0.11)
+        || screen is UnlockablesScreen       // Unlockables: the outfits and highlight colors (9.0.17)
         || (ThemePages && screen is ThemeScreen or WallpaperEngineScreen); // with the Switch style: My themes, looks and wallpaper
 
     /// <summary>
@@ -90,6 +92,8 @@ public static class Switch2Pages
         DriverCheckScreen => "\uE964",
         StorageAdvisorScreen => "\uEDA2",
         AdrenalineHookScreen => "\uE768",
+        StoreAccountScreen => "\uE77B",
+        UnlockablesScreen => "\uE734",
         TerminalScreen => "\uE756",
         HomeAppScreen => "\uE7FC",
         WhatsNewScreen => "\uE734",

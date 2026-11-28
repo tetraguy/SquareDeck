@@ -266,6 +266,20 @@ public static class WindowActivator
         catch (Exception) { }
     }
 
+    /// <summary>9.0.21: gives the focus back to a window (the game, when the quick menu closes).</summary>
+    public static void Focus(IntPtr hwnd)
+    {
+        try
+        {
+            if (hwnd == IntPtr.Zero) return;
+            const byte Alt = 0x12;
+            keybd_event(Alt, 0, 0, UIntPtr.Zero);
+            keybd_event(Alt, 0, 0x2, UIntPtr.Zero);
+            SetForegroundWindow(hwnd);
+        }
+        catch (Exception) { }
+    }
+
     public static void BringToFront(Window window)
     {
         try

@@ -3,6 +3,158 @@
 All notable changes to SquareDeck, newest first. The launcher's update page reads this file and shows every
 version newer than the one installed (each section starts at its "## version" heading).
 
+## 9.0.21
+
+- **Choose your in-game menu: the Xbox Game Bar widget or SquareDeck's own quick menu.** Settings > Controller and Game Bar widget > In-game menu. The widget stays the default.
+  - Whichever you pick is what the summon buttons, the keyboard shortcut and the Ally's quick-menu button open over a game.
+  - **The new quick menu** slides in over whatever is in front: a game, a cloud game, the desktop or any app. It's drawn in your UI style's colors, with the time and battery at the top.
+  - Four tabs, switched with LB and RB:
+    - **Game:** the game's cover and time played; Resume, SquareDeck, Screenshot, Record, Keyboard, Task Manager, Show desktop and Game Bar; Close game (press A twice); Sleep, Lock, Restart and Shut down.
+    - **Performance:** live FPS, CPU, memory, TDP, fan and battery; a TDP slider, four presets, "Keep for this game" and "Back to usual"; ASUS operating mode and fans; frame rate cap; refresh rate; the performance overlay, CPU boost, Radeon Chill and image sharpening.
+    - **Quick settings:** volume (A mutes), brightness, what's playing with previous / play / next, and your quick tiles (the same ones as the widget's Quick card).
+    - **Device:** battery and time left; the Ally's lights, mouse mode and Command Center; Wi-Fi, Bluetooth, airplane mode, Do not disturb, night light and HDR; and the menu's own side, or switching back to the widget.
+  - Controls: the d-pad moves, left / right also adjust sliders, A chooses, X takes a screenshot, Y goes to SquareDeck, and B or the summon buttons go back to the game. Touch, the mouse and the keyboard work too. Tapping outside the panel goes back to the game.
+  - It does everything through the same calls as the widget, so the two always agree.
+  - "Quick menu takes the controller" (on by default) gives the menu the focus, so the game stops reacting to the controller while it's open. The game gets the focus back when the menu closes. Turn it off if an older game in exclusive full screen minimizes when the menu opens.
+  - Also in settings: the side it slides in from (left or right), and Open the quick menu now.
+- **Six new moving backgrounds:**
+  - Pixel art: Walking By, Ponder and Just Vibes.
+  - Waves: Crimson Wave.
+  - New "Dark and moody" group: Matrix and Intrusive Thoughts.
+
+## 9.0.20
+
+- **Epic Games account, Xbox account and the companion playground are out of Experimental.**
+  - The Epic Games and Xbox accounts are now in Settings > Library and stores > Store accounts. Each shows whether you're signed in, and opens the account page to sign in, refresh, or sign out.
+  - First-time setup offers both sign-ins on the Games page, under "Your Epic Games and Xbox accounts". It no longer says Experimental.
+  - The companion playground is on for everyone once. Its switch, and a way to open it, are under the companion in Settings > Home screen > Covers and companion. The companion's reminders now point there.
+
+## 9.0.19
+
+- **User manual now opens ASUS's manual page instead of a bundled PDF.** SquareDeck no longer ships the manuals.
+  - Settings > your device > General > Device Info > User manual (or the bottom of the device's main settings page) opens your model's manual page on ASUS's site, inside SquareDeck, with the usual controller browsing (pointer, scrolling, back and forward). The ROG Xbox Ally and Xbox Ally X share a page.
+  - A PDF manual you pick there is downloaded once into SquareDeck's data folder and opens in SquareDeck's manual reader, with Y to turn it sideways as before. Opening it again uses the saved copy.
+
+## 9.0.18
+
+- **Your handheld's user manual, inside SquareDeck.** SquareDeck now comes with ASUS's manual for each ROG Ally model and opens the one for the model it detects. The ROG Xbox Ally and Xbox Ally X share a manual.
+  - Open it from Settings > your device > General > Device Info > User manual, or from the bottom of the device's main settings page. The option only shows when SquareDeck has recognized your model.
+  - Y turns the whole page sideways (right, then left, then back), so you can hold the handheld upright and read it like a book. The buttons and the right stick turn with it, so up always scrolls up. The way you turned it is kept for next time.
+  - The d-pad scrolls and turns pages, LB and RB (or A) go a page back or forward, LT and RT zoom, and X sets the zoom back to fit. Touch, the mouse wheel and Page Up / Page Down work too.
+  - Pages are drawn a few at a time, so the manual opens straight away and uses little memory.
+
+## 9.0.17
+
+- **Picking a character, color or accessory now shows a preview** (Settings > Experimental > Companion).
+  - Choices are laid out as cards, each with your companion drawn in that look. A big preview follows your highlight, blinking and bobbing.
+  - Accessories you own come first. Locked ones show their price.
+- **Unlockables page in the Switch style**, with your companion at the top trying on whichever outfit you highlight. Rows show a check when owned and a lock when not.
+- **12 new outfits:** beanie, chef's hat, cowboy hat, pirate hat, antlers, beret, knight's helmet, cat ears, Santa hat, propeller cap, graduation cap and sprout. Each one unlocks with play goals.
+- **12 new accessories:** bandage, beauty mark, earring, medal, lei, gem, clown nose, goggles, sparkles, bubble, whiskers and neck bandana. The bandage and beauty mark are free.
+- **3 new colors:** ocean, rose and lime.
+- **The companion naps when the handheld sleeps or its screen turns off.** It wakes up 15 seconds after the handheld does, once SquareDeck is in front. Poke it while it naps and it mumbles.
+- **Picking it up and putting it down**
+  - It hangs on four ways: swinging, flailing, spinning or chilling.
+  - It notices when you shake it or hold it for a long time.
+  - It lands five ways: a bounce, a superhero landing, a headstand, a splat from up high, and a tumble when you fling it.
+- **10 new things it does on its own:** sitting on a ledge, a paper plane, chasing a butterfly, pushing against the page, hide and seek, a trampoline, a lasso, sweeping up, balancing a star and a catnap.
+- **More to say and new sounds:** more lines and comebacks, plus snore, yawn, whistle, splat, flutter and ding sounds.
+- **Leaving the companion playground now asks first.**
+- **Game Bar widget:** the Launch and Favorites sections can now be turned on or off in Settings > Game Bar widget.
+- **Rumble on button presses in the UI is now on by default** (60% strength). Existing installs get it turned on once.
+
+## 9.0.16
+
+- **Reorder the buttons under the games** (Settings > Home screen > Buttons under the games > Reorder the buttons).
+  - The row is shown as it looks on Home, with each button's own icon and color, numbered.
+  - Pick a button up with A (it lifts off the row), carry it left or right (LB and RB take it to either end), and put it down with A. B puts it back where it was.
+  - Y shows or hides the buttons that can be hidden (hidden ones stay in the preview, faded), and X puts the usual order back.
+  - Every change shows on Home straight away. Tapping works too: tap a button to pick it up, tap a spot to put it down.
+
+## 9.0.15
+
+- **Home:** the Stores button's icon is yellow, as the other round buttons have colors of their own. Styles that draw their own icons (some Mythical styles) keep theirs.
+
+## 9.0.14
+
+- **Gamepad Mode, closer to Armoury Crate:**
+  - Left Stick and Right Stick tabs, each with its own response curve, dead zone, full travel and anti-deadzone. The curve editor works like Armoury Crate's: four points on a grid, five presets, and you can try the stick while editing.
+  - Each trigger and each side's vibration has its own settings, plus Mirror triggers. All of it lives in the controller itself, so it works in every game.
+  - Until you change the right side, it follows the left, as before.
+- **Gyro (new):** aim by turning and tilting the Ally; it moves the mouse, for games that aim with one.
+  - Sensitivity, dead zone, turn (yaw) or tilt sideways (roll) for left and right, and either axis inverted.
+  - An enable button (always on, or while LB, RB, LT, RT or a stick press is held). It works only while a game is running, unless you turn that off.
+- **Calibration (new):** Armoury Crate's cards for the left stick, right stick, left trigger, right trigger and gyro, each with its own screen in the Switch 2 look.
+  - Sticks: leave the stick alone, then turn it in big circles. That stick gets a dead zone just past any drift, and full travel set to how far it reaches.
+  - Triggers: let go, then press all the way.
+  - Gyro: lay the Ally flat; its resting reading is taken off from then on.
+  - Back to Default Settings (Y) puts a stick or trigger back to its factory calibration, in the controller.
+- **Display > OLED Settings (new):** pixel refresh (a screen of slow color bands after a chosen idle time, with Try it), pixel shift (SquareDeck's picture moves by a few pixels every few minutes), and Windows' auto-hide taskbar, transparency effects and dark mode.
+- **Fixed:** the icons on the new ROG Ally pages (9.0.13) showed as text.
+- **Home:** LT and RT on the tiles (Home, Favorites and Apps) jump three tiles left or right, one after another. From the buttons below, they still skip songs while music plays.
+- **Home buttons:** every button under the games is on by default now that My Device has moved to Settings. Each can still be hidden in Settings.
+- **Player stats** on game details is on by default (the switch stays in Settings > Library and stores).
+- **Screen saver:** the companion no longer shows on top of it; it stays on the home screen.
+- **Top bar:** the battery icon is a little bigger.
+
+## 9.0.13
+
+- **The ROG Ally's section of Settings, rebuilt like Armoury Crate SE** and drawn in the Switch 2 style (your UI style's colors, the rimmed highlight, a line under the title).
+  - **Home page:** the device with Control Mode beside it; its Configure opens Gamepad Mode. Below is a grid of pages, three to a row: General, Performance, Update Center, Calibration, Power Management, Lighting, Audio, Display, Connection, Shortcuts & Key Binding, and Devices.
+  - **Pages:** each opens on its own, with its tabs down the left and their settings on the right, as Armoury Crate has them:
+    - Gamepad Mode: Key Mapping, Sticks, Trigger, Vibration, External Controller.
+    - General: Personalization, Real-time Monitor, Device Info, Storage, About.
+    - Performance: Operating Mode, System Stats, GPU Settings, CPU Settings, Fans, Advanced.
+    - Power Management: Battery Care, Eco Assist, Charging.
+    - Lighting: XBOX Button (on the Xbox Allys), Lighting, Settings.
+    - Shortcuts & Key Binding: Button Actions, Back Buttons.
+  - **Same settings:** every setting from before is still there, sorted into those pages. Search finds them on their page and tab. The TDP, temperature and fan tiles on My Device open Performance.
+- **Connections, right under Home in Settings:** Wi-Fi, Bluetooth, quick settings, the speed test and network troubleshooting now have their own section. The list reads Find a setting, Home, Connections. What's left of Network and browser is now called Web browser.
+
+## 9.0.12
+
+- **First-time setup, rebuilt** for everything added since it was last redone. System Setup (the Switch 2 look, in your style's colors) now goes: Hello → your ROG Ally → you → style → sound → home screen → buttons → games → companion → extras → ready.
+  - **Hello:** "Restore from a backup" sits beside "Use recommended settings", for moving to a new PC.
+  - **Your ROG Ally:** who runs the power, lights and buttons, battery care, and the stick lights: Match the UI style, Highlight color or Off. It shows whether this Ally has 8 or 4 light zones.
+  - **Style:** Switch and the Mythical styles first, in their order; then more Mythical, Legendary and every other style. Each is previewed live behind the page, music included, and the setup takes the style's colors as you pick.
+  - **Sound (new):** interface sounds, the navigation sound (Switch 2, Tick, Marimba, Kalimba, Droplet, Laser), loudness, and background music (the style's own, shuffle, or off).
+  - **Home screen (new):** game art, cover shapes drawn on one of your own covers, how covers sit on the row, game art backgrounds, Continue where you left off, and a moving background.
+  - **Games:** Steam sign-in, other launchers, and the Experimental Epic Games and Xbox / PC Game Pass accounts, signed in from here.
+  - **Companion (new):** turn it on, then pick its character, color and name.
+  - **Extras:** install the Game Bar widget, check for updates, what's new after an update, open at sign-in, startup animation, sale alerts and reduce motion.
+  - **Ready:** a summary of what you chose (each one goes back to its step), button tips, and places worth a look (Game Genie, Recomp Zone, Retro Lounge, the style gallery).
+- **Light effects on the ROG Ally, Ally X and Xbox Ally (four zones):** each of the 100 effects drawn LED by LED for the ROG Xbox Ally X20's eight zones now has a four-zone version of its own, instead of the eight LEDs averaged in pairs (which halved every moving light and lost anything that moved up and down).
+  - Lights going round a ring now swap between its two halves.
+  - Lights crossing the sticks run over the four zones in a row.
+  - Effects that rose from the bottom LEDs to the top (rain, tides, fire, sunrise, drips, volcano…) now move in from the outer halves, flash or pulse instead.
+  - The X20 keeps its eight-zone versions. Every other Ally uses four zones.
+  - The light effect picker's preview now shows each effect as your Ally will show it.
+- **My Device moves to Settings:** the My Device button is gone from under the home row. The page itself is unchanged and opens from the top of Settings, right under Your play time.
+
+## 9.0.11
+
+- **One tile per game across stores (Experimental store accounts).** A game you own on more than one of Steam, Epic Games and Xbox now shows once in Not installed, with the number of stores in the bottom-right corner (as Recomp Zone shows recomps). Choosing it asks which store to install it from. A game already installed from any store isn't listed as not installed from the others.
+- **Epic Games account: refreshing works.** The game list no longer fails when Epic lists a cover picture more than once, game details now come several at a time (and for namespaces with more than 50 items), and "Couldn't get your games" gives the real reason. Each step is noted in store-accounts.log.
+- **The Epic and Xbox account pages and their sign-in pages take the Switch style**, like the other Switch 2 pages: the title with its icon and line, the style's colors, the store's page in a card, and the store's own page in dark or light to match.
+
+## 9.0.10
+
+- **Xbox account (Experimental): new sign-in.** Xbox Live now refuses the sign-in SquareDeck used before (it answered 403), so signing in switches to the one the Minecraft launcher uses, which Xbox Live still accepts. Sign in again once; an older saved sign-in counts as signed out.
+- When Xbox Live refuses, store-accounts.log now also notes its error id, to make the reason easier to find.
+
+## 9.0.9
+
+- **Xbox account (Experimental): signing in now finishes.** After Microsoft's page, the sign-in is now handed to Xbox Live the way it expects, so the Xbox step stops failing and your games can load.
+- If a sign-in can't finish, the page now says why (for example, the account has no Xbox profile yet) instead of sitting there, and a half-finished sign-in isn't kept.
+- "Couldn't get your games" now gives the actual reason. Each step is noted in store-accounts.log in SquareDeck's data folder (status codes only, never passwords or tokens).
+
+## 9.0.8
+**New in Settings > Experimental: Epic Games account and Xbox account.**
+- **Epic Games:** sign in on Epic's own page, inside SquareDeck. Every game on your Epic account then shows in the library, installed or not, with its name from Epic's catalog. Add-ons and Unreal Engine assets are left out. Choosing one that isn't installed asks the Epic Games Launcher to install it (it asks where). Installed Epic games still start through the launcher as before, and their Manage options now include uninstalling through the Epic Games Launcher.
+- **Xbox:** sign in with your Microsoft account on Microsoft's own page. The PC games played on your Xbox account then show in the library, installed or not. You can also show the whole PC Game Pass catalog, marked "Game Pass". Choosing one that isn't installed opens it in the Xbox app to install (or in the Microsoft Store). Installed Xbox games are matched by name, so they don't appear twice.
+- Account games join the library's **Not installed** section with the Steam ones, with covers from SteamGridDB. They refresh on their own every few hours, when you open Not installed, or with "Refresh my games" on each account's page. Each page also shows the account, a list of its games, a way to open the store's app, and signing out.
+- SquareDeck never downloads game files itself: installing, playing and uninstalling stay with the Epic Games Launcher and the Xbox app, which need to be installed. Sign-ins are kept encrypted for your Windows account, and the sign-in pages keep their own storage in SquareDeck's folder.
+
 ## 9.0.7
 **Fixed: the performance overlay showed nothing, or no frame rate.**
 - **It shows when you turn it on.** It's set to appear over games only, so turning it on from the widget or the quick menu while SquareDeck was in front showed nothing at all. It now appears for a few seconds straight away. It also shows while a game SquareDeck started is running, even if that game is windowed or Xbox Game Bar is open over it.

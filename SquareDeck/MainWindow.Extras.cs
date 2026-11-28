@@ -1148,6 +1148,7 @@ public partial class MainWindow
     {
         if (_listsApplied) return;
         _listsApplied = true;
+        _ = LoadAccountGamesAsync(); // Epic and Xbox account games (9.0.8): the saved copy now, fresh ones when due
         if (_lists.Owned.Count > 0)
         {
             BuildNotInstalled(_lists.Owned.Select(o => (o.AppId, o.Name)));
@@ -1213,6 +1214,7 @@ public partial class MainWindow
             game.IsFavorite = o?.Favorite == true;
             NotInstalledGames.Add(game);
         }
+        MergeAccountGames(); // the Epic and Xbox account games stay in the list (9.0.8)
     }
 
     /// <summary>Gets the wishlist from Steam (names and prices only for games it hasn't seen, plus a few to keep prices fresh).</summary>
@@ -1309,7 +1311,9 @@ public partial class MainWindow
     {
         if (NotInstalledGames.Count == 0) return;
         var installed = _steam.Select(g => g.AppId).ToHashSet();
-        NotInstalledGames.RemoveAll(g => installed.Contains(g.AppId));
+        int removed = NotInstalledGames.RemoveAll(g => g.IsSteam && installed.Contains(g.AppId));
+        // One installed since: out of the list (its copies on other stores go too, or move to their own tile).
+        if (removed > 0 || NotInstalledGames.Any(g => g.IsExternal)) MergeAccountGames();
     }
 
     /// <summary>Cover size for library tiles: sharp on a 4K screen without holding full-size pictures in memory.</summary>
@@ -1325,7 +1329,7 @@ public partial class MainWindow
         // so when two pages asked at once (Home putting covers back after a game, the library or a refresh asking
         // for its own few), the covers the first call was still fetching never arrived and those tiles stayed blank.
         var cts = _coverCts ??= new CancellationTokenSource();
-        var todo = games.Where(g => g.Cover == null && g.IsSteam && !g.Parked && _coverFetching.Add(g)).ToList();
+        var todo = games.Where(g => g.Cover == null && (g.IsSteam || (g.IsExternal && !g.IsInstalled)) && !g.Parked && _coverFetching.Add(g)).ToList();
         if (todo.Count == 0) return;
         _ = FetchCoversAsync(todo, cts.Token);
     }
@@ -1356,10 +1360,11 @@ public partial class MainWindow
                     if (SteamGridDbClient.IsIconFile(custom)) { await ShowIconFileAsync(game, custom!); return; }
                     var image = await Task.Run(async () =>
                     {
-                        string? path = custom ?? SteamGridDbClient.FindCachedCover(game.AppId);
+                        string? path = custom ?? (game.IsSteam ? SteamGridDbClient.FindCachedCover(game.AppId) : SteamGridDbClient.FindCachedCoverByName(game.Key));
                         if (path == null)
                         {
-                            try { path = await client.GetCoverAsync(game.AppId, ct); }
+                            // Account games from Epic and Xbox (9.0.8) are looked up by name.
+                            try { path = game.IsSteam ? await client.GetCoverAsync(game.AppId, ct) : await client.GetCoverByNameAsync(game.Key, game.OriginalName, ct); }
                             catch (Exception e) when (e is not OperationCanceledException) { }
                         }
                         return path == null ? null : ImageLoader.FromFile(path, LibraryCoverDecode);
@@ -1397,6 +1402,14 @@ public partial class MainWindow
 
     private async Task OfferInstallAsync(Game game)
     {
+        // On several stores (9.0.11): choose the store first.
+        if (game.OtherStores.Count > 0)
+        {
+            var picked = await PickStoreAsync(game);
+            if (picked == null) return;
+            game = picked;
+        }
+        if (game.IsExternal) { await OfferAccountInstallAsync(game); return; } // an Epic or Xbox account game (9.0.8)
         bool queued = InstallQueue.Contains(game);
         string estimate = Labs.On("installestimate") ? await InstallEstimateAsync(game) : "";
         int choice = await AskAsync(game.Name,
@@ -1512,6 +1525,14 @@ public partial class MainWindow
     /// </summary>
     public void OpenWidget()
     {
+        // 9.0.21: or SquareDeck's own quick menu, if that's the in-game menu chosen.
+        if (Settings.InGameMenu == "squaredeck") { ToggleQuickMenu(); return; }
+        OpenGameBarWidget();
+    }
+
+    /// <summary>The Game Bar widget itself, whichever in-game menu is chosen.</summary>
+    public void OpenGameBarWidget()
+    {
         if (WidgetInstaller.FamilyName() is { } family)
             ProcessUtil.Open($"ms-gamebar://launchForeground/activate/{family}_App_SquareDeckWidget");
         else
@@ -1534,7 +1555,8 @@ public partial class MainWindow
     private bool WidgetWanted() =>
         // Any app in front counts, not only exactly full-screen ones: borderless games are often a pixel short of the
         // screen, and games from the Xbox app aren't always recognised as running.
-        Settings.InGameQuickMenu && (AllGames.Any(g => g.IsRunning) || WindowActivator.FrontApp() != null);
+        // 9.0.21: while the quick menu is open it counts too, so the same buttons close it.
+        Settings.InGameQuickMenu && (QuickMenuOpen || AllGames.Any(g => g.IsRunning) || WindowActivator.FrontApp() != null);
 
     // ================================================================ stores
 

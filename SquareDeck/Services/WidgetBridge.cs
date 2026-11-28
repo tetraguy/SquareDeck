@@ -91,8 +91,12 @@ public static class WidgetBridge
     }
 
     /// <summary>A short line for the widget to show ("120 Hz", "Lights off").</summary>
+    /// <summary>9.0.21: every note, also for SquareDeck's own quick menu.</summary>
+    public static event Action<string>? Noted;
+
     public static void Note(string text)
     {
+        try { Noted?.Invoke(text); } catch (Exception) { }
         if (Connected == 0) return;
         Broadcast(new JsonObject { ["type"] = "note", ["text"] = text });
         Nudge();

@@ -26,7 +26,7 @@ public partial class MainWindow
         "hiccup" => 2.6, "sneak" => 3, "drums" => 2.8, "levitate" => 3.2, "laugh" => 2.2, "shiver" => 2.4, "cool" => 2.6, "point" => 2.4,
         "boop" => 1.4, "hug" => 2.2, "dangle" => 60, "drop" => 1.4, "sulk" => 3.2, "snowball" => 2.4, "wink" => 1.6, "shrug" => 1.8,
         "victory" => 2.4, "peekedge" => 2.8,
-        _ => null,
+        _ => CompanionPlaySeconds(action), // 9.0.17
     };
 
     private static string? CompanionMoreMood(string? action) => action switch
@@ -38,7 +38,7 @@ public partial class MainWindow
         "hug" or "wink" => "love",
         "sulk" or "shrug" => "bored",
         "ninja" => "happy",
-        _ => null,
+        _ => CompanionPlayMood(action), // 9.0.17
     };
 
     private static string? CompanionMoreSay(string action) => action switch
@@ -67,7 +67,7 @@ public partial class MainWindow
         "shrug" => new[] { "¯\\_(ツ)_/¯", "Eh.", "Who knows?" }[Random.Shared.Next(3)],
         "victory" => new[] { "Victory!", "We did it!", "GG!" }[Random.Shared.Next(3)],
         "peekedge" => new[] { "What's over here?", "Peek!", "Just checking." }[Random.Shared.Next(3)],
-        _ => null,
+        _ => CompanionPlaySay(action), // 9.0.17
     };
 
     /// <summary>The moves and props of the new acts (nothing for the older ones).</summary>
@@ -233,16 +233,10 @@ public partial class MainWindow
                 CompanionSounds.Effect("kiss");
                 break;
             case "dangle":
-                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(-14, 14, TimeSpan.FromSeconds(0.35)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
-                _companionScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1.08, TimeSpan.FromSeconds(0.2)));
+                CompanionDangle(); // 9.0.17: four ways of hanging on
                 break;
             case "drop":
-                _companionTurn.BeginAnimation(RotateTransform.AngleProperty, null);
-                _companionTurn.Angle = 0;
-                _companionMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(_companionMove.Y, 0, TimeSpan.FromSeconds(0.35)) { EasingFunction = new BounceEase { Bounces = 2, Bounciness = 2.5, EasingMode = EasingMode.EaseOut } });
-                _companionScale.BeginAnimation(ScaleTransform.ScaleYProperty, Keys((0, 1.05), (0.35, 0.8), (0.6, 1.05), (0.8, 1)));
-                Later(0.3, () => Sparkles("∴", 4, "#C8B89A"));
-                CompanionSounds.Effect("boing", 200);
+                CompanionLand(); // 9.0.17: five ways of landing
                 break;
             case "sulk":
                 _companionLook = -1; _companionLookUntil = DateTime.Now.AddSeconds(3);
@@ -372,14 +366,14 @@ public partial class MainWindow
     /// <summary>Every 20 seconds: something cheeky when you've gone quiet, it's very late, or (with the playground) it needs something.</summary>
     private void CompanionWitTick()
     {
-        if (_companion == null || _companionAsleep || Theme.ReduceMotion || _companion.Visibility != Visibility.Visible) return;
+        if (_companion == null || _companionAsleep || _companionNap || Theme.ReduceMotion || _companion.Visibility != Visibility.Visible) return;
         if (_companionAction != null && DateTime.Now < _companionActionUntil) return;
         var now = DateTime.Now;
         var quiet = DateTime.UtcNow - _lastInput;
         if (quiet > TimeSpan.FromSeconds(90) && !_companionIdleSaid)
         {
             _companionIdleSaid = true;
-            CompanionQueue(Random.Shared.Next(2) == 0 ? "sulk" : "shrug", IdleLines[Random.Shared.Next(IdleLines.Length)]);
+            CompanionQueue(Random.Shared.Next(2) == 0 ? "sulk" : "shrug", Pick(IdleLines, MoreIdleLines));
             return;
         }
         if (quiet < TimeSpan.FromSeconds(30)) _companionIdleSaid = false;
@@ -396,7 +390,7 @@ public partial class MainWindow
             {
                 _companionNeedAt = now;
                 string act = CompanionLife.Mood() switch { "hungry" => "sandwich", "sleepy" => "yawn", _ => "sulk" };
-                CompanionQueue(act, need + " (Settings > Experimental > Companion playground)");
+                CompanionQueue(act, need + " (Settings > Home screen > Companion playground)");
             }
         }
     }
@@ -465,6 +459,7 @@ public partial class MainWindow
             _companionPos.X = Math.Clamp(_touchStartX + dx, bx - CompanionRange(), bx);
             _companionMove.BeginAnimation(TranslateTransform.YProperty, null);
             _companionMove.Y = Math.Clamp(dy, -140, 0) - 18;
+            CompanionDragMoved(p); // 9.0.17: flings and shakes
         };
         _companionSprite.MouseLeftButtonUp += (_, e) =>
         {
@@ -498,5 +493,7 @@ public partial class MainWindow
     }
 
     /// <summary>Poked too many times in a row: a comeback (or, now and then, it just gets dizzy as before).</summary>
-    private string TickleComeback() => TickleComebacks[Random.Shared.Next(TickleComebacks.Length)];
+    private string TickleComeback() => Pick(TickleComebacks, MoreTickleComebacks);
+
+    private static string Pick(string[] a, string[] b) { int i = Random.Shared.Next(a.Length + b.Length); return i < a.Length ? a[i] : b[i - a.Length]; }
 }

@@ -408,15 +408,55 @@ public partial class MainWindow
     // ================================================================ home buttons and hints
 
     /// <summary>Shows or hides the optional round buttons and rebuilds the list the thumbstick moves through.</summary>
+    /// <summary>The round buttons under the games, by id, in the order they come (Settings > Home screen > Reorder the buttons).</summary>
+    public static readonly string[] HomeButtonIds = { "home", "favorites", "apps", "captures", "music", "friends", "news", "browser", "explorer", "stores", "settings", "power" };
+
+    /// <summary>The button for an id (My Device is no longer on the row).</summary>
+    public Button? HomeButtonFor(string id) => id switch
+    {
+        "home" => HomeBtn, "favorites" => FavBtn, "apps" => AppsBtn, "captures" => CapturesBtn, "music" => MusicBtn, "friends" => FriendsBtn,
+        "news" => NewsBtn, "browser" => BrowserBtn, "explorer" => ExplorerBtn, "stores" => StoresBtn, "settings" => SettingsBtn, "power" => PowerBtn, _ => null
+    };
+
+    /// <summary>The order in use: the saved one, with any button it doesn't mention (added since) in its usual place.</summary>
+    public List<string> HomeButtonOrder()
+    {
+        var saved = (Settings.HomeButtonOrder ?? new List<string>()).Where(id => HomeButtonIds.Contains(id)).Distinct().ToList();
+        foreach (var id in HomeButtonIds)
+            if (!saved.Contains(id))
+            {
+                int at = Array.IndexOf(HomeButtonIds, id);
+                // After the button that comes before it by default, so a new one lands where it would have been.
+                int after = at == 0 ? -1 : saved.IndexOf(HomeButtonIds[at - 1]);
+                saved.Insert(after + 1, id);
+            }
+        return saved;
+    }
+
+    /// <summary>Puts the round buttons in the chosen order (9.0.16).</summary>
+    private void ApplyHomeButtonOrder()
+    {
+        var order = HomeButtonOrder();
+        int index = 0;
+        foreach (var id in order)
+        {
+            if (HomeButtonFor(id) is not { } b || !ButtonRow.Children.Contains(b)) continue;
+            int now = ButtonRow.Children.IndexOf(b);
+            if (now != index) { ButtonRow.Children.RemoveAt(now); ButtonRow.Children.Insert(index, b); }
+            index++;
+        }
+    }
+
     private void RefreshHomeButtons()
     {
+        ApplyHomeButtonOrder();
         static Visibility Shown(bool on) => on ? Visibility.Visible : Visibility.Collapsed;
         BrowserBtn.Visibility = Shown(Settings.ShowBrowserButton);
         MusicBtn.Visibility = Shown(Settings.ShowMusicButton);
         FriendsBtn.Visibility = Shown(Settings.ShowFriendsButton);
         ExplorerBtn.Visibility = Shown(Settings.ShowExplorerButton);
         NewsBtn.Visibility = Shown(Settings.ShowNewsButton);
-        MyDeviceBtn.Visibility = Shown(Settings.ShowMyDeviceButton && Handheld.IsHandheld);
+        MyDeviceBtn.Visibility = Visibility.Collapsed; // 9.0.12: gone from Home; My Device is in Settings, under Your play time
         DrawMyDeviceIcon();
 
         _buttons = ButtonRow.Children.OfType<Button>().Where(b => b.Visibility == Visibility.Visible).ToArray();
@@ -604,14 +644,18 @@ public partial class MainWindow
 
     private void CheckScreensaver()
     {
-        bool allowed = Settings.Screensaver != "off" && IsActive && _screens.Count == 0 &&
-                       IntroLayer.Children.Count == 0 && !AllGames.Any(g => g.IsRunning);
+        bool quiet = IsActive && _screens.Count == 0 && IntroLayer.Children.Count == 0 && !AllGames.Any(g => g.IsRunning);
+        // 9.0.13 OLED care: the pixel refresh comes on after its own idle time, whatever the screen saver is set to.
+        bool refresh = Settings.OledRefreshMinutes > 0 && quiet;
+        bool allowed = (Settings.Screensaver != "off" && quiet) || refresh;
         if (_saverOn)
         {
             if (!allowed) StopScreensaver();
             return;
         }
-        if (allowed && DateTime.UtcNow - _lastInput >= TimeSpan.FromMinutes(Math.Max(1, Settings.ScreensaverMinutes)))
+        var idle = DateTime.UtcNow - _lastInput;
+        if (refresh && idle >= TimeSpan.FromMinutes(Settings.OledRefreshMinutes)) StartScreensaver("pixelrefresh");
+        else if (Settings.Screensaver != "off" && quiet && idle >= TimeSpan.FromMinutes(Math.Max(1, Settings.ScreensaverMinutes)))
             StartScreensaver();
     }
 
@@ -625,9 +669,20 @@ public partial class MainWindow
         _saverCts = new CancellationTokenSource();
 
         var root = new Grid { Background = Brushes.Black };
+        // 9.0.13: over the companion (it lives on the home screen, not in the screen saver); notifications stay on top.
+        Panel.SetZIndex(SaverLayer, 41);
+        Panel.SetZIndex(ToastLayer, 42);
         SaverLayer.Children.Clear();
         SaverLayer.Children.Add(root);
 
+        if (style == "pixelrefresh")
+        {
+            // OLED care: soft color bands sweeping slowly over black, nothing still, no clock.
+            BuildPixelRefresh(root);
+            SaverLayer.Visibility = Visibility.Visible;
+            SaverLayer.Opacity = 1;
+            return;
+        }
         if (style == "heroes") BuildHeroSaver(root, _saverCts.Token);
         else BuildGradientSaver(root);
 
@@ -673,10 +728,59 @@ public partial class MainWindow
         SaverLayer.BeginAnimation(OpacityProperty, null);
         SaverLayer.Children.Clear();
         SaverLayer.Visibility = Visibility.Collapsed;
+        Panel.SetZIndex(SaverLayer, 0);
+        Panel.SetZIndex(ToastLayer, 0);
         _lastInput = DateTime.UtcNow;
     }
 
     /// <summary>Slow-moving bands of color built from the highlight color.</summary>
+    /// <summary>The pixel refresh: wide bands of red, green, blue and white drifting across black, so every pixel works evenly.</summary>
+    private static void BuildPixelRefresh(Grid root)
+    {
+        var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 0), MappingMode = BrushMappingMode.RelativeToBoundingBox, SpreadMethod = GradientSpreadMethod.Repeat };
+        Color[] bands = { Colors.Black, Color.FromRgb(0x60, 0, 0), Colors.Black, Color.FromRgb(0, 0x60, 0), Colors.Black, Color.FromRgb(0, 0, 0x60), Colors.Black, Color.FromRgb(0x40, 0x40, 0x40), Colors.Black };
+        for (int i = 0; i < bands.Length; i++) brush.GradientStops.Add(new GradientStop(bands[i], i / (double)(bands.Length - 1)));
+        var move = new TranslateTransform();
+        brush.RelativeTransform = move;
+        root.Children.Add(new System.Windows.Shapes.Rectangle { Fill = brush });
+        move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 1, TimeSpan.FromSeconds(40)) { RepeatBehavior = RepeatBehavior.Forever });
+        var note = new TextBlock { Text = "Pixel refresh  \u00b7  press any button", Foreground = Brushes.White, Opacity = 0.35, FontSize = 16,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 30) };
+        root.Children.Add(note);
+        var drift = new TranslateTransform();
+        note.RenderTransform = drift;
+        drift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-300, 300, TimeSpan.FromSeconds(60)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
+    }
+
+    // ---------------------------------------------------------------- OLED care: pixel shift
+
+    private DispatcherTimer? _pixelShift;
+    private int _shiftStep;
+
+    /// <summary>9.0.13: SquareDeck's picture moves by up to 3 pixels every few minutes, so nothing sits on the same pixels for hours.</summary>
+    public void ApplyPixelShift()
+    {
+        if (Content is not FrameworkElement root) return;
+        if (!Settings.OledPixelShift)
+        {
+            _pixelShift?.Stop();
+            root.RenderTransform = Transform.Identity;
+            return;
+        }
+        if (_pixelShift == null)
+        {
+            _pixelShift = new DispatcherTimer { Interval = TimeSpan.FromMinutes(3) };
+            _pixelShift.Tick += (_, _) =>
+            {
+                if (Content is not FrameworkElement r) return;
+                (int X, int Y)[] spots = { (0, 0), (2, 1), (3, -1), (1, -3), (-2, -2), (-3, 1), (-1, 3), (2, 3), (0, 2) };
+                _shiftStep = (_shiftStep + 1) % spots.Length;
+                r.RenderTransform = new TranslateTransform(spots[_shiftStep].X, spots[_shiftStep].Y);
+            };
+        }
+        _pixelShift.Start();
+    }
+
     private static void BuildGradientSaver(Grid root)
     {
         var accent = (Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color ?? Color.FromRgb(0x20, 0xE0, 0xD0);
@@ -1017,7 +1121,7 @@ public partial class MainWindow
 
             int choice = await AskWithIconsAsync("SquareDeck " + release.Tag + " is available",
                 $"You have version {Updater.Current}. " + (ready ? "It's downloaded and ready to install. " : "") + "See what's new and install it, or ignore this version.",
-                ("Install", ""), ("Ignore this version", ""), ("Remind me later", ""));
+                ("Install", "\uE896"), ("Ignore this version", "\uE711"), ("Remind me later", "\uE823"));
             if (choice == 1)
             {
                 Settings.SkippedVersion = release.Tag;
@@ -1152,7 +1256,7 @@ public partial class MainWindow
             "“Settings only” puts every option back to its default and keeps your library changes, play time and artwork.\n\n" +
             "“Everything” also removes favorites, edited titles, custom games, added apps, collections, play time, notifications " +
             "and downloaded artwork. Your games themselves are never touched.",
-            ("Reset settings only", ""), ("Reset everything", ""), ("Cancel", ""));
+            ("Reset settings only", "\uE713"), ("Reset everything", "\uE74D"), ("Cancel", "\uE711"));
         if (choice is not (0 or 1)) return;
         bool everything = choice == 1;
         if (await AskAsync(everything ? "Erase all launcher data?" : "Reset all settings?",
@@ -1232,8 +1336,8 @@ public partial class MainWindow
             var options = collections
                 .Select(c => ((c.Games.Contains(game.Key) ? "✓  " : "") + c.Name, c.Icon))
                 .ToList();
-            options.Add(("New collection…", ""));
-            options.Add(("Done", ""));
+            options.Add(("New collection…", "\uE710"));
+            options.Add(("Done", "\uE73E"));
 
             int choice = await AskWithIconsAsync("Collections for " + game.Name,
                 collections.Count == 0 ? "You have no collections yet. Make one to group games your own way."

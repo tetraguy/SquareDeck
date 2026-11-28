@@ -101,7 +101,7 @@
                             <TextBlock x:Name="BatteryText" FontSize="16" Foreground="{DynamicResource FgBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <!-- Level, and a charging bolt while plugged in; set from code -->
-                            <TextBlock x:Name="BatteryIcon" Text="&#xE83F;" FontFamily="Segoe MDL2 Assets" FontSize="26"
+                            <TextBlock x:Name="BatteryIcon" Text="&#xE83F;" FontFamily="Segoe MDL2 Assets" FontSize="30"
                                        Foreground="{DynamicResource FgBrush}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
@@ -431,7 +431,7 @@
                 <!-- My Device (when it's on) sits to the left of Stores -->
                 <Button x:Name="MyDeviceBtn" Style="{StaticResource RoundButton}" Content="&#xE7FC;" Foreground="#E23D7A"
                         ToolTip="My Device" Click="MyDevice_Click" Visibility="Collapsed"/>
-                <Button x:Name="StoresBtn" Style="{StaticResource RoundButton}" Content="&#xE7BF;" Foreground="{DynamicResource SubtleBrush}"
+                <Button x:Name="StoresBtn" Style="{StaticResource RoundButton}" Content="&#xE7BF;" Foreground="#F5B800"
                         ToolTip="Stores" Click="Stores_Click"/>
                 <Button x:Name="SettingsBtn" Style="{StaticResource RoundButton}" Content="&#xE713;" Foreground="{DynamicResource SubtleBrush}"
                         ToolTip="Settings" Click="Settings_Click"/>

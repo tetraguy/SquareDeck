@@ -26,6 +26,8 @@ public partial class MainWindow
         Perf.Update(Settings);
         TdpControl.Init(Settings);
         AllyControl.Init(Settings);
+        GyroAim.Configure(Settings); // 9.0.13: gyro aiming, if it's on
+        Dispatcher.BeginInvoke(new Action(ApplyPixelShift), System.Windows.Threading.DispatcherPriority.Loaded); // 9.0.13 OLED care
         if (!Handheld.IsHandheld && !Settings.NotAllyNoticeShown)
         {
             // SquareDeck is made for the ROG Ally family (8.5.81): said once on any other PC, which still runs it as a plain launcher.

@@ -184,8 +184,8 @@ public sealed class MyDeviceScreen : ListScreen
         var live = new WrapPanel();
         GaugeTile(live, "cpu", "", "Processor", () => Host.Push(new TaskManagerScreen()));
         GaugeTile(live, "gpu", "", "Graphics", () => Host.Push(new TaskManagerScreen()));
-        GaugeTile(live, "temp", "", "Temperature", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
-        GaugeTile(live, "fans", "", "Fan", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
+        GaugeTile(live, "temp", "", "Temperature", () => Host.Push(SettingsScreen.AllyPage("performance", "fans")));
+        GaugeTile(live, "fans", "", "Fan", () => Host.Push(SettingsScreen.AllyPage("performance", "fans")));
         Rows.Children.Add(live);
 
         Section("Power");
@@ -193,7 +193,7 @@ public sealed class MyDeviceScreen : ListScreen
         CardTile(power, "draw", "", "Power draw", () => Host.Push(new BatteryScreen()), graph: true);
         CardTile(power, "health", "", "Battery health", () => Host.Push(new BatteryScreen()), bar: true);
         CardTile(power, "drain", "", "Battery pace", () => Host.Push(new BatteryScreen()));
-        CardTile(power, "tdp", "", "Power limit", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
+        CardTile(power, "tdp", "", "Power limit", () => Host.Push(SettingsScreen.TdpPage()));
         CardTile(power, "pad", "", "Controller", () => Host.Push(new SettingsScreen("controller")));
         CardTile(power, "brightness", "", "Brightness", () => Host.Push(new QuickSettingsScreen()), bar: true);
         Rows.Children.Add(power);
@@ -207,7 +207,7 @@ public sealed class MyDeviceScreen : ListScreen
             CardTile(system, "drive:" + drive.Name, "", "Storage  " + drive.Name.TrimEnd('\\'), () => Host.Push(new ExplorerScreen(root)), bar: true);
         }
         CardTile(system, "display", "", "Display", () => Host.Push(new SettingsScreen("look")));
-        CardTile(system, "network", "", "Network", () => Host.Push(new SettingsScreen("network")));
+        CardTile(system, "network", "", "Network", () => Host.Push(new SettingsScreen("connections")));
         CardTile(system, "sound", "", "Sound", () => Host.Push(new SettingsScreen("sound")), bar: true);
         CardTile(system, "windows", "", "Windows", () => Host.Push(new SettingsScreen("system")));
         CardTile(system, "uptime", "", "On for", () => Host.Push(new SettingsScreen("system")));
@@ -219,13 +219,6 @@ public sealed class MyDeviceScreen : ListScreen
         AddRow("Performance Boost and the overlay", null, "", click: () => Host.Push(new SettingsScreen("gaming")),
             subtitle: "Performance Boost, SquareDeck performance mode and the performance overlay, in Gaming");
         AddRow("Battery", null, "", click: () => Host.Push(new BatteryScreen()), subtitle: "Battery saver, charging and usage");
-        AddRow("My Device on the home screen", Host.Settings.ShowMyDeviceButton ? "On" : "Off", "", click: () =>
-        {
-            Host.Settings.ShowMyDeviceButton = !Host.Settings.ShowMyDeviceButton;
-            Host.Settings.Save();
-            Host.RefreshHomeButtonsPublic();
-            Rebuild();
-        });
         _ticks = 0;
         Refresh();
     }
@@ -245,8 +238,8 @@ public sealed class MyDeviceScreen : ListScreen
                 var live = new WrapPanel();
                 GaugeTile(live, "cpu", "\uE950", "Processor", () => Host.Push(new TaskManagerScreen()));
                 GaugeTile(live, "gpu", "\uE7F4", "Graphics", () => Host.Push(new TaskManagerScreen()));
-                GaugeTile(live, "temp", "\uE9CA", "Temperature", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
-                GaugeTile(live, "fans", "\uE9CA", "Fan", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
+                GaugeTile(live, "temp", "\uE9CA", "Temperature", () => Host.Push(SettingsScreen.AllyPage("performance", "fans")));
+                GaugeTile(live, "fans", "\uE9CA", "Fan", () => Host.Push(SettingsScreen.AllyPage("performance", "fans")));
                 Rows.Children.Add(live);
                 break;
             }
@@ -257,7 +250,7 @@ public sealed class MyDeviceScreen : ListScreen
                 CardTile(power, "draw", "\uE945", "Power draw", () => Host.Push(new BatteryScreen()), graph: true);
                 CardTile(power, "health", "\uE83F", "Battery health", () => Host.Push(new BatteryScreen()), bar: true);
                 CardTile(power, "drain", "\uE916", "Battery pace", () => Host.Push(new BatteryScreen()));
-                CardTile(power, "tdp", "\uE9F5", "Power limit", () => Host.Push(new SettingsScreen(SettingsScreen.TdpSection)));
+                CardTile(power, "tdp", "\uE9F5", "Power limit", () => Host.Push(SettingsScreen.TdpPage()));
                 Rows.Children.Add(power);
                 Section("Controls");
                 var controls = new WrapPanel();
@@ -280,7 +273,7 @@ public sealed class MyDeviceScreen : ListScreen
                 Section("Screen, sound and network");
                 var system = new WrapPanel();
                 CardTile(system, "display", "\uE7F4", "Display", () => Host.Push(new SettingsScreen("look")));
-                CardTile(system, "network", "\uE701", "Network", () => Host.Push(new SettingsScreen("network")));
+                CardTile(system, "network", "\uE701", "Network", () => Host.Push(new SettingsScreen("connections")));
                 CardTile(system, "sound", "\uE767", "Sound", () => Host.Push(new SettingsScreen("sound")), bar: true);
                 Rows.Children.Add(system);
                 Section("Windows");
@@ -296,13 +289,6 @@ public sealed class MyDeviceScreen : ListScreen
                 AddRow("Performance Boost and the overlay", null, "\uE945", click: () => Host.Push(new SettingsScreen("gaming")),
                     subtitle: "Performance Boost, SquareDeck performance mode and the performance overlay, in Gaming");
                 AddRow("Battery", null, "\uE83F", click: () => Host.Push(new BatteryScreen()), subtitle: "Battery saver, charging and usage");
-                AddRow("My Device on the home screen", Host.Settings.ShowMyDeviceButton ? "On" : "Off", "\uE8A9", click: () =>
-                {
-                    Host.Settings.ShowMyDeviceButton = !Host.Settings.ShowMyDeviceButton;
-                    Host.Settings.Save();
-                    Host.RefreshHomeButtonsPublic();
-                    Rebuild();
-                });
                 break;
         }
         _ticks = 0;

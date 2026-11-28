@@ -142,7 +142,7 @@ public partial class MainWindow
                     _refundWarned.Add(running.Key);
                     string detail = $"{r.MinutesPlayed:0} min played. Steam's 2-hour refund limit is {r.MinutesLeft:0} min of play away.";
                     if (IsActive) ShowToast("REFUND WINDOW", running.Name, detail, "", "info", game: running);
-                    else GameNotice.Show("Refund window closing: " + running.Name, detail, "");
+                    else GameNotice.Show("Refund window closing: " + running.Name, detail, "\uE8C7");
                 }
             }
             if (Labs.On("styleschedule") && running == null && Labs.ScheduledStyle(DateTime.Now) is { } wanted && wanted != Labs.Get("schedule.applied"))
@@ -663,6 +663,7 @@ public partial class MainWindow
     public void CompanionReact(string action)
     {
         if (_companion == null || _companionSprite == null || _companionAsleep) return;
+        if (CompanionNapBlocks(action)) return; // 9.0.17: napping with the handheld
         _companionAction = action;
         double seconds = CompanionExtraSeconds(action) ?? action switch
         {
@@ -905,7 +906,7 @@ public partial class MainWindow
                     Sparkles("≡", 4, "#AAB4C8");
                     break;
             }
-        if (!reduce) { CompanionExtraAnimate(action); CompanionMoreAnimate(action); }
+        if (!reduce) { CompanionExtraAnimate(action); CompanionMoreAnimate(action); CompanionPlayAnimate(action); }
         string? say = CompanionTakeLine(action) ?? CompanionExtraSay(action) ?? action switch
         {
             "wave" => new[] { "Hi!", "Welcome back!", "Hello!" }[Random.Shared.Next(3)],
@@ -1018,7 +1019,7 @@ public partial class MainWindow
 
     private void CompanionSay(string text)
     {
-        if (_companionBubble == null || _companionBubbleText == null || _companionAsleep) return;
+        if (_companionBubble == null || _companionBubbleText == null || _companionAsleep || CompanionNapQuiet) return;
         var line = new TextBlock();
         line.Inlines.Add(new System.Windows.Documents.Run(CompanionArt.Name + ": ") { FontWeight = FontWeights.Normal });
         line.Inlines.Add(new System.Windows.Documents.Run(text) { FontWeight = FontWeights.Bold });
@@ -1084,7 +1085,9 @@ public partial class MainWindow
         if (screen is { IsDialog: true } or CompanionPlayground) return null; // the playground has its own big companion
         var place = CompanionPlaceBase(screen);
         // 9.0.4: more to do and say on Home and the busier pages.
-        if (place is { } p && CompanionMoreFor(screen) is { } more) return (p.Arrive, p.Idle.Concat(more.Idle).ToArray(), p.Lines.Concat(more.Lines).ToArray());
+        if (place is { } p && CompanionMoreFor(screen) is { } more) place = (p.Arrive, p.Idle.Concat(more.Idle).ToArray(), p.Lines.Concat(more.Lines).ToArray());
+        // 9.0.17: playing around the launcher.
+        if (place is { } q && CompanionPlayFor(screen) is { } play) place = (q.Arrive, q.Idle.Concat(play.Idle).ToArray(), q.Lines.Concat(play.Lines).ToArray());
         return place;
     }
 
@@ -1256,6 +1259,7 @@ public partial class MainWindow
             }
         }
         _companionTicks++;
+        if (_companionNap) { CompanionNapTick($"{CompanionArt.SpeciesId}|{CompanionArt.ColorHex}|{Labs.Outfit}"); return; } // 9.0.17
         string mood = Labs.CompanionMood(Playtime, Achievements, _celebratedAt);
         mood = CompanionExtraMood(_companionAction) ?? _companionAction switch
         {

@@ -64,6 +64,8 @@ public static partial class Labs
         new("tilt", "Covers that tilt", "Tilting the handheld shifts the highlighted cover in 3D", "\uE8B4", Looks),
         new("dust", "Dusty tiles", "Games you haven't played in months gather dust on the home row", "\uE91C", Looks),
         new("companion", "Companion", "A small pixel friend in the corner of Home: six characters, any color, your choice of name, and reactions to what you do", "\uE899", Looks),
+        new("epicaccount", "Epic Games account", "Sign in to Epic Games to see every game on your account in the library, installed or not, and install them through the Epic Games Launcher", "\uE77B", Play),
+        new("xboxaccount", "Xbox account", "Sign in with Microsoft to see your Xbox PC games (and, if you like, all of PC Game Pass) in the library, and install them through the Xbox app", "\uE77B", Play),
         new("companionplay", "Companion playground", "A little world where your companion lives: a yard under the real sky with an apple tree, flowers, a daily letter and the Star Shop, and its house with a bed, a fridge, a TV showing your last game, an arcade minigame and a mirror for dressing up. Feed it, play with it, let it nap, and grow your friendship; earn star bits for snacks, toys, furniture and accessories", "\uE80F", Looks),
         new("updatecompanion", "Companion on the update screens", "Your companion rides the progress bar while SquareDeck downloads and installs an update: it carries the new version along, hops at each step, cheers and throws confetti when it's done, and looks worried if something goes wrong", "\uE895", Looks),
         new("achshot", "Screenshot on achievements", "A screenshot when an achievement unlocks, named after it", "\uE722", Play),
@@ -161,7 +163,12 @@ public static partial class Labs
         "stylegallery",
         // 8.5.102: SquareDeck EQ is part of Settings > Sound (it only acts once Equalizer APO is set up)
         "squareeq",
+        // 9.0.20: the Epic Games and Xbox accounts (they only do anything once you sign in: Settings > Library and stores > Store accounts, and setup)
+        "epicaccount", "xboxaccount",
     };
+
+    /// <summary>On for everyone once (when updating to 9.0.20), with a switch under the companion in Settings > Home screen.</summary>
+    public static readonly HashSet<string> DefaultOn9020 = new() { "companionplay" };
 
     /// <summary>On for everyone once (when updating to 8.5.102), each with a switch in its new place in Settings:
     /// cover styles (Looks), the companion on the update screens (Looks, with the companion) and the streaming service
@@ -205,6 +212,8 @@ public static partial class Labs
         "s2genie", "s2pctools",
         // 8.5.102
         "coverstyle", "updatecompanion", "streamfx", "stylelights",
+        // 9.0.20
+        "companionplay",
     }));
 
     public static LabFeature? Feature(string id) => Features.FirstOrDefault(f => f.Id == id);
@@ -271,6 +280,12 @@ public static partial class Labs
         {
             foreach (var id in DefaultOn85102) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
             settings.LabsGraduated85102 = true;
+            settings.Save();
+        }
+        if (!settings.LabsGraduated9020)
+        {
+            foreach (var id in DefaultOn9020) if (!settings.Labs.Contains(id)) settings.Labs.Add(id);
+            settings.LabsGraduated9020 = true;
             settings.Save();
         }
         // 8.5.41: the Switch-style game boot is off by default: off once, then it's yours to turn on (Settings > Games).

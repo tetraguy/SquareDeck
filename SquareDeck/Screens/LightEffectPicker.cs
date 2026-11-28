@@ -211,7 +211,7 @@ public sealed class LightEffectPicker : Screen
     private void Draw()
     {
         double t = (DateTime.UtcNow - _started).TotalSeconds;
-        var frame = LightFx.Frame8(_preview, t, _inputs);
+        var frame = LightFx.FrameForDevice(_preview, t, _inputs); // as this Ally shows it: eight LEDs on the X20, four zones elsewhere
         for (int z = 0; z < 8; z++)
         {
             if (_zones[z] == null) continue;

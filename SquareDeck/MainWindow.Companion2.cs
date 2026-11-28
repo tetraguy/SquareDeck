@@ -380,6 +380,7 @@ public partial class MainWindow
         _companionSprite.Cursor = System.Windows.Input.Cursors.Hand;
         HookCompanionTouch(); // 9.0.4: tap to pet, double-tap to boop, hold to hug, drag to carry
         StartCompanionWit();
+        HookCompanionNap(); // 9.0.17: naps while the handheld sleeps
         _companionPetHooked = true;
     }
 

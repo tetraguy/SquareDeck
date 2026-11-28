@@ -68,6 +68,15 @@ public sealed class Game : INotifyPropertyChanged
     public bool IsExternal => Kind == ItemKind.External;
     public bool IsGame => IsSteam || IsCustom || IsExternal;
 
+    /// <summary>
+    /// Not installed, and owned on more than one store (Steam, Epic, Xbox): the same game from the other stores, folded
+    /// into this one tile so it shows once (9.0.11). Choosing it asks which store to install it from.
+    /// </summary>
+    public List<Game> OtherStores { get; } = new();
+
+    /// <summary>How many stores the game is on (1 unless others were folded in).</summary>
+    public int StoreCount => 1 + OtherStores.Count;
+
     /// <summary>Where the game comes from, for the library's filter.</summary>
     public string SourceName => IsSteam ? "Steam" : IsRecomp ? "Recomp Zone" : IsRetro ? "Retro Lounge" : IsCustom ? "Custom" : Source;
 

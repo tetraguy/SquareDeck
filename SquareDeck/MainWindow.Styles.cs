@@ -34,7 +34,7 @@ public partial class MainWindow
             var own = _glyphColors[button];
             if (!has && skin?.GlyphColor is { } white) button.Foreground = white;
             else if (own is Brush brush) button.Foreground = brush;
-            else button.SetResourceReference(Button.ForegroundProperty, "SubtleBrush"); // Stores, Settings and Power
+            else button.SetResourceReference(Button.ForegroundProperty, "SubtleBrush"); // Settings and Power (Stores is yellow since 9.0.15)
         }
 
         static bool SetIcon(Button b, ImageSource icon) { SkinParts.SetIcon(b, icon); return true; }

@@ -354,10 +354,26 @@ public static partial class Labs
             new("bandana", "Companion bandana", "outfit", "bandana", "Play for 2 hours in one go", P(PlayStats.LongestSessionHours(playtime), 2)),
             new("horns", "Companion little horns", "outfit", "horns", "Play after midnight on 10 different nights", P(PlayStats.LateNights(playtime), 10)),
             new("visor", "Companion space visor", "outfit", "visor", "Play 500 hours with SquareDeck", P(hours, 500)),
+            // 9.0.17: twelve more.
+            new("beanie", "Companion beanie", "outfit", "beanie", "Play 3 days in a row", P(streak, 3)),
+            new("sprout", "Companion little sprout", "outfit", "sprout", "Play 10 hours with SquareDeck", P(hours, 10)),
+            new("chef", "Companion chef's hat", "outfit", "chef", "Play 25 sessions with SquareDeck", P(playtime.Sessions.Count, 25)),
+            new("beret", "Companion beret", "outfit", "beret", "Unlock 10 achievements", P(unlocked, 10)),
+            new("catears", "Companion cat-ear headband", "outfit", "catears", "Play 7 days in a row", P(streak, 7)),
+            new("cowboy", "Companion cowboy hat", "outfit", "cowboy", "Play 50 hours with SquareDeck", P(hours, 50)),
+            new("propeller", "Companion propeller cap", "outfit", "propeller", "Play 25 different games with SquareDeck", P(PlayStats.GamesPlayed(playtime), 25)),
+            new("pirate", "Companion pirate hat", "outfit", "pirate", "Finish 3 games", P(finished, 3)),
+            new("santa", "Companion Santa hat", "outfit", "santa", "Play on 20 different weekends", P(PlayStats.Weekends(playtime), 20)),
+            new("antlers", "Companion antlers", "outfit", "antlers", "Play before 8 a.m. on 10 different days", P(PlayStats.EarlyMornings(playtime), 10)),
+            new("knight", "Companion knight's helmet", "outfit", "knight", "Play for 4 hours in one go", P(PlayStats.LongestSessionHours(playtime), 4)),
+            new("grad", "Companion graduation cap", "outfit", "grad", "Finish 50 games", P(finished, 50)),
             new("mint", "Mint highlight", "color", "#3EE6B0", "Play 5 days in a row", P(streak, 5)),
             new("gold", "Gold highlight", "color", "#F2C14E", "Unlock 100 achievements", P(unlocked, 100)),
             new("sunset", "Sunset highlight", "color", "#FF7A59", "Play 250 hours with SquareDeck", P(hours, 250)),
             new("royal", "Royal violet highlight", "color", "#9B6BFF", "Finish 25 games", P(finished, 25)),
+            new("ocean", "Ocean blue highlight", "color", "#2E9BFF", "Play 30 days in a row", P(streak, 30)),
+            new("rose", "Rose highlight", "color", "#FF5C8A", "Unlock 500 achievements", P(unlocked, 500)),
+            new("lime", "Lime highlight", "color", "#A8E83A", "Play 1,000 hours with SquareDeck", P(hours, 1000)),
         };
     }
 

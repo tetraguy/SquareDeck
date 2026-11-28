@@ -29,7 +29,9 @@ namespace SquareDeck.Screens;
 public sealed class StoreWebScreen : Screen
 {
     /// <summary>The store's name, its page, and the icon on its tile.</summary>
-    public sealed record KeyStore(string Name, string Url, string Glyph);
+    /// <param name="Manual">9.0.19: a handheld's manual page on ASUS's site: a PDF it links to opens in SquareDeck's own
+    /// reader (which turns sideways) instead of downloading.</param>
+    public sealed record KeyStore(string Name, string Url, string Glyph, bool Manual = false);
 
     public static readonly KeyStore Loaded = new("Loaded", "https://www.loaded.com/pc/steam", "\uE8D7");
 
@@ -243,12 +245,22 @@ public sealed class StoreWebScreen : Screen
                     }
                     return;
                 }
+                if (_store.Manual && IsPdf(u)) { e.Cancel = true; _ = OpenPdfAsync(e.Uri); return; } // 9.0.19
                 ShowLoading(true);
             };
             core.DocumentTitleChanged += (_, _) => _title.Text = core.DocumentTitle;
             // Downloads: SquareDeck's own manager instead of Edge's pop-up, into Downloads\(store).
             core.DownloadStarting += (_, e) =>
             {
+                // 9.0.19: a manual's PDF opens in SquareDeck's reader instead.
+                if (_store.Manual && Uri.TryCreate(e.DownloadOperation.Uri, UriKind.Absolute, out var pdf)
+                    && (IsPdf(pdf) || e.ResultFilePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)))
+                {
+                    e.Cancel = true;
+                    e.Handled = true;
+                    _ = OpenPdfAsync(pdf.AbsoluteUri);
+                    return;
+                }
                 try
                 {
                     string folder = FolderFor(_store);
@@ -286,6 +298,53 @@ public sealed class StoreWebScreen : Screen
         if (!on) { _loading.Width = 0; return; }
         if (Theme.ReduceMotion) { _loading.Width = 240; return; }
         _loading.BeginAnimation(WidthProperty, new DoubleAnimation(0, 900, TimeSpan.FromSeconds(4)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+    }
+
+    private static bool IsPdf(Uri u) => u.AbsolutePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+
+    private bool _openingPdf;
+
+    /// <summary>
+    /// 9.0.19: a manual's PDF: downloaded once into SquareDeck's Manuals folder (in its data folder, not shipped with it)
+    /// and opened in the manual reader.
+    /// </summary>
+    private async Task OpenPdfAsync(string url)
+    {
+        if (_openingPdf) return;
+        _openingPdf = true;
+        ShowLoading(true);
+        try
+        {
+            string folder = Path.Combine(Settings.DataDir, "Manuals");
+            Directory.CreateDirectory(folder);
+            string name = Path.GetFileName(new Uri(url).AbsolutePath);
+            name = string.Concat(name.Split(Path.GetInvalidFileNameChars()));
+            if (name.Length == 0) name = "manual";
+            if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) name += ".pdf";
+            string path = Path.Combine(folder, name);
+            if (!File.Exists(path) || new FileInfo(path).Length < 1024)
+            {
+                Host.ShowToast("USER MANUAL", "Downloading the manual…", "", "", "info", remember: false);
+                using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(2) };
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) SquareDeck");
+                byte[] bytes = await http.GetByteArrayAsync(url);
+                if (bytes.Length < 5 || bytes[0] != (byte)'%' || bytes[1] != (byte)'P' || bytes[2] != (byte)'D' || bytes[3] != (byte)'F')
+                    throw new InvalidDataException("That link didn't give a PDF.");
+                await File.WriteAllBytesAsync(path + ".part", bytes);
+                File.Move(path + ".part", path, true);
+            }
+            if (_closed) return;
+            Host.Push(new ManualScreen(_store.Name, path));
+        }
+        catch (Exception ex)
+        {
+            Host.ShowToast("USER MANUAL", "The manual couldn't be opened", ex.Message, "", "info", remember: false);
+        }
+        finally
+        {
+            _openingPdf = false;
+            ShowLoading(false);
+        }
     }
 
     private void Leave()

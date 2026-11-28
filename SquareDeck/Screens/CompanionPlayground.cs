@@ -10,7 +10,7 @@ using SquareDeck.Services;
 namespace SquareDeck.Screens;
 
 /// <summary>
-/// Experimental "Companion playground" (9.0.4): a little world where your companion lives. Outside, a yard under the
+/// "Companion playground" (9.0.4, out of Experimental in 9.0.20): a little world where your companion lives. Outside, a yard under the
 /// real sky (sunrise, day, sunset and stars at night) with an apple tree, flowers that grow as you keep visiting, a
 /// mailbox with a daily letter, a toy box, the Star Shop and, if you buy one, a telescope. Inside, its house: a bed for
 /// naps, a fridge for snacks, a TV showing the game you played last, an arcade cabinet with the Star Catch minigame, a
@@ -897,9 +897,24 @@ public sealed partial class CompanionPlayground : Screen
                 _ = Run(go);
                 return true;
             case NavAction.Start: ShowQuests(); return true;
-            case NavAction.Back: UiSound.Back(); Host.Pop(this); return true;
+            case NavAction.Back: _ = AskLeaveAsync(); return true;
         }
         return true;
+    }
+
+    private bool _askingLeave;
+
+    /// <summary>9.0.17: B asks first, so a stray press doesn't end a visit.</summary>
+    private async Task AskLeaveAsync()
+    {
+        if (_askingLeave) return;
+        _askingLeave = true;
+        try
+        {
+            int c = await Host.AskAsync("Leave the playground?", "You're about to leave " + CompanionArt.Name + "'s playground. It'll be right here when you come back.", "Leave", "Stay");
+            if (c == 0) { UiSound.Back(); Host.Pop(this); }
+        }
+        finally { _askingLeave = false; }
     }
 
     private void MoveFocus(int by)

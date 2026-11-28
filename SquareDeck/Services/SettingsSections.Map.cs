@@ -41,14 +41,13 @@ public static partial class SettingsSections
             ["Controller"] = new[] { "AllyStickInner", "AllyStickOuter", "AllyTriggerInner", "AllyTriggerOuter", "AllyVibration" },
             ["Fans and temperature"] = new[] { "AllyFan" },
             ["Lights"] = new[] { "AllyGameLights", "AllyLightColor", "AllyLightColor2", "AllyLightPercent", "AllyLightSpeed", "AllyLightReactions", "AllyLightsOffPlaying", "AllyLowBatteryFlash" },
-            ["This device"] = new[] { "ShowMyDeviceButton" },
             ["When the lights are on"] = new[] { "AllyLightAwakeBattery", "AllyLightAwakePlugged", "AllyLightBatteryIdleOff", "AllyLightBootShutdown", "AllyLightPowerSet", "AllyLightSleep" },
             ["Xbox button light"] = new[] { "AllyXboxLight", "AllyXboxLightBreathe", "AllyXboxLightLevel", "AllyXboxLightLowBattery", "AllyXboxLightOffPlaying" },
         },
         ["home"] = new()
         {
             ["Animations"] = new[] { "ButtonAnimationStyle", "ButtonAnimations", "PageTransition", "PunchIn", "TileHighlight" },
-            ["Buttons under the games"] = new[] { "ShowBrowserButton", "ShowExplorerButton", "ShowFriendsButton", "ShowMusicButton", "ShowMyDeviceButton", "ShowNewsButton" },
+            ["Buttons under the games"] = new[] { "ShowBrowserButton", "ShowExplorerButton", "ShowFriendsButton", "ShowMusicButton", "ShowNewsButton" },
             ["Home row and buttons"] = new[] { "ContinueTile", "TileArt", "TileSize" },
             ["Screen saver"] = new[] { "Screensaver", "ScreensaverMinutes" },
             ["Starting and closing"] = new[] { "ExitAnimation", "StartupIntro", "WelcomeMessage" },

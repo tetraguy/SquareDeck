@@ -457,6 +457,7 @@ public sealed class Switch2LibraryScreen : Screen
         var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
         words.Children.Add(new TextBlock { Text = g.Name, FontSize = 20, TextTrimming = TextTrimming.CharacterEllipsis });
         var facts = new List<string> { g.IsInstalled ? g.SourceName : g.OnWishlist ? "Wishlist" + (g.Price.Length > 0 ? "  ·  " + g.Price : "") : "Not installed" };
+        if (!g.IsInstalled && StoreCountBadge.Words(g) is { } onStores) facts.Add(onStores);
         if (Host.CategoryOf(g) is string category) facts.Add(category);
         if (g.SizeOnDisk > 0) facts.Add(Size(g.SizeOnDisk));
         if (Played(g.RecentAt)) facts.Add("Played " + Ui.Ago(g.RecentAt));
@@ -534,6 +535,7 @@ public sealed class Switch2LibraryScreen : Screen
 
         var art = new Grid();
         art.Children.Add(box);
+        if (!g.IsInstalled && StoreCountBadge.For(g) is { } stores) art.Children.Add(stores); // on several stores, shown once (9.0.11)
         string? label = g.IsRunning ? "Running" : g.HasUpdate ? "Update" : null;
         if (label != null)
         {

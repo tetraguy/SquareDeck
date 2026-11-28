@@ -3450,7 +3450,7 @@ public sealed partial class LibraryScreen : Screen
         _filter = filter;
         _lastFocus = focus;
         // Saved lists show at once and refresh in the background each time their section is picked.
-        if (filter == "notinstalled") _ = Host.LoadOwnedGamesAsync(refresh: true);
+        if (filter == "notinstalled") { _ = Host.LoadOwnedGamesAsync(refresh: true); _ = Host.LoadAccountGamesAsync(); }
         if (filter == "wishlist") _ = Host.LoadWishlistAsync(refresh: true);
         Rebuild();
     }
@@ -3661,6 +3661,7 @@ public sealed partial class LibraryScreen : Screen
                     Text = "\uE896", FontFamily = Ui.IconFont, FontSize = 26, Foreground = Brushes.White, Opacity = 0.9,
                     HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false
                 });
+                if (StoreCountBadge.For(g) is { } stores) face.Children.Add(stores); // on several stores, shown once (9.0.11)
             }
             // Games with no square cover show their icon: SteamGridDB icons fill the tile, program icons sit centered.
             void ApplyFace()
@@ -4116,6 +4117,7 @@ public sealed partial class LibraryScreen : Screen
         words.Children.Add(title);
         var mine = Host.Library.Find(g.Key);
         var line = new List<string> { g.IsInstalled ? g.SourceName : g.OnWishlist ? "Wishlist" : "Not installed" };
+        if (!g.IsInstalled && StoreCountBadge.Words(g) is { } onStores) line.Add(onStores);
         if (Host.CategoryOf(g) is string category) line.Add(category);
         if (mine is { Rating: > 0 }) line.Add(Ui.Stars(mine.Rating));
         if (!string.IsNullOrWhiteSpace(mine?.Status)) line.Add(mine.Status);

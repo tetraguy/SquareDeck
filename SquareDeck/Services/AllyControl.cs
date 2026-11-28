@@ -235,6 +235,8 @@ public static class AllyControl
     private static Settings? _settings;
     private static readonly DispatcherTimer Ticker = new() { Interval = TimeSpan.FromSeconds(30) };
     private static bool _playing, _lowFlash, _fullOnce, _mouse;
+    /// <summary>A game is running (for gyro aiming, which only aims in games unless told otherwise).</summary>
+    public static bool Playing => _playing;
     private static Color? _gameColor;
     private static string _lastLights = "";
 
@@ -339,18 +341,52 @@ public static class AllyControl
     /// <summary>Whether the controller tuning differs from ASUS's defaults (or was changed this run, so it's sent back).</summary>
     private static bool _tuned;
 
-    /// <summary>Rumble strength and the stick and trigger dead zones, into the controller's firmware.</summary>
+    /// <summary>Rumble strength, the stick and trigger dead zones, anti-deadzone and response curves, into the controller's firmware.</summary>
     public static bool ApplyTuning()
     {
         var s = _settings;
         if (s == null) return false;
-        // The running game's profile may set its own rumble strength.
-        int vibration = (_playing ? _runningProfile?.Vibration : null) ?? s.AllyVibration;
-        bool custom = vibration != 100 || s.AllyStickInner != 0 || s.AllyStickOuter != 100 || s.AllyTriggerInner != 0 || s.AllyTriggerOuter != 100;
+        var t = TuningFor(s, (_playing ? _runningProfile?.Vibration : null));
+        bool custom = !IsDefault(t);
         if (!custom && !_tuned) return true; // nothing to change: leave the controller alone
         _tuned = custom;
-        return AllyHid.SetTuning(vibration, s.AllyStickInner, s.AllyStickOuter, s.AllyTriggerInner, s.AllyTriggerOuter);
+        return AllyHid.SetTuning(t);
     }
+
+    /// <summary>The tuning in settings (the running game's profile may set its own rumble strength, for both motors).</summary>
+    public static AllyHid.Tuning TuningFor(Settings s, int? profileVibration = null)
+    {
+        static int R(int right, int left) => right < 0 ? left : right;
+        int vl = profileVibration ?? s.AllyVibration, vr = profileVibration ?? R(s.AllyVibrationR, s.AllyVibration);
+        return new AllyHid.Tuning((vl, vr),
+            (s.AllyStickInner, s.AllyStickOuter), (R(s.AllyStickInnerR, s.AllyStickInner), R(s.AllyStickOuterR, s.AllyStickOuter)),
+            (s.AllyTriggerInner, s.AllyTriggerOuter), (R(s.AllyTriggerInnerR, s.AllyTriggerInner), R(s.AllyTriggerOuterR, s.AllyTriggerOuter)),
+            (s.AllyAdzL, s.AllyAdzR), ParseCurve(s.AllyCurveL), ParseCurve(s.AllyCurveR));
+    }
+
+    public static bool IsDefault(AllyHid.Tuning t) =>
+        t.Vibration == (100, 100) && t.StickL == (0, 100) && t.StickR == (0, 100) && t.TriggerL == (0, 100) && t.TriggerR == (0, 100)
+        && t.Adz == (0, 0) && t.CurveL.SequenceEqual(AllyHid.LinearCurve) && t.CurveR.SequenceEqual(AllyHid.LinearCurve);
+
+    /// <summary>"20,20,40,40,60,60,99,99" as numbers (straight when empty or broken).</summary>
+    public static int[] ParseCurve(string? text)
+    {
+        var parts = (text ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length != 8 || parts.Any(p => !int.TryParse(p, out _))) return (int[])AllyHid.LinearCurve.Clone();
+        return AllyHid.NormalizeCurve(parts.Select(int.Parse).ToArray());
+    }
+
+    public static string CurveText(int[] curve) => string.Join(",", AllyHid.NormalizeCurve(curve));
+
+    /// <summary>Response curve presets, as Armoury Crate offers shapes: straight, gentle at first, quick at first, and steady aim.</summary>
+    public static readonly (string Name, int[] Curve)[] CurvePresets =
+    {
+        ("Linear (default)", new[] { 20, 20, 40, 40, 60, 60, 99, 99 }),
+        ("Precise: gentle near the middle", new[] { 25, 10, 50, 30, 75, 60, 99, 99 }),
+        ("Aggressive: quick off the middle", new[] { 20, 35, 40, 60, 60, 80, 99, 99 }),
+        ("Steady aim: slow middle, fast edge", new[] { 30, 15, 60, 40, 85, 75, 99, 99 }),
+        ("Instant: full sooner", new[] { 15, 25, 35, 55, 55, 85, 80, 99 }),
+    };
 
     private static bool _backKeysWereOn;
 

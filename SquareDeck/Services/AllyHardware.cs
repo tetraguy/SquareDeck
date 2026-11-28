@@ -678,35 +678,104 @@ public static class AllyHid
     private static readonly byte[] Triggers = { 0x5A, 0xD1, 0x02, 0x09, 0x2C, 0x01, 0x0D, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x0E };
     // The commit messages (as HandheldCompanion sends them): turbo off, then vibration strength and the stick and trigger
     // dead zones. Those three are SquareDeck's own settings (ASUS's defaults: 100% vibration, no dead zones).
-    private static byte[][] CommitController => new[]
+    private static byte[][] CommitController
     {
-        new byte[] { 0x5A, 0xD1, 0x0F, 0x20 }, VibrationMessage, StickMessage, TriggerMessage,
-    };
+        get
+        {
+            var list = new List<byte[]> { new byte[] { 0x5A, 0xD1, 0x0F, 0x20 }, VibrationMessage, StickMessage, TriggerMessage };
+            if (_tuning.Adz.Left > 0 || _tuning.Adz.Right > 0 || _adzSent) list.Add(AdzMessage);
+            if (!_tuning.CurveL.SequenceEqual(LinearCurve) || !_tuning.CurveR.SequenceEqual(LinearCurve) || _curveSent) { list.Add(CurveMessage(1, _tuning.CurveL)); list.Add(CurveMessage(2, _tuning.CurveR)); }
+            return list.ToArray();
+        }
+    }
 
-    /// <summary>The controller's own tuning, kept so the commit after a layout change sends it too. Percentages.</summary>
-    private static (int Left, int Right) _vibration = (100, 100);
-    private static (int Inner, int Outer) _sticks = (0, 100), _triggers = (0, 100);
+    /// <summary>
+    /// The controller's own tuning, kept so the commit after a layout change sends it too. Percentages. 9.0.13: each
+    /// side on its own (the firmware always took the left and right separately), the joysticks' anti-deadzone, and a
+    /// response curve per stick (four points of stick movement and response, in percent).
+    /// </summary>
+    public sealed record Tuning((int Left, int Right) Vibration, (int Inner, int Outer) StickL, (int Inner, int Outer) StickR,
+        (int Inner, int Outer) TriggerL, (int Inner, int Outer) TriggerR, (int Left, int Right) Adz, int[] CurveL, int[] CurveR);
+
+    /// <summary>A straight response (ASUS's default): 20 to 20, 40 to 40, 60 to 60, 99 to 99.</summary>
+    public static readonly int[] LinearCurve = { 20, 20, 40, 40, 60, 60, 99, 99 };
+
+    private static Tuning _tuning = new((100, 100), (0, 100), (0, 100), (0, 100), (0, 100), (0, 0), LinearCurve, LinearCurve);
+    private static bool _adzSent, _curveSent;
 
     private static byte P(int percent) => (byte)Math.Clamp(percent, 0, 100);
-    private static byte[] VibrationMessage => new byte[] { 0x5A, 0xD1, 0x06, 0x02, P(_vibration.Left), P(_vibration.Right) };
-    private static byte[] StickMessage => new byte[] { 0x5A, 0xD1, 0x04, 0x04, P(_sticks.Inner), P(_sticks.Outer), P(_sticks.Inner), P(_sticks.Outer) };
-    private static byte[] TriggerMessage => new byte[] { 0x5A, 0xD1, 0x05, 0x04, P(_triggers.Inner), P(_triggers.Outer), P(_triggers.Inner), P(_triggers.Outer) };
+    private static (int Inner, int Outer) Range((int Inner, int Outer) r) => (r.Inner, Math.Max(r.Inner + 5, r.Outer));
+    private static byte[] VibrationMessage => new byte[] { 0x5A, 0xD1, 0x06, 0x02, P(_tuning.Vibration.Left), P(_tuning.Vibration.Right) };
+    private static byte[] StickMessage
+    {
+        get { var l = Range(_tuning.StickL); var r = Range(_tuning.StickR); return new byte[] { 0x5A, 0xD1, 0x04, 0x04, P(l.Inner), P(l.Outer), P(r.Inner), P(r.Outer) }; }
+    }
+    private static byte[] TriggerMessage
+    {
+        get { var l = Range(_tuning.TriggerL); var r = Range(_tuning.TriggerR); return new byte[] { 0x5A, 0xD1, 0x05, 0x04, P(l.Inner), P(l.Outer), P(r.Inner), P(r.Outer) }; }
+    }
+    // Anti-deadzone: command 0x18, two bytes (left, right), 0 to 32%.
+    private static byte[] AdzMessage => new byte[] { 0x5A, 0xD1, 0x18, 0x02, (byte)Math.Clamp(_tuning.Adz.Left, 0, 32), (byte)Math.Clamp(_tuning.Adz.Right, 0, 32) };
+
+    // Response curve: command 0x13, nine bytes: the stick (1 left, 2 right), then four points of (movement %, response %).
+    private static byte[] CurveMessage(byte side, int[] curve)
+    {
+        var c = NormalizeCurve(curve);
+        var m = new byte[] { 0x5A, 0xD1, 0x13, 0x09, side, 0, 0, 0, 0, 0, 0, 0, 0 };
+        for (int k = 0; k < 8; k++) m[5 + k] = (byte)c[k];
+        return m;
+    }
+
+    /// <summary>Four points, each 1 to 99, the movements rising and the responses never falling.</summary>
+    public static int[] NormalizeCurve(int[]? curve)
+    {
+        if (curve is not { Length: 8 }) return (int[])LinearCurve.Clone();
+        var c = curve.Select(v => Math.Clamp(v, 1, 99)).ToArray();
+        for (int p = 1; p < 4; p++)
+        {
+            c[p * 2] = Math.Min(99, Math.Max(c[p * 2], c[(p - 1) * 2] + 1));
+            c[p * 2 + 1] = Math.Max(c[p * 2 + 1], c[(p - 1) * 2 + 1]);
+        }
+        return c;
+    }
 
     /// <summary>
     /// The built-in controller's own tuning, in its firmware (so it works in every game, not just SquareDeck):
-    /// rumble strength of the left and right motors, and the inner (dead zone) and outer (reach full at) limits of
-    /// both sticks and both triggers, in percent.
+    /// rumble strength of the left and right motors, the inner (dead zone) and outer (reach full at) limits of each
+    /// stick and trigger, the sticks' anti-deadzone, and their response curves.
     /// </summary>
-    public static bool SetTuning(int vibration, int stickInner, int stickOuter, int triggerInner, int triggerOuter)
+    public static bool SetTuning(Tuning tuning)
     {
         lock (Lock)
         {
-            _vibration = (vibration, vibration);
-            _sticks = (stickInner, Math.Max(stickInner + 5, stickOuter));
-            _triggers = (triggerInner, Math.Max(triggerInner + 5, triggerOuter));
+            _tuning = tuning with { CurveL = NormalizeCurve(tuning.CurveL), CurveR = NormalizeCurve(tuning.CurveR) };
             Scan();
             if (_input == null) return false;
             bool ok = Feature(_input, VibrationMessage) & Feature(_input, StickMessage) & Feature(_input, TriggerMessage);
+            if (!ok) { Drop(ref _input); return false; }
+            bool adz = _tuning.Adz.Left > 0 || _tuning.Adz.Right > 0;
+            if (adz || _adzSent) { Feature(_input, AdzMessage); _adzSent = adz; }
+            bool curved = !_tuning.CurveL.SequenceEqual(LinearCurve) || !_tuning.CurveR.SequenceEqual(LinearCurve);
+            if (curved || _curveSent) { Feature(_input, CurveMessage(1, _tuning.CurveL)); Feature(_input, CurveMessage(2, _tuning.CurveR)); _curveSent = curved; }
+            return true;
+        }
+    }
+
+    /// <summary>The axes the controller calibrates: the left stick, the right stick, the left trigger, the right trigger.</summary>
+    public enum CalibrationAxis : byte { LeftStick = 1, RightStick = 2, LeftTrigger = 3, RightTrigger = 4 }
+
+    /// <summary>
+    /// Puts an axis back to the calibration it left the factory with (command 0x0D: reset, then apply). The controller
+    /// keeps it; nothing else changes.
+    /// </summary>
+    public static bool ResetCalibration(CalibrationAxis axis)
+    {
+        lock (Lock)
+        {
+            Scan();
+            if (_input == null) return false;
+            bool ok = Feature(_input, new byte[] { 0x5A, 0xD1, 0x0D, 0x01, 0x02, (byte)axis });
+            ok &= Feature(_input, new byte[] { 0x5A, 0xD1, 0x0D, 0x01, 0x03, (byte)axis });
             if (!ok) Drop(ref _input);
             return ok;
         }

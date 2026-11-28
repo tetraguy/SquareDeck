@@ -542,7 +542,7 @@ public sealed class AllyButtonsScreen : ListScreen
                 Rebuild();
             }, subtitle: "Microphone, screenshot, keyboard and record keys");
             if (!s.AllyBackKeys)
-                AddRow("M1 and M2 back buttons", "Off", "\uE7FC", click: () => Host.Push(new SettingsScreen("handheld") { FocusLabel = "M1 and M2 back buttons" }),
+                AddRow("M1 and M2 back buttons", "Off", "\uE7FC", click: () => Host.Push(SettingsScreen.AllyPage("shortcuts", "back")),
                     subtitle: "Turn them on in Settings > " + Handheld.DisplayName + " to give them actions here");
             AddRow("Back to the defaults", glyph: "\uE777", click: () =>
             {

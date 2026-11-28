@@ -18,13 +18,15 @@ public partial class MainWindow
     /// <summary>The videos that come with SquareDeck, in Backgrounds\, by group.</summary>
     public static readonly (string Group, string[] Names)[] DynamicBackgrounds =
     {
-        ("Waves", new[] { "Black Wave", "Blue Wave", "Gold Wave", "Silver Wave" }),
+        ("Waves", new[] { "Black Wave", "Blue Wave", "Gold Wave", "Silver Wave", "Crimson Wave" }),
         ("Blades", new[] { "Black Blades", "Green Blades", "Mint Blades", "Blurry Blades", "Fuzzy Blades" }),
         ("Pixel art", new[] { "Lofi City", "City Dawn", "Cyberpunk Rain", "Night River", "Mushroom Forest", "Yellowstone", "Chill Mario",
                               "Ocarina", "Pokee", "Stars and Me", "Witcher", "Gamer Den", "Pixel Forest", "Dark Sunset", "Emerald",
-                              "Pixel Ride", "Midnight", "Sleepy" }),
+                              "Pixel Ride", "Midnight", "Sleepy", "Walking By", "Ponder", "Just Vibes" }),
         ("Scenery", new[] { "Aero", "Heaven", "Pasture", "Plague", "Summer Steam", "Fall Blossom", "Dreamcore" }),
-        ("Vaporwave and Y2K", new[] { "La Fuente", "Analog", "Black Bug" })
+        ("Vaporwave and Y2K", new[] { "La Fuente", "Analog", "Black Bug" }),
+        // 9.0.21
+        ("Dark and moody", new[] { "Matrix", "Intrusive Thoughts" })
     };
 
     public static readonly (int Radius, string Name)[] DynamicBlurLevels =

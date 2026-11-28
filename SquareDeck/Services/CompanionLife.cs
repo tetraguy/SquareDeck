@@ -3,7 +3,7 @@ using System.Globalization;
 namespace SquareDeck.Services;
 
 /// <summary>
-/// The companion's life outside Home (9.0.4, Experimental "Companion playground"): how fed, rested and entertained it
+/// The companion's life outside Home (9.0.4, "Companion playground", out of Experimental in 9.0.20): how fed, rested and entertained it
 /// is, how close the two of you are, the star bits it has saved, and what it owns. Needs drift down slowly in real
 /// time (never to nothing: it's never neglected, only a bit grumpy), and come back up with food, naps and play.
 /// Star bits come from the daily letter in the mailbox, the playground's games, petting, and from playing your games.
@@ -55,7 +55,11 @@ public static partial class CompanionLife
     /// <summary>Accessory prices (free ones cost 0).</summary>
     public static int AccessoryPrice(string id) => id switch
     {
-        "bowtie" or "glasses" or "freckles" or "blush" => 0,
+        "bowtie" or "glasses" or "freckles" or "blush" or "bandaid" or "beautymark" => 0,
+        "sparkles" or "clownnose" or "whiskers" => 10,
+        "earring" or "gem" or "bubble" or "bandananeck" => 20,
+        "goggles" or "lei" => 30,
+        "medal" => 45,
         "star" or "heart" or "sweatband" => 15,
         "mustache" or "necktie" or "collar" => 25,
         "eyepatch" or "pearls" => 35,

@@ -17,6 +17,8 @@ public sealed partial class SettingsScreen : ListScreen
     private static readonly (string Id, string Name, string Glyph, string About)[] Categories =
     {
         ("overview", "Home", "\uE80F", "Your profile, your device at a glance, and the settings people change most"),
+        // 9.0.12: right under Home, so Wi-Fi and Bluetooth are a press away (they were in Network and browser).
+        ("connections", "Connections", "\uE701", "Wi-Fi, Bluetooth, quick settings, the network speed test and troubleshooting"),
         ("looks", "Themes", "\uE771", "Pick one of {styles} ready-made styles or create your own"),
         ("look", "Look and feel", "\uE790", "Colors, wallpaper and themes, the top bar and home screen buttons"),
         ("home", "Home screen", "\uE8A9", "The games row, animations, screen saver, starting and closing"),
@@ -25,7 +27,7 @@ public sealed partial class SettingsScreen : ListScreen
         ("library", "Library and stores", "\uE8F1", "Library layout and stores, achievements, play time, service keys"),
         ("controller", "Controller and Game Bar widget", "\uE7FC", "Buttons, vibration, typing, the Game Bar widget, handheld buttons"),
         ("handheld", "{device}", Ui.HandheldGlyph, "TDP limit and processor power, lights, fans, battery care and buttons for this device"),
-        ("network", "Network and browser", "\uE774", "Wi-Fi, Bluetooth, troubleshooting, the web browser"),
+        ("network", "Web browser", "\uE774", "SquareDeck's web browser: its button, links, tabs, home page, search engine and zoom"),
         ("access", "Accessibility", "\uE776", "Seeing, motion, hearing, controls and timing, reading aloud"),
         ("apps", "Apps", "\uE71D", "Installed apps: uninstall, repair, reset; startup and default apps"),
         ("system", "System and tools", "\uE7F8", "Notifications, disk cleanup, tools, Xbox mode, starting with Windows"),
@@ -65,9 +67,10 @@ public sealed partial class SettingsScreen : ListScreen
         ["gaming"] = new[] { ("games", (string[]?)new[] { "Launching games", "While playing" }), ("power", new[] { "Performance Boost", "Performance overlay" }), ("games", new[] { "Cloud gaming" }),
                              // On a PC that isn't a recognized handheld, the TDP (on a handheld it's in the handheld's own section).
                              ("power", new[] { "Processor power (TDP)", "Processor (Ryzen Z1 / Z2)", "TDP helper" }) },
-        ["library"] = new[] { ("games", (string[]?)new[] { "Library and stores", "Achievements, play time and captures", "Library and store features", "Pages and services", "Service keys" }) },
+        ["library"] = new[] { ("games", (string[]?)new[] { "Library and stores", "Store accounts", "Achievements, play time and captures", "Library and store features", "Pages and services", "Service keys" }) },
         ["controller"] = new[] { ("controller", (string[]?)null) },
-        ["network"] = new[] { ("network", (string[]?)null) },
+        ["connections"] = new[] { ("network", (string[]?)new[] { "Connections", "Troubleshooting" }) },
+        ["network"] = new[] { ("network", (string[]?)new[] { "Web browser" }) },
         ["access"] = new[] { ("access", (string[]?)null) },
         ["apps"] = new[] { ("apps", (string[]?)null) },
         ["system"] = new[] { ("system", (string[]?)null) },
@@ -112,22 +115,28 @@ public sealed partial class SettingsScreen : ListScreen
             }
             catch (Exception) { }
         }
+        AddAllyIndex(host, list);
         return list;
     }
 
-    public SettingsScreen() : this(null) { }
+    public SettingsScreen() : this((string?)null) { }
 
     /// <summary>
     /// Two panes: the sections on the left (moving through them shows each one straight away), their settings on
     /// the right. Your profile and a search box sit at the top of the left side.
     /// </summary>
-    internal SettingsScreen(string? category)
-        : base("Settings", "{Select}  Select      {Back}  Back", PanesLayout())
+    internal SettingsScreen(string? category) : this(category, null) { }
+
+    /// <param name="allyPage">9.0.12: one of the device's Armoury Crate style pages (General, Performance, Lighting…), its tabs down the left.</param>
+    internal SettingsScreen(string? category, string? allyPage)
+        : base(allyPage != null ? AllyTitle(allyPage) : "Settings", "{Select}  Select      {Back}  Back", PanesLayout())
     {
+        _allyPage = allyPage;
+        if (allyPage != null) category = AllyFirstTab(allyPage, category);
         _panes = _panesHost != null;
         if (_panes) BuildPanes(_panesHost!);
         _panesHost = null;
-        _category = Upgrade(category ?? "overview"); // Settings opens on its home page
+        _category = _allyPage != null ? category! : Upgrade(category ?? "overview"); // Settings opens on its home page
         // A light tick on the controller each time the highlight moves to another row (if vibration is on).
         AddHandler(UIElement.GotKeyboardFocusEvent, new System.Windows.Input.KeyboardFocusChangedEventHandler((_, e) =>
         {
@@ -142,7 +151,8 @@ public sealed partial class SettingsScreen : ListScreen
         BuildLayout();
         if (_switch2)
         {
-            UseSwitch2Chrome("System Settings");
+            if (_allyPage != null) UseSwitch2Chrome(AllyTitle(_allyPage), AllyGlyph(_allyPage));
+            else UseSwitch2Chrome("System Settings");
             Rows.Margin = new Thickness(18, 0, 40, 24);
             Rows.MaxWidth = 1180;
         }
@@ -380,6 +390,7 @@ public sealed partial class SettingsScreen : ListScreen
     private void BuildNav()
     {
         _nav.Children.Clear();
+        if (_allyPage != null) { BuildAllyNav(); return; }
         if (_switch2) { BuildSwitch2Nav(); return; }
         if (Collapsed) { BuildBlade(); return; }
 
@@ -463,7 +474,7 @@ public sealed partial class SettingsScreen : ListScreen
         Plain("Find a setting", "nav:search").Click += (_, _) => Host.Push(new SearchScreen(settingsOnly: true));
         Rule();
         // Groups, as the Switch 2 rules off its list.
-        var breaks = new HashSet<string> { "overview", "sound", "handheld", "access", "data" };
+        var breaks = new HashSet<string> { "connections", "sound", "handheld", "access", "data" };
         foreach (var c in VisibleCategories)
         {
             string id = c.Id;
@@ -530,6 +541,7 @@ public sealed partial class SettingsScreen : ListScreen
     protected override void Build()
     {
         var s = Host.Settings;
+        if (_allyPage != null) { BuildAllyPage(s); return; } // 9.0.12: a tab of one of the device's pages
         // The handheld's section only exists on a handheld; elsewhere its TDP settings are in Power and performance.
         if (_category == "handheld" && !Handheld.IsHandheld) _category = "gaming";
         var cat = VisibleCategories.FirstOrDefault(c => c.Id == _category);
@@ -567,7 +579,7 @@ public sealed partial class SettingsScreen : ListScreen
                 case "system": BuildSystem(s); break;
                 case "data": BuildData(s); break;
                 case "experimental": BuildExperimental(s); break;
-                case "handheld": BuildHandheld(s); break;
+                case "handheld": BuildAllyHub(s); break; // 9.0.12: Armoury Crate style, in the Switch 2 look
             }
             if (groups != null) KeepGroups(start, groups);
         }
@@ -651,6 +663,14 @@ public sealed partial class SettingsScreen : ListScreen
         playtime.Click += (_, _) => Host.Push(new PlaytimeScreen());
         playtime.Margin = new Thickness(0, 4, 0, 0);
         Rows.Children.Add(playtime);
+        // 9.0.12: My Device lives here now (its button under the home row is gone).
+        if (Handheld.IsHandheld)
+        {
+            var device = Ui.Row("My Device", null, Ui.HandheldGlyph, subtitle: "Your " + Handheld.DisplayName + ": temperatures, fans, battery health and power draw, live");
+            device.Click += (_, _) => Host.Push(new MyDeviceScreen());
+            device.Margin = new Thickness(0, 4, 0, 0);
+            Rows.Children.Add(device);
+        }
         Rows.Children.Add(new Border { Height = 4 });
 
         // Every section, as a card (two panes list them on the left already).
@@ -1667,22 +1687,16 @@ public sealed partial class SettingsScreen : ListScreen
             subtitle: "Your last game as a large tile with its artwork, first on the home row");
 
         AddHeader("Buttons under the games");
+        AddRow("Reorder the buttons", null, "\uE8CB", click: () => Host.Push(new HomeButtonOrderScreen()),
+            subtitle: "Move any button to where you want it on the row, show or hide them, with a preview of the row as you go");
         AddRow("Multimedia button", OnOff(s.ShowMusicButton), "\uE8D6", click: () => Toggle(() => s.ShowMusicButton = !s.ShowMusicButton));
         AddRow("Friends button", OnOff(s.ShowFriendsButton), "\uE716", click: () => Toggle(() => s.ShowFriendsButton = !s.ShowFriendsButton));
         AddRow("Web browser button", OnOff(s.ShowBrowserButton), "\uE774", click: () => Toggle(() => s.ShowBrowserButton = !s.ShowBrowserButton));
         AddRow("Explorer (files) button", OnOff(s.ShowExplorerButton), "\uEC50", click: () => Toggle(() => s.ShowExplorerButton = !s.ShowExplorerButton));
         AddRow("News button", OnOff(s.ShowNewsButton), "\uE789", click: () => Toggle(() => s.ShowNewsButton = !s.ShowNewsButton),
             subtitle: "Game news, patches, announcements and sales");
-        if (Handheld.IsHandheld)
-            AddRow("My Device button", OnOff(s.ShowMyDeviceButton), Ui.HandheldGlyph, click: () =>
-            {
-                s.ShowMyDeviceButton = !s.ShowMyDeviceButton;
-                s.Save();
-                Host.RefreshHomeButtonsPublic();
-                Rebuild();
-            }, subtitle: "Your " + Handheld.DisplayName + "'s temperatures, fans, battery and more");
-        AddNote("Home, Favorites, Apps, Captures, Stores, Settings and Power are always shown. Multimedia, Web browser and Explorer are on to start with; " +
-                "Friends, News and My Device can be added here. Hidden pages can still be opened from Settings.");
+        AddNote("Home, Favorites, Apps, Captures, Stores, Settings and Power are always shown. The others are all on to start with, and each can be hidden here. " +
+                "Hidden pages can still be opened from Settings, and My Device is at the top of Settings, under Your play time.");
 
         AddHeader("Animations");
         // Each opens a picker with a live preview of every choice: it plays while the choice is highlighted or hovered.
@@ -1750,7 +1764,7 @@ public sealed partial class SettingsScreen : ListScreen
         if (Labs.On("tilt")) BuildTiltOptions();
         AddFeature("dust");
         AddFeature("companion");
-        if (Labs.On("companion")) AddFeature("updatecompanion");
+        if (Labs.On("companion")) { AddFeature("updatecompanion"); AddFeature("companionplay"); } // 9.0.20: the playground
 
         AddHeader("Moving background");
         AddFeature("wallpaperengine");
@@ -1876,11 +1890,26 @@ public sealed partial class SettingsScreen : ListScreen
         AddHeader("Summon");
         AddRow("Summon buttons bring the launcher forward", OnOff(s.GuideSummon), "\uE7FC", click: () =>
             Toggle(() => s.GuideSummon = !s.GuideSummon));
-        AddRow("Over a game, summon opens the Game Bar widget", OnOff(s.InGameQuickMenu), "\uE7FC", click: () =>
-            Toggle(() => s.InGameQuickMenu = !s.InGameQuickMenu), subtitle: "SquareDeck's widget replaced the in-game quick menu");
+        AddRow("Over a game, summon opens the in-game menu", OnOff(s.InGameQuickMenu), "\uE7FC", click: () =>
+            Toggle(() => s.InGameQuickMenu = !s.InGameQuickMenu),
+            subtitle: s.InGameMenu == "squaredeck" ? "SquareDeck's quick menu (see In-game menu below)" : "The Game Bar widget (see In-game menu below)");
         AddRow("Controller buttons", SummonLabel(s.SummonCombo), "\uE7FC", click: ChooseSummonButtons);
         AddRow("Keyboard shortcut", MainWindow.SummonKeys.FirstOrDefault(k => k.Id == s.SummonKey).Name ?? "None", "\uE765",
             click: ChooseSummonKey);
+
+        // 9.0.21: the Game Bar widget or SquareDeck's own quick menu.
+        AddHeader("In-game menu");
+        AddRow("In-game menu", s.InGameMenu == "squaredeck" ? "SquareDeck quick menu" : "Xbox Game Bar widget", "\uE8A9", click: () =>
+            Toggle(() => s.InGameMenu = s.InGameMenu == "squaredeck" ? "widget" : "squaredeck"),
+            subtitle: "What the summon buttons, the keyboard shortcut and the Ally's button open over a game: SquareDeck's widget in Game Bar, or SquareDeck's own quick menu drawn over any game or app");
+        if (s.InGameMenu == "squaredeck")
+        {
+            AddRow("Quick menu side", s.QuickMenuSide == "right" ? "Right" : "Left", "\uE76C", click: () =>
+                Toggle(() => s.QuickMenuSide = s.QuickMenuSide == "right" ? "left" : "right"));
+            AddRow("Quick menu takes the controller", OnOff(s.QuickMenuFocus), "\uE7FC", click: () => Toggle(() => s.QuickMenuFocus = !s.QuickMenuFocus),
+                subtitle: "On: the game stops reacting to the controller while the menu is open. Turn it off if a game minimizes or goes black when the menu opens (some older games in exclusive full screen do)");
+            AddRow("Open the quick menu now", null, "\uE8A7", click: () => Host.ToggleQuickMenu(), subtitle: "B or the summon buttons close it again");
+        }
 
         AddHeader("Xbox Game Bar widget");
         AddRow("Widget connection", OnOff(s.GameBarWidget), "\uE7FC", click: () => Toggle(() =>
@@ -1921,7 +1950,7 @@ public sealed partial class SettingsScreen : ListScreen
             subtitle: "Which cards the widget shows below Power: the game, live stats, the ROG Ally and quick toggles");
         AddRow("Close game in the widget", OnOff(s.WidgetCloseGame), "\uE711", click: () => Toggle(() => s.WidgetCloseGame = !s.WidgetCloseGame),
             subtitle: "A Close game button on the widget's game card (press twice)");
-        AddRow("Open the widget now", null, "\uE8A7", click: () => Host.RunWidgetAction(),
+        AddRow("Open the widget now", null, "\uE8A7", click: () => Host.OpenGameBarWidget(),
             subtitle: "Opens Game Bar with SquareDeck's widget");
 
         if (Handheld.IsHandheld)
@@ -2276,13 +2305,6 @@ public sealed partial class SettingsScreen : ListScreen
         AddHeader("This device");
         AddRow("My Device", null, "\uE950", click: () => Host.Push(new MyDeviceScreen()),
             subtitle: "Temperatures, fan speed, battery health, power draw and more, live");
-        AddRow("My Device on the home screen", OnOff(s.ShowMyDeviceButton), "\uE8A9", click: () =>
-        {
-            s.ShowMyDeviceButton = !s.ShowMyDeviceButton;
-            s.Save();
-            Host.RefreshHomeButtonsPublic();
-            Rebuild();
-        }, subtitle: "A button beside the others under the games row");
         AddRow("Battery", null, "\uEBB5", click: () => Host.Push(new BatteryScreen()), subtitle: "Battery saver, health, charging and usage");
         if (Handheld.Current is { } device) AddNote("SquareDeck can change: " + Handheld.ControlsText(device) + ".");
 
@@ -2395,9 +2417,12 @@ public sealed partial class SettingsScreen : ListScreen
         bool pad = AllyHid.HasController;
 
         // ---- Fans and temperature
-        AddHeader("Display and processor");
+        // 9.0.12: small groups, so each tab of the Armoury Crate style pages can take just the ones it shows.
+        AddHeader("Display");
         AddFeaturePage("visualmodes", "Visual modes", "ASUS GameVisual screen modes and color temperature, with AMD's OLED Power Optimization handled");
+        AddHeader("Processor cores");
         AddFeaturePage("cpucores", "CPU core configuration", "How many P-cores and E-cores are enabled (after a restart)");
+        AddHeader("Corner logo");
         string rog = Ui.RogFooter;
         AddRow("ROG logo in the corner", rog switch { "auto" => "On", "white" => "White", "black" => "Black", _ => "Off" }, "\uE7FC", click: async () =>
         {
@@ -2544,39 +2569,98 @@ public sealed partial class SettingsScreen : ListScreen
             }
         }
 
-        // ---- Controller: the built-in controller's own firmware settings (they work in every game)
-        AddHeader("Controller");
-        if (!pad) AddNote("SquareDeck couldn't find the Ally's controller settings device. These settings apply once it's found.");
-        AddRow("Rumble strength", s.AllyVibration == 0 ? "Off" : s.AllyVibration + "%", "\uE7FC", click: async () =>
+        // ---- Controller: the built-in controller's own firmware settings (they work in every game). 9.0.13: each side
+        // on its own, as in Armoury Crate (the right side follows the left until it's changed).
+        static int Right(int right, int left) => right < 0 ? left : right;
+        int vibR = Right(s.AllyVibrationR, s.AllyVibration);
+        int lsIn = s.AllyStickInner, lsOut = s.AllyStickOuter, rsIn = Right(s.AllyStickInnerR, s.AllyStickInner), rsOut = Right(s.AllyStickOuterR, s.AllyStickOuter);
+        int ltIn = s.AllyTriggerInner, ltOut = s.AllyTriggerOuter, rtIn = Right(s.AllyTriggerInnerR, s.AllyTriggerInner), rtOut = Right(s.AllyTriggerOuterR, s.AllyTriggerOuter);
+        void Tune(Action change) => AllySave(change, () => Task.Run(AllyControl.ApplyTuning));
+        async Task Strength(string title, int value, Action<int> store)
         {
-            var dialog = new SliderDialog("Rumble strength", "How strongly the built-in controller vibrates, in every game. ASUS's default is 100%.",
-                "Strength", "\uE7FC", s.AllyVibration, null, 0, 100, v => v == 0 ? "Off" : v + "%");
+            var dialog = new SliderDialog(title, "How strongly this side of the built-in controller vibrates, in every game. ASUS's default is 100%.",
+                "Strength", "\uE7FC", value, null, 0, 100, v => v == 0 ? "Off" : v + "%");
             Host.Push(dialog);
             int v = await dialog.Result;
-            AllySave(() => s.AllyVibration = Math.Clamp(v, 0, 100), () => Task.Run(AllyControl.ApplyTuning));
-        }, subtitle: "The controller's own strength, for every game. SquareDeck's menu buzz is in Controller and Game Bar widget");
-        AddRow("Stick dead zone", s.AllyStickInner + "%", "\uE7FC", click: () => _ = PickPercentAsync("Stick dead zone",
-            "How far the sticks move before anything happens. Raise it if a worn stick drifts on its own.", s.AllyStickInner, 0, 30,
-            v => s.AllyStickInner = v), subtitle: "Both sticks, in the controller itself. 0% is ASUS's default");
-        AddRow("Stick reaches full at", s.AllyStickOuter + "%", "\uE7FC", click: () => _ = PickPercentAsync("Stick reaches full at",
-            "How far the sticks travel to count as pushed all the way. Lower it if a stick never quite reaches full.", s.AllyStickOuter, 70, 100,
-            v => s.AllyStickOuter = v), subtitle: "100% is ASUS's default");
-        AddRow("Trigger dead zone", s.AllyTriggerInner + "%", "\uE7FC", click: () => _ = PickPercentAsync("Trigger dead zone",
-            "How far the triggers press before they register. Raise it for hair triggers you brush by accident.", s.AllyTriggerInner, 0, 40,
-            v => s.AllyTriggerInner = v), subtitle: "Both triggers. 0% is ASUS's default");
-        AddRow("Trigger reaches full at", s.AllyTriggerOuter + "%", "\uE7FC", click: () => _ = PickPercentAsync("Trigger reaches full at",
-            "How far the triggers press to count as fully pressed. Lower it for faster full throttle or a quicker shot.", s.AllyTriggerOuter, 60, 100,
-            v => s.AllyTriggerOuter = v), subtitle: "100% is ASUS's default");
-        if (s.AllyVibration != 100 || s.AllyStickInner != 0 || s.AllyStickOuter != 100 || s.AllyTriggerInner != 0 || s.AllyTriggerOuter != 100)
-            AddRow("Put the controller back to ASUS's defaults", null, "\uE777", click: () => AllySave(() =>
+            Tune(() => store(Math.Clamp(v, 0, 100)));
+        }
+
+        AddHeader("Vibration");
+        if (!pad) AddNote("SquareDeck couldn't find the Ally's controller settings device. These settings apply once it's found.");
+        AddRow("Left side vibration", s.AllyVibration == 0 ? "Off" : s.AllyVibration + "%", "\uE7FC",
+            click: () => _ = Strength("Left side vibration", s.AllyVibration, v => { if (s.AllyVibrationR < 0) s.AllyVibrationR = s.AllyVibration; s.AllyVibration = v; }),
+            subtitle: "The left motor's strength, for every game. SquareDeck's menu buzz is in Controller and Game Bar widget");
+        AddRow("Right side vibration", vibR == 0 ? "Off" : vibR + "%", "\uE7FC",
+            click: () => _ = Strength("Right side vibration", vibR, v => s.AllyVibrationR = v), subtitle: "The right motor's strength");
+
+        void Stick(string name, bool left)
+        {
+            AddHeader(name);
+            if (!pad) AddNote("SquareDeck couldn't find the Ally's controller settings device. These settings apply once it's found.");
+            int inner = left ? lsIn : rsIn, outer = left ? lsOut : rsOut, adz = left ? s.AllyAdzL : s.AllyAdzR;
+            var curve = AllyControl.ParseCurve(left ? s.AllyCurveL : s.AllyCurveR);
+            string curveName = AllyControl.CurvePresets.FirstOrDefault(p => p.Curve.SequenceEqual(curve)).Name ?? "Custom";
+            AddRow("Response curve", curveName.Split(':')[0], "\uE9D9", click: () => Host.Push(new ResponseCurveScreen(name, curve, c =>
             {
-                s.AllyVibration = 100; s.AllyStickInner = 0; s.AllyStickOuter = 100; s.AllyTriggerInner = 0; s.AllyTriggerOuter = 100;
-            }, () => Task.Run(AllyControl.ApplyTuning)));
+                Tune(() => { if (left) s.AllyCurveL = AllyControl.CurveText(c); else s.AllyCurveR = AllyControl.CurveText(c); });
+            })), subtitle: "How much the game sees for each bit you push: straight, gentle in the middle for aiming, or quick for movement");
+            AddRow("Dead zone", inner + "%", "\uE7FC", click: () => _ = PickPercentAsync(name + " dead zone",
+                "How far the stick moves before anything happens. Raise it if the stick drifts on its own.", inner, 0, 50,
+                v => { if (left) { KeepRightSticks(); s.AllyStickInner = v; } else s.AllyStickInnerR = v; }), subtitle: "0 to 50%. 0% is ASUS's default");
+            AddRow("Reaches full at", outer + "%", "\uE7FC", click: () => _ = PickPercentAsync(name + " reaches full at",
+                "How far the stick travels to count as pushed all the way. Lower it if it never quite reaches full.", outer, 60, 100,
+                v => { if (left) { KeepRightSticks(); s.AllyStickOuter = v; } else s.AllyStickOuterR = v; }), subtitle: "100% is ASUS's default");
+            AddRow("Anti-deadzone", adz + "%", "\uE7FC", click: () => _ = PickPercentAsync(name + " anti-deadzone",
+                "The opposite of the dead zone: the game sees at least this much as soon as the stick moves past it. Turn it up for games with a big dead zone of their own.", adz, 0, 32,
+                v => { if (left) s.AllyAdzL = v; else s.AllyAdzR = v; }), subtitle: "0 to 32%. 0% (off) is ASUS's default");
+        }
+        void KeepRightSticks()
+        {
+            // Changing the left stick for the first time: the right keeps what both had.
+            if (s.AllyStickInnerR < 0) s.AllyStickInnerR = s.AllyStickInner;
+            if (s.AllyStickOuterR < 0) s.AllyStickOuterR = s.AllyStickOuter;
+        }
+        Stick("Left Stick", true);
+        Stick("Right Stick", false);
+        AddHeader("Sticks");
         if (Labs.Feature("sticks") is not null && LabPage("sticks") is { } sticksPage)
             AddRow("Stick check", null, "\uE7FC", click: sticksPage, subtitle: "See exactly where each stick and trigger is, to set the dead zones");
+
+        AddHeader("Triggers");
+        if (!pad) AddNote("SquareDeck couldn't find the Ally's controller settings device. These settings apply once it's found.");
+        void KeepRightTriggers()
+        {
+            if (s.AllyTriggerInnerR < 0) s.AllyTriggerInnerR = s.AllyTriggerInner;
+            if (s.AllyTriggerOuterR < 0) s.AllyTriggerOuterR = s.AllyTriggerOuter;
+        }
+        AddRow("Left trigger starts at", ltIn + "%", "\uE7FC", click: () => _ = PickPercentAsync("Left trigger dead zone",
+            "How far the trigger presses before it registers. Raise it for a hair trigger you brush by accident.", ltIn, 0, 50,
+            v => { KeepRightTriggers(); s.AllyTriggerInner = v; }), subtitle: "0% is ASUS's default");
+        AddRow("Left trigger full at", ltOut + "%", "\uE7FC", click: () => _ = PickPercentAsync("Left trigger full at",
+            "How far the trigger presses to count as fully pressed. Lower it for a quicker full throttle or shot.", ltOut, 50, 100,
+            v => { KeepRightTriggers(); s.AllyTriggerOuter = v; }), subtitle: "100% is ASUS's default");
+        AddRow("Right trigger starts at", rtIn + "%", "\uE7FC", click: () => _ = PickPercentAsync("Right trigger dead zone",
+            "How far the trigger presses before it registers.", rtIn, 0, 50, v => s.AllyTriggerInnerR = v), subtitle: "0% is ASUS's default");
+        AddRow("Right trigger full at", rtOut + "%", "\uE7FC", click: () => _ = PickPercentAsync("Right trigger full at",
+            "How far the trigger presses to count as fully pressed.", rtOut, 50, 100, v => s.AllyTriggerOuterR = v), subtitle: "100% is ASUS's default");
+        AddRow("Mirror triggers", ltIn == rtIn && ltOut == rtOut ? "Matching" : "Copy left to right", "\uE8C8",
+            click: () => Tune(() => { s.AllyTriggerInnerR = s.AllyTriggerInner; s.AllyTriggerOuterR = s.AllyTriggerOuter; }),
+            subtitle: "The right trigger takes the left one's settings");
+
+        AddHeader("Controller defaults");
+        if (!AllyControl.IsDefault(AllyControl.TuningFor(s)))
+            AddRow("Put the controller back to ASUS's defaults", null, "\uE777", click: () => Tune(() =>
+            {
+                s.AllyVibration = 100; s.AllyStickInner = 0; s.AllyStickOuter = 100; s.AllyTriggerInner = 0; s.AllyTriggerOuter = 100;
+                s.AllyVibrationR = s.AllyStickInnerR = s.AllyStickOuterR = s.AllyTriggerInnerR = s.AllyTriggerOuterR = -1;
+                s.AllyAdzL = s.AllyAdzR = 0; s.AllyCurveL = s.AllyCurveR = "";
+            }), subtitle: "Vibration, dead zones, anti-deadzone and response curves, both sides");
+        else AddNote("The vibration, sticks and triggers are at ASUS's defaults.");
+        AddHeader("Desktop mode");
         AddRow("Mouse mode", OnOff(AllyControl.MouseMode), "\uE962",
             click: () => { if (!AllyControl.ToggleMouseMode()) Host.ShowToast("ROG ALLY", "Couldn't change the mode", "", "", "info"); Rebuild(); },
             subtitle: "The right stick moves the pointer and the triggers click, for the desktop. Game mode comes back when SquareDeck closes");
+        AddHeader("External controller");
         AddRow("Switch off the built-in controller", null, "\uE7E8", click: async () =>
         {
             if (await Host.AskAsync("Switch off the built-in controller?",
@@ -2590,9 +2674,10 @@ public sealed partial class SettingsScreen : ListScreen
         }, subtitle: "When another controller is player one");
 
         // ---- Buttons
-        AddHeader("Buttons");
+        AddHeader("Button actions");
         AddRow("ROG Ally buttons", s.AllyRemap ? "On" : "Off", "\uE765", click: () => Host.Push(new AllyButtonsScreen()),
             subtitle: "What Armoury Crate, Command Center, the Xbox Library button" + (s.AllyBackKeys ? ", M1 and M2" : "") + " do; a button test");
+        AddHeader("Back buttons");
         AddRow("M1 and M2 back buttons", s.AllyBackKeys ? "Usable" : "As ASUS set them", "\uE765", click: async () =>
         {
             if (!s.AllyBackKeys && await Host.AskAsync("Use the back buttons?",
@@ -2726,7 +2811,7 @@ public sealed partial class SettingsScreen : ListScreen
     }
 
     private static readonly (string Id, string Name)[] WidgetCards =
-        { ("game", "Game"), ("live", "Live"), ("ally", "ROG Ally"), ("quick", "Quick") };
+        { ("game", "Game"), ("live", "Live"), ("ally", "ROG Ally"), ("launch", "Launch"), ("favorites", "Favorites"), ("quick", "Quick") };
 
     private static string WidgetCardsLabel(Settings s)
     {
@@ -3102,6 +3187,12 @@ public sealed partial class SettingsScreen : ListScreen
             subtitle: "In the Captures albums, for games in your library");
 
         AddFeature("microsd", "microSD awareness");
+        // 9.0.20: out of Experimental.
+        AddHeader("Store accounts");
+        AddRow("Epic Games account", StoreAccounts.EpicSignedIn ? (StoreAccounts.EpicName.Length > 0 ? StoreAccounts.EpicName : "Signed in") : "Not signed in", "\uE719",
+            click: () => Host.Push(new StoreAccountScreen("Epic")), subtitle: "Every game on your Epic account in the library, installed or not. Installing goes through the Epic Games Launcher");
+        AddRow("Xbox account", StoreAccounts.XboxSignedIn ? (StoreAccounts.XboxName.Length > 0 ? StoreAccounts.XboxName : "Signed in") : "Not signed in", "\uE990",
+            click: () => Host.Push(new StoreAccountScreen("Xbox")), subtitle: "Your PC games from Xbox, and all of PC Game Pass if you like. Installing goes through the Xbox app");
         AddHeader("Library and store features");
         foreach (var id in new[] { "installestimate", "overnight", "closelaunchers", "steamfullscreen", "refund", "trailers", "diary", "guides",
                                    "achshot", "watermark", "milestones", "stickers", "discord" })
@@ -3349,7 +3440,7 @@ public sealed partial class SettingsScreen : ListScreen
         }
     }
 
-    /// <summary>Experimental > Companion on the update screens: plays either screen with nothing downloaded or installed.</summary>
+    /// <summary>Companion on the update screens: plays either screen with nothing downloaded or installed.</summary>
     private async void TryUpdateCompanion()
     {
         int choice = await Host.AskAsync("Try the update screens", "Nothing is downloaded or installed.", "The download card", "The install screen", "Cancel");
@@ -3391,6 +3482,8 @@ public sealed partial class SettingsScreen : ListScreen
         "mood" => () => Host.Push(PlayPages.Mood()),
         "companion" => () => Host.Push(new CompanionScreen()),
         "companionplay" => () => Host.Push(new CompanionPlayground()),
+        "epicaccount" => () => Host.Push(new StoreAccountScreen("Epic")),
+        "xboxaccount" => () => Host.Push(new StoreAccountScreen("Xbox")),
         "settingsview" => ChooseLayout,
         "stylelights" => () => _ = Host.AskAsync("Lights match the UI style",
             $"{UiStyles.Current.Name} plays {StyleLights.NameFor(UiStyles.Current, Host.Settings)}, in its own colors. Each UI style has its own effect; " +

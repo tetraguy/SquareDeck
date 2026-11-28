@@ -8,7 +8,7 @@ namespace SquareDeck.Services;
 /// from this, and the effects the Ally's firmware doesn't have itself (strobe, heartbeat, candle and the rest) are
 /// played on the real lights from it too, about ten times a second, without saving anything to the controller.
 /// </summary>
-public static class LightFx
+public static partial class LightFx
 {
     /// <summary>The effects SquareDeck plays itself (the rest are the Ally's own, or a single color it sets).</summary>
     public static readonly HashSet<string> Software = new(StringComparer.Ordinal)
@@ -36,7 +36,7 @@ public static class LightFx
         "interactive",
     };
 
-    /// <summary>The effects drawn LED by LED for eight zones (Frame8); on four-zone Allys they're merged in pairs.</summary>
+    /// <summary>The effects drawn LED by LED for eight zones (Frame8); on four-zone Allys each has its own version (Frame4, 9.0.12).</summary>
     public static readonly HashSet<string> Native8 = new(StringComparer.Ordinal)
     {
         "orbit", "twin", "rainbowring", "radar", "pinwheel", "fillup", "batteryring", "cpuring", "snake", "fireworks",
@@ -95,11 +95,8 @@ public static class LightFx
     /// <summary>The four zones' colors: left outer, left inner, right inner, right outer.</summary>
     public static Color[] Frame(string mode, double t, Inputs i)
     {
-        if (Native8.Contains(mode))
-        {
-            var e = Frame8(mode, t, i);
-            return new[] { Mix(e[0], e[1], 0.5), Mix(e[2], e[3], 0.5), Mix(e[4], e[5], 0.5), Mix(e[6], e[7], 0.5) };
-        }
+        // 9.0.12: the effects drawn for the X20's eight LEDs each have a four-zone version for the other Allys.
+        if (Native8.Contains(mode)) return Frame4(mode, t, i);
         double s = i.Speed;
         Color[] Same(Color c) => new[] { c, c, c, c };
         switch (mode)

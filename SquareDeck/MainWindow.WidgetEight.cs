@@ -38,6 +38,11 @@ public partial class MainWindow
     private void AddWidgetEight(JsonObject state)
     {
         var on = WidgetLabs.Where(Labs.On).ToList();
+        // 9.0.17: the Launch and Favorites cards can be hidden in Settings > Controller and Game Bar widget > Widget cards,
+        // like the others (the widget shows them while their switch is in this list).
+        var sections = Settings.WidgetSections ?? new List<string>(Settings.WidgetSectionIds);
+        if (!sections.Contains("launch")) on.Remove("wapps");
+        if (!sections.Contains("favorites")) on.Remove("wfavorites");
         state["labs"] = new JsonArray(on.Select(x => (JsonNode)x).ToArray());
         if (on.Count == 0) return;
         if (Labs.On("ws2"))

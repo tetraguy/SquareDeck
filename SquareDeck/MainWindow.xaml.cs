@@ -1710,6 +1710,9 @@ public partial class MainWindow : Window
             if (hasFolder) Add(Manage, "Show in folder", "\uE838", () => Push(new SquareDeck.Screens.ExplorerScreen(item.InstallDir))); // SquareDeck's own file explorer
             if (hasFolder) Add(Manage, "Fix this game", "\uE90F", () => Push(new FixGameScreen(item)));
             Add(Manage, "Remove from list", "\uE711", Hide, danger: true);
+            // 9.0.8: uninstalling through the game's own store app.
+            if (item.Source == "Epic") Add(Manage, "Uninstall (Epic Games Launcher)", "\uE74D", () => ProcessUtil.Open("com.epicgames.launcher://"), danger: true);
+            else if (item.Source == "Xbox") Add(Manage, "Uninstall (Windows settings)", "\uE74D", () => ProcessUtil.Open("ms-settings:appsfeatures"), danger: true);
         }
         else if (item.IsSteam)
         {
@@ -2067,6 +2070,7 @@ public partial class MainWindow : Window
 
     private void PollGamepad()
     {
+        if (PollQuickMenu()) return; // 9.0.21: the in-game quick menu has the controller while it's open
         // A cloud game is in front: the controller belongs to the page, except the hold-to-exit combo.
         // A web page (streaming, browser, cloud) is its own window inside ours: while it has the keyboard focus WPF can
         // report the launcher as not active even though it's in front, so the foreground window decides too.
@@ -2332,10 +2336,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        // R2 / L2: next / previous song while something is playing (R1 / L1 still flip the pages).
+        // 9.0.13: R2 / L2 on the tiles (Home, Favorites, Apps) jump three tiles right / left, one after another.
+        // Elsewhere on Home (the buttons below, the footer): next / previous song while something is playing.
         if (action is NavAction.RT or NavAction.LT)
         {
-            if (MusicButton.Visibility == Visibility.Visible) _ = SkipSongAsync(action == NavAction.RT);
+            bool onTiles = _footerIndex < 0 && _actionIndex < 0 && _buttonIndex < 0 && _topIndex < 0;
+            if (onTiles && _view.Count > 0) _ = JumpThreeAsync(action == NavAction.RT ? 1 : -1);
+            else if (MusicButton.Visibility == Visibility.Visible) _ = SkipSongAsync(action == NavAction.RT);
             return;
         }
 
@@ -2470,6 +2477,27 @@ public partial class MainWindow : Window
                 else if (_mode != HomeView.Games) SetMode(HomeView.Games);
                 break;
         }
+    }
+
+    private bool _jumping;
+
+    /// <summary>Three tiles along, a tile at a time (so the row slides past 1, 2, 3), stopping at either end.</summary>
+    private async Task JumpThreeAsync(int direction)
+    {
+        if (_jumping) return;
+        _jumping = true;
+        try
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                int before = GameList.SelectedIndex;
+                MoveSelection(direction);
+                if (GameList.SelectedIndex == before) break; // at the end of the row
+                if (i == 0) Rumble();
+                if (i < 2) await Task.Delay(Theme.ReduceMotion ? 0 : 70);
+            }
+        }
+        finally { _jumping = false; }
     }
 
     private void MoveSelection(int delta)
